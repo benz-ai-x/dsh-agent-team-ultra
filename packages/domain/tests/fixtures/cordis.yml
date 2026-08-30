@@ -1,0 +1,9 @@
+- name: '@fixture/agent-team-runtime'
+
+- name: '@deepseek-ai/dsh-agent-team-ultra'
+  config:
+    defaultProvider: fixture-provider
+    maxProfiles: 1
+    maxProfileBytes: 4096
+    maxHooks: 2
+    maxAssignmentBytes: 2048

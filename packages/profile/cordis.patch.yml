@@ -1,0 +1,54 @@
+# Local Agent Team Ultra overlay. Apply after dsh-base and dsh-web-app.
+# Team-owned controls replace the three overlapping global continuable controls.
+
+- id: tool-subagent-control
+  disabled: true
+
+- id: tool-subagent-list-agents
+  disabled: true
+
+- id: tool-subagent-report
+  disabled: true
+
+- id: tool-subagent
+  config:
+    provider: spawn
+    toolName: subagent
+    backgroundMode: one-shot
+
+- id: tool-subagent-fork
+  config:
+    provider: fork
+    toolName: subagent_fork
+    backgroundMode: one-shot
+
+- insert:
+    - id: agent-team
+      name: '@deepseek-ai/dsh-experimental-agent-team'
+      config:
+        maxMembers: 8
+        maxTasks: 256
+        maxPendingMessagesPerMember: 64
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team
+      name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+
+    - id: agent-team-ultra
+      name: '@deepseek-ai/dsh-agent-team-ultra'
+      config:
+        defaultProvider: spawn
+        maxProfiles: 64
+        maxProfileBytes: 131072
+        maxHooks: 32
+        maxAssignmentBytes: 32768
+
+    - id: ui-agent-team
+      name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'
+
+    - id: ui-agent-team-ultra
+      name: '@deepseek-ai/dsh-client-ui-agent-team-ultra'

@@ -1,0 +1,21 @@
+# TODO
+
+## Current vertical slice
+
+- [x] Select local-only overlay delivery against the audited Harness snapshot.
+- [x] Record authority, persistence, cancellation, disposal, collision, and UI decisions.
+- [x] Implement profile schemas, immutable snapshots, and CAS storage.
+- [x] Persist Team/name binding before teammate provisioning.
+- [x] Install tool filters, persona, context, memory, and declarative hooks in child scope.
+- [x] Expose generated Remote view/save/delete/spawn operations.
+- [x] Add the Digital Employee Studio Client slot.
+- [x] Compose stable Loader rows in the bundle patch.
+- [x] Pass unit, lifecycle, Loader/profile, Client, and packed-artifact checks.
+
+## Later
+
+- [ ] Add optional managed worktrees after DSH exposes an enforceable ownership seam.
+- [ ] Add profile import/export and secret-reference fields without transporting credentials.
+- [ ] Add migration tooling before changing the storage-domain format version.
+- [ ] Re-evaluate publishability after experimental Agent Team packages are released.
+- [ ] Run the credentialed manual Web launch and cold-resume acceptance scenario on the target DSH installation.
