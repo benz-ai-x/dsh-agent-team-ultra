@@ -16,6 +16,7 @@ import type {
   DigitalEmployeeProfileRevisionDetail,
   DigitalEmployeeProfileCapability,
   DigitalEmployeeRuntimeBackend,
+  DigitalEmployeeRuntimeCapability,
   DigitalEmployeeRuntimeAvailability,
   DigitalEmployeeRuntimePresence,
   DigitalEmployeeRuntimeTarget,
@@ -280,6 +281,16 @@ function profileCapabilityLabel(capability: DigitalEmployeeProfileCapability, t:
     case 'memory': return t('capabilityMemory')
     case 'tool-policy': return t('capabilityToolPolicy')
     case 'hooks': return t('capabilityHooks')
+  }
+}
+
+function runtimeCapabilityLabel(capability: DigitalEmployeeRuntimeCapability, t: Translate): string {
+  switch (capability) {
+    case 'exact-call-approval': return t('capabilityExactCallApproval')
+    case 'sandbox': return t('capabilitySandbox')
+    case 'evaluation': return t('capabilityEvaluation')
+    case 'evidence': return t('capabilityEvidence')
+    case 'usage': return t('capabilityUsage')
   }
 }
 
@@ -1066,6 +1077,9 @@ export function DigitalEmployeeStudio({
                         {instance.resolvedRuntimeTarget !== undefined && (
                           <small>{t('actualRoute')}: {runtimeTargetLabel(instance.resolvedRuntimeTarget)}</small>
                         )}
+                        {instance.nativeRuntimeHandle !== undefined && (
+                          <small>{t('nativeRuntimeHandle')}: {instance.nativeRuntimeHandle}</small>
+                        )}
                         {instance.error !== undefined && <small className={css.diagnostic}>{instance.error}</small>}
                       </span>
                     </div>
@@ -1156,6 +1170,13 @@ export function DigitalEmployeeStudio({
                                       ? t('noProfileCapabilities')
                                       : selectedRuntimeBackend.profileCapabilities
                                         .map(capability => profileCapabilityLabel(capability, t)).join(' · ')}
+                                  </span>
+                                  <span>
+                                    {t('runtimeCapabilities')}: {' '}
+                                    {selectedRuntimeBackend.runtimeCapabilities.length === 0
+                                      ? t('noRuntimeCapabilities')
+                                      : selectedRuntimeBackend.runtimeCapabilities
+                                        .map(capability => runtimeCapabilityLabel(capability, t)).join(' · ')}
                                   </span>
                                   {selectedRuntimeBackend.diagnostic !== undefined && (
                                     <small className={css.diagnostic}>{selectedRuntimeBackend.diagnostic}</small>

@@ -105,6 +105,7 @@ function runtimeCatalog(): DigitalEmployeeRuntimeCatalog {
         displayName: 'Test Model',
         contextModes: ['fresh', 'fork'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+        runtimeCapabilities: [],
         reasoning: {
           efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
           defaultEffort: 'low',
@@ -118,6 +119,7 @@ function runtimeCatalog(): DigitalEmployeeRuntimeCatalog {
         displayName: 'Native Reviewer',
         contextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission'],
+        runtimeCapabilities: ['evaluation', 'evidence'],
       },
       {
         routingId: 'dsh-model/retired-provider/retired-model',
@@ -129,6 +131,7 @@ function runtimeCatalog(): DigitalEmployeeRuntimeCatalog {
         displayName: 'Retired Model',
         contextModes: [],
         profileCapabilities: [],
+        runtimeCapabilities: [],
         diagnostic: 'Historical route is missing.',
       },
       {
@@ -139,6 +142,7 @@ function runtimeCatalog(): DigitalEmployeeRuntimeCatalog {
         displayName: 'Codex',
         contextModes: [],
         profileCapabilities: [],
+        runtimeCapabilities: [],
         diagnostic: 'One-shot only.',
       },
     ],
@@ -249,6 +253,7 @@ describe('Digital Employee Studio', () => {
     fireEvent.change(backend, { target: { value: 'external-agent/native-reviewer' } })
     expect(screen.getByText(/Available.*Fresh/)).toBeTruthy()
     expect(screen.getByText(/Persona.*Mission/)).toBeTruthy()
+    expect(screen.getByText(/Runtime capabilities: Evaluation.*Evidence/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
     await waitFor(() => { expect(save).toHaveBeenCalledOnce() })
     expect(save.mock.calls[0]?.[1]).toMatchObject({
@@ -316,6 +321,33 @@ describe('Digital Employee Studio', () => {
     expect(screen.getByText('Provisioning: Active · r1')).toBeDefined()
     expect(screen.getByText('Runtime availability: Available')).toBeDefined()
     expect(screen.getByText('Runtime presence: Idle')).toBeDefined()
+  })
+
+  it('shows the opaque native handle for an external instance', async () => {
+    const loaded = view([profile()])
+    const withInstance: DigitalEmployeeStudioView = {
+      ...loaded,
+      instances: [{
+        teamId: 'session-a',
+        memberName: 'native-reviewer',
+        memberId: 'external-member',
+        profileId: 'reviewer',
+        profileRevision: 1,
+        runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+        resolvedRuntimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+        nativeRuntimeHandle: 'native-session-7' as never,
+        requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'idle',
+      }],
+    }
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: withInstance })),
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+
+    expect(await screen.findByText('Native runtime handle: native-session-7')).toBeDefined()
   })
 
   it('reuses one launch request through transport and pending retries, then fences a new intent', async () => {

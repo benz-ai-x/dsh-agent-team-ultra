@@ -12,6 +12,7 @@ import {
   digitalEmployeeProfileSchema,
   digitalEmployeeRuntimeTargetSchema,
   launchRequestIdSchema,
+  nativeRuntimeHandleSchema,
   legacyDigitalEmployeeProfileDraftSchema,
   legacyDigitalEmployeeProfileSchema,
   type LegacyDigitalEmployeeProfile,
@@ -27,6 +28,7 @@ import type {
   DigitalEmployeeRequiredCapabilities,
   DigitalEmployeeRuntimeTarget,
   LaunchRequestId,
+  NativeRuntimeHandle,
   SelectableDigitalEmployeeRuntimeTarget,
 } from './types.ts'
 
@@ -76,6 +78,7 @@ export interface DigitalEmployeeBindingV1 {
   readonly runtimeTarget: DigitalEmployeeRuntimeTarget
   readonly preflightRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
   readonly resolvedRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  readonly nativeRuntimeHandle?: NativeRuntimeHandle
   readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
   readonly capabilityGeneration?: number
   readonly provisioningPhase: DigitalEmployeeProvisioningPhase
@@ -202,6 +205,7 @@ const digitalEmployeeBindingV1InputSchema = z.object({
   runtimeTarget: migratedRuntimeTargetSchema,
   preflightRuntimeTarget: resolvedRuntimeTargetSchema.optional(),
   resolvedRuntimeTarget: resolvedRuntimeTargetSchema.optional(),
+  nativeRuntimeHandle: nativeRuntimeHandleSchema.optional(),
   requiredCapabilities: requiredCapabilitiesSchema.optional(),
   capabilityGeneration: safeInteger.optional(),
   provisioningPhase: provisioningPhaseSchema.optional(),
@@ -222,6 +226,25 @@ const digitalEmployeeBindingV1InputSchema = z.object({
   const present = idempotency.filter(value => value !== undefined).length
   if (present !== 0 && present !== idempotency.length) {
     ctx.addIssue({ code: 'custom', message: 'binding launch identity fields must be present together' })
+  }
+  if (binding.runtimeTarget.kind === 'external-agent') {
+    if (present !== idempotency.length) {
+      ctx.addIssue({ code: 'custom', message: 'external binding requires its complete launch identity tuple' })
+    }
+    const phase = binding.provisioningPhase ?? binding.phase
+    if (phase === 'pending'
+      && (binding.nativeRuntimeHandle !== undefined || binding.resolvedRuntimeTarget !== undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'pending external binding cannot own resolved native identity' })
+    }
+    if (phase === 'active'
+      && (binding.memberId === undefined
+        || binding.nativeRuntimeHandle === undefined
+        || binding.resolvedRuntimeTarget?.kind !== 'external-agent'
+        || binding.resolvedRuntimeTarget.provider !== binding.runtimeTarget.provider)) {
+      ctx.addIssue({ code: 'custom', message: 'active external binding requires its member, native handle, and resolved provider' })
+    }
+  } else if (binding.nativeRuntimeHandle !== undefined) {
+    ctx.addIssue({ code: 'custom', message: 'only external bindings may retain a native runtime handle' })
   }
 }).transform(({ phase, ...binding }) => ({
   ...binding,
@@ -493,6 +516,9 @@ function bindingRecord(
     ...('resolvedRuntimeTarget' in binding && binding.resolvedRuntimeTarget !== undefined
       ? { resolvedRuntimeTarget: binding.resolvedRuntimeTarget }
       : {}),
+    ...('nativeRuntimeHandle' in binding && binding.nativeRuntimeHandle !== undefined
+      ? { nativeRuntimeHandle: binding.nativeRuntimeHandle }
+      : {}),
     requiredCapabilities,
     provisioningPhase,
     ...(binding.error === undefined ? {} : { error: binding.error }),
@@ -671,6 +697,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
     }
   }
   const launchRequests = new Set<string>()
+  const externalHandles = new Set<string>()
   for (const [key, binding] of v1.table('bindings').entries()) {
     if (key !== digitalEmployeeBindingKey(binding.teamId, binding.memberName)
       || binding.profile.id !== binding.profileId
@@ -685,6 +712,16 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
         `Binding ${JSON.stringify(key)} has non-canonical required capabilities`,
         'target-inconsistent',
       )
+    }
+    if (binding.runtimeTarget.kind === 'external-agent' && binding.nativeRuntimeHandle !== undefined) {
+      const providerHandle = canonicalJson([binding.runtimeTarget.provider, binding.nativeRuntimeHandle])
+      if (externalHandles.has(providerHandle)) {
+        throw new DigitalEmployeeMigrationError(
+          `Binding ${JSON.stringify(key)} reuses an external provider native handle`,
+          'target-inconsistent',
+        )
+      }
+      externalHandles.add(providerHandle)
     }
     if (binding.launchRequestId !== undefined) {
       const scopedRequest = canonicalJson([binding.teamId, binding.launchRequestId])
@@ -739,6 +776,9 @@ async function closeAfterFailure(
  * v1 first, optional read-only v0 copy, v0 close, and completion marker last.
  */
 export class DigitalEmployeeStorage {
+  /** Serializes cross-record Binding invariants before the domain write chain. */
+  private bindingWriteTail: Promise<void> = Promise.resolve()
+
   constructor(private readonly domain: DigitalEmployeeV1Domain) {}
 
   getProfileHead(id: string): DigitalEmployeeProfileHead | undefined {
@@ -841,11 +881,31 @@ export class DigitalEmployeeStorage {
   }
 
   putBinding(key: string, binding: DigitalEmployeeBinding | DigitalEmployeeBindingV1): Promise<void> {
-    return this.domain.table('bindings').put(key, bindingRecord(binding))
+    const record = bindingRecord(binding)
+    const operation = this.bindingWriteTail.then(async () => {
+      const bindings = this.domain.table('bindings')
+      if (record.runtimeTarget.kind === 'external-agent' && record.nativeRuntimeHandle !== undefined) {
+        for (const [ownerKey, owner] of bindings.entries()) {
+          if (ownerKey !== key
+            && owner.runtimeTarget.kind === 'external-agent'
+            && owner.runtimeTarget.provider === record.runtimeTarget.provider
+            && owner.nativeRuntimeHandle === record.nativeRuntimeHandle) {
+            throw new DigitalEmployeeMigrationError(
+              `Binding ${JSON.stringify(key)} reuses the external provider native handle owned by ${JSON.stringify(ownerKey)}`,
+              'target-inconsistent',
+            )
+          }
+        }
+      }
+      await bindings.put(key, record)
+    })
+    this.bindingWriteTail = operation.catch(() => undefined)
+    return operation
   }
 
-  close(): Promise<void> {
-    return this.domain.close()
+  async close(): Promise<void> {
+    await this.bindingWriteTail
+    await this.domain.close()
   }
 }
 

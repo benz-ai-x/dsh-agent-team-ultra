@@ -1,6 +1,15 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
+import {
+  TeamError,
+  TeammateEvaluationHandle,
+  TeammateRuntimeError,
+  TeammateRuntimeHandle,
+  TeammateRuntimeTurnId,
+  type TeammateRuntimeMetadata,
+  type TeammateRuntimeProvider,
+  type TeammateRuntimeRegistration,
+} from '@deepseek-ai/dsh-experimental-agent-team'
 import { describe, expect, it, vi } from 'vitest'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
@@ -27,6 +36,28 @@ const DEFAULT_RUNTIME_TARGET = Object.freeze({
   model: 'test-model',
 } as const satisfies DigitalEmployeeRuntimeTarget)
 const LAUNCH_REQUEST_ID = launchRequestIdSchema.parse('11111111-1111-4111-8111-111111111111')
+
+function catalogExternalProvider(
+  metadata: Pick<
+    TeammateRuntimeProvider,
+    'id' | 'displayName' | 'contextModes' | 'profileCapabilities' | 'runtimeCapabilities'
+  > & Record<string, unknown>,
+): TeammateRuntimeProvider {
+  return {
+    ...metadata,
+    create: async () => ({ nativeHandle: TeammateRuntimeHandle('catalog-runtime'), presence: 'idle' }),
+    resume: async () => ({ nativeHandle: TeammateRuntimeHandle('catalog-runtime'), presence: 'idle' }),
+    deliver: async () => ({ turnId: TeammateRuntimeTurnId('catalog-turn'), presence: 'idle' }),
+    interrupt: () => ({ previousStatus: 'idle' }),
+    evidence: async request => ({
+      nativeHandle: request.nativeHandle,
+      items: [],
+      complete: true,
+    }),
+    createEvaluationHandle: async () => ({ evaluationHandle: TeammateEvaluationHandle('catalog-evaluation') }),
+    dispose: async () => undefined,
+  }
+}
 
 interface FakeLlmRoute {
   readonly provider: string
@@ -116,6 +147,8 @@ interface Harness {
   readonly agent: (id: string) => Agent | undefined
   readonly disposeAgent: (agent: Agent) => void
   readonly replaceLlmRoutes: (routes: readonly FakeLlmRoute[]) => void
+  readonly gateNextLlmRefresh: () => { readonly entered: Promise<void>; release(): void }
+  readonly setTeammateRuntimeAvailable: (providerId: string, available: boolean) => void
 }
 
 async function harness(options: {
@@ -124,6 +157,8 @@ async function harness(options: {
   readonly llmRoutes?: readonly FakeLlmRoute[]
   readonly childResolvedRoute?: { readonly provider?: string; readonly model?: string; readonly reasoningEffort?: string }
   readonly spawnFaultAfter?: 'roster-reservation' | 'initial-work-acceptance'
+  readonly spawnErrorBeforeRosterOnce?: Error
+  readonly teammateReplaceError?: Error
 } = {}): Promise<Harness> {
   const ctx = new Context()
   const profiles = new MemoryTable<string, unknown>()
@@ -162,6 +197,23 @@ async function harness(options: {
   const foreignRoot = { id: 'foreign', session: { header: {} }, ctx } as unknown as Agent
   const agents = new Map<string, Agent>([['lead', leader], ['teammate', teammate]])
   let llmRoutes = [...options.llmRoutes ?? [DEFAULT_LLM_ROUTE]]
+  let nextLlmRefreshGate: {
+    readonly entered: PromiseWithResolvers<void>
+    readonly release: PromiseWithResolvers<void>
+  } | undefined
+  const gateNextLlmRefresh = () => {
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const gate = { entered, release }
+    nextLlmRefreshGate = gate
+    return {
+      entered: entered.promise,
+      release: () => {
+        if (nextLlmRefreshGate === gate) nextLlmRefreshGate = undefined
+        release.resolve()
+      },
+    }
+  }
 
   ctx.provide('agents', {
     get: (id: string) => agents.get(id),
@@ -206,14 +258,21 @@ async function harness(options: {
       id: route.provider,
       name: route.providerName,
     }])).values()],
-    listModels: async (provider: string) => llmRoutes
-      .filter(route => route.provider === provider)
-      .map(route => ({
-        provider: route.provider,
-        id: route.model,
-        name: route.modelName,
-        ...(route.secret === undefined ? {} : { apiKey: route.secret, endpoint: `https://${route.secret}` }),
-      })),
+    listModels: async (provider: string) => {
+      const gate = nextLlmRefreshGate
+      if (gate !== undefined) {
+        gate.entered.resolve()
+        await gate.release.promise
+      }
+      return llmRoutes
+        .filter(route => route.provider === provider)
+        .map(route => ({
+          provider: route.provider,
+          id: route.model,
+          name: route.modelName,
+          ...(route.secret === undefined ? {} : { apiKey: route.secret, endpoint: `https://${route.secret}` }),
+        }))
+    },
     resolveModelInfo: async (provider: string, model: string) => {
       const route = llmRoutes.find(candidate => candidate.provider === provider && candidate.model === model)
       if (route === undefined) throw new Error('unknown fake model route')
@@ -255,9 +314,19 @@ async function harness(options: {
     getProvider: (name: string) => continuationProviders.get(name),
   } as never)
 
+  let spawnErrorBeforeRoster = options.spawnErrorBeforeRosterOnce
   const spawn = vi.fn(async (_caller: unknown, request: {
     name: string
     agentOptions?: { readonly provider?: string; readonly model?: string; readonly reasoningEffort?: string }
+    runtime?: {
+      readonly provider: string
+      readonly launchRequestId: string
+      readonly requirements: {
+        readonly contextMode: 'fresh' | 'fork'
+        readonly profileCapabilities: readonly string[]
+        readonly runtimeCapabilities: readonly string[]
+      }
+    }
     signal?: AbortSignal
   }) => {
     const pending = [...bindings.records.values()].find(value =>
@@ -273,12 +342,28 @@ async function harness(options: {
         }),
       ])
     }
+    if (spawnErrorBeforeRoster !== undefined) {
+      const error = spawnErrorBeforeRoster
+      spawnErrorBeforeRoster = undefined
+      throw error
+    }
+    const externalRuntime = request.runtime === undefined ? undefined : {
+      kind: 'external-agent',
+      launchRequestId: request.runtime.launchRequestId,
+      requestFingerprint: 'fake-provider-request',
+      requirements: request.runtime.requirements,
+    }
     const rosterMember: Record<string, unknown> = {
       id: 'child',
       name: request.name,
       role: 'teammate',
       status: 'provisioning',
       requestedRoute: request.agentOptions ?? {},
+      ...(request.runtime === undefined ? {} : {
+        provider: request.runtime.provider,
+        context: request.runtime.requirements.contextMode,
+        externalRuntime,
+      }),
       diagnostics: [],
     }
     roster.push(rosterMember)
@@ -288,6 +373,9 @@ async function harness(options: {
     const resolvedRoute = options.childResolvedRoute ?? request.agentOptions ?? {}
     rosterMember.status = 'idle'
     rosterMember.resolvedRoute = resolvedRoute
+    if (externalRuntime !== undefined) {
+      Object.assign(externalRuntime, { nativeHandle: TeammateRuntimeHandle('catalog-runtime') })
+    }
     const childCtx = {
       systemPrompt: { section: sections, context: contexts },
       tools: { restrict: restriction },
@@ -315,6 +403,10 @@ async function harness(options: {
         name: request.name,
         requestedRoute: request.agentOptions ?? {},
         resolvedRoute,
+        ...(request.runtime === undefined ? {} : {
+          provider: request.runtime.provider,
+          externalRuntime,
+        }),
         ...(resolvedRoute.model === undefined ? {} : { model: resolvedRoute.model }),
       },
     }
@@ -329,6 +421,45 @@ async function harness(options: {
     return { id: agent.id, root: agent, role: 'lead', name: 'lead' } as const
   }
   const listMembers = vi.fn(() => roster)
+  const teammateRegistrations = new Map<string, { setAvailable(available: boolean): void }>()
+  const teammateMetadata = (provider: TeammateRuntimeProvider): TeammateRuntimeMetadata => Object.freeze({
+    id: provider.id,
+    displayName: provider.displayName,
+    contextModes: Object.freeze(['fresh', 'fork'].filter(value => provider.contextModes.includes(value as never))) as never,
+    profileCapabilities: Object.freeze([
+      'persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks',
+    ].filter(value => provider.profileCapabilities.includes(value as never))) as never,
+    runtimeCapabilities: Object.freeze([
+      'exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage',
+    ].filter(value => provider.runtimeCapabilities.includes(value as never))) as never,
+  })
+  const registerTeammateRuntimeProvider = (provider: TeammateRuntimeProvider): TeammateRuntimeRegistration => {
+    let available = true
+    let metadata = teammateMetadata(provider)
+    const listeners = new Set<() => void>()
+    const setAvailable = (next: boolean): void => {
+      if (next === available) return
+      available = next
+      for (const listener of [...listeners]) listener()
+    }
+    const registration = (async () => { setAvailable(false) }) as TeammateRuntimeRegistration
+    registration.available = () => available
+    registration.metadata = () => metadata
+    registration.onAvailabilityChanged = (listener) => {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    }
+    registration.replace = async (replacement) => {
+      if (options.teammateReplaceError !== undefined) {
+        setAvailable(false)
+        throw options.teammateReplaceError
+      }
+      metadata = teammateMetadata(replacement)
+      setAvailable(true)
+    }
+    teammateRegistrations.set(provider.id, { setAvailable })
+    return registration
+  }
   ctx.provide('agentTeams', {
     tryMembership,
     membership: (agent: Agent) => {
@@ -340,6 +471,7 @@ async function harness(options: {
     },
     listMembers,
     spawnTeammate: spawn,
+    registerTeammateRuntimeProvider,
   } as never)
 
   const fiber = ctx.plugin(DigitalEmployeeService, options.serviceConfig)
@@ -371,6 +503,12 @@ async function harness(options: {
     replaceLlmRoutes: (routes) => {
       llmRoutes = [...routes]
       ctx.emit('llm/adapters-updated')
+    },
+    gateNextLlmRefresh,
+    setTeammateRuntimeAvailable: (providerId, available) => {
+      const registration = teammateRegistrations.get(providerId)
+      if (registration === undefined) throw new Error(`missing teammate runtime ${providerId}`)
+      registration.setAvailable(available)
     },
   }
 }
@@ -1435,6 +1573,54 @@ describe('Digital Employee profile contract', () => {
     await replacement.dispose()
   })
 
+  it('keeps a pre-roster external reservation pending when the provider becomes unavailable and resumes it', async () => {
+    const runtime = await harness({
+      spawnErrorBeforeRosterOnce: new TeammateRuntimeError(
+        'native reviewer temporarily unavailable',
+        'TEAM_RUNTIME_UNAVAILABLE',
+      ),
+    })
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: [],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const request = { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' }
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'pending' })
+    expect([...runtime.bindings.records.values()][0]).not.toHaveProperty('memberId')
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        memberId: 'child',
+        nativeRuntimeHandle: 'catalog-runtime',
+        provisioningPhase: 'active',
+      },
+    })
+    expect(runtime.spawn).toHaveBeenCalledTimes(2)
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+
+    await registration()
+    await runtime.fiber.dispose()
+  })
+
   it('repairs a contradictory Binding from the authoritative roster on service restart', async () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
@@ -1658,7 +1844,7 @@ describe('Digital Employee profile contract', () => {
     await runtime.fiber.dispose()
   })
 
-  it('closes admission but lets an admitted launch record its terminal edge before storage closes', async () => {
+  it('closes admission while preserving a pre-roster launch intent for an identical replay', async () => {
     const gate = Promise.withResolvers<void>()
     const runtime = await harness({ spawnGate: gate.promise })
     await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
@@ -1681,9 +1867,25 @@ describe('Digital Employee profile contract', () => {
     const disposal = runtime.fiber.dispose()
     await expect(launch).rejects.toThrow('Agent Team Ultra service disposed')
     await disposal
-    expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'failed' })
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'pending' })
     expect(runtime.close).toHaveBeenCalledOnce()
     gate.resolve()
+  })
+
+  it('keeps service disposal pending until an in-flight runtime catalog refresh settles', async () => {
+    const runtime = await harness()
+    const gate = runtime.gateNextLlmRefresh()
+    runtime.replaceLlmRoutes([{ ...DEFAULT_LLM_ROUTE, modelName: 'Refreshed Model' }])
+    await gate.entered
+
+    let disposed = false
+    const disposal = runtime.fiber.dispose().then(() => { disposed = true })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(disposed).toBe(false)
+
+    gate.release()
+    await disposal
+    expect(runtime.close).toHaveBeenCalledOnce()
   })
 
   it('publishes a detached capability-aware catalog with stable route ids and safe topology generations', async () => {
@@ -1766,14 +1968,15 @@ describe('Digital Employee profile contract', () => {
     const contributor = runtime.ctx.plugin({
       inject: ['digitalEmployees'],
       apply(pluginCtx: Context) {
-        registration = pluginCtx.digitalEmployees.registerExternalRuntimeProvider({
+        registration = pluginCtx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
           id: 'native-reviewer',
           displayName: 'Native Reviewer',
           contextModes: ['fresh'],
           profileCapabilities: ['persona', 'mission'],
+          runtimeCapabilities: ['evidence'],
           apiKey: 'never-copy-this',
           endpoint: 'https://secret.invalid',
-        } as never)
+        }))
       },
     })
     await contributor
@@ -1788,17 +1991,25 @@ describe('Digital Employee profile contract', () => {
       displayName: 'Native Reviewer',
       contextModes: ['fresh'],
       profileCapabilities: ['persona', 'mission'],
+      runtimeCapabilities: ['evidence'],
     }))
     expect(JSON.stringify(first)).not.toContain('never-copy-this')
     expect(JSON.stringify(first)).not.toContain('secret.invalid')
 
-    registration?.replace({
+    const refreshGate = runtime.gateNextLlmRefresh()
+    let replacementSettled = false
+    const replacing = registration?.replace(catalogExternalProvider({
       id: 'native-reviewer',
       displayName: 'Native Reviewer v2',
       contextModes: ['fork', 'fresh'],
       profileCapabilities: ['persona', 'mission', 'context', 'memory'],
-    })
-    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+      runtimeCapabilities: ['evaluation', 'evidence'],
+    })).then(() => { replacementSettled = true })
+    await refreshGate.entered
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(replacementSettled).toBe(false)
+    refreshGate.release()
+    await replacing
     const replaced = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
     expect(replaced.generation).toBeGreaterThan(first.generation)
     expect(replaced.backends).toContainEqual(expect.objectContaining({
@@ -1815,6 +2026,70 @@ describe('Digital Employee profile contract', () => {
     }))
     expect(removed.generation).toBeGreaterThan(replaced.generation)
 
+    await runtime.fiber.dispose()
+  })
+
+  it('removes durable external metadata when the underlying provider replacement fails closed', async () => {
+    const runtime = await harness({ teammateReplaceError: new Error('native retirement failed') })
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission'],
+      runtimeCapabilities: ['evidence'],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    expect(runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog.backends)
+      .toContainEqual(expect.objectContaining({ routingId: 'external-agent/native-reviewer' }))
+
+    await expect(registration.replace(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer v2',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission'],
+      runtimeCapabilities: ['evidence'],
+    }))).rejects.toThrow('native retirement failed')
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    expect(runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog.backends)
+      .not.toContainEqual(expect.objectContaining({ routingId: 'external-agent/native-reviewer' }))
+
+    await registration()
+    await runtime.fiber.dispose()
+  })
+
+  it('immediately projects upstream-quarantined external providers as unavailable and blocks launch', async () => {
+    const runtime = await harness()
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: [],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    runtime.setTeammateRuntimeAvailable('native-reviewer', false)
+    expect(runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog.backends)
+      .toContainEqual(expect.objectContaining({
+        routingId: 'external-agent/native-reviewer',
+        availability: 'unavailable',
+      }))
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
+    expect(runtime.bindings.size).toBe(0)
+
+    await registration()
     await runtime.fiber.dispose()
   })
 
@@ -1890,12 +2165,13 @@ describe('Digital Employee profile contract', () => {
 
   it('validates external initial-context and Profile policy capabilities without using one-shot fallbacks', async () => {
     const runtime = await harness()
-    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider({
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
       id: 'native-minimal',
       displayName: 'Native Minimal',
       contextModes: ['fresh'],
       profileCapabilities: ['persona', 'mission'],
-    })
+      runtimeCapabilities: [],
+    }))
     await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
 
     await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
@@ -1932,7 +2208,7 @@ describe('Digital Employee profile contract', () => {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
     })).resolves.toMatchObject({ ok: true })
 
-    registration()
+    await registration()
     await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
     await expect(runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 2,

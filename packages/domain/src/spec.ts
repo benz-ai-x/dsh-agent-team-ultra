@@ -1,6 +1,8 @@
 /** Durable storage-domain and input schemas for Agent Team Ultra. */
 
+import { Buffer } from 'node:buffer'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import type { TeammateRuntimeHandle } from '@deepseek-ai/dsh-experimental-agent-team'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { z } from 'zod'
 import type {
@@ -8,6 +10,7 @@ import type {
   DigitalEmployeeProfileDraft,
   DigitalEmployeeRuntimeTarget,
   LaunchRequestId,
+  NativeRuntimeHandle,
   ProfileHook,
   ProfileTextBlock,
   ProfileToolPolicy,
@@ -21,6 +24,19 @@ const canonicalUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{
 /** Canonical lowercase UUID accepted as one caller-owned launch identity. */
 export const launchRequestIdSchema = z.string().regex(canonicalUuid)
   .transform(value => brandString<LaunchRequestId>(value))
+
+/** Bounded non-secret identity returned by one durable native provider. */
+export const nativeRuntimeHandleSchema = z.string()
+  .min(1)
+  .refine(value => Buffer.byteLength(value, 'utf8') <= 200, {
+    message: 'native runtime handle must be at most 200 UTF-8 bytes',
+  })
+  .transform(value => brandString<NativeRuntimeHandle>(value))
+
+/** Rebrand an upstream-validated opaque teammate handle for Ultra persistence. */
+export function nativeRuntimeHandleFromTeammate(handle: TeammateRuntimeHandle): NativeRuntimeHandle {
+  return brandString<NativeRuntimeHandle>(handle)
+}
 
 export const profileTextBlockSchema = z.object({
   id: z.string().min(1).max(64).regex(identifier),

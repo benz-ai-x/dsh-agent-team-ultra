@@ -19,6 +19,7 @@ import {
 } from '../src/spec.ts'
 import {
   assignmentContentHash,
+  digitalEmployeeBindingV1Schema,
   digitalEmployeeV1DomainSpec,
   digitalEmployeeBindingKey,
   launchRequestFingerprint,
@@ -78,6 +79,51 @@ const migratedBinding = {
   ...legacyBindingFields,
   profile: migratedProfile,
   provisioningPhase: 'active' as const,
+}
+
+const externalTarget = { kind: 'external-agent', provider: 'native-reviewer' } as const
+
+function externalBinding(
+  memberName: string,
+  launchRequestId: string,
+  nativeRuntimeHandle = 'shared-native-handle',
+) {
+  const requiredCapabilities = requiredCapabilitiesForProfile(migratedProfileDraft)
+  const profileFingerprint = profileContentFingerprint(
+    migratedProfileDraft,
+    externalTarget,
+    requiredCapabilities,
+  )
+  const assignmentHash = assignmentContentHash(`assignment:${memberName}`)
+  return {
+    schemaVersion: 1 as const,
+    teamId: 'lead',
+    memberName,
+    memberId: `member:${memberName}`,
+    launchRequestId,
+    requestFingerprint: launchRequestFingerprint({
+      profileId: migratedProfile.id,
+      profileRevision: migratedProfile.revision,
+      profileFingerprint,
+      runtimeTarget: externalTarget,
+      preflightRuntimeTarget: externalTarget,
+      requiredCapabilities,
+      capabilityGeneration: 1,
+      assignmentHash,
+    }),
+    assignmentHash,
+    profileId: migratedProfile.id,
+    profileRevision: migratedProfile.revision,
+    profileFingerprint,
+    profile: migratedProfile,
+    runtimeTarget: externalTarget,
+    preflightRuntimeTarget: externalTarget,
+    resolvedRuntimeTarget: externalTarget,
+    nativeRuntimeHandle,
+    requiredCapabilities,
+    capabilityGeneration: 1,
+    provisioningPhase: 'active' as const,
+  }
 }
 
 const laxV0Spec = StorageDomain.defineDomain({
@@ -245,6 +291,144 @@ function installAgentRuntime(
 }
 
 describe('Digital Employee v1 storage generation', () => {
+  it('requires the complete launch and member identity tuple for every external Binding', () => {
+    const complete = externalBinding(
+      'native-reviewer-a',
+      '44444444-4444-4444-8444-444444444444',
+    )
+    const { launchRequestId: _launchRequestId, ...missingLaunchIdentity } = complete
+    const { memberId: _memberId, ...missingMemberIdentity } = complete
+
+    expect(digitalEmployeeBindingV1Schema.safeParse(complete).success).toBe(true)
+    expect(digitalEmployeeBindingV1Schema.safeParse({
+      ...missingLaunchIdentity,
+      provisioningPhase: 'pending',
+      resolvedRuntimeTarget: undefined,
+      nativeRuntimeHandle: undefined,
+      memberId: undefined,
+    }).success).toBe(false)
+    expect(digitalEmployeeBindingV1Schema.safeParse(missingMemberIdentity).success).toBe(false)
+    expect(digitalEmployeeBindingV1Schema.safeParse({
+      ...complete,
+      provisioningPhase: 'pending',
+    }).success).toBe(false)
+  })
+
+  it.each(['json', 'sqlite'] as const)(
+    'rejects duplicate external provider/native-handle ownership on the %s backend',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const seeded = await runtime.ctx.storageDomain.open(permissiveV1Spec({
+          formatVersion: 1,
+          status: 'complete',
+          sourceVersion: 0,
+        }))
+        const first = externalBinding(
+          'native-reviewer-a',
+          '44444444-4444-4444-8444-444444444444',
+        )
+        const second = externalBinding(
+          'native-reviewer-b',
+          '55555555-5555-4555-8555-555555555555',
+        )
+        await seeded.table('bindings').put(digitalEmployeeBindingKey(first.teamId, first.memberName), first)
+        await seeded.table('bindings').put(digitalEmployeeBindingKey(second.teamId, second.memberName), second)
+        await seeded.close()
+
+        await expect(openDigitalEmployeeStorage(runtime.ctx.storageDomain)).rejects.toMatchObject({
+          name: 'DigitalEmployeeMigrationError',
+          code: 'target-inconsistent',
+        })
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'rejects a live write that reuses an offline Team external handle on the %s backend',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const storage = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        const offline = {
+          ...externalBinding(
+            'offline-reviewer',
+            '66666666-6666-4666-8666-666666666666',
+            'offline-native-handle',
+          ),
+          teamId: 'offline-team',
+        }
+        const live = {
+          ...externalBinding(
+            'live-reviewer',
+            '77777777-7777-4777-8777-777777777777',
+            'offline-native-handle',
+          ),
+          teamId: 'live-team',
+        }
+        const offlineKey = digitalEmployeeBindingKey(offline.teamId, offline.memberName)
+        const liveKey = digitalEmployeeBindingKey(live.teamId, live.memberName)
+
+        await storage.putBinding(offlineKey, offline)
+        await expect(storage.putBinding(liveKey, live)).rejects.toMatchObject({
+          name: 'DigitalEmployeeMigrationError',
+          code: 'target-inconsistent',
+        })
+        expect(storage.getBinding(offlineKey)).toEqual(offline)
+        expect(storage.getBinding(liveKey)).toBeUndefined()
+        await storage.close()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'serializes concurrent cross-Team claims for one external handle on the %s backend',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const storage = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        const left = {
+          ...externalBinding(
+            'left-reviewer',
+            '88888888-8888-4888-8888-888888888888',
+            'raced-native-handle',
+          ),
+          teamId: 'left-team',
+        }
+        const right = {
+          ...externalBinding(
+            'right-reviewer',
+            '99999999-9999-4999-8999-999999999999',
+            'raced-native-handle',
+          ),
+          teamId: 'right-team',
+        }
+
+        const results = await Promise.allSettled([
+          storage.putBinding(digitalEmployeeBindingKey(left.teamId, left.memberName), left),
+          storage.putBinding(digitalEmployeeBindingKey(right.teamId, right.memberName), right),
+        ])
+
+        expect(results.map(result => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+        const rejected = results.find(result => result.status === 'rejected')
+        expect(rejected).toMatchObject({
+          reason: {
+            name: 'DigitalEmployeeMigrationError',
+            code: 'target-inconsistent',
+          },
+        })
+        expect([...storage.bindingEntries()]).toHaveLength(1)
+        await storage.close()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
   it('declares the migration marker and every per-record table up front', () => {
     expect(digitalEmployeeV1DomainSpec).toMatchObject({
       name: 'agent_team_ultra_v1',

@@ -25,7 +25,7 @@ The Profile Revision selected by a Profile Head as the only launchable definitio
 _Avoid_: Current candidate, latest version
 
 **Binding**:
-The durable association between an exact Team member identity and the Launch Request ID, Profile Revision, selected Runtime Target, Preflight Runtime Target, descriptor-resolved Runtime Target, Required Capabilities, and immutable Profile snapshot used to create or restore that member.
+The durable association between an exact Team member identity and the Launch Request ID, Profile Revision, selected Runtime Target, Preflight Runtime Target, resolved Runtime Target, optional external Native Runtime Handle, Required Capabilities, and immutable Profile snapshot used to create or restore that member.
 _Avoid_: Assignment, link
 
 **Launch Intent**:
@@ -45,7 +45,7 @@ The current derived ability of the selected Runtime Backend to honor a Binding's
 _Avoid_: Provisioning Phase, online member
 
 **Runtime Presence**:
-The current derived `running | idle | inactive` residency of a provisioned member in the exact live Agent registry.
+The current derived `running | idle | inactive` residency of a provisioned member in the exact live Agent registry or its exact external provider generation.
 _Avoid_: Provisioning Phase, backend availability
 
 **Runtime Target**:
@@ -53,7 +53,7 @@ The exact discriminated placement pinned by a Profile Revision: either a DSH pro
 _Avoid_: Provider guess, inferred model, display label
 
 **Resolved Runtime Target**:
-The actual provider/model/reasoning route proven by a created child's durable continuation descriptor. It must preserve every explicit field of the selected Runtime Target and is recorded separately in the Binding and Studio.
+The actual DSH provider/model/reasoning route proven by a child descriptor, or the external provider identity proven together with its Native Runtime Handle. It must preserve every explicit field of the selected Runtime Target and is recorded separately in the Binding and Studio.
 _Avoid_: Lead route, adapter fallback, display selection
 
 **Preflight Runtime Target**:
@@ -61,8 +61,20 @@ The exact executable route resolved and verified immediately before a pending Bi
 _Avoid_: Actual route, child route
 
 **Runtime Backend**:
-A detached, browser-safe catalog row describing one stable Runtime Target route, current availability, context semantics, and enforceable Profile capabilities.
+A detached, browser-safe catalog row describing one stable Runtime Target route, current availability, context semantics, enforceable Profile capabilities, and enforceable operational Runtime Capabilities.
 _Avoid_: Adapter object, credential-bearing provider config
+
+**Durable External Runtime Provider**:
+A Fiber-scoped Host implementation of the Agent Team teammate-runtime contract that owns provider-native sessions, turns, evidence, evaluation handles, and exact resource disposal.
+_Avoid_: One-shot subagent, catalog metadata object
+
+**Native Runtime Handle**:
+The stable opaque provider-native identity returned after initial work is durably accepted and retained before an external Binding becomes active.
+_Avoid_: Member ID, Launch Request ID, provider process object
+
+**Runtime Capability**:
+An operational guarantee a provider can enforce, such as exact-call approval, sandboxing, evaluation isolation, evidence, or usage accounting.
+_Avoid_: Advertised feature hint, secret provider configuration
 
 **Continuation Provider**:
 The DSH continuable-child mechanism that implements `fresh` or `fork` conversation construction for a DSH model target; it is not the model Runtime Target.

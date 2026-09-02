@@ -7,7 +7,7 @@ Team Lead can create versioned employee profiles, choose a teammate name,
 a capability-aware Runtime Backend, a separate continuation provider/context
 mode, inherited tool allow/deny policy, curated context, long-term profile
 memory, and declarative lifecycle hooks, then launch that profile as a real
-continuable Agent Team teammate.
+DSH-continuable or provider-native durable Agent Team teammate.
 
 The first observable scenario is: create a `code-reviewer` profile in the Web
 UI, select read/search tools, add review rules and memory, launch it for the
@@ -55,24 +55,25 @@ contracts.
   inactive or archived Profile cannot launch.
 - Archive retains the Head, all Revision history, and existing Bindings. Restore
   is explicit and CAS-guarded; hard delete is not part of the contract.
-- Launch resolves the active Revision's selected DSH route, then persists a
+- Launch resolves the active Revision's selected exact route, then persists a
   pending Binding before Agent Team provisioning. That reservation contains
   the Team-scoped Launch Request ID, normalized request and assignment
   fingerprints, active Revision/Profile snapshot, selected Runtime Target,
   distinct Preflight Runtime Target, Required Capabilities, catalog generation,
-  and member name. Resolved Runtime Target remains absent until a child
-  continuation descriptor proves the actual route.
-  After the child accepts its prompt, the Host correlates the continuation
-  descriptor and records the actual resolved route separately. The existing
-  Agent Team Lead Session log remains authoritative for roster, mailbox, and
-  task facts.
+  and member name. Resolved Runtime Target remains absent until either a child
+  continuation descriptor proves the actual DSH route or an external provider
+  durably accepts initial work and returns its stable Native Runtime Handle.
+  The active external Binding records that handle atomically with its resolved
+  provider identity. The existing Agent Team Lead Session log remains
+  authoritative for roster, mailbox, and task facts.
 - The Client mints one canonical UUID for a Launch Intent and reuses it across
   transport failures or a durable `pending` result. Within one Team, identical
   replay returns or resumes the existing Binding; changing normalized Profile
   or assignment input returns `launch-request-conflict`. The assignment text
   is used for initial work but only its canonical hash is persisted.
 - Each employee binds to an exact Revision, selected Runtime Target, resolved
-  child Runtime Target, Required Capabilities, and immutable profile snapshot.
+  child or external Runtime Target, optional Native Runtime Handle, Required
+  Capabilities, and immutable profile snapshot.
   Editing a profile or changing the Lead/default route affects future launches,
   not already-created teammates or cold resumes.
 
@@ -125,10 +126,26 @@ contracts.
   substituting the Lead route.
 - One-shot-only Codex and Claude Code providers may appear as unsupported
   diagnostics, but are disabled until a durable runtime registers.
+- A durable external provider registers one complete typed contract with Agent
+  Team and Ultra. Its detached catalog metadata includes enforceable context,
+  Profile, and operational Runtime Capabilities. Provider objects, credentials,
+  endpoints, environment values, and native payloads never enter storage,
+  Typert, Remote, or Studio views.
+- External create routes by the selected provider plus launch/member identity
+  and returns the durable native handle. Resume and later runtime delivery,
+  interrupt, evidence, and disposal route through that exact opaque handle.
+  Isolated evaluation creation uses its own evaluation id and returns a distinct
+  evaluation handle for exact disposal. The provider-native session is
+  canonical; Launch Request ID, Team member id, and Binding identity are
+  correlations only.
+- Agent Team validates every requested context, Profile, approval, sandbox,
+  evaluation, evidence, and usage capability before provider work. A mismatch
+  fails closed without a DSH or one-shot fallback.
 - A tool policy filters capabilities inherited from the parent preset. Team
   tools installed in the teammate's own scope remain available.
-- Context and curated memory are bounded prompt sections. The employee's
-  durable Session provides episodic conversation memory.
+- Context and curated memory are bounded Profile sections. A DSH employee's
+  durable child Session provides episodic conversation memory; an external
+  employee's native session and history remain provider-owned.
 - Hooks are safe declarative adapters for `session-start`, `before-step`,
   `before-tool`, and `after-tool`. Arbitrary shell/JavaScript hooks are not in
   the first increment.
@@ -138,15 +155,18 @@ contracts.
 
 ## Cancellation and disposal
 
-Caller cancellation owns launch until the upstream Agent Team accepts the
-initial prompt. After acceptance, the Team runtime owns the continuable child.
+Caller cancellation owns launch until the upstream Agent Team or external
+provider durably accepts the initial work. After acceptance, the Team runtime
+owns terminal settlement of the continuable child or native handle.
 Service disposal may cancel validation or unaccepted provisioning, but never
 stops an unrelated child or one whose initial work is durably Team-owned.
 Startup, live Lead/roster events, and Runtime Backend generations reconcile
 Bindings against the authoritative permanent roster without provisioning a
 replacement. Provisioning Phase is durable; Runtime Availability and Runtime
-Presence are derived independently from current catalog and exact live-Agent
-facts.
+Presence are derived independently from the current catalog and exact
+live-Agent or provider-generation facts. Provider disappearance does not
+rewrite an active Binding; return must resume its stored launch/member/handle
+tuple without a replacement.
 The Host listens to the synchronous `agent/created` publication edge and
 matches the exact Agent against the already-persisted binding. It installs the
 immutable profile through `agent.ctx` before `agent/session-start` and the
@@ -154,6 +174,10 @@ first prompt assembly; a synchronous installation failure vetoes publication.
 Service disposal closes mutation admission, removes the lifecycle listeners,
 revokes every resident child installation and Runtime Backend registration,
 waits for admitted profile/binding commits, and closes its v1 storage domain.
+Removing an external-provider Fiber immediately closes provider admission,
+removes its catalog row, aborts native cleanup after the Agent Team grace
+period, still awaits actual quiescence, and releases only that generation's
+runtime/evaluation handles.
 Child-scope prompt, tool, and hook registrations are also disposed when that
 exact Agent scope ends.
 Installations are keyed by exact Agent object identity. Agent disposal, Fiber
@@ -205,3 +229,8 @@ tools, and reconstructs the same route and Profile snapshot after cold resume,
 even if the Lead route or active Profile later changes. A retried Launch Intent
 must converge to that same permanent member, while Studio reports its durable
 Provisioning Phase separately from current Runtime Availability and Presence.
+For an external target, acceptance additionally requires the same opaque
+Native Runtime Handle before the active Binding edge, two mailbox turns around
+an Ultra restart, inactive/unavailable views while the provider is absent,
+exact-handle resume and interrupt after it returns, no duplicate native
+session, no one-shot fallback, and no provider secret in Remote or Studio.

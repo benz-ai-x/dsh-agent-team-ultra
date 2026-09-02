@@ -2,7 +2,14 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
+import TeamService, {
+  TeammateEvaluationHandle,
+  TeammateRuntimeHandle,
+  TeammateRuntimeEvidenceId,
+  TeammateRuntimeTurnId,
+  type TeammateRuntimeDisposeRequest,
+  type TeammateRuntimeProvider,
+} from '@deepseek-ai/dsh-experimental-agent-team'
 import {
   LlmAdapter,
   ReasoningEffortId,
@@ -117,33 +124,45 @@ class LeadAdapter extends LlmAdapter {
   }
 }
 
-function installMemoryStorageDomain(ctx: Context): void {
-  const v0Profiles = new MemoryTable<string, unknown>()
-  const v0Bindings = new MemoryTable<string, unknown>()
-  const v1Tables = new Map([
-    ['profile_heads', new MemoryTable<string, unknown>()],
-    ['profile_revisions', new MemoryTable<string, unknown>()],
-    ['bindings', new MemoryTable<string, unknown>()],
-    ['run_index', new MemoryTable<string, unknown>()],
-    ['eval_sets', new MemoryTable<string, unknown>()],
-    ['eval_runs', new MemoryTable<string, unknown>()],
-  ])
-  let migrationMarker: unknown = { formatVersion: 1, status: 'pending', sourceVersion: 0 }
+interface MemoryStorageDomainState {
+  readonly v0Profiles: MemoryTable<string, unknown>
+  readonly v0Bindings: MemoryTable<string, unknown>
+  readonly v1Tables: Map<string, MemoryTable<string, unknown>>
+  migrationMarker: unknown
+}
+
+function memoryStorageDomainState(): MemoryStorageDomainState {
+  return {
+    v0Profiles: new MemoryTable<string, unknown>(),
+    v0Bindings: new MemoryTable<string, unknown>(),
+    v1Tables: new Map([
+      ['profile_heads', new MemoryTable<string, unknown>()],
+      ['profile_revisions', new MemoryTable<string, unknown>()],
+      ['bindings', new MemoryTable<string, unknown>()],
+      ['run_index', new MemoryTable<string, unknown>()],
+      ['eval_sets', new MemoryTable<string, unknown>()],
+      ['eval_runs', new MemoryTable<string, unknown>()],
+    ]),
+    migrationMarker: { formatVersion: 1, status: 'pending', sourceVersion: 0 },
+  }
+}
+
+function installMemoryStorageDomain(ctx: Context, state = memoryStorageDomainState()): MemoryStorageDomainState {
   ctx.provide('storageDomain', {
     open: async (spec: { readonly name: string }) => {
       if (spec.name === 'agent_team_ultra') {
         return {
-          table: (name: string) => name === 'profiles' ? v0Profiles : v0Bindings,
+          table: (name: string) => name === 'profiles' ? state.v0Profiles : state.v0Bindings,
           close: async () => undefined,
         }
       }
       return {
         global: {
-          get: () => migrationMarker,
-          set: async (value: unknown) => { migrationMarker = value },
+          get: () => state.migrationMarker,
+          set: async (value: unknown) => { state.migrationMarker = value },
         },
         table: (name: string) => {
-          const table = v1Tables.get(name)
+          const table = state.v1Tables.get(name)
           if (table === undefined) throw new Error(`unexpected v1 table ${name}`)
           return table
         },
@@ -151,6 +170,117 @@ function installMemoryStorageDomain(ctx: Context): void {
       }
     },
   } as never)
+  return state
+}
+
+interface FakeNativeSession {
+  readonly launchRequestId: string
+  readonly memberId: SessionId
+  readonly nativeHandle: ReturnType<typeof TeammateRuntimeHandle>
+  readonly turns: Map<string, ReturnType<typeof TeammateRuntimeTurnId>>
+  status: 'running' | 'idle'
+}
+
+interface FakeNativeStore {
+  readonly sessions: Map<string, FakeNativeSession>
+  readonly evaluations: Map<string, ReturnType<typeof TeammateEvaluationHandle>>
+  nextSession: number
+  nextTurn: number
+  nextEvaluation: number
+}
+
+function fakeNativeStore(): FakeNativeStore {
+  return {
+    sessions: new Map(),
+    evaluations: new Map(),
+    nextSession: 1,
+    nextTurn: 1,
+    nextEvaluation: 1,
+  }
+}
+
+class FakeNativeProvider implements TeammateRuntimeProvider {
+  readonly id = 'fake-native'
+  readonly displayName = 'Fake Native'
+  readonly contextModes = ['fresh'] as const
+  readonly profileCapabilities = ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'] as const
+  readonly runtimeCapabilities = ['evaluation', 'evidence'] as const
+  readonly apiKey = 'never-cross-the-host-boundary'
+  readonly attached = new Set<ReturnType<typeof TeammateRuntimeHandle>>()
+  readonly create = vi.fn<TeammateRuntimeProvider['create']>(async (request) => {
+    request.signal.throwIfAborted()
+    const key = `${request.launchRequestId}:${request.memberId}`
+    let session = this.store.sessions.get(key)
+    if (session === undefined) {
+      session = {
+        launchRequestId: request.launchRequestId,
+        memberId: request.memberId,
+        nativeHandle: TeammateRuntimeHandle(`fake-session-${this.store.nextSession++}`),
+        turns: new Map(),
+        status: 'idle',
+      }
+      this.store.sessions.set(key, session)
+    }
+    this.attached.add(session.nativeHandle)
+    return { nativeHandle: session.nativeHandle, presence: session.status }
+  })
+  readonly resume = vi.fn<TeammateRuntimeProvider['resume']>(async (request) => {
+    request.signal.throwIfAborted()
+    const session = [...this.store.sessions.values()].find(candidate =>
+      candidate.launchRequestId === request.launchRequestId
+      && candidate.memberId === request.memberId
+      && (request.nativeHandle === undefined || candidate.nativeHandle === request.nativeHandle))
+    if (session === undefined) return undefined
+    this.attached.add(session.nativeHandle)
+    return { nativeHandle: session.nativeHandle, presence: session.status }
+  })
+  readonly deliver = vi.fn<TeammateRuntimeProvider['deliver']>(async (request) => {
+    request.signal.throwIfAborted()
+    const session = this.session(request.nativeHandle)
+    let turnId = session.turns.get(request.deliveryId)
+    if (turnId === undefined) {
+      turnId = TeammateRuntimeTurnId(`fake-turn-${this.store.nextTurn++}`)
+      session.turns.set(request.deliveryId, turnId)
+    }
+    session.status = 'idle'
+    return { turnId, presence: session.status }
+  })
+  readonly interrupt = vi.fn<TeammateRuntimeProvider['interrupt']>((request) => {
+    const session = this.session(request.nativeHandle)
+    const previousStatus = session.status
+    session.status = 'idle'
+    return { previousStatus }
+  })
+  readonly evidence = vi.fn<TeammateRuntimeProvider['evidence']>(async (request) => ({
+    nativeHandle: request.nativeHandle,
+    items: [...this.session(request.nativeHandle).turns.values()].map((turnId, index) => ({
+      id: TeammateRuntimeEvidenceId(`fake-evidence-${index + 1}`),
+      kind: 'turn' as const,
+      timestamp: index + 1,
+      turnId,
+      outcome: 'completed' as const,
+    })),
+    complete: true,
+  }))
+  readonly createEvaluationHandle = vi.fn<TeammateRuntimeProvider['createEvaluationHandle']>(async (request) => {
+    let handle = this.store.evaluations.get(request.evaluationId)
+    if (handle === undefined) {
+      handle = TeammateEvaluationHandle(`fake-eval-${this.store.nextEvaluation++}`)
+      this.store.evaluations.set(request.evaluationId, handle)
+    }
+    return { evaluationHandle: handle }
+  })
+  readonly dispose = vi.fn<TeammateRuntimeProvider['dispose']>(async (request: TeammateRuntimeDisposeRequest) => {
+    if (request.kind === 'runtime') this.attached.delete(request.nativeHandle)
+  })
+
+  constructor(private readonly store: FakeNativeStore) {}
+
+  private session(handle: ReturnType<typeof TeammateRuntimeHandle>): FakeNativeSession {
+    const session = [...this.store.sessions.values()].find(candidate => candidate.nativeHandle === handle)
+    if (session === undefined) throw new Error(`unknown fake native handle ${handle}`)
+    return session
+  }
 }
 
 function profile(overrides: Partial<DigitalEmployeeProfileDraft> = {}): DigitalEmployeeProfileDraft {
@@ -375,5 +505,198 @@ describe('pinned dsh-model route integration', () => {
     await ultraFiber.dispose()
     expect(ctx.get('digitalEmployees')).toBeUndefined()
     expect(ctx.tools.schemas(resumed).map(tool => tool.name).sort()).toEqual(['bash', 'read'])
+  }, 20_000)
+})
+
+describe('durable external-agent route integration', () => {
+  it('keeps one native identity across Ultra restart, provider absence, and multiple turns', async () => {
+    const ctx = new Context()
+    activeContext = ctx
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
+    const sessionRoot = mkdtempSync(join(tmpdir(), 'dsh-ultra-external-route-'))
+    temporaryRoots.push(sessionRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: sessionRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(TeamService)
+    const storageState = installMemoryStorageDomain(ctx)
+    const { v1Tables } = storageState
+    const leadId = SessionId('external-route-lead')
+    const lead = ctx.agentLoop.create(leadId, {})
+    const oneShot = vi.spyOn(ctx.subagents, 'startContinuable')
+    await ctx.plugin(DigitalEmployeeService)
+    const store = fakeNativeStore()
+    const firstProvider = new FakeNativeProvider(store)
+    const providerFiber = ctx.plugin({
+      inject: ['digitalEmployees'],
+      apply(pluginCtx: Context) {
+        pluginCtx.digitalEmployees.registerExternalRuntimeProvider(firstProvider)
+      },
+    })
+    await providerFiber
+    await ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    const initialStudio = ctx.digitalEmployees.studioView(lead)
+    expect(initialStudio.runtimeCatalog.backends).toContainEqual(expect.objectContaining({
+      routingId: 'external-agent/fake-native',
+      availability: 'available',
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: ['evaluation', 'evidence'],
+    }))
+    expect(JSON.stringify(initialStudio)).not.toContain('never-cross-the-host-boundary')
+
+    const externalProfile = profile({
+      context: [
+        { id: 'context-v1', title: 'Context V1', content: 'CONTEXT V1', enabled: true },
+        { id: 'disabled-context', title: 'Disabled', content: 'MUST NOT CROSS', enabled: false },
+      ],
+    })
+    const saved = await ctx.digitalEmployees.saveProfile(lead, {
+      expectedHeadRevision: null,
+      profile: externalProfile,
+      runtimeTarget: { kind: 'external-agent', provider: 'fake-native' },
+    })
+    if (!saved.ok) throw new Error(saved.error.message)
+    const activated = await ctx.digitalEmployees.activateProfile(lead, {
+      profileId: saved.value.head.profileId,
+      revision: saved.value.revision.revision,
+      expectedHeadRevision: saved.value.head.headRevision,
+    })
+    if (!activated.ok) throw new Error(activated.error.message)
+
+    const bindings = v1Tables.get('bindings')!
+    const writes = vi.spyOn(bindings, 'put')
+    const launched = await ctx.digitalEmployees.spawnProfile(lead, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: saved.value.head.profileId,
+      assignment: 'Review the native runtime seam.',
+    }, SIGNAL)
+    expect(launched).toMatchObject({
+      ok: true,
+      value: {
+        provisioningPhase: 'active',
+        runtimeTarget: { kind: 'external-agent', provider: 'fake-native' },
+        resolvedRuntimeTarget: { kind: 'external-agent', provider: 'fake-native' },
+        nativeRuntimeHandle: 'fake-session-1',
+        runtimePresence: 'idle',
+      },
+    })
+    const activeWrites = writes.mock.calls
+      .map(([, value]) => value as { provisioningPhase?: string; nativeRuntimeHandle?: string })
+      .filter(value => value.provisioningPhase === 'active')
+    expect(activeWrites).toHaveLength(1)
+    expect(activeWrites[0]?.nativeRuntimeHandle).toBe('fake-session-1')
+    expect(firstProvider.create).toHaveBeenCalledWith(expect.objectContaining({
+      launchRequestId: LAUNCH_REQUEST_ID,
+      memberId: expect.any(String),
+      memberName: 'route-reviewer',
+      profile: {
+        persona: externalProfile.persona,
+        mission: externalProfile.mission,
+        context: [{ id: 'context-v1', title: 'Context V1', content: 'CONTEXT V1' }],
+        memory: [{ id: 'memory-v1', title: 'Memory V1', content: 'MEMORY V1' }],
+        toolPolicy: { mode: 'allow', names: ['read'] },
+        hooks: [
+          { point: 'session-start', effect: 'context', text: 'START HOOK V1' },
+          { point: 'before-step', effect: 'context', text: 'STEP HOOK V1' },
+        ],
+      },
+    }))
+    expect(JSON.stringify(firstProvider.create.mock.calls[0]?.[0].profile)).not.toContain('MUST NOT CROSS')
+    expect(store.sessions).toHaveLength(1)
+    expect(oneShot).not.toHaveBeenCalled()
+
+    await expect(ctx.agentTeams.sendMessage(lead, {
+      target: 'route-reviewer',
+      content: [{ type: 'text', text: 'First work turn.' }],
+      delivery: 'wakeup',
+      signal: SIGNAL,
+    })).resolves.toMatchObject({ status: 'accepted' })
+    expect(ctx.agentTeams.interrupt(lead, 'route-reviewer')).toEqual({ previousStatus: 'idle' })
+    expect(firstProvider.interrupt).toHaveBeenCalledWith({ nativeHandle: 'fake-session-1' })
+
+    await providerFiber.dispose()
+    await ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    expect(ctx.digitalEmployees.studioView(lead).instances[0]).toMatchObject({
+      provisioningPhase: 'active',
+      runtimeAvailability: 'unavailable',
+      runtimePresence: 'inactive',
+      nativeRuntimeHandle: 'fake-session-1',
+    })
+    expect(firstProvider.attached).toHaveLength(0)
+
+    await ctx.fiber.dispose()
+    activeContext = undefined
+
+    const resumedCtx = new Context()
+    activeContext = resumedCtx
+    await mountAgentLoopTestDependencies(resumedCtx)
+    await resumedCtx.plugin(SessionProjectionRegistry)
+    await resumedCtx.plugin(JsonlSessionPersistence, { root: sessionRoot })
+    await resumedCtx.plugin(TestSessionQuery)
+    await resumedCtx.plugin(AgentLoop, { agents: [] })
+    await resumedCtx.plugin(SubagentService)
+    await resumedCtx.plugin(TeamService)
+    installMemoryStorageDomain(resumedCtx, storageState)
+    const replacement = resumedCtx.plugin(DigitalEmployeeService)
+    await replacement
+    const secondOneShot = vi.spyOn(resumedCtx.subagents, 'startContinuable')
+    const leadHandle = await resumedCtx.agents.resume({ resumeSessionId: leadId, agentOptions: {} })
+    await resumedCtx.digitalEmployees.whenRuntimeCatalogSettled()
+    expect(resumedCtx.digitalEmployees.studioView(leadHandle.agent).instances[0]).toMatchObject({
+      provisioningPhase: 'active',
+      runtimeAvailability: 'unavailable',
+      runtimePresence: 'inactive',
+      nativeRuntimeHandle: 'fake-session-1',
+    })
+    const resumedProvider = new FakeNativeProvider(store)
+    const resumedFiber = resumedCtx.plugin({
+      inject: ['digitalEmployees'],
+      apply(pluginCtx: Context) {
+        pluginCtx.digitalEmployees.registerExternalRuntimeProvider(resumedProvider)
+      },
+    })
+    await resumedFiber
+    await resumedCtx.digitalEmployees.whenRuntimeCatalogSettled()
+    await vi.waitFor(() => {
+      expect(resumedCtx.digitalEmployees.studioView(leadHandle.agent).instances[0]).toMatchObject({
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'idle',
+        nativeRuntimeHandle: 'fake-session-1',
+      })
+    })
+    expect(store.sessions).toHaveLength(1)
+    expect(resumedProvider.resume).toHaveBeenCalledWith(expect.objectContaining({
+      nativeHandle: 'fake-session-1',
+    }))
+    expect(resumedProvider.create).not.toHaveBeenCalled()
+    await expect(resumedCtx.agentTeams.sendMessage(leadHandle.agent, {
+      target: 'route-reviewer',
+      content: [{ type: 'text', text: 'Second work turn after restart.' }],
+      delivery: 'wakeup',
+      signal: SIGNAL,
+    })).resolves.toMatchObject({ status: 'accepted' })
+    expect([...store.sessions.values()][0]?.turns).toHaveLength(2)
+    const remote = await resumedCtx.digitalEmployees.remoteView(leadHandle.agent)
+    expect(remote.instances[0]).toMatchObject({
+      resolvedRuntimeTarget: { kind: 'external-agent', provider: 'fake-native' },
+      nativeRuntimeHandle: 'fake-session-1',
+      runtimePresence: 'idle',
+    })
+    expect(remote.runtimeCatalog.backends).toContainEqual(expect.objectContaining({
+      routingId: 'external-agent/fake-native',
+      runtimeCapabilities: ['evaluation', 'evidence'],
+    }))
+    expect(JSON.stringify(remote)).not.toContain('never-cross-the-host-boundary')
+    expect(oneShot).not.toHaveBeenCalled()
+    expect(secondOneShot).not.toHaveBeenCalled()
+
+    await resumedFiber.dispose()
+    await replacement.dispose()
+    await leadHandle.dispose()
+    await resumedCtx.fiber.dispose()
+    activeContext = undefined
   }, 20_000)
 })

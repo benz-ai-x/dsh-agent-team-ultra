@@ -2,18 +2,18 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `e5e2f7f67ce5896b5271e3cc023ee037433584b8`。该 source-linked fork 为 Agent Team 增加精确 teammate route 证明和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `7943c97aa95bc5481c5db81145817bcc085dde28`。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 能力
 
 - 身份：Profile ID、队友名称、显示名称、职责描述。
-- 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；`fresh`/`fork` 延续策略与模型路由彼此独立，Binding 同时保留所选路由与 child descriptor 证明的实际路由。
+- 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；目录只公开可执行的上下文、Profile 与运行能力，provider 凭据和原生对象留在 Host。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
 - Hook：安全的声明式 `session-start`、`before-step`、`before-tool`、`after-tool` 行为，不执行任意 JavaScript 或 shell。
 - 生命周期：不可变 Profile Revision、内容指纹、Head CAS、显式激活/回滚、归档/恢复、不可变启动快照和完整 Fiber 清理。
-- 启动可靠性：Client 为一次启动意图生成 UUID，Host 按 Team 幂等处理并从权威 roster 恢复中断的 Binding，不重复创建员工。
+- 启动可靠性：Client 为一次启动意图生成 UUID，Host 按 Team 幂等处理并从权威 roster 恢复中断的 Binding；外部 provider 在 active 前返回稳定 native handle，重启与 provider 回归只恢复该 handle，不重复创建员工。
 - 工作台：分区式配置导航及有界版本历史/结构化差异，窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
 
 ```mermaid
@@ -24,8 +24,10 @@ flowchart LR
   LOCAL[Durable Local Runtime Registry] --> HOST
   HOST --> STORE[(storageDomain\nHead + Revision + Binding)]
   HOST --> TEAM[DSH Agent Team]
-  TEAM --> CHILD[Continuable Teammate]
+  TEAM --> CHILD[DSH Continuable Teammate]
+  TEAM --> NATIVE[Durable External Provider\nNative Handle]
   STORE --> CHILD
+  STORE --> NATIVE
   CHILD --> SCOPE[Persona / Context / Memory\nTool Policy / Hooks]
 ```
 
@@ -81,7 +83,7 @@ dsh web
 4. 保存候选 Revision；Runtime Target 和规范化 Required Capabilities 会参与指纹、历史和差异，过期编辑不会覆盖新版本。
 5. 在“版本”页检查指纹及相对已激活版本的结构化差异，再显式激活最新候选（也可回滚到更早的不可变版本）。
 6. 可选填写本次任务，点击“创建数字员工”；只有未归档 Profile 的 `activeRevision` 可以启动。
-7. 左侧实例列表分别显示持久的创建阶段、当前运行时可用性和进程驻留状态，以及该员工绑定的 Profile revision、所选运行目标与实际解析目标。
+7. 左侧实例列表分别显示持久的创建阶段、当前运行时可用性和进程驻留状态，以及该员工绑定的 Profile revision、所选运行目标与实际解析目标；外部员工还保留不透明 native handle。
 
 修改 Profile 或改变 Lead/部署默认路由只影响后续创建。已经创建或冷恢复的员工始终使用其绑定的不可变快照与 continuation descriptor 固定路由。编辑时可以原样保留最新但暂时离线的历史目标；新选离线目标、激活和启动仍会稳定失败且绝不回退。
 
@@ -101,9 +103,9 @@ dsh web
 
 ## 记忆、Token 与缓存
 
-Profile memory 是人工策展的提示词内容，不是自动学习数据库。员工自己的持久 Session 提供情节式对话记忆；冷恢复时插件会用已绑定快照重新安装 persona、context、memory、工具策略和 Hook。
+Profile memory 是人工策展的提示词内容，不是自动学习数据库。DSH 模型员工由其持久 child Session 提供情节式对话记忆；外部员工的原生 session 与历史由对应 provider 管理，Ultra 只持久化精确 handle 和关联。冷恢复时插件会把已绑定快照交给所选运行时，并要求外部 provider 恢复同一 handle。
 
-插件本身不额外调用模型。启用的 persona、mission、context、memory，以及运行时 Hook 注入会增加模型输入 Token；`fork` 还会继承 Lead 已完成轮次，通常比 `fresh` 使用更多上下文。稳定的 Profile 前缀可能有利于提供方 KV cache，但具体命中由 DSH 的模型适配器和提供方决定。
+DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、mission、context、memory 和运行时 Hook 会增加模型输入 Token，`fork` 还会继承 Lead 已完成轮次。外部分支如何把 Profile、初始工作和 mailbox turn 映射为模型调用、Token 与 KV cache，由 provider 定义。稳定 Profile 前缀可能有利于缓存，但具体命中同样由实际适配器和 provider 决定。
 
 ## 安全与边界
 
@@ -116,6 +118,8 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - 重启和实时 Team 事件会以权威 roster 修复矛盾 Binding；相同启动意图返回现有 Binding，改变输入则稳定拒绝。
 - 工具名称在创建时相对当前 Lead 的工具目录再次校验；`before-tool` Hook 只能声明拒绝规则。
 - Runtime Catalog 只包含白名单化的展示、可用性、上下文、能力和推理元数据；API key、endpoint、环境值、本机路径、登录状态及 live adapter 均不会传给 Client。
+- 耐久外部 provider 与 Agent Team 共用一个 Fiber 生命周期：移除时立即停止新调用，在 cleanup 宽限期后发出中止信号但继续等待实际静止，并只释放该 generation 的 runtime/evaluation handle；其他 provider 不受影响。
+- 外部 mailbox、interrupt 与 evidence 始终使用精确 provider/native handle；隔离 evaluation 使用自己的 evaluation id/handle。两者都不会回退到一次性 Codex/Claude subagent。
 - Profile 不包含凭据字段，也不会把 API key 或其他 secret 传给 Client。
 
 ## 代码结构
@@ -126,7 +130,7 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md) 和 [启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md) 和 [耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)。
 
 ## 当前限制
 

@@ -5,7 +5,11 @@ import { isDeepStrictEqual } from 'node:util'
 import { Context, Service } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
-import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
+import {
+  TeamError,
+  TeammateLaunchRequestId,
+  TeammateRuntimeError,
+} from '@deepseek-ai/dsh-experimental-agent-team'
 import type { TeamMemberRouteSnapshot } from '@deepseek-ai/dsh-experimental-agent-team'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
@@ -15,10 +19,12 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import {
   digitalEmployeeProfileDraftSchema,
   launchRequestIdSchema,
+  nativeRuntimeHandleFromTeammate,
   selectableDigitalEmployeeRuntimeTargetSchema,
   type DigitalEmployeeBinding,
 } from './spec.ts'
 import {
+  externalRuntimeProfileSnapshot,
   requiredCapabilitiesForProfile,
   RuntimeBackendRegistry,
   snapshotRequiredCapabilities,
@@ -279,6 +285,19 @@ function failure(code: DigitalEmployeeFailure['code'], message: string, currentH
   })
 }
 
+/** Translate typed teammate-runtime rejections without inspecting provider prose. */
+function externalRuntimeFailure(error: TeammateRuntimeError): DigitalEmployeeFailure {
+  switch (error.code) {
+    case 'TEAM_RUNTIME_UNAVAILABLE':
+      return failure('runtime-target-unavailable', error.message)
+    case 'TEAM_RUNTIME_CAPABILITY_MISMATCH':
+      return failure('runtime-capability-mismatch', error.message)
+    case 'TEAM_RUNTIME_IDENTITY_CONFLICT':
+    case 'TEAM_RUNTIME_INVALID_PROVIDER':
+      return failure('runtime-route-invalid', error.message)
+  }
+}
+
 function saveRejected(error: DigitalEmployeeFailure): SaveDigitalEmployeeProfileResult {
   return Object.freeze({ ok: false, error })
 }
@@ -491,7 +510,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     this.ctx.effect(() => async () => {
       this.admissionOpen = false
       this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
-      this.runtimeBackends.dispose()
+      const runtimeBackendDisposal = this.runtimeBackends.dispose()
       const failures: unknown[] = []
       try { stopCreated() } catch (error: unknown) { failures.push(error) }
       try { stopDisposed() } catch (error: unknown) { failures.push(error) }
@@ -501,6 +520,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       await Promise.allSettled([...this.launches])
       await Promise.allSettled([...this.reconciliations])
       await this.mutationTail
+      try { await runtimeBackendDisposal } catch (error: unknown) { failures.push(error) }
       try { await storage.close() } catch (error: unknown) { failures.push(error) }
       finally {
         this.storage = undefined
@@ -572,7 +592,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     const instances = [...this.requireStorage().bindingEntries()]
       .map(([, binding]) => binding)
       .filter(binding => binding.teamId === membership.id)
-      .map(binding => this.instanceView(binding))
+      .map(binding => this.instanceView(caller, binding))
       .sort((left, right) => left.memberName.localeCompare(right.memberName))
     const historicalTargets = profiles.flatMap(entry =>
       [...this.requireStorage().profileRevisionEntries(entry.head.profileId)]
@@ -938,10 +958,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
       }
       const roster = this.ctx.agentTeams.listMembers(caller)
       const reconciled = await this.reconcileBinding(caller, prior, roster)
+      const rosterMember = bindingRosterMember(reconciled, roster)
       if (reconciled.provisioningPhase !== 'pending'
-        || bindingRosterMember(reconciled, roster) !== undefined
+        || (rosterMember !== undefined && reconciled.runtimeTarget.kind !== 'external-agent')
         || !await this.pendingBindingIsExecutable(caller, reconciled)) {
-        return Object.freeze({ ok: true, value: this.instanceView(reconciled) })
+        return Object.freeze({ ok: true, value: this.instanceView(caller, reconciled) })
       }
       return await this.provisionBinding(caller, reconciled, request.assignment, signal)
     }
@@ -977,29 +998,24 @@ export class DigitalEmployeeService extends TypertRemoteService {
       return spawnRejected(failure(targetProblem.code, targetProblem.message, head))
     }
     const selectedTarget = activeRevision.runtimeTarget
-    if (selectedTarget.kind === 'external-agent') {
-      return spawnRejected(failure(
-        'runtime-capability-mismatch',
-        `external runtime provider "${selectedTarget.provider}" has no executable teammate seam in this build`,
-        head,
-      ))
-    }
-    if (selectedTarget.kind !== 'dsh-model') {
+    if (selectedTarget.kind === 'legacy-inherit-lead') {
       return spawnRejected(failure('runtime-route-invalid', 'the active Revision has no exact executable route', head))
     }
-    const resolutionProblem = await this.runtimeBackends.verifyDshModelRoute(selectedTarget)
-    if (resolutionProblem !== undefined) {
-      return spawnRejected(failure(resolutionProblem.code, resolutionProblem.message, head))
-    }
-    const unavailable = profile.toolPolicy.mode === 'inherit'
-      ? []
-      : profile.toolPolicy.names.filter(name =>
-        TEAM_OWN_TOOL_NAMES.has(name) || this.ctx.tools.get(name, caller) === undefined)
-    if (unavailable.length > 0) {
-      return spawnRejected(failure(
-        'tool-unavailable',
-        `profile names tools unavailable to this Lead: ${unavailable.join(', ')}`,
-      ))
+    if (selectedTarget.kind === 'dsh-model') {
+      const resolutionProblem = await this.runtimeBackends.verifyDshModelRoute(selectedTarget)
+      if (resolutionProblem !== undefined) {
+        return spawnRejected(failure(resolutionProblem.code, resolutionProblem.message, head))
+      }
+      const unavailable = profile.toolPolicy.mode === 'inherit'
+        ? []
+        : profile.toolPolicy.names.filter(name =>
+          TEAM_OWN_TOOL_NAMES.has(name) || this.ctx.tools.get(name, caller) === undefined)
+      if (unavailable.length > 0) {
+        return spawnRejected(failure(
+          'tool-unavailable',
+          `profile names tools unavailable to this Lead: ${unavailable.join(', ')}`,
+        ))
+      }
     }
 
     const key = digitalEmployeeBindingKey(teamId, profile.employeeName)
@@ -1050,9 +1066,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
     })
     if ('code' in reservation) return spawnRejected(reservation)
     const roster = this.ctx.agentTeams.listMembers(caller)
-    if (reservation.provisioningPhase !== 'pending' || bindingRosterMember(reservation, roster) !== undefined) {
+    if (reservation.provisioningPhase !== 'pending'
+      || (bindingRosterMember(reservation, roster) !== undefined
+        && reservation.runtimeTarget.kind !== 'external-agent')) {
       const reconciled = await this.reconcileBinding(caller, reservation, roster)
-      return Object.freeze({ ok: true, value: this.instanceView(reconciled) })
+      return Object.freeze({ ok: true, value: this.instanceView(caller, reconciled) })
     }
     return await this.provisionBinding(caller, reservation, request.assignment, signal)
   }
@@ -1064,8 +1082,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
     signal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
     const selectedTarget = reservation.runtimeTarget
-    if (selectedTarget.kind !== 'dsh-model') {
-      return Object.freeze({ ok: true, value: this.instanceView(reservation) })
+    if (selectedTarget.kind === 'legacy-inherit-lead' || reservation.launchRequestId === undefined) {
+      return Object.freeze({ ok: true, value: this.instanceView(caller, reservation) })
     }
     const profile = reservation.profile
     const key = digitalEmployeeBindingKey(reservation.teamId, reservation.memberName)
@@ -1077,22 +1095,70 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
     let provisionedMemberId: string | undefined
     try {
-      const result = await this.ctx.agentTeams.spawnTeammate(caller, {
-        name: profile.employeeName,
-        description: profile.description,
-        prompt: [{ type: 'text', text: prompt }],
-        context: profile.contextMode,
-        provider: profile.continuationProvider,
-        agentOptions: {
-          provider: selectedTarget.provider,
-          model: selectedTarget.model,
-          ...(selectedTarget.reasoningEffort === undefined
-            ? {}
-            : { reasoningEffort: ReasoningEffortId(selectedTarget.reasoningEffort) }),
-        },
-        signal,
-      })
+      const result = selectedTarget.kind === 'dsh-model'
+        ? await this.ctx.agentTeams.spawnTeammate(caller, {
+          name: profile.employeeName,
+          description: profile.description,
+          prompt: [{ type: 'text', text: prompt }],
+          context: profile.contextMode,
+          provider: profile.continuationProvider,
+          agentOptions: {
+            provider: selectedTarget.provider,
+            model: selectedTarget.model,
+            ...(selectedTarget.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: ReasoningEffortId(selectedTarget.reasoningEffort) }),
+          },
+          signal,
+        })
+        : await this.ctx.agentTeams.spawnTeammate(caller, {
+          name: profile.employeeName,
+          description: profile.description,
+          prompt: [{ type: 'text', text: prompt }],
+          context: profile.contextMode,
+          runtime: {
+            kind: 'external-agent',
+            provider: selectedTarget.provider,
+            launchRequestId: TeammateLaunchRequestId(reservation.launchRequestId),
+            profile: externalRuntimeProfileSnapshot(profile),
+            requirements: {
+              contextMode: reservation.requiredCapabilities.contextMode,
+              profileCapabilities: reservation.requiredCapabilities.profileCapabilities,
+              runtimeCapabilities: [],
+            },
+          },
+          signal,
+        })
       provisionedMemberId = result.member.id
+      if (selectedTarget.kind === 'external-agent') {
+        const external = result.member.externalRuntime
+        if (result.member.provider !== selectedTarget.provider
+          || external === undefined
+          || String(external.launchRequestId) !== reservation.launchRequestId
+          || external.nativeHandle === undefined) {
+          const message = `teammate "${profile.employeeName}" did not preserve the selected external runtime identity`
+          const failed: DigitalEmployeeBindingV1 = Object.freeze({
+            ...reservation,
+            memberId: provisionedMemberId,
+            provisioningPhase: 'failed',
+            error: message,
+          })
+          await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
+          return spawnRejected(failure('runtime-route-invalid', message))
+        }
+        const nativeRuntimeHandle = nativeRuntimeHandleFromTeammate(external.nativeHandle)
+        const active: DigitalEmployeeBindingV1 = Object.freeze({
+          ...reservation,
+          memberId: provisionedMemberId,
+          resolvedRuntimeTarget: Object.freeze({ ...selectedTarget }),
+          nativeRuntimeHandle,
+          provisioningPhase: 'active',
+        })
+        const committed = await this.commitProvisionedBinding(key, active)
+        return committed.provisioningPhase === 'active'
+          ? Object.freeze({ ok: true, value: this.instanceView(caller, committed) })
+          : spawnRejected(failure('team-rejected', committed.error ?? 'external teammate provisioning did not become active'))
+      }
       const resolvedRuntimeTarget = dshTargetFromRoute(result.member.resolvedRoute)
       if (resolvedRuntimeTarget === undefined || !sameDshTarget(selectedTarget, resolvedRuntimeTarget)) {
         const message = `teammate "${profile.employeeName}" did not resolve the selected DSH model route`
@@ -1112,18 +1178,25 @@ export class DigitalEmployeeService extends TypertRemoteService {
         resolvedRuntimeTarget,
         provisioningPhase: 'active',
       })
-      await this.enqueue(async () => { await this.requireStorage().putBinding(key, active) })
-      return Object.freeze({ ok: true, value: this.instanceView(active) })
+      const committed = await this.commitProvisionedBinding(key, active)
+      return committed.provisioningPhase === 'active'
+        ? Object.freeze({ ok: true, value: this.instanceView(caller, committed) })
+        : spawnRejected(failure('team-rejected', committed.error ?? 'teammate provisioning did not become active'))
     } catch (error: unknown) {
       const roster = this.ctx.agentTeams.listMembers(caller)
       const authoritative = reconcileBindingFromRoster(reservation, roster)
+      const retryablePreRoster = authoritative === reservation
+        && (signal.aborted
+          || (error instanceof TeammateRuntimeError && error.code === 'TEAM_RUNTIME_UNAVAILABLE'))
       const recorded: DigitalEmployeeBindingV1 = authoritative === reservation
-        ? Object.freeze({
-          ...reservation,
-          ...(provisionedMemberId === undefined ? {} : { memberId: provisionedMemberId }),
-          provisioningPhase: 'failed',
-          error: errorText(error),
-        })
+        ? retryablePreRoster
+          ? reservation
+          : Object.freeze({
+            ...reservation,
+            ...(provisionedMemberId === undefined ? {} : { memberId: provisionedMemberId }),
+            provisioningPhase: 'failed',
+            error: errorText(error),
+          })
         : Object.freeze(authoritative)
       try {
         await this.enqueue(async () => { await this.requireStorage().putBinding(key, recorded) })
@@ -1131,9 +1204,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
         throw new AggregateError([error, recordError], 'Digital Employee launch and failure recording both failed')
       }
       if (recorded.provisioningPhase === 'active') {
-        return Object.freeze({ ok: true, value: this.instanceView(recorded) })
+        return Object.freeze({ ok: true, value: this.instanceView(caller, recorded) })
       }
       if (signal.aborted) signal.throwIfAborted()
+      if (error instanceof TeammateRuntimeError) {
+        return spawnRejected(externalRuntimeFailure(error))
+      }
       if (error instanceof TeamError) {
         return spawnRejected(failure(
           error.code === 'TEAM_LEAD_REQUIRED'
@@ -1472,8 +1548,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
       binding.requiredCapabilities,
       'launch',
     )
-    if (problem !== undefined || binding.runtimeTarget.kind !== 'dsh-model') return false
-    if (await this.runtimeBackends.verifyDshModelRoute(binding.runtimeTarget) !== undefined) return false
+    if (problem !== undefined) return false
+    if (binding.runtimeTarget.kind === 'external-agent') {
+      return true
+    }
+    if (binding.runtimeTarget.kind !== 'dsh-model'
+      || await this.runtimeBackends.verifyDshModelRoute(binding.runtimeTarget) !== undefined) return false
     return binding.profile.toolPolicy.mode === 'inherit'
       || binding.profile.toolPolicy.names.every(name =>
         !TEAM_OWN_TOOL_NAMES.has(name) && this.ctx.tools.get(name, caller) !== undefined)
@@ -1554,7 +1634,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
   }
 
-  private instanceView(binding: DigitalEmployeeBindingV1): DigitalEmployeeInstanceView {
+  private instanceView(caller: Agent, binding: DigitalEmployeeBindingV1): DigitalEmployeeInstanceView {
+    const rosterMember = binding.memberId === undefined
+      ? undefined
+      : this.ctx.agentTeams.listMembers(caller).find(member =>
+          member.id === binding.memberId && member.name === binding.memberName)
     return Object.freeze({
       teamId: binding.teamId,
       memberName: binding.memberName,
@@ -1568,6 +1652,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
       ...(binding.resolvedRuntimeTarget === undefined
         ? {}
         : { resolvedRuntimeTarget: Object.freeze({ ...binding.resolvedRuntimeTarget }) }),
+      ...(binding.nativeRuntimeHandle === undefined
+        ? {}
+        : { nativeRuntimeHandle: binding.nativeRuntimeHandle }),
       requiredCapabilities: snapshotRequiredCapabilities(binding.requiredCapabilities),
       provisioningPhase: binding.provisioningPhase,
       runtimeAvailability: this.runtimeBackends.availability(
@@ -1575,11 +1662,34 @@ export class DigitalEmployeeService extends TypertRemoteService {
         binding.runtimeTarget,
         binding.requiredCapabilities,
       ),
-      runtimePresence: bindingRuntimePresence(
-        binding,
-        binding.memberId === undefined ? undefined : this.ctx.agents.get(SessionId(binding.memberId)),
-      ),
+      runtimePresence: binding.runtimeTarget.kind === 'external-agent'
+        && binding.nativeRuntimeHandle !== undefined
+        ? rosterMember?.status === 'running' || rosterMember?.status === 'idle'
+          ? rosterMember.status
+          : 'inactive'
+        : bindingRuntimePresence(
+          binding,
+          binding.memberId === undefined ? undefined : this.ctx.agents.get(SessionId(binding.memberId)),
+        ),
       ...(binding.error === undefined ? {} : { error: binding.error }),
+    })
+  }
+
+  /** Persist one terminal provider result unless event reconciliation already wrote the same or a failed edge. */
+  private async commitProvisionedBinding(
+    key: string,
+    active: DigitalEmployeeBindingV1,
+  ): Promise<DigitalEmployeeBindingV1> {
+    return await this.enqueue(async () => {
+      const storage = this.requireStorage()
+      const current = storage.getBinding(key)
+      if (current?.launchRequestId !== undefined && current.launchRequestId !== active.launchRequestId) {
+        throw new Error(`binding "${key}" changed launch identity during provisioning`)
+      }
+      if (current?.provisioningPhase === 'failed') return current
+      if (current !== undefined && isDeepStrictEqual(current, active)) return current
+      await storage.putBinding(key, active)
+      return active
     })
   }
 

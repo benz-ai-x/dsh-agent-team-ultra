@@ -1,6 +1,12 @@
 /** Host-only runtime topology, capability validation, and external-provider registration. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {
+  TeammateRuntimeProvider,
+  TeammateRuntimeMetadata,
+  TeammateRuntimeProfileSnapshot,
+  TeammateRuntimeRegistration,
+} from '@deepseek-ai/dsh-experimental-agent-team'
 import type LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
@@ -13,11 +19,11 @@ import type {
   DigitalEmployeeRequiredCapabilities,
   DigitalEmployeeRuntimeAvailability,
   DigitalEmployeeRuntimeBackend,
+  DigitalEmployeeRuntimeCapability,
   DigitalEmployeeRuntimeCatalog,
   DigitalEmployeeRuntimeTarget,
 } from './types.ts'
 
-const IDENTIFIER = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u
 const ALL_PROFILE_CAPABILITIES = Object.freeze([
   'persona',
   'mission',
@@ -26,7 +32,6 @@ const ALL_PROFILE_CAPABILITIES = Object.freeze([
   'tool-policy',
   'hooks',
 ] as const satisfies readonly DigitalEmployeeProfileCapability[])
-
 const ONE_SHOT_DIAGNOSTIC = 'Installed provider supports one-shot delegation only; no durable employee runtime is registered.'
 const MISSING_DSH_DIAGNOSTIC = 'This historical DSH model route is not currently available.'
 const INVALID_DSH_DIAGNOSTIC = 'The registered DSH adapter could not resolve this advertised model route.'
@@ -34,17 +39,16 @@ const MISSING_EXTERNAL_DIAGNOSTIC = 'This historical durable local-agent provide
 const LEGACY_DIAGNOSTIC = 'Legacy inherited Lead routing is migration-only and cannot be selected or activated.'
 
 /** Safe metadata a durable external provider contributes to the Runtime Backend catalog. */
-export interface DigitalEmployeeExternalRuntimeProvider {
-  readonly id: string
-  readonly displayName: string
+export interface DigitalEmployeeExternalRuntimeProvider extends TeammateRuntimeProvider {
   readonly contextModes: readonly DigitalEmployeeContextMode[]
   readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
+  readonly runtimeCapabilities: readonly DigitalEmployeeRuntimeCapability[]
 }
 
 /** Effect-owned registration that can atomically replace one provider generation. */
 export interface DigitalEmployeeExternalRuntimeRegistration {
-  (): void
-  replace(provider: DigitalEmployeeExternalRuntimeProvider): void
+  (): Promise<void>
+  replace(provider: DigitalEmployeeExternalRuntimeProvider): Promise<void>
 }
 
 /** Stable validation result translated to a public domain failure by the owning service. */
@@ -54,9 +58,11 @@ export interface RuntimeTargetProblem {
 }
 
 interface RegisteredExternalRuntime {
-  readonly provider: DigitalEmployeeExternalRuntimeProvider
-  readonly metadata: DigitalEmployeeExternalRuntimeProvider
+  readonly metadata: ExternalRuntimeMetadata
+  readonly registration: TeammateRuntimeRegistration
 }
+
+type ExternalRuntimeMetadata = TeammateRuntimeMetadata
 
 interface ComposedRuntimeCatalog {
   readonly backends: readonly DigitalEmployeeRuntimeBackend[]
@@ -87,43 +93,43 @@ export function requiredCapabilitiesForProfile(
   })
 }
 
+/**
+ * Translate one immutable Ultra Profile into the allowlisted external-provider policy seam.
+ * @param profile - Immutable Profile content selected for one launch.
+ * @returns a deeply detached snapshot containing only enforceable provider policy.
+ */
+export function externalRuntimeProfileSnapshot(
+  profile: DigitalEmployeeProfileDraft,
+): TeammateRuntimeProfileSnapshot {
+  const textBlocks = (blocks: DigitalEmployeeProfileDraft['context']) => Object.freeze(blocks
+    .filter(block => block.enabled)
+    .map(block => Object.freeze({ id: block.id, title: block.title, content: block.content })))
+  return Object.freeze({
+    persona: profile.persona,
+    mission: profile.mission,
+    context: textBlocks(profile.context),
+    memory: textBlocks(profile.memory),
+    toolPolicy: Object.freeze({
+      mode: profile.toolPolicy.mode,
+      names: Object.freeze([...profile.toolPolicy.names]),
+    }),
+    hooks: Object.freeze(profile.hooks
+      .filter(hook => hook.enabled)
+      .map(hook => Object.freeze({
+        point: hook.point,
+        effect: hook.effect,
+        ...(hook.matcher === undefined ? {} : { matcher: hook.matcher }),
+        text: hook.text,
+      }))),
+  })
+}
+
 function snapshotRequirements(
   required: DigitalEmployeeRequiredCapabilities,
 ): DigitalEmployeeRequiredCapabilities {
   return Object.freeze({
     contextMode: required.contextMode,
     profileCapabilities: Object.freeze([...required.profileCapabilities]),
-  })
-}
-
-function normalizeExternalMetadata(
-  provider: DigitalEmployeeExternalRuntimeProvider,
-): DigitalEmployeeExternalRuntimeProvider {
-  if (typeof provider.id !== 'string' || provider.id.length > 200 || !IDENTIFIER.test(provider.id)) {
-    throw new TypeError('external runtime provider id must be a non-empty stable identifier')
-  }
-  const displayName = typeof provider.displayName === 'string' ? provider.displayName.trim() : ''
-  if (displayName.length === 0 || displayName.length > 120) {
-    throw new TypeError(`external runtime provider "${provider.id}" needs a display name of at most 120 characters`)
-  }
-  const requestedContextModes = [...provider.contextModes]
-  if (requestedContextModes.length === 0
-    || requestedContextModes.some(mode => mode !== 'fresh' && mode !== 'fork')
-    || new Set(requestedContextModes).size !== requestedContextModes.length) {
-    throw new TypeError(`external runtime provider "${provider.id}" has invalid context modes`)
-  }
-  const contextModes = (['fresh', 'fork'] as const).filter(mode => requestedContextModes.includes(mode))
-  const profileCapabilities = [...provider.profileCapabilities]
-  if (profileCapabilities.some(capability => !ALL_PROFILE_CAPABILITIES.includes(capability))
-    || new Set(profileCapabilities).size !== profileCapabilities.length) {
-    throw new TypeError(`external runtime provider "${provider.id}" has invalid Profile capabilities`)
-  }
-  return Object.freeze({
-    id: provider.id,
-    displayName,
-    contextModes: Object.freeze(contextModes),
-    profileCapabilities: Object.freeze(ALL_PROFILE_CAPABILITIES.filter(capability =>
-      profileCapabilities.includes(capability))),
   })
 }
 
@@ -147,7 +153,21 @@ function freezeBackend<T extends DigitalEmployeeRuntimeBackend>(backend: T): T {
     ...backend,
     contextModes: Object.freeze([...backend.contextModes]),
     profileCapabilities: Object.freeze([...backend.profileCapabilities]),
+    runtimeCapabilities: Object.freeze([...backend.runtimeCapabilities]),
   }) as unknown as T
+}
+
+function externalBackend(metadata: ExternalRuntimeMetadata): DigitalEmployeeRuntimeBackend {
+  return freezeBackend({
+    routingId: runtimeTargetRoutingId({ kind: 'external-agent', provider: metadata.id }),
+    family: 'external-agent',
+    availability: 'available',
+    provider: metadata.id,
+    displayName: metadata.displayName,
+    contextModes: metadata.contextModes,
+    profileCapabilities: metadata.profileCapabilities,
+    runtimeCapabilities: metadata.runtimeCapabilities,
+  })
 }
 
 function backendOrder(left: DigitalEmployeeRuntimeBackend, right: DigitalEmployeeRuntimeBackend): number {
@@ -191,14 +211,16 @@ export class RuntimeBackendRegistry {
     await this.whenSettled()
   }
 
-  /** Stop future publication and release all same-process provider references. */
-  dispose(): void {
-    if (this.disposed) return
-    this.disposed = true
-    this.refreshRequest += 1
-    this.external.clear()
-    this.liveBackends = Object.freeze([])
-    this.invalidDshRoutes = new Set()
+  /** Stop future publication, release provider references, and await every admitted refresh. */
+  async dispose(): Promise<void> {
+    if (!this.disposed) {
+      this.disposed = true
+      this.refreshRequest += 1
+      this.external.clear()
+      this.liveBackends = Object.freeze([])
+      this.invalidDshRoutes = new Set()
+    }
+    await this.whenSettled()
   }
 
   /** Wait through refreshes that were superseded while the caller was waiting. */
@@ -232,51 +254,95 @@ export class RuntimeBackendRegistry {
     provider: DigitalEmployeeExternalRuntimeProvider,
   ): DigitalEmployeeExternalRuntimeRegistration {
     if (this.disposed) throw new Error('Digital Employee runtime registry is disposed')
-    let current = normalizeExternalMetadata(provider)
+    if (this.external.has(provider.id)) {
+      throw new Error(`external runtime provider "${provider.id}" is already registered`)
+    }
+    const agentTeams = owner.get('agentTeams')
+    if (agentTeams === undefined) throw new Error('Agent Team service is unavailable')
+    const teammateRegistration: TeammateRuntimeRegistration = agentTeams.registerTeammateRuntimeProvider(provider)
+    let current = teammateRegistration.metadata()
+    const stopAvailability = teammateRegistration.onAvailabilityChanged(() => { this.scheduleRefresh() })
     let record: RegisteredExternalRuntime | undefined
     let released = false
-    const dispose = owner.effect(function* (this: RuntimeBackendRegistry) {
-      if (this.external.has(current.id)) {
-        throw new Error(`external runtime provider "${current.id}" is already registered`)
+    let transition = Promise.resolve()
+    let disposeCatalog: () => Promise<void>
+    try {
+      disposeCatalog = owner.effect(function* (this: RuntimeBackendRegistry) {
+        record = Object.freeze({ metadata: current, registration: teammateRegistration })
+        this.external.set(current.id, record)
+        this.scheduleRefresh()
+        yield () => {
+          stopAvailability()
+          released = true
+          if (record !== undefined && this.external.get(current.id) === record) {
+            this.external.delete(current.id)
+            this.scheduleRefresh()
+          }
+          record = undefined
+        }
+      }.bind(this), 'digitalEmployees.registerExternalRuntimeProvider()')
+    } catch (error: unknown) {
+      stopAvailability()
+      void teammateRegistration().catch((cleanupError: unknown) => {
+        this.ctx.logger.warn('agent-team-ultra: failed to roll back teammate runtime registration')
+        this.ctx.logger.warn(cleanupError)
+      })
+      throw error
+    }
+    const handle = (async (): Promise<void> => {
+      stopAvailability()
+      const results = await Promise.allSettled([disposeCatalog(), teammateRegistration()])
+      const failures = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map(result => result.reason)
+      if (failures.length > 0) throw new AggregateError(failures, 'external runtime registration disposal failed')
+    }) as DigitalEmployeeExternalRuntimeRegistration
+    handle.replace = async (replacement): Promise<void> => {
+      if (replacement.id !== current.id) {
+        throw new Error('an external runtime replacement must preserve its stable provider id')
       }
-      record = Object.freeze({ provider, metadata: current })
-      this.external.set(current.id, record)
-      this.scheduleRefresh()
-      yield () => {
-        released = true
-        if (record !== undefined && this.external.get(current.id) === record) {
+      const operation = transition.then(async () => {
+        if (released || this.disposed || record === undefined) {
+          throw new Error('a disposed external runtime registration cannot be replaced')
+        }
+        const prior = record
+        if (this.external.get(current.id) === prior) {
           this.external.delete(current.id)
           this.scheduleRefresh()
         }
-        record = undefined
-      }
-    }.bind(this), 'digitalEmployees.registerExternalRuntimeProvider()')
-    const handle = (() => { void dispose() }) as DigitalEmployeeExternalRuntimeRegistration
-    handle.replace = (replacement): void => {
-      if (released || this.disposed || record === undefined) {
-        throw new Error('a disposed external runtime registration cannot be replaced')
-      }
-      const metadata = normalizeExternalMetadata(replacement)
-      if (metadata.id !== current.id) {
-        throw new Error('an external runtime replacement must preserve its stable provider id')
-      }
-      const next = Object.freeze({ provider: replacement, metadata })
-      current = metadata
-      record = next
-      this.external.set(metadata.id, next)
-      this.scheduleRefresh()
+        try {
+          await teammateRegistration.replace(replacement)
+        } catch (error: unknown) {
+          if (record === prior) record = undefined
+          throw error
+        }
+        if (released || this.disposed || record === undefined) {
+          throw new Error('external runtime registration was disposed during replacement')
+        }
+        const metadata = teammateRegistration.metadata()
+        const next = Object.freeze({ metadata, registration: teammateRegistration })
+        current = metadata
+        record = next
+        this.external.set(metadata.id, next)
+        await this.scheduleRefresh()
+      })
+      transition = operation.then(() => undefined, () => undefined)
+      await operation
     }
     return handle
   }
 
-  /** Current external provider object for future execution seams; never crosses Remote. */
-  externalProvider(id: string): DigitalEmployeeExternalRuntimeProvider | undefined {
-    return this.external.get(id)?.provider
-  }
-
   /** Compose historical unavailable rows into the current detached live snapshot. */
   snapshot(historicalTargets: Iterable<DigitalEmployeeRuntimeTarget>): DigitalEmployeeRuntimeCatalog {
-    const rows = new Map(this.liveBackends.map(backend => [backend.routingId, backend]))
+    const rows = new Map(this.liveBackends
+      .filter(backend => backend.family !== 'external-agent'
+        || (backend.availability === 'unsupported' && !this.external.has(backend.provider)))
+      .map(backend => [backend.routingId, backend]))
+    for (const external of this.external.values()) {
+      if (!external.registration.available()) continue
+      const backend = externalBackend(external.metadata)
+      rows.set(backend.routingId, backend)
+    }
     for (const target of historicalTargets) {
       const routingId = runtimeTargetRoutingId(target)
       if (rows.has(routingId)) continue
@@ -291,6 +357,7 @@ export class RuntimeBackendRegistry {
           displayName: target.model,
           contextModes: [],
           profileCapabilities: [],
+          runtimeCapabilities: [],
           diagnostic: MISSING_DSH_DIAGNOSTIC,
         }))
       } else if (target.kind === 'external-agent') {
@@ -302,6 +369,7 @@ export class RuntimeBackendRegistry {
           displayName: target.provider,
           contextModes: [],
           profileCapabilities: [],
+          runtimeCapabilities: [],
           diagnostic: MISSING_EXTERNAL_DIAGNOSTIC,
         }))
       } else {
@@ -312,6 +380,7 @@ export class RuntimeBackendRegistry {
           displayName: 'Legacy inherited Lead runtime',
           contextModes: [],
           profileCapabilities: [],
+          runtimeCapabilities: [],
           diagnostic: LEGACY_DIAGNOSTIC,
         }))
       }
@@ -336,7 +405,7 @@ export class RuntimeBackendRegistry {
       })
     }
     const routingId = runtimeTargetRoutingId(target)
-    const backend = this.liveBackends.find(candidate => candidate.routingId === routingId)
+    let backend = this.liveBackends.find(candidate => candidate.routingId === routingId)
     if (target.kind === 'dsh-model') {
       if (backend === undefined) {
         return Object.freeze({
@@ -384,7 +453,8 @@ export class RuntimeBackendRegistry {
         })
       }
     } else {
-      if (backend === undefined) {
+      const external = this.external.get(target.provider)
+      if (external === undefined || !external.registration.available()) {
         const oneShot = this.subagents.getProvider(target.provider)
         if (oneShot !== undefined && oneShot.prepareContinuable === undefined) {
           return Object.freeze({
@@ -397,6 +467,7 @@ export class RuntimeBackendRegistry {
           message: `external runtime provider "${target.provider}" is not currently available`,
         })
       }
+      backend = externalBackend(external.metadata)
       if (backend.family !== 'external-agent' || backend.availability !== 'available') {
         return Object.freeze({
           code: backend.availability === 'unsupported'
@@ -517,22 +588,16 @@ export class RuntimeBackendRegistry {
           displayName: model.name,
           contextModes: resolved === undefined ? [] : dshContextModes,
           profileCapabilities: resolved === undefined ? [] : ALL_PROFILE_CAPABILITIES,
+          runtimeCapabilities: [],
           ...(reasoning === undefined ? {} : { reasoning }),
           ...(resolved === undefined ? { diagnostic: INVALID_DSH_DIAGNOSTIC } : {}),
         }))
       }
     }
 
-    for (const { metadata } of this.external.values()) {
-      backends.push(freezeBackend({
-        routingId: runtimeTargetRoutingId({ kind: 'external-agent', provider: metadata.id }),
-        family: 'external-agent',
-        availability: 'available',
-        provider: metadata.id,
-        displayName: metadata.displayName,
-        contextModes: metadata.contextModes,
-        profileCapabilities: metadata.profileCapabilities,
-      }))
+    for (const { metadata, registration } of this.external.values()) {
+      if (!registration.available()) continue
+      backends.push(externalBackend(metadata))
     }
 
     for (const name of this.subagents.list()) {
@@ -547,6 +612,7 @@ export class RuntimeBackendRegistry {
         displayName: name === 'codex' ? 'Codex' : name === 'claude-code' ? 'Claude Code' : name,
         contextModes: [],
         profileCapabilities: [],
+        runtimeCapabilities: [],
         diagnostic: ONE_SHOT_DIAGNOSTIC,
       }))
     }

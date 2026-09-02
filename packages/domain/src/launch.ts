@@ -2,6 +2,7 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { TeamMemberRouteSnapshot, TeamMemberView } from '@deepseek-ai/dsh-experimental-agent-team'
+import { nativeRuntimeHandleFromTeammate } from './spec.ts'
 import { launchRequestFingerprint, type DigitalEmployeeBindingV1 } from './storage.ts'
 import type {
   DigitalEmployeeRuntimePresence,
@@ -62,12 +63,66 @@ export function reconcileBindingFromRoster(
     }
   }
 
+  if (binding.memberId !== undefined && String(member.id) !== binding.memberId) {
+    return {
+      ...withoutError(binding),
+      provisioningPhase: 'failed',
+      error: `authoritative Team member for "${binding.memberName}" does not match its persisted member identity`,
+    }
+  }
+
   const correlated = { ...withoutError(binding), memberId: member.id }
   if (member.status === 'failed') {
     return {
       ...correlated,
       provisioningPhase: 'failed',
       error: member.diagnostics[0] ?? `Agent Team provisioning failed for "${binding.memberName}"`,
+    }
+  }
+  if (binding.runtimeTarget.kind === 'external-agent') {
+    const external = member.externalRuntime
+    const expectedCapabilities = binding.requiredCapabilities.profileCapabilities
+    const requirementsMatch = external?.requirements.contextMode === binding.requiredCapabilities.contextMode
+      && external.requirements.runtimeCapabilities.length === 0
+      && external.requirements.profileCapabilities.length === expectedCapabilities.length
+      && expectedCapabilities.every((capability, index) =>
+        external.requirements.profileCapabilities[index] === capability)
+    if (member.provider !== binding.runtimeTarget.provider
+      || binding.launchRequestId === undefined
+      || external === undefined
+      || String(external.launchRequestId) !== binding.launchRequestId
+      || !requirementsMatch
+      || (external.nativeHandle !== undefined
+        && binding.nativeRuntimeHandle !== undefined
+        && binding.nativeRuntimeHandle !== String(external.nativeHandle))) {
+      return {
+        ...correlated,
+        provisioningPhase: 'failed',
+        error: `Agent Team external runtime for "${binding.memberName}" does not match its selected Runtime Target`,
+      }
+    }
+    if (member.status === 'provisioning') {
+      if (binding.provisioningPhase !== 'pending') {
+        return {
+          ...correlated,
+          provisioningPhase: 'failed',
+          error: `Agent Team external runtime for "${binding.memberName}" regressed to provisioning`,
+        }
+      }
+      return { ...correlated, provisioningPhase: 'pending' }
+    }
+    if (external.nativeHandle === undefined) {
+      return {
+        ...correlated,
+        provisioningPhase: 'failed',
+        error: `Agent Team external runtime for "${binding.memberName}" does not match its selected Runtime Target`,
+      }
+    }
+    return {
+      ...correlated,
+      resolvedRuntimeTarget: { ...binding.runtimeTarget },
+      nativeRuntimeHandle: nativeRuntimeHandleFromTeammate(external.nativeHandle),
+      provisioningPhase: 'active',
     }
   }
   if (member.status === 'provisioning') {

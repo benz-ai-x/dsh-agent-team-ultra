@@ -111,6 +111,9 @@ export type DigitalEmployeeRuntimeAvailability = 'available' | 'unavailable' | '
 /** Process-local residency of an already provisioned employee. */
 export type DigitalEmployeeRuntimePresence = 'running' | 'idle' | 'inactive'
 
+/** Stable opaque native identity returned by a durable external provider. */
+export type NativeRuntimeHandle = Branded<'NativeRuntimeHandle'>
+
 /** Profile behavior a runtime must be able to enforce, not merely advertise. */
 export type DigitalEmployeeProfileCapability =
   | 'persona'
@@ -119,6 +122,14 @@ export type DigitalEmployeeProfileCapability =
   | 'memory'
   | 'tool-policy'
   | 'hooks'
+
+/** Operational guarantees a Runtime Backend can enforce and prove. */
+export type DigitalEmployeeRuntimeCapability =
+  | 'exact-call-approval'
+  | 'sandbox'
+  | 'evaluation'
+  | 'evidence'
+  | 'usage'
 
 /** Normalized capability demand stored with immutable Revision content. */
 export interface DigitalEmployeeRequiredCapabilities {
@@ -219,6 +230,7 @@ export interface DigitalEmployeeRuntimeBackendBase {
   readonly displayName: string
   readonly contextModes: readonly DigitalEmployeeContextMode[]
   readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
+  readonly runtimeCapabilities: readonly DigitalEmployeeRuntimeCapability[]
   readonly diagnostic?: string
 }
 
@@ -268,6 +280,8 @@ export interface DigitalEmployeeInstanceView {
   readonly runtimeTarget: DigitalEmployeeRuntimeTarget
   /** Exact route reported by the child runtime after teammate provisioning. */
   readonly resolvedRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  /** Stable opaque provider-native identity; present only for external employees. */
+  readonly nativeRuntimeHandle?: NativeRuntimeHandle
   readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
   readonly provisioningPhase: DigitalEmployeeProvisioningPhase
   readonly runtimeAvailability: DigitalEmployeeRuntimeAvailability
