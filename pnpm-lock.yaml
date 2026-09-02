@@ -84,6 +84,9 @@ importers:
       '@deepseek-ai/dsh-api-gateway':
         specifier: link:../../../deepseek-harness/packages/api/gateway
         version: link:../../../deepseek-harness/packages/api/gateway
+      '@deepseek-ai/dsh-brand':
+        specifier: link:../../../deepseek-harness/packages/util/brand
+        version: link:../../../deepseek-harness/packages/util/brand
       '@deepseek-ai/dsh-experimental-agent-team':
         specifier: link:../../../deepseek-harness/packages/experimental/agent-team
         version: link:../../../deepseek-harness/packages/experimental/agent-team

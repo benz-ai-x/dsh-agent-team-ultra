@@ -42,12 +42,8 @@ function registerStudio(ctx: ClientContext): void {
     async restore(sessionId, profileId, expectedHeadRevision) {
       return await ctx.remote.digitalEmployees.restore(sessionId, { profileId, expectedHeadRevision })
     },
-    async spawn(sessionId, profileId, assignment, signal) {
-      return await ctx.remote.digitalEmployees.spawn(
-        sessionId,
-        assignment.trim() === '' ? { profileId } : { profileId, assignment: assignment.trim() },
-        signal,
-      )
+    async spawn(sessionId, request, signal) {
+      return await ctx.remote.digitalEmployees.spawn(sessionId, request, signal)
     },
   }
 

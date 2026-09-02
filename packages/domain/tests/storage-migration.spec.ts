@@ -13,12 +13,15 @@ import { describe, expect, it, vi } from 'vitest'
 import DigitalEmployeeService, { requiredCapabilitiesForProfile } from '../lib/index.js'
 import {
   digitalEmployeeDomainSpec,
+  launchRequestIdSchema,
   type LegacyDigitalEmployeeProfile,
   type LegacyDigitalEmployeeProfileDraft,
 } from '../src/spec.ts'
 import {
+  assignmentContentHash,
   digitalEmployeeV1DomainSpec,
   digitalEmployeeBindingKey,
+  launchRequestFingerprint,
   openDigitalEmployeeStorage,
   profileContentFingerprint,
   profileRevisionKey,
@@ -70,9 +73,11 @@ const legacyBinding = {
   phase: 'active' as const,
 }
 
+const { phase: _legacyPhase, ...legacyBindingFields } = legacyBinding
 const migratedBinding = {
-  ...legacyBinding,
+  ...legacyBindingFields,
   profile: migratedProfile,
+  provisioningPhase: 'active' as const,
 }
 
 const laxV0Spec = StorageDomain.defineDomain({
@@ -151,11 +156,13 @@ function installAgentRuntime(
   } as unknown as Context
   const leader = {
     id: 'lead',
+    status: 'idle',
     session: { header: {} },
     ctx,
   } as unknown as Agent
   const child = {
     id: 'child',
+    status: 'idle',
     session: {
       header: { parentSession: 'lead' },
       snapshotEvents: () => [{
@@ -180,13 +187,34 @@ function installAgentRuntime(
     list: () => [...agents.values()],
   } as never)
   ctx.provide('agentTeams', {
+    tryMembership: (agent: Agent) => agent === leader
+      ? { id: 'lead', root: leader, role: 'lead', name: 'lead' }
+      : agent === child
+        ? { id: 'lead', root: leader, role: 'teammate', name: 'legacy-reviewer' }
+        : undefined,
     membership: (agent: Agent) => {
       if (agent !== leader) throw new Error('only the exact fixture Lead has authority')
       return { id: 'lead', root: leader, role: 'lead', name: 'lead' }
     },
     listMembers: () => [
-      { id: 'lead', name: 'lead', role: 'lead' },
-      { id: options.rosterMemberId ?? 'child', name: 'legacy-reviewer', role: 'teammate' },
+      { id: 'lead', name: 'lead', role: 'lead', status: 'idle', diagnostics: [] },
+      {
+        id: options.rosterMemberId ?? 'child',
+        name: 'legacy-reviewer',
+        role: 'teammate',
+        status: 'idle',
+        diagnostics: [],
+        requestedRoute: {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          reasoningEffort: 'high',
+        },
+        resolvedRoute: {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          reasoningEffort: 'high',
+        },
+      },
     ],
   } as never)
   ctx.provide('systemPrompt', {} as never)
@@ -293,6 +321,107 @@ describe('Digital Employee v1 storage generation', () => {
           resolvedRuntimeTarget: selected,
         })
         await reopened.close()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'reconciles one launch-correlated pending Binding after a %s restart',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const target = {
+          kind: 'dsh-model' as const,
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          reasoningEffort: 'high',
+        }
+        const requiredCapabilities = requiredCapabilitiesForProfile(migratedProfileDraft)
+        const profileFingerprint = profileContentFingerprint(
+          migratedProfileDraft,
+          target,
+          requiredCapabilities,
+        )
+        const assignmentHash = assignmentContentHash('Review the recovery path.')
+        const launchRequestId = launchRequestIdSchema.parse('33333333-3333-4333-8333-333333333333')
+        const storage = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        await storage.putProfileRevision({
+          schemaVersion: 1,
+          profileId: migratedProfile.id,
+          revision: migratedProfile.revision,
+          profile: migratedProfileDraft,
+          runtimeTarget: target,
+          requiredCapabilities,
+          fingerprint: profileFingerprint,
+          createdAt: migratedProfile.createdAt,
+          updatedAt: migratedProfile.updatedAt,
+        })
+        await storage.putProfileHead({
+          schemaVersion: 1,
+          profileId: migratedProfile.id,
+          headRevision: 1,
+          latestRevision: migratedProfile.revision,
+          activeRevision: migratedProfile.revision,
+          historyStartsAtRevision: migratedProfile.revision,
+          createdAt: migratedProfile.createdAt,
+          updatedAt: migratedProfile.updatedAt,
+        })
+        await storage.putBinding(digitalEmployeeBindingKey('lead', migratedProfile.employeeName), {
+          schemaVersion: 1,
+          teamId: 'lead',
+          memberName: migratedProfile.employeeName,
+          launchRequestId,
+          requestFingerprint: launchRequestFingerprint({
+            profileId: migratedProfile.id,
+            profileRevision: migratedProfile.revision,
+            profileFingerprint,
+            runtimeTarget: target,
+            preflightRuntimeTarget: target,
+            requiredCapabilities,
+            capabilityGeneration: 1,
+            assignmentHash,
+          }),
+          assignmentHash,
+          profileId: migratedProfile.id,
+          profileRevision: migratedProfile.revision,
+          profileFingerprint,
+          profile: migratedProfile,
+          runtimeTarget: target,
+          preflightRuntimeTarget: target,
+          requiredCapabilities,
+          capabilityGeneration: 1,
+          provisioningPhase: 'pending',
+        })
+        await storage.close()
+
+        const { leader } = installAgentRuntime(runtime.ctx)
+        const service = runtime.ctx.plugin(DigitalEmployeeService)
+        await service
+        expect(runtime.ctx.digitalEmployees.studioView(leader).instances).toEqual([
+          expect.objectContaining({
+            launchRequestId,
+            memberId: 'child',
+            provisioningPhase: 'active',
+            runtimeAvailability: 'available',
+            runtimePresence: 'idle',
+          }),
+        ])
+        await service.dispose()
+
+        const persisted = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        expect(persisted.findBindingByLaunchRequest('lead', launchRequestId)?.[1]).toMatchObject({
+          memberId: 'child',
+          provisioningPhase: 'active',
+          resolvedRuntimeTarget: target,
+        })
+        await persisted.close()
+
+        const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+        await replacement
+        expect(runtime.ctx.digitalEmployees.studioView(leader).instances).toHaveLength(1)
+        await replacement.dispose()
       } finally {
         await runtime.close()
       }
@@ -812,7 +941,7 @@ describe('Digital Employee v1 storage generation', () => {
             memberName: 'legacy-reviewer',
             memberId: 'child',
             profileRevision: 7,
-            phase: 'active',
+            provisioningPhase: 'active',
           }],
         })
         await service.dispose()

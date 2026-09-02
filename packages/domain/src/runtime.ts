@@ -11,6 +11,7 @@ import type {
   DigitalEmployeeProfileCapability,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeRequiredCapabilities,
+  DigitalEmployeeRuntimeAvailability,
   DigitalEmployeeRuntimeBackend,
   DigitalEmployeeRuntimeCatalog,
   DigitalEmployeeRuntimeTarget,
@@ -176,6 +177,7 @@ export class RuntimeBackendRegistry {
     private readonly ctx: Context,
     private readonly llm: LlmRuntime,
     private readonly subagents: SubagentRuntime,
+    private readonly onGeneration?: () => void,
   ) {}
 
   /** Subscribe before the first complete read so no registry edge is lost. */
@@ -206,6 +208,22 @@ export class RuntimeBackendRegistry {
       observed = this.refreshTail
       await observed
     } while (observed !== this.refreshTail)
+  }
+
+  /** Current complete topology generation captured into new Bindings. */
+  get capabilityGeneration(): number {
+    return this.generation
+  }
+
+  /** Classify current executability without changing durable provisioning state. */
+  availability(
+    profile: DigitalEmployeeProfileDraft,
+    target: DigitalEmployeeRuntimeTarget,
+    required: DigitalEmployeeRequiredCapabilities,
+  ): DigitalEmployeeRuntimeAvailability {
+    const problem = this.validate(profile, target, required, 'launch')
+    if (problem === undefined) return 'available'
+    return problem.code === 'runtime-capability-mismatch' ? 'capability-mismatch' : 'unavailable'
   }
 
   /** Register one provider object while exposing only its detached allowlisted metadata. */
@@ -440,6 +458,12 @@ export class RuntimeBackendRegistry {
       this.liveBackends = catalog.backends
       this.invalidDshRoutes = catalog.invalidDshRoutes
       this.generation += 1
+      try {
+        this.onGeneration?.()
+      } catch (error: unknown) {
+        this.ctx.logger.warn('agent-team-ultra: runtime generation observer failed')
+        this.ctx.logger.warn(error)
+      }
     }).catch((error: unknown) => {
       if (initial) throw error
       this.ctx.logger.warn('agent-team-ultra: runtime catalog refresh failed; retaining the prior generation')

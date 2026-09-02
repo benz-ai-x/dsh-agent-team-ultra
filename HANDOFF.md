@@ -16,7 +16,7 @@
   - `packages/ui/src/client/locales.ts` — +20 键中英双语；移除 `hookEffect` 键
   - `packages/ui/tests/studio.client.spec.tsx` — 分节编辑测试之外，新增拖动、八手柄、最小尺寸与视口缩小回归测试
   - `packages/domain/src/index.ts` — alpha.4 移除 `registerContinuableSetup` 后，迁移到官方同步 `agent/created` 生命周期；通过精确 `agent.ctx` 安装 Profile，子 Agent 或服务 Fiber 销毁时完整撤销
-  - `dsh-reference.lock.json`、三个 package manifest 与 lockfile — 钉住 `dsh-v0.1.2-alpha.4` 兼容 source fork / `acb483a997b8b04e64ce5cbbfd660b3c1a92208f`
+  - `dsh-reference.lock.json`、三个 package manifest 与 lockfile — 当前已继续钉住 `dsh-v0.1.2-alpha.4` 兼容 source fork / `e5e2f7f67ce5896b5271e3cc023ee037433584b8`
   - `.gitignore` — 增加 `.superpowers/`
   - `README.md`、`TODO.md` — 上个会话遗留的小改（未提交）
   - `docs/HANDOFF.md` — 上个会话的交接文档（未跟踪）

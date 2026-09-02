@@ -25,8 +25,28 @@ The Profile Revision selected by a Profile Head as the only launchable definitio
 _Avoid_: Current candidate, latest version
 
 **Binding**:
-The durable association between an exact Team member identity and the Profile Revision, selected Runtime Target, descriptor-resolved Runtime Target, Required Capabilities, and immutable Profile snapshot used to create or restore that member.
+The durable association between an exact Team member identity and the Launch Request ID, Profile Revision, selected Runtime Target, Preflight Runtime Target, descriptor-resolved Runtime Target, Required Capabilities, and immutable Profile snapshot used to create or restore that member.
 _Avoid_: Assignment, link
+
+**Launch Intent**:
+One user decision to create a Digital Employee, identified by a Client-minted canonical Launch Request ID that is reused across transport retries until a terminal business outcome.
+_Avoid_: Click, RPC attempt, retry token
+
+**Launch Request ID**:
+A canonical UUID whose uniqueness and replay semantics are scoped to one authoritative Team. It identifies a Launch Intent, not an individual transport attempt.
+_Avoid_: Member ID, global idempotency key
+
+**Provisioning Phase**:
+The durable `pending | active | failed` progress of one Binding relative to Agent Team provisioning and roster reconciliation.
+_Avoid_: Runtime status, availability
+
+**Runtime Availability**:
+The current derived ability of the selected Runtime Backend to honor a Binding's immutable target and Required Capabilities. It is not persisted as provisioning progress.
+_Avoid_: Provisioning Phase, online member
+
+**Runtime Presence**:
+The current derived `running | idle | inactive` residency of a provisioned member in the exact live Agent registry.
+_Avoid_: Provisioning Phase, backend availability
 
 **Runtime Target**:
 The exact discriminated placement pinned by a Profile Revision: either a DSH provider/model/reasoning route or a durable external-agent provider identity. `legacy-inherit-lead` is migration-only.
@@ -35,6 +55,10 @@ _Avoid_: Provider guess, inferred model, display label
 **Resolved Runtime Target**:
 The actual provider/model/reasoning route proven by a created child's durable continuation descriptor. It must preserve every explicit field of the selected Runtime Target and is recorded separately in the Binding and Studio.
 _Avoid_: Lead route, adapter fallback, display selection
+
+**Preflight Runtime Target**:
+The exact executable route resolved and verified immediately before a pending Binding is committed. It is stored separately from the descriptor-proven Resolved Runtime Target.
+_Avoid_: Actual route, child route
 
 **Runtime Backend**:
 A detached, browser-safe catalog row describing one stable Runtime Target route, current availability, context semantics, and enforceable Profile capabilities.

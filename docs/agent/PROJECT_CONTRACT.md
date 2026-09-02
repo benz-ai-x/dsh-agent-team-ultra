@@ -56,10 +56,21 @@ contracts.
 - Archive retains the Head, all Revision history, and existing Bindings. Restore
   is explicit and CAS-guarded; hard delete is not part of the contract.
 - Launch resolves the active Revision's selected DSH route, then persists a
-  pending binding before Agent Team provisioning. After the child accepts its
-  prompt, the Host correlates the continuation descriptor and records the
-  actual resolved route separately. The existing Agent Team Lead Session log
-  remains authoritative for roster, mailbox, and task facts.
+  pending Binding before Agent Team provisioning. That reservation contains
+  the Team-scoped Launch Request ID, normalized request and assignment
+  fingerprints, active Revision/Profile snapshot, selected Runtime Target,
+  distinct Preflight Runtime Target, Required Capabilities, catalog generation,
+  and member name. Resolved Runtime Target remains absent until a child
+  continuation descriptor proves the actual route.
+  After the child accepts its prompt, the Host correlates the continuation
+  descriptor and records the actual resolved route separately. The existing
+  Agent Team Lead Session log remains authoritative for roster, mailbox, and
+  task facts.
+- The Client mints one canonical UUID for a Launch Intent and reuses it across
+  transport failures or a durable `pending` result. Within one Team, identical
+  replay returns or resumes the existing Binding; changing normalized Profile
+  or assignment input returns `launch-request-conflict`. The assignment text
+  is used for initial work but only its canonical hash is persisted.
 - Each employee binds to an exact Revision, selected Runtime Target, resolved
   child Runtime Target, Required Capabilities, and immutable profile snapshot.
   Editing a profile or changing the Lead/default route affects future launches,
@@ -77,7 +88,7 @@ contracts.
   Profile Head, preserves legacy revision and timestamps, and starts known
   history at that legacy revision. Orphan Revisions are not published by a
   Head and are safe to encounter on retry.
-- A migrated Binding preserves its profile snapshot, phase, member identity,
+- A migrated Binding preserves its profile snapshot, Provisioning Phase, member identity,
   and revision. It receives an exact DSH model target only when the live child
   descriptor, lineage, and Team roster prove that route; otherwise it retains
   the explicit `legacy-inherit-lead` compatibility target.
@@ -129,6 +140,13 @@ contracts.
 
 Caller cancellation owns launch until the upstream Agent Team accepts the
 initial prompt. After acceptance, the Team runtime owns the continuable child.
+Service disposal may cancel validation or unaccepted provisioning, but never
+stops an unrelated child or one whose initial work is durably Team-owned.
+Startup, live Lead/roster events, and Runtime Backend generations reconcile
+Bindings against the authoritative permanent roster without provisioning a
+replacement. Provisioning Phase is durable; Runtime Availability and Runtime
+Presence are derived independently from current catalog and exact live-Agent
+facts.
 The Host listens to the synchronous `agent/created` publication edge and
 matches the exact Agent against the already-persisted binding. It installs the
 immutable profile through `agent.ctx` before `agent/session-start` and the
@@ -184,4 +202,6 @@ the Agent Team roster; Studio and the launch result distinguish the selected
 route from the actual descriptor-resolved route. The child sees the configured
 persona/context/memory, cannot execute a filtered inherited tool, retains Team
 tools, and reconstructs the same route and Profile snapshot after cold resume,
-even if the Lead route or active Profile later changes.
+even if the Lead route or active Profile later changes. A retried Launch Intent
+must converge to that same permanent member, while Studio reports its durable
+Provisioning Phase separately from current Runtime Availability and Presence.

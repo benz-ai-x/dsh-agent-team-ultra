@@ -19,6 +19,7 @@
 - [x] Deliver immutable Profile Revisions with fingerprints, Head CAS, explicit activation/rollback, archive/restore, and bounded Studio history/diffs.
 - [x] Select and pin capability-aware DSH model or durable local-agent Runtime Targets without fallback.
 - [x] Launch and cold-resume dsh-model employees on their exact provider/model/reasoning route while retaining selected and resolved routes.
+- [x] Make Launch Intents Team-idempotent and restart-reconcilable with separate provisioning, availability, and presence state.
 
 ## Later
 

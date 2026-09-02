@@ -1,11 +1,13 @@
 /** Durable storage-domain and input schemas for Agent Team Ultra. */
 
-import { z } from 'zod'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
+import { z } from 'zod'
 import type {
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeRuntimeTarget,
+  LaunchRequestId,
   ProfileHook,
   ProfileTextBlock,
   ProfileToolPolicy,
@@ -14,6 +16,11 @@ import type {
 
 const lowerKebab = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
 const identifier = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u
+const canonicalUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+
+/** Canonical lowercase UUID accepted as one caller-owned launch identity. */
+export const launchRequestIdSchema = z.string().regex(canonicalUuid)
+  .transform(value => brandString<LaunchRequestId>(value))
 
 export const profileTextBlockSchema = z.object({
   id: z.string().min(1).max(64).regex(identifier),

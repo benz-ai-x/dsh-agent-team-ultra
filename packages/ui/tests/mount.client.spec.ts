@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { LaunchRequestId } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/src/client/index.ts'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/src/client/registry.ts'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
@@ -12,6 +13,8 @@ const REMOTE: TypertRemoteContribution = {
   package: '@deepseek-ai/dsh-agent-team-ultra',
   descriptors: [],
 }
+
+const LAUNCH_REQUEST_ID = '11111111-1111-4111-8111-111111111111' as LaunchRequestId
 
 async function bench(registrationFailure = false) {
   const ctx = new Context()
@@ -87,7 +90,11 @@ describe('Digital Employee Studio mount lifecycle', () => {
     await actions.rollback('lead-session', 'reviewer', 1, 5)
     await actions.archive('lead-session', 'reviewer', 6)
     await actions.restore('lead-session', 'reviewer', 7)
-    await actions.spawn('lead-session', 'reviewer', '  Review this change.  ', new AbortController().signal)
+    await actions.spawn('lead-session', {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'reviewer',
+      assignment: 'Review this change.',
+    }, new AbortController().signal)
     expect(runtime.calls).toEqual([
       { method: 'view', args: ['lead-session'] },
       { method: 'revision', args: ['lead-session', { profileId: 'reviewer', revision: 2 }] },
@@ -105,7 +112,11 @@ describe('Digital Employee Studio mount lifecycle', () => {
         method: 'spawn',
         args: [
           'lead-session',
-          { profileId: 'reviewer', assignment: 'Review this change.' },
+          {
+            launchRequestId: LAUNCH_REQUEST_ID,
+            profileId: 'reviewer',
+            assignment: 'Review this change.',
+          },
           expect.any(AbortSignal),
         ],
       },

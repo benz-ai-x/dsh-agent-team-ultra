@@ -23,13 +23,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import DigitalEmployeeService from '../lib/index.js'
+import DigitalEmployeeService, { launchRequestIdSchema } from '../lib/index.js'
 import type { DigitalEmployeeProfileDraft } from '../src/types.ts'
 
 const SIGNAL = new AbortController().signal
 const SELECTED_PROVIDER = 'employee-provider'
 const SELECTED_MODEL = 'employee-model'
 const SELECTED_EFFORT = ReasoningEffortId('high')
+const LAUNCH_REQUEST_ID = launchRequestIdSchema.parse('22222222-2222-4222-8222-222222222222')
 
 class MemoryTable<K extends string, V> implements KvTable<K, V> {
   readonly records = new Map<K, V>()
@@ -247,6 +248,7 @@ describe('pinned dsh-model route integration', () => {
     if (!activated.ok) throw new Error(activated.error.message)
 
     const launched = await ctx.digitalEmployees.spawnProfile(lead, {
+      launchRequestId: LAUNCH_REQUEST_ID,
       profileId: saved.value.head.profileId,
       assignment: 'ASSIGNMENT V1',
     }, SIGNAL)

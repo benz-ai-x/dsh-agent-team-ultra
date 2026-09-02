@@ -9,12 +9,15 @@ import {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   GetDigitalEmployeeProfileRevisionResult,
+  LaunchRequestId,
   MutateDigitalEmployeeProfileHeadResult,
   DigitalEmployeeProfileCatalogEntry,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeProfileRevisionDetail,
   DigitalEmployeeProfileCapability,
   DigitalEmployeeRuntimeBackend,
+  DigitalEmployeeRuntimeAvailability,
+  DigitalEmployeeRuntimePresence,
   DigitalEmployeeRuntimeTarget,
   DigitalEmployeeStudioView,
   ProfileHook,
@@ -23,6 +26,7 @@ import type {
   SaveDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileResult,
   SelectableDigitalEmployeeRuntimeTarget,
+  SpawnDigitalEmployeeRequest,
   SpawnDigitalEmployeeResult,
 } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -81,8 +85,7 @@ export interface DigitalEmployeeStudioInjected {
   ) => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>
   spawn: (
     sessionId: SessionId,
-    profileId: string,
-    assignment: string,
+    request: SpawnDigitalEmployeeRequest,
     signal?: AbortSignal,
   ) => Promise<RemoteResult<SpawnDigitalEmployeeResult>>
 }
@@ -119,6 +122,13 @@ type StudioWindowInteraction = StudioWindowInteractionBase & (
 interface ViewportSize {
   readonly width: number
   readonly height: number
+}
+
+interface LaunchIntent {
+  readonly sessionId: SessionId
+  readonly profileId: string
+  readonly assignment: string | undefined
+  readonly request: SpawnDigitalEmployeeRequest
 }
 
 const SECTION_ORDER: readonly SectionId[] = ['identity', 'persona', 'tools', 'context', 'memory', 'hooks', 'revisions']
@@ -231,8 +241,24 @@ function failureText(error: { readonly code: string; readonly message: string })
   return `${error.message} (${error.code})`
 }
 
-function instanceStatusKey(phase: 'pending' | 'active' | 'failed'): UltraKey {
+function provisioningPhaseKey(phase: 'pending' | 'active' | 'failed'): UltraKey {
   return phase
+}
+
+function instanceAvailabilityKey(availability: DigitalEmployeeRuntimeAvailability): UltraKey {
+  switch (availability) {
+    case 'available': return 'runtimeAvailable'
+    case 'unavailable': return 'runtimeUnavailable'
+    case 'capability-mismatch': return 'runtimeCapabilityMismatch'
+  }
+}
+
+function runtimePresenceKey(presence: DigitalEmployeeRuntimePresence): UltraKey {
+  switch (presence) {
+    case 'running': return 'runtimeRunning'
+    case 'idle': return 'runtimeIdle'
+    case 'inactive': return 'runtimeInactive'
+  }
 }
 
 function runtimeAvailabilityLabel(
@@ -504,6 +530,7 @@ export function DigitalEmployeeStudio({
   const revisionGeneration = useRef(0)
   const busyRef = useRef<BusyOperation | null>(null)
   const launchAbortRef = useRef<AbortController | null>(null)
+  const launchIntentRef = useRef<LaunchIntent | null>(null)
   const windowRectRef = useRef<StudioWindowRect | null>(windowRect)
   const windowInteractionRef = useRef<StudioWindowInteraction | null>(null)
   sessionRef.current = sessionId
@@ -528,6 +555,7 @@ export function DigitalEmployeeStudio({
   useEffect(() => {
     refreshGeneration.current += 1
     busyRef.current = null
+    launchIntentRef.current = null
     windowInteractionRef.current = null
     setOpen(false)
     setLoading(false)
@@ -781,18 +809,41 @@ export function DigitalEmployeeStudio({
     if (draft === null || expectedHeadRevision === null || !begin('spawn')) return
     const requestedSession = sessionId
     const requestedProfileId = draft.id
+    const requestedAssignment = assignment.trim() || undefined
+    const retained = launchIntentRef.current
+    const intent = retained?.sessionId === requestedSession
+      && retained.profileId === requestedProfileId
+      && retained.assignment === requestedAssignment
+      ? retained
+      : {
+        sessionId: requestedSession,
+        profileId: requestedProfileId,
+        assignment: requestedAssignment,
+        request: {
+          launchRequestId: globalThis.crypto.randomUUID() as LaunchRequestId,
+          profileId: requestedProfileId,
+          ...(requestedAssignment === undefined ? {} : { assignment: requestedAssignment }),
+        },
+      }
+    launchIntentRef.current = intent
     const controller = new AbortController()
     launchAbortRef.current = controller
     try {
-      const result = await spawn(requestedSession, requestedProfileId, assignment, controller.signal)
+      const result = await spawn(requestedSession, intent.request, controller.signal)
       if (sessionRef.current !== requestedSession) return
       if (!result.ok) {
         setError(failureText(result.error))
       } else if (!result.value.ok) {
+        if (launchIntentRef.current === intent) launchIntentRef.current = null
         setError(failureText(result.value.error))
       } else {
-        setAssignment('')
-        if (await refresh(requestedProfileId) && sessionRef.current === requestedSession) setNotice(t('launched'))
+        const pending = result.value.value.provisioningPhase === 'pending'
+        if (!pending && launchIntentRef.current === intent) launchIntentRef.current = null
+        if (!pending) setAssignment('')
+        if (await refresh(requestedProfileId) && sessionRef.current === requestedSession) {
+          if (pending) setAssignment(assignment)
+          setNotice(t('launched'))
+        }
       }
     } catch (reason: unknown) {
       if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
@@ -1005,10 +1056,12 @@ export function DigitalEmployeeStudio({
                   {instances.length === 0 && <p className={css.muted}>{t('noInstances')}</p>}
                   {instances.map(instance => (
                     <div key={`${instance.teamId}/${instance.memberName}`} className={css.instance}>
-                      <StateDot state={instance.phase === 'failed' ? 'error' : instance.phase === 'pending' ? 'ongoing' : 'done'} />
+                      <StateDot state={instance.provisioningPhase === 'failed' ? 'error' : instance.provisioningPhase === 'pending' ? 'ongoing' : 'done'} />
                       <span>
                         <strong>{instance.memberName}</strong>
-                        <small>{t(instanceStatusKey(instance.phase))} · r{instance.profileRevision}</small>
+                        <small>{t('provisioningState')}: {t(provisioningPhaseKey(instance.provisioningPhase))} · r{instance.profileRevision}</small>
+                        <small>{t('runtimeAvailabilityState')}: {t(instanceAvailabilityKey(instance.runtimeAvailability))}</small>
+                        <small>{t('runtimePresenceState')}: {t(runtimePresenceKey(instance.runtimePresence))}</small>
                         <small>{t('selectedRoute')}: {runtimeTargetLabel(instance.runtimeTarget)}</small>
                         {instance.resolvedRuntimeTarget !== undefined && (
                           <small>{t('actualRoute')}: {runtimeTargetLabel(instance.resolvedRuntimeTarget)}</small>

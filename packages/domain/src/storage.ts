@@ -11,6 +11,7 @@ import {
   digitalEmployeeProfileDraftSchema,
   digitalEmployeeProfileSchema,
   digitalEmployeeRuntimeTargetSchema,
+  launchRequestIdSchema,
   legacyDigitalEmployeeProfileDraftSchema,
   legacyDigitalEmployeeProfileSchema,
   type LegacyDigitalEmployeeProfile,
@@ -21,9 +22,11 @@ import type {
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeProfileHead,
+  DigitalEmployeeProvisioningPhase,
   DigitalEmployeeProfileRevision,
   DigitalEmployeeRequiredCapabilities,
   DigitalEmployeeRuntimeTarget,
+  LaunchRequestId,
   SelectableDigitalEmployeeRuntimeTarget,
 } from './types.ts'
 
@@ -56,6 +59,28 @@ type StoredDigitalEmployeeProfileRevisionV1 =
     readonly fingerprint?: string
     readonly requiredCapabilities?: DigitalEmployeeRequiredCapabilities
   }
+
+/** Host-owned durable launch correlation; legacy migrated rows omit idempotency fields. */
+export interface DigitalEmployeeBindingV1 {
+  readonly schemaVersion: 1
+  readonly teamId: string
+  readonly memberName: string
+  readonly memberId?: string
+  readonly launchRequestId?: LaunchRequestId
+  readonly requestFingerprint?: string
+  readonly assignmentHash?: string
+  readonly profileId: string
+  readonly profileRevision: number
+  readonly profileFingerprint?: string
+  readonly profile: DigitalEmployeeProfile
+  readonly runtimeTarget: DigitalEmployeeRuntimeTarget
+  readonly preflightRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  readonly resolvedRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
+  readonly capabilityGeneration?: number
+  readonly provisioningPhase: DigitalEmployeeProvisioningPhase
+  readonly error?: string
+}
 
 const safeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
@@ -161,25 +186,50 @@ export const digitalEmployeeProfileRevisionV1Schema = z.object({
   message: 'updatedAt must not precede createdAt',
 }) as z.ZodType<StoredDigitalEmployeeProfileRevisionV1>
 
-export const digitalEmployeeBindingV1Schema = z.object({
+const provisioningPhaseSchema = z.union([z.literal('pending'), z.literal('active'), z.literal('failed')])
+const digitalEmployeeBindingV1InputSchema = z.object({
   schemaVersion: z.literal(1),
   teamId: nonEmptyText,
   memberName: z.string().min(1).max(64),
   memberId: nonEmptyText.optional(),
+  launchRequestId: launchRequestIdSchema.optional(),
+  requestFingerprint: fingerprintSchema.optional(),
+  assignmentHash: fingerprintSchema.optional(),
   profileId: z.string().min(1).max(64),
   profileRevision: positiveInteger,
+  profileFingerprint: fingerprintSchema.optional(),
   profile: storedProfileSchema,
   runtimeTarget: migratedRuntimeTargetSchema,
+  preflightRuntimeTarget: resolvedRuntimeTargetSchema.optional(),
   resolvedRuntimeTarget: resolvedRuntimeTargetSchema.optional(),
   requiredCapabilities: requiredCapabilitiesSchema.optional(),
-  phase: z.union([z.literal('pending'), z.literal('active'), z.literal('failed')]),
+  capabilityGeneration: safeInteger.optional(),
+  provisioningPhase: provisioningPhaseSchema.optional(),
+  phase: provisioningPhaseSchema.optional(),
   error: z.string().max(2048).optional(),
-}).strict().transform(binding => ({
+}).strict().superRefine((binding, ctx) => {
+  if ((binding.provisioningPhase === undefined) === (binding.phase === undefined)) {
+    ctx.addIssue({ code: 'custom', message: 'binding requires exactly one provisioning phase field' })
+  }
+  const idempotency = [
+    binding.launchRequestId,
+    binding.requestFingerprint,
+    binding.assignmentHash,
+    binding.profileFingerprint,
+    binding.capabilityGeneration,
+    binding.preflightRuntimeTarget,
+  ]
+  const present = idempotency.filter(value => value !== undefined).length
+  if (present !== 0 && present !== idempotency.length) {
+    ctx.addIssue({ code: 'custom', message: 'binding launch identity fields must be present together' })
+  }
+}).transform(({ phase, ...binding }) => ({
   ...binding,
+  provisioningPhase: binding.provisioningPhase ?? phase!,
   requiredCapabilities: binding.requiredCapabilities ?? requiredCapabilitiesForProfile(binding.profile),
 }))
 
-export type DigitalEmployeeBindingV1 = z.infer<typeof digitalEmployeeBindingV1Schema>
+export const digitalEmployeeBindingV1Schema = digitalEmployeeBindingV1InputSchema as z.ZodType<DigitalEmployeeBindingV1>
 
 const runIndexRecordSchema = z.object({ schemaVersion: z.literal(1), runId: boundedId }).strict()
 const evalSetRecordSchema = z.object({
@@ -268,6 +318,38 @@ function canonicalJson(value: unknown): string {
     .sort()
     .map(key => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
     .join(',')}}`
+}
+
+/**
+ * Hash one normalized assignment without retaining its text.
+ * @param assignment - trimmed assignment, or undefined for no assignment.
+ * @returns canonical SHA-256 digest used by launch idempotency.
+ */
+export function assignmentContentHash(assignment: string | undefined): string {
+  return createHash('sha256')
+    .update(canonicalJson({ assignment: assignment ?? null }), 'utf8')
+    .digest('hex')
+}
+
+/** Immutable values that distinguish one accepted launch request. */
+export interface LaunchRequestFingerprintInput {
+  readonly profileId: string
+  readonly profileRevision: number
+  readonly profileFingerprint: string
+  readonly runtimeTarget: DigitalEmployeeRuntimeTarget
+  readonly preflightRuntimeTarget: SelectableDigitalEmployeeRuntimeTarget
+  readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
+  readonly capabilityGeneration: number
+  readonly assignmentHash: string
+}
+
+/**
+ * Fingerprint one normalized launch intent without its Team-scoped request id.
+ * @param input - immutable Revision, selected/preflight routes, capability generation, and assignment digest.
+ * @returns canonical SHA-256 digest used to reject changed retries.
+ */
+export function launchRequestFingerprint(input: LaunchRequestFingerprintInput): string {
+  return createHash('sha256').update(canonicalJson(input), 'utf8').digest('hex')
 }
 
 /** Fingerprint only immutable normalized content, never counters or operational timestamps. */
@@ -361,11 +443,39 @@ function profileFromRevision(record: DigitalEmployeeProfileRevision): DigitalEmp
   })
 }
 
+function bindingLaunchFields(binding: DigitalEmployeeBindingV1): Pick<
+  DigitalEmployeeBindingV1,
+  | 'launchRequestId'
+  | 'requestFingerprint'
+  | 'assignmentHash'
+  | 'profileFingerprint'
+  | 'capabilityGeneration'
+  | 'preflightRuntimeTarget'
+> {
+  if (binding.launchRequestId === undefined) return {}
+  if (binding.requestFingerprint === undefined
+    || binding.assignmentHash === undefined
+    || binding.profileFingerprint === undefined
+    || binding.capabilityGeneration === undefined
+    || binding.preflightRuntimeTarget === undefined) {
+    throw new TypeError('a launch-correlated Binding requires every identity fingerprint')
+  }
+  return {
+    launchRequestId: binding.launchRequestId,
+    requestFingerprint: binding.requestFingerprint,
+    assignmentHash: binding.assignmentHash,
+    profileFingerprint: binding.profileFingerprint,
+    capabilityGeneration: binding.capabilityGeneration,
+    preflightRuntimeTarget: binding.preflightRuntimeTarget,
+  }
+}
+
 function bindingRecord(
   binding: DigitalEmployeeBinding | DigitalEmployeeBindingV1,
   fallbackTarget: MigratedRuntimeTarget = legacyInheritLeadRuntimeTarget,
 ): DigitalEmployeeBindingV1 {
   const runtimeTarget = 'runtimeTarget' in binding ? binding.runtimeTarget : fallbackTarget
+  const provisioningPhase = 'provisioningPhase' in binding ? binding.provisioningPhase : binding.phase
   const profile = migratedProfileVocabulary(binding.profile)
   const requiredCapabilities = 'requiredCapabilities' in binding
     ? binding.requiredCapabilities
@@ -375,6 +485,7 @@ function bindingRecord(
     teamId: binding.teamId,
     memberName: binding.memberName,
     ...(binding.memberId === undefined ? {} : { memberId: binding.memberId }),
+    ...('launchRequestId' in binding ? bindingLaunchFields(binding) : {}),
     profileId: binding.profileId,
     profileRevision: binding.profileRevision,
     profile,
@@ -383,7 +494,7 @@ function bindingRecord(
       ? { resolvedRuntimeTarget: binding.resolvedRuntimeTarget }
       : {}),
     requiredCapabilities,
-    phase: binding.phase,
+    provisioningPhase,
     ...(binding.error === undefined ? {} : { error: binding.error }),
   })
 }
@@ -559,6 +670,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       }
     }
   }
+  const launchRequests = new Set<string>()
   for (const [key, binding] of v1.table('bindings').entries()) {
     if (key !== digitalEmployeeBindingKey(binding.teamId, binding.memberName)
       || binding.profile.id !== binding.profileId
@@ -573,6 +685,39 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
         `Binding ${JSON.stringify(key)} has non-canonical required capabilities`,
         'target-inconsistent',
       )
+    }
+    if (binding.launchRequestId !== undefined) {
+      const scopedRequest = canonicalJson([binding.teamId, binding.launchRequestId])
+      if (launchRequests.has(scopedRequest)) {
+        throw new DigitalEmployeeMigrationError(
+          `Binding ${JSON.stringify(key)} reuses a Team-scoped launch request id`,
+          'target-inconsistent',
+        )
+      }
+      launchRequests.add(scopedRequest)
+      const { revision: _revision, createdAt: _createdAt, updatedAt: _updatedAt, ...profile } = binding.profile
+      const profileFingerprint = profileContentFingerprint(
+        profile,
+        binding.runtimeTarget,
+        binding.requiredCapabilities,
+      )
+      if (!isDeepStrictEqual(binding.preflightRuntimeTarget, binding.runtimeTarget)
+        || binding.profileFingerprint !== profileFingerprint
+        || binding.requestFingerprint !== launchRequestFingerprint({
+          profileId: binding.profileId,
+          profileRevision: binding.profileRevision,
+          profileFingerprint,
+          runtimeTarget: binding.runtimeTarget,
+          preflightRuntimeTarget: binding.preflightRuntimeTarget!,
+          requiredCapabilities: binding.requiredCapabilities,
+          capabilityGeneration: binding.capabilityGeneration!,
+          assignmentHash: binding.assignmentHash!,
+        })) {
+        throw new DigitalEmployeeMigrationError(
+          `Binding ${JSON.stringify(key)} has inconsistent launch fingerprints`,
+          'target-inconsistent',
+        )
+      }
     }
   }
 }
@@ -677,6 +822,22 @@ export class DigitalEmployeeStorage {
 
   bindingEntries(): IterableIterator<[string, DigitalEmployeeBindingV1]> {
     return this.domain.table('bindings').entries()
+  }
+
+  /** Find the only Binding for one Team-scoped caller launch identity. */
+  findBindingByLaunchRequest(
+    teamId: string,
+    launchRequestId: LaunchRequestId,
+  ): [string, DigitalEmployeeBindingV1] | undefined {
+    const matches = [...this.domain.table('bindings').entries()]
+      .filter(([, binding]) => binding.teamId === teamId && binding.launchRequestId === launchRequestId)
+    if (matches.length > 1) {
+      throw new DigitalEmployeeMigrationError(
+        `Team ${JSON.stringify(teamId)} has duplicate launch request ${JSON.stringify(launchRequestId)}`,
+        'target-inconsistent',
+      )
+    }
+    return matches[0]
   }
 
   putBinding(key: string, binding: DigitalEmployeeBinding | DigitalEmployeeBindingV1): Promise<void> {

@@ -1,18 +1,20 @@
 /** Agent Team Ultra Host service and generated Remote surface. */
 
 import { Buffer } from 'node:buffer'
+import { isDeepStrictEqual } from 'node:util'
 import { Context, Service } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { TeamMemberRouteSnapshot } from '@deepseek-ai/dsh-experimental-agent-team'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { UserMessage } from '@deepseek-ai/dsh-session'
+import { SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   digitalEmployeeProfileDraftSchema,
+  launchRequestIdSchema,
   selectableDigitalEmployeeRuntimeTargetSchema,
   type DigitalEmployeeBinding,
 } from './spec.ts'
@@ -24,14 +26,22 @@ import {
   type DigitalEmployeeExternalRuntimeRegistration,
 } from './runtime.ts'
 import {
+  assignmentContentHash,
   DigitalEmployeeStorage,
   digitalEmployeeBindingKey,
   legacyInheritLeadRuntimeTarget,
   openDigitalEmployeeStorage,
+  launchRequestFingerprint,
   profileContentFingerprint,
   type DigitalEmployeeBindingV1,
   type MigratedRuntimeTarget,
 } from './storage.ts'
+import {
+  bindingMatchesReplay,
+  bindingRosterMember,
+  bindingRuntimePresence,
+  reconcileBindingFromRoster,
+} from './launch.ts'
 import type {
   ActivateDigitalEmployeeProfileRequest,
   ArchiveDigitalEmployeeProfileRequest,
@@ -50,6 +60,7 @@ import type {
   DigitalEmployeeStudioView,
   GetDigitalEmployeeProfileRevisionRequest,
   GetDigitalEmployeeProfileRevisionResult,
+  LaunchRequestId,
   MutateDigitalEmployeeProfileHeadResult,
   ProfileHook,
   ProfileTextBlock,
@@ -74,6 +85,7 @@ export {
   digitalEmployeeProfileDraftSchema,
   digitalEmployeeProfileSchema,
   digitalEmployeeRuntimeTargetSchema,
+  launchRequestIdSchema,
   profileHookSchema,
   profileTextBlockSchema,
   profileToolPolicySchema,
@@ -108,6 +120,19 @@ interface ResolvedConfig {
   readonly maxAssignmentBytes: number
   readonly maxRevisionHistory: number
   readonly maxDiffEntries: number
+}
+
+interface NormalizedLaunchRequest {
+  readonly launchRequestId: LaunchRequestId
+  readonly profileId: string
+  readonly assignment?: string
+  readonly assignmentHash: string
+}
+
+interface InFlightLaunch {
+  readonly profileId: string
+  readonly assignmentHash: string
+  readonly operation: Promise<SpawnDigitalEmployeeResult>
 }
 
 const DEFAULT_PROVIDER = 'spawn'
@@ -418,6 +443,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
   private storage: DigitalEmployeeStorage | undefined
   private mutationTail: Promise<void> = Promise.resolve()
   private readonly launches = new Set<Promise<unknown>>()
+  private readonly launchesByRequest = new Map<string, InFlightLaunch>()
+  private readonly reconciliations = new Set<Promise<void>>()
   private readonly childInstallations = new Map<Agent, () => void>()
   private readonly lifecycle = new AbortController()
   private readonly runtimeBackends: RuntimeBackendRegistry
@@ -425,7 +452,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'digitalEmployees')
-    this.runtimeBackends = new RuntimeBackendRegistry(ctx, ctx.llm, ctx.subagents)
+    this.runtimeBackends = new RuntimeBackendRegistry(
+      ctx,
+      ctx.llm,
+      ctx.subagents,
+      () => { this.scheduleAvailableLeadReconciliation() },
+    )
     this.resolved = {
       defaultContinuationProvider: (
         config.defaultContinuationProvider ?? config.defaultProvider ?? DEFAULT_PROVIDER
@@ -452,9 +484,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
       resolveBindingRuntimeTarget: binding => this.migratedBindingRuntimeTarget(binding),
     })
     this.storage = storage
-    this.admissionOpen = true
     let stopCreated = (): void => undefined
     let stopDisposed = (): void => undefined
+    let stopSessionStart = (): void => undefined
+    let stopSessionEvent = (): void => undefined
     this.ctx.effect(() => async () => {
       this.admissionOpen = false
       this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
@@ -462,8 +495,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
       const failures: unknown[] = []
       try { stopCreated() } catch (error: unknown) { failures.push(error) }
       try { stopDisposed() } catch (error: unknown) { failures.push(error) }
+      try { stopSessionStart() } catch (error: unknown) { failures.push(error) }
+      try { stopSessionEvent() } catch (error: unknown) { failures.push(error) }
       try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
+      await Promise.allSettled([...this.reconciliations])
       await this.mutationTail
       try { await storage.close() } catch (error: unknown) { failures.push(error) }
       finally {
@@ -473,9 +509,23 @@ export class DigitalEmployeeService extends TypertRemoteService {
         throw new AggregateError(failures, 'Agent Team Ultra disposal failed')
       }
     }, 'agent-team-ultra.runtime')
-    stopCreated = this.ctx.on('agent/created', ({ agent }) => { this.installBoundAgent(agent) })
+    stopCreated = this.ctx.on('agent/created', ({ agent }) => {
+      this.installBoundAgent(agent)
+      this.scheduleLeadReconciliation(agent)
+    })
     stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => { this.removeBoundAgent(agent) })
+    stopSessionStart = this.ctx.on('agent/session-start', ({ agent }) => {
+      this.scheduleLeadReconciliation(agent)
+    })
+    stopSessionEvent = this.ctx.on('session/event', (session, event) => {
+      if (event.type === 'team/member') {
+        const lead = this.ctx.agents.get(session.id)
+        if (lead !== undefined) this.scheduleLeadReconciliation(lead)
+      }
+    })
+    this.admissionOpen = true
     for (const agent of this.ctx.agents.list()) this.installBoundAgent(agent)
+    await this.reconcileAvailableLeads()
   }
 
   /** Register one durable local-agent runtime; the provider object remains Host-only. */
@@ -492,7 +542,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Complete replaceable Studio view for one exact live Team Lead. */
   @Remote('view')
-  remoteView(agent: Agent): DigitalEmployeeStudioView {
+  async remoteView(agent: Agent): Promise<DigitalEmployeeStudioView> {
+    await this.reconcileTeam(agent)
     return this.studioView(agent)
   }
 
@@ -799,46 +850,102 @@ export class DigitalEmployeeService extends TypertRemoteService {
     return this.setArchiveState(caller, request, false)
   }
 
-  /** Public Host launch API with cancellation preserved through Agent Team provisioning. */
+  /** Public Host launch API with Team-scoped idempotency and pre-acceptance cancellation. */
   spawnProfile(
     caller: Agent,
     request: SpawnDigitalEmployeeRequest,
-    signal: AbortSignal,
+    callerSignal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
     if (!this.admissionOpen) return Promise.resolve(spawnRejected(failure('service-disposed', 'Digital Employee service is disposing')))
     const authorityFailure = this.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(spawnRejected(authorityFailure))
-    const operation = this.spawnAdmitted(caller, request, signal)
+    const parsedRequestId = launchRequestIdSchema.safeParse(request.launchRequestId)
+    if (!parsedRequestId.success) {
+      return Promise.resolve(spawnRejected(failure(
+        'profile-invalid',
+        'launchRequestId must be a canonical lowercase UUID',
+      )))
+    }
+    const assignmentText = request.assignment?.trim()
+    const assignment = assignmentText === '' ? undefined : assignmentText
+    if (assignment !== undefined && Buffer.byteLength(assignment, 'utf8') > this.resolved.maxAssignmentBytes) {
+      return Promise.resolve(spawnRejected(failure(
+        'assignment-too-large',
+        `assignment exceeds ${this.resolved.maxAssignmentBytes} UTF-8 bytes`,
+      )))
+    }
+    let teamId: string
+    try {
+      const membership = this.ctx.agentTeams.membership(caller)
+      if (membership.role !== 'lead') {
+        return Promise.resolve(spawnRejected(failure(
+          'team-lead-required',
+          'only the exact live Team Lead may launch a Digital Employee',
+        )))
+      }
+      teamId = membership.id
+    } catch (error: unknown) {
+      if (error instanceof TeamError) return Promise.resolve(spawnRejected(failure('team-rejected', error.message)))
+      throw error
+    }
+    const normalized: NormalizedLaunchRequest = Object.freeze({
+      launchRequestId: parsedRequestId.data,
+      profileId: request.profileId,
+      ...(assignment === undefined ? {} : { assignment }),
+      assignmentHash: assignmentContentHash(assignment),
+    })
+    const requestKey = JSON.stringify([teamId, normalized.launchRequestId])
+    const existing = this.launchesByRequest.get(requestKey)
+    if (existing !== undefined) {
+      return existing.profileId === normalized.profileId && existing.assignmentHash === normalized.assignmentHash
+        ? existing.operation
+        : Promise.resolve(spawnRejected(failure(
+          'launch-request-conflict',
+          'launchRequestId was already used with different normalized input',
+        )))
+    }
+    const operation = this.spawnAdmitted(caller, teamId, normalized, callerSignal)
+    this.launchesByRequest.set(requestKey, {
+      profileId: normalized.profileId,
+      assignmentHash: normalized.assignmentHash,
+      operation,
+    })
     this.launches.add(operation)
-    void operation.finally(() => { this.launches.delete(operation) }).catch(() => undefined)
+    void operation.finally(() => {
+      this.launches.delete(operation)
+      if (this.launchesByRequest.get(requestKey)?.operation === operation) this.launchesByRequest.delete(requestKey)
+    }).catch(() => undefined)
     return operation
   }
 
   private async spawnAdmitted(
     caller: Agent,
-    request: SpawnDigitalEmployeeRequest,
+    teamId: string,
+    request: NormalizedLaunchRequest,
     callerSignal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
     const signal = AbortSignal.any([callerSignal, this.lifecycle.signal])
     signal.throwIfAborted()
-    const assignment = request.assignment?.trim()
-    if (assignment !== undefined && Buffer.byteLength(assignment, 'utf8') > this.resolved.maxAssignmentBytes) {
-      return spawnRejected(failure(
-        'assignment-too-large',
-        `assignment exceeds ${this.resolved.maxAssignmentBytes} UTF-8 bytes`,
-      ))
-    }
-    let membership
-    try {
-      membership = this.ctx.agentTeams.membership(caller)
-    } catch (error: unknown) {
-      if (error instanceof TeamError) return spawnRejected(failure('team-rejected', error.message))
-      throw error
-    }
-    if (membership.role !== 'lead') {
-      return spawnRejected(failure('team-lead-required', 'only the exact live Team Lead may launch a Digital Employee'))
-    }
     const storage = this.requireStorage()
+    const replay = storage.findBindingByLaunchRequest(teamId, request.launchRequestId)
+    if (replay !== undefined) {
+      const [, prior] = replay
+      if (!bindingMatchesReplay(prior, request.profileId, request.assignmentHash)) {
+        return spawnRejected(failure(
+          'launch-request-conflict',
+          'launchRequestId was already used with different normalized input',
+        ))
+      }
+      const roster = this.ctx.agentTeams.listMembers(caller)
+      const reconciled = await this.reconcileBinding(caller, prior, roster)
+      if (reconciled.provisioningPhase !== 'pending'
+        || bindingRosterMember(reconciled, roster) !== undefined
+        || !await this.pendingBindingIsExecutable(caller, reconciled)) {
+        return Object.freeze({ ok: true, value: this.instanceView(reconciled) })
+      }
+      return await this.provisionBinding(caller, reconciled, request.assignment, signal)
+    }
+
     const head = storage.getProfileHead(request.profileId)
     if (head === undefined) {
       return spawnRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
@@ -895,31 +1002,73 @@ export class DigitalEmployeeService extends TypertRemoteService {
       ))
     }
 
-    const key = digitalEmployeeBindingKey(membership.id, profile.employeeName)
+    const key = digitalEmployeeBindingKey(teamId, profile.employeeName)
     const reservation = await this.enqueue(async (): Promise<DigitalEmployeeBindingV1 | DigitalEmployeeFailure> => {
       const storage = this.requireStorage()
+      const requestOwner = storage.findBindingByLaunchRequest(teamId, request.launchRequestId)
+      if (requestOwner !== undefined) {
+        return bindingMatchesReplay(requestOwner[1], request.profileId, request.assignmentHash)
+          ? requestOwner[1]
+          : failure('launch-request-conflict', 'launchRequestId was already used with different normalized input')
+      }
       const existing = storage.getBinding(key)
       const rosterOwnsName = this.ctx.agentTeams.listMembers(caller)
         .some(member => member.name === profile.employeeName)
-      if (existing !== undefined && rosterOwnsName) {
+      if (existing !== undefined || rosterOwnsName) {
         return failure('profile-in-use', `Team member name "${profile.employeeName}" is already reserved`)
       }
-      const pending: DigitalEmployeeBindingV1 = Object.freeze({
-        schemaVersion: 1,
-        teamId: membership.id,
-        memberName: profile.employeeName,
+      const capabilityGeneration = this.runtimeBackends.capabilityGeneration
+      const requestFingerprint = launchRequestFingerprint({
         profileId: profile.id,
         profileRevision: profile.revision,
+        profileFingerprint: activeRevision.fingerprint,
+        runtimeTarget: selectedTarget,
+        preflightRuntimeTarget: selectedTarget,
+        requiredCapabilities: activeRevision.requiredCapabilities,
+        capabilityGeneration,
+        assignmentHash: request.assignmentHash,
+      })
+      const pending: DigitalEmployeeBindingV1 = Object.freeze({
+        schemaVersion: 1,
+        teamId,
+        memberName: profile.employeeName,
+        launchRequestId: request.launchRequestId,
+        requestFingerprint,
+        assignmentHash: request.assignmentHash,
+        profileId: profile.id,
+        profileRevision: profile.revision,
+        profileFingerprint: activeRevision.fingerprint,
         profile: snapshotProfile(profile),
         runtimeTarget: Object.freeze({ ...selectedTarget }),
+        preflightRuntimeTarget: Object.freeze({ ...selectedTarget }),
         requiredCapabilities: snapshotRequiredCapabilities(activeRevision.requiredCapabilities),
-        phase: 'pending',
+        capabilityGeneration,
+        provisioningPhase: 'pending',
       })
       await storage.putBinding(key, pending)
       return pending
     })
     if ('code' in reservation) return spawnRejected(reservation)
+    const roster = this.ctx.agentTeams.listMembers(caller)
+    if (reservation.provisioningPhase !== 'pending' || bindingRosterMember(reservation, roster) !== undefined) {
+      const reconciled = await this.reconcileBinding(caller, reservation, roster)
+      return Object.freeze({ ok: true, value: this.instanceView(reconciled) })
+    }
+    return await this.provisionBinding(caller, reservation, request.assignment, signal)
+  }
 
+  private async provisionBinding(
+    caller: Agent,
+    reservation: DigitalEmployeeBindingV1,
+    assignment: string | undefined,
+    signal: AbortSignal,
+  ): Promise<SpawnDigitalEmployeeResult> {
+    const selectedTarget = reservation.runtimeTarget
+    if (selectedTarget.kind !== 'dsh-model') {
+      return Object.freeze({ ok: true, value: this.instanceView(reservation) })
+    }
+    const profile = reservation.profile
+    const key = digitalEmployeeBindingKey(reservation.teamId, reservation.memberName)
     const prompt = [
       `You are ${profile.displayName} (${profile.employeeName}), a profile-bound Digital Employee.`,
       `Mission:\n${profile.mission}`,
@@ -951,31 +1100,38 @@ export class DigitalEmployeeService extends TypertRemoteService {
           ...reservation,
           memberId: provisionedMemberId,
           ...(resolvedRuntimeTarget === undefined ? {} : { resolvedRuntimeTarget }),
-          phase: 'failed',
+          provisioningPhase: 'failed',
           error: message,
         })
         await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
-        return spawnRejected(failure('runtime-route-invalid', message, head))
+        return spawnRejected(failure('runtime-route-invalid', message))
       }
       const active: DigitalEmployeeBindingV1 = Object.freeze({
         ...reservation,
         memberId: provisionedMemberId,
         resolvedRuntimeTarget,
-        phase: 'active',
+        provisioningPhase: 'active',
       })
       await this.enqueue(async () => { await this.requireStorage().putBinding(key, active) })
       return Object.freeze({ ok: true, value: this.instanceView(active) })
     } catch (error: unknown) {
-      const failed: DigitalEmployeeBindingV1 = Object.freeze({
-        ...reservation,
-        ...(provisionedMemberId === undefined ? {} : { memberId: provisionedMemberId }),
-        phase: 'failed',
-        error: errorText(error),
-      })
+      const roster = this.ctx.agentTeams.listMembers(caller)
+      const authoritative = reconcileBindingFromRoster(reservation, roster)
+      const recorded: DigitalEmployeeBindingV1 = authoritative === reservation
+        ? Object.freeze({
+          ...reservation,
+          ...(provisionedMemberId === undefined ? {} : { memberId: provisionedMemberId }),
+          provisioningPhase: 'failed',
+          error: errorText(error),
+        })
+        : Object.freeze(authoritative)
       try {
-        await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
+        await this.enqueue(async () => { await this.requireStorage().putBinding(key, recorded) })
       } catch (recordError: unknown) {
         throw new AggregateError([error, recordError], 'Digital Employee launch and failure recording both failed')
+      }
+      if (recorded.provisioningPhase === 'active') {
+        return Object.freeze({ ok: true, value: this.instanceView(recorded) })
       }
       if (signal.aborted) signal.throwIfAborted()
       if (error instanceof TeamError) {
@@ -1307,6 +1463,80 @@ export class DigitalEmployeeService extends TypertRemoteService {
     })
   }
 
+  /** A replay may continue a pre-roster reservation only while its exact dependencies remain executable. */
+  private async pendingBindingIsExecutable(caller: Agent, binding: DigitalEmployeeBindingV1): Promise<boolean> {
+    await this.runtimeBackends.whenSettled()
+    const problem = this.runtimeBackends.validate(
+      binding.profile,
+      binding.runtimeTarget,
+      binding.requiredCapabilities,
+      'launch',
+    )
+    if (problem !== undefined || binding.runtimeTarget.kind !== 'dsh-model') return false
+    if (await this.runtimeBackends.verifyDshModelRoute(binding.runtimeTarget) !== undefined) return false
+    return binding.profile.toolPolicy.mode === 'inherit'
+      || binding.profile.toolPolicy.names.every(name =>
+        !TEAM_OWN_TOOL_NAMES.has(name) && this.ctx.tools.get(name, caller) !== undefined)
+  }
+
+  /** Persist one roster-derived Binding repair without allowing an older observation to replace a newer request. */
+  private async reconcileBinding(
+    caller: Agent,
+    binding: DigitalEmployeeBindingV1,
+    roster = this.ctx.agentTeams.listMembers(caller),
+  ): Promise<DigitalEmployeeBindingV1> {
+    const key = digitalEmployeeBindingKey(binding.teamId, binding.memberName)
+    return await this.enqueue(async () => {
+      const storage = this.requireStorage()
+      const current = storage.getBinding(key)
+      if (current === undefined) return binding
+      const reconciled = reconcileBindingFromRoster(current, roster)
+      if (!isDeepStrictEqual(current, reconciled)) await storage.putBinding(key, reconciled)
+      return reconciled
+    })
+  }
+
+  /** Repair all Bindings owned by one exact live Team Lead from its authoritative roster. */
+  private async reconcileTeam(caller: Agent): Promise<void> {
+    if (this.storage === undefined || this.lifecycle.signal.aborted || this.ctx.agents.get(caller.id) !== caller) return
+    const membership = this.ctx.agentTeams.tryMembership(caller)
+    if (membership?.role !== 'lead') return
+    const teamId = membership.id
+    const roster = this.ctx.agentTeams.listMembers(caller)
+    const bindings = [...this.requireStorage().bindingEntries()]
+      .map(([, binding]) => binding)
+      .filter(binding => binding.teamId === teamId)
+    for (const binding of bindings) await this.reconcileBinding(caller, binding, roster)
+  }
+
+  /** Reconcile every distinct live root Team currently visible to this Host. */
+  private async reconcileAvailableLeads(): Promise<void> {
+    const seen = new Set<string>()
+    for (const agent of this.ctx.agents.list()) {
+      const membership = this.ctx.agentTeams.tryMembership(agent)
+      if (membership?.role !== 'lead' || seen.has(membership.id)) continue
+      seen.add(membership.id)
+      await this.reconcileTeam(agent)
+    }
+  }
+
+  /** Track one event-driven reconciliation so disposal reaches quiescence. */
+  private scheduleLeadReconciliation(agent: Agent): void {
+    if (this.storage === undefined || this.lifecycle.signal.aborted) return
+    const operation = this.reconcileTeam(agent)
+    this.reconciliations.add(operation)
+    void operation.catch((error: unknown) => {
+      this.ctx.logger.warn('agent-team-ultra: Team Binding reconciliation failed')
+      this.ctx.logger.warn(error)
+    }).finally(() => { this.reconciliations.delete(operation) })
+  }
+
+  /** Reconcile live Teams after a complete runtime catalog generation publishes. */
+  private scheduleAvailableLeadReconciliation(): void {
+    if (this.storage === undefined || this.lifecycle.signal.aborted) return
+    for (const agent of this.ctx.agents.list()) this.scheduleLeadReconciliation(agent)
+  }
+
   /** Reject anything except the exact live Agent object currently recognized as a Team Lead. */
   private leadAuthorityFailure(caller: Agent): DigitalEmployeeFailure | undefined {
     if (this.ctx.agents.get(caller.id) !== caller) {
@@ -1329,6 +1559,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       teamId: binding.teamId,
       memberName: binding.memberName,
       ...(binding.memberId === undefined ? {} : { memberId: binding.memberId }),
+      ...(binding.launchRequestId === undefined ? {} : { launchRequestId: binding.launchRequestId }),
       profileId: binding.profileId,
       profileRevision: binding.profileRevision,
       runtimeTarget: binding.runtimeTarget.kind === 'legacy-inherit-lead'
@@ -1338,7 +1569,16 @@ export class DigitalEmployeeService extends TypertRemoteService {
         ? {}
         : { resolvedRuntimeTarget: Object.freeze({ ...binding.resolvedRuntimeTarget }) }),
       requiredCapabilities: snapshotRequiredCapabilities(binding.requiredCapabilities),
-      phase: binding.phase,
+      provisioningPhase: binding.provisioningPhase,
+      runtimeAvailability: this.runtimeBackends.availability(
+        binding.profile,
+        binding.runtimeTarget,
+        binding.requiredCapabilities,
+      ),
+      runtimePresence: bindingRuntimePresence(
+        binding,
+        binding.memberId === undefined ? undefined : this.ctx.agents.get(SessionId(binding.memberId)),
+      ),
       ...(binding.error === undefined ? {} : { error: binding.error }),
     })
   }

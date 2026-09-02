@@ -1,5 +1,6 @@
 /** Browser-safe public values for Digital Employee profiles and instances. */
 
+import type { Branded } from '@deepseek-ai/dsh-brand'
 import type {} from '@deepseek-ai/dsh-typert-protocol'
 
 /** Stable metadata for Studio authorization failures transported by Typert. */
@@ -16,6 +17,9 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 
 /** Stable lower-kebab profile identity. */
 export type DigitalEmployeeProfileId = string
+
+/** Team-scoped identity of one Client launch intent. */
+export type LaunchRequestId = Branded<'LaunchRequestId'>
 
 /** Initial Lead-history policy for a newly created employee conversation. */
 export type DigitalEmployeeContextMode = 'fresh' | 'fork'
@@ -97,6 +101,15 @@ export type DigitalEmployeeRuntimeTarget =
 
 /** Runtime Targets a Team Lead may select for a new candidate Revision. */
 export type SelectableDigitalEmployeeRuntimeTarget = DshModelRuntimeTarget | ExternalAgentRuntimeTarget
+
+/** Durable launch progress owned by one Binding. */
+export type DigitalEmployeeProvisioningPhase = 'pending' | 'active' | 'failed'
+
+/** Current ability of the selected runtime to honor the immutable Binding. */
+export type DigitalEmployeeRuntimeAvailability = 'available' | 'unavailable' | 'capability-mismatch'
+
+/** Process-local residency of an already provisioned employee. */
+export type DigitalEmployeeRuntimePresence = 'running' | 'idle' | 'inactive'
 
 /** Profile behavior a runtime must be able to enforce, not merely advertise. */
 export type DigitalEmployeeProfileCapability =
@@ -247,6 +260,8 @@ export interface DigitalEmployeeInstanceView {
   readonly teamId: string
   readonly memberName: string
   readonly memberId?: string
+  /** Caller-minted identity reused for every retry of one launch intent. */
+  readonly launchRequestId?: LaunchRequestId
   readonly profileId: DigitalEmployeeProfileId
   readonly profileRevision: number
   /** Runtime Target selected by the immutable Profile Revision. */
@@ -254,7 +269,9 @@ export interface DigitalEmployeeInstanceView {
   /** Exact route reported by the child runtime after teammate provisioning. */
   readonly resolvedRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
   readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
-  readonly phase: 'pending' | 'active' | 'failed'
+  readonly provisioningPhase: DigitalEmployeeProvisioningPhase
+  readonly runtimeAvailability: DigitalEmployeeRuntimeAvailability
+  readonly runtimePresence: DigitalEmployeeRuntimePresence
   readonly error?: string
 }
 
@@ -307,6 +324,7 @@ export interface GetDigitalEmployeeProfileRevisionRequest {
 
 /** Launch one profile with an optional assignment specific to this Team. */
 export interface SpawnDigitalEmployeeRequest {
+  readonly launchRequestId: LaunchRequestId
   readonly profileId: DigitalEmployeeProfileId
   readonly assignment?: string
 }
@@ -329,6 +347,7 @@ export interface DigitalEmployeeFailure {
     | 'team-lead-required'
     | 'team-rejected'
     | 'assignment-too-large'
+    | 'launch-request-conflict'
     | 'service-disposed'
   readonly message: string
   readonly currentHead?: DigitalEmployeeProfileHead

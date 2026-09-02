@@ -76,10 +76,20 @@ async function loadComposition(): Promise<{
         list: () => leader === undefined ? [] : [leader],
       } as never)
       ctx.provide('agentTeams', {
+        tryMembership: (agent: Agent) => agent === leader
+          ? { id: agent.id, root: agent, role: 'lead', name: 'lead' }
+          : undefined,
         membership: (agent: Agent) => {
           if (agent !== leader) throw new Error('fixture only recognizes the exact live Team Lead')
           return { id: agent.id, root: agent, role: 'lead', name: 'lead' }
         },
+        listMembers: () => [{
+          id: 'lead',
+          name: 'lead',
+          role: 'lead',
+          status: 'idle',
+          diagnostics: [],
+        }],
       } as never)
       ctx.provide('storageDomain', {
         open: async (spec: { readonly name: string }) => {

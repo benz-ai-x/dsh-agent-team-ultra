@@ -185,7 +185,9 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
           runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
           resolvedRuntimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
           requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
-          phase: 'active',
+          provisioningPhase: 'active',
+          runtimeAvailability: 'available',
+          runtimePresence: 'idle',
         },
       },
     })),
@@ -299,7 +301,9 @@ describe('Digital Employee Studio', () => {
           kind: 'dsh-model', provider: 'test-provider', model: 'test-model', reasoningEffort: 'high',
         },
         requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
-        phase: 'active',
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'idle',
       }],
     }
     render(<DigitalEmployeeStudio {...props({
@@ -309,6 +313,70 @@ describe('Digital Employee Studio', () => {
 
     expect(await screen.findByText('Selected route: test-provider/test-model · high')).toBeDefined()
     expect(screen.getByText('Actual route: test-provider/test-model · high')).toBeDefined()
+    expect(screen.getByText('Provisioning: Active · r1')).toBeDefined()
+    expect(screen.getByText('Runtime availability: Available')).toBeDefined()
+    expect(screen.getByText('Runtime presence: Idle')).toBeDefined()
+  })
+
+  it('reuses one launch request through transport and pending retries, then fences a new intent', async () => {
+    const launched = {
+      teamId: 'session-a',
+      memberName: 'reviewer',
+      profileId: 'reviewer',
+      profileRevision: 1,
+      runtimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+      resolvedRuntimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+      requiredCapabilities: { contextMode: 'fresh' as const, profileCapabilities: ['persona', 'mission'] as const },
+      runtimeAvailability: 'available' as const,
+      runtimePresence: 'idle' as const,
+    }
+    const spawn = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: { code: 'disconnected', message: 'offline' } })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { ok: true, value: { ...launched, provisioningPhase: 'pending' as const } },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { ok: true, value: { ...launched, provisioningPhase: 'active' as const } },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { ok: false, error: { code: 'profile-not-active', message: 'inactive' } },
+      })
+      .mockResolvedValueOnce({ ok: false, error: { code: 'disconnected', message: 'offline again' } })
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: view([profile()]) })),
+      spawn,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    const launch = screen.getByRole('button', { name: 'Launch employee' })
+
+    fireEvent.click(launch)
+    fireEvent.click(launch)
+    await waitFor(() => { expect(spawn).toHaveBeenCalledTimes(1) })
+    fireEvent.click(launch)
+    await waitFor(() => { expect(spawn).toHaveBeenCalledTimes(2) })
+    fireEvent.click(launch)
+    await waitFor(() => { expect(spawn).toHaveBeenCalledTimes(3) })
+
+    const firstRequest = spawn.mock.calls[0]?.[1]
+    expect(firstRequest).toMatchObject({
+      profileId: 'reviewer',
+      launchRequestId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+    })
+    expect(spawn.mock.calls[1]?.[1]).toEqual(firstRequest)
+    expect(spawn.mock.calls[2]?.[1]).toEqual(firstRequest)
+
+    fireEvent.click(launch)
+    await waitFor(() => { expect(spawn).toHaveBeenCalledTimes(4) })
+    expect(spawn.mock.calls[3]?.[1].launchRequestId).not.toBe(firstRequest.launchRequestId)
+    const rejectedRequestId = spawn.mock.calls[3]?.[1].launchRequestId
+
+    fireEvent.click(launch)
+    await waitFor(() => { expect(spawn).toHaveBeenCalledTimes(5) })
+    expect(spawn.mock.calls[4]?.[1].launchRequestId).not.toBe(rejectedRequestId)
   })
 
   it('fences duplicate saves before React can render the pending state', async () => {
@@ -384,7 +452,7 @@ describe('Digital Employee Studio', () => {
 
   it('cancels an unaccepted launch when the owning Session changes', async () => {
     let launchSignal: AbortSignal | undefined
-    const spawn = vi.fn((_sessionId, _profileId, _assignment, signal?: AbortSignal) => {
+    const spawn = vi.fn((_sessionId, _request, signal?: AbortSignal) => {
       launchSignal = signal
       return new Promise<never>((_resolve, reject) => {
         signal?.addEventListener('abort', () => { reject(signal.reason) }, { once: true })

@@ -1,8 +1,8 @@
 # DSH Agent Team Ultra 交接文档
 
-> 交接快照：2026-09-02（Asia/Shanghai）
+> 交接快照：2026-09-03（Asia/Shanghai）
 >
-> 当前阶段：端到端 vertical slice 与固定 dsh-model 路由均已完成，包含 Web 创建数字员工、真实模型调用、精确路由证明和进程重启后的冷恢复。
+> 当前阶段：端到端 vertical slice、固定 dsh-model 路由和 Team-scoped 幂等启动均已完成，包含 Web 创建数字员工、真实模型调用、崩溃恢复和权威 roster 对账。
 
 ## 1. 接手结论
 
@@ -22,8 +22,8 @@ pnpm verify
 |---|---|
 | DSH 版本 | `0.1.2-alpha.4` |
 | Harness source fork | `https://github.com/benz-ai-x/deepseek-harness.git` |
-| Harness commit | `acb483a997b8b04e64ce5cbbfd660b3c1a92208f` |
-| Harness docs digest | `0068acfd2dbe885220684e8a6f60eca913c24e518ec4cdd2d317b07aa204c833` |
+| Harness commit | `e5e2f7f67ce5896b5271e3cc023ee037433584b8` |
+| Harness docs digest | `58332286fcfe2562db8ecb9331e0eddf02d47ad5a09805f01318d0b17d43a5a1` |
 | Node.js | `^22.19.0 || >=24.0.0` |
 | pnpm | `11.7.0` |
 | 交付方式 | local-only、六个源码 `link:` |
@@ -34,7 +34,7 @@ pnpm verify
 
 - 分支：`main`
 - 远端：`git@github.com:benz-ai-x/dsh-agent-team-ultra.git`
-- 本快照对应 Issue #6 的完整实现；最终提交以远端 `main` 的 HEAD 为准。
+- 本快照对应 Issue #7 的完整实现；最终提交以远端 `main` 的 HEAD 为准。
 - 锁定 Harness checkout 位于 `/root/workspace/deepseek-harness`，并在 source fork 分支 `agent-team-ultra-pinned-route` 的固定 commit 上保持干净。
 - 2026-08-30 的 credentialed 人工验收未重复执行；本次已用真实 Agent Loop、Agent Team、JSONL persistence/query 和冷恢复集成测试覆盖固定路由，并通过真实源码链接 Web 组合门禁。
 - 本地启动应使用锁定源码 CLI 或与锁定版本一致的 CLI，并使用隔离的 `DSH_HOME`。
@@ -80,8 +80,10 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 ### 持久化与恢复
 
 - Profile Head、不可变 Profile Revision 和 Team/member Binding 写入独立的分记录 storage generation `agent_team_ultra_v1`；`agent_team_ultra` v0 仅是只读迁移源。
-- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target、Required Capabilities 与 SHA-256 指纹；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile/能力快照、所选 Runtime Target、descriptor 证明的实际 Runtime Target 和 `pending | active | failed` 状态。
-- 创建流程必须先持久化 `pending` 绑定，再调用 Agent Team provisioning。否则 child 可能在 Profile 快照存在前启动。
+- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target、Required Capabilities 与 SHA-256 指纹；`bindings` 还保存 Team-scoped Launch Request ID、请求/Profile/assignment 指纹、能力世代、保留成员名、成员 ID、不可变 Revision/Profile/能力快照、所选 Runtime Target、独立的 Preflight Runtime Target 和 `pending | active | failed` Provisioning Phase。Resolved Runtime Target 只在 child descriptor 完成证明后出现。
+- 创建流程必须先持久化完整 `pending` Binding，再调用 Agent Team provisioning。assignment 正文只用于初始工作，不进入 Binding。
+- Client 每个 Launch Intent 只生成一个 UUID；传输失败和 `pending` 重试复用它。Host 以 Team + Launch Request ID 去重，相同输入返回当前 Binding，改变输入返回 `launch-request-conflict`。
+- 启动、实时 Team 事件、Runtime Backend 世代和 Studio 读取均会以权威 roster 修复矛盾 Binding，但不会创建替代员工。Provisioning Phase 持久；Runtime Availability 与 Runtime Presence 分别由当前目录和精确 live Agent 派生。
 - dsh-model 创建会在 pending Binding 前重新解析精确 adapter 路由，把规范化 provider/model/reasoning options 原样交给 Agent Team，并在 active Binding 前核对 child continuation descriptor；任何 alias 或不一致都会以稳定错误失败，不采用 Lead/default 回退。
 - 已创建员工始终使用绑定时的快照。后续候选、激活、回滚或归档不会热更新已有员工。
 - 不要向 DSH 的闭集 Session event catalog 添加自定义事件；本插件使用独立 storage domain。
@@ -105,8 +107,9 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 
 - Profile 保存及 Head 发布操作使用 `expectedHeadRevision` compare-and-set；过期编辑必须返回当前 Head 和 `profile-conflict`，不能覆盖新版本。
 - 读改写通过 Host mutation queue 串行化；Profile 对外和绑定内均使用深拷贝冻结快照。
-- spawn 接受调用方取消信号，并与服务生命周期信号合并。
+- spawn 接受调用方取消信号；调用方只在 Agent Team 持久接受初始工作前拥有取消权，之后所有权转移给 Team runtime。
 - 服务 dispose 时先关闭 admission，再撤销 child setup，等待已接纳 launch 和 mutation queue 收敛，最后关闭 storage domain。
+- dispose 可取消尚未持久接受的 provisioning，但不会停止无关 child 或已归 Team 所有的 child。
 - child-scope 能力必须逐项安装并按逆序释放；会话历史可见性不等于工具、权限或服务继承。
 
 完整设计依据见 [`PROJECT_CONTRACT.md`](agent/PROJECT_CONTRACT.md) 和 [`0001-local-overlay-and-sidecar-state.md`](decisions/0001-local-overlay-and-sidecar-state.md)。
@@ -124,9 +127,9 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 | `rollback` | 将 active 指针回滚到已有更早 Revision | 否 |
 | `archive` | 保留历史并阻止激活和启动 | 否 |
 | `restore` | 恢复归档的 Profile Head | 否 |
-| `spawn` | 仅使用 active Revision 和可选 assignment 创建真实队友 | 是 |
+| `spawn` | 使用 Client 提供的 Launch Request ID、active Revision 和可选 assignment 幂等创建队友 | 是 |
 
-业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived`、`revision-not-found`、`runtime-target-unavailable`、`runtime-route-invalid` 和 `runtime-capability-mismatch`。
+业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived`、`revision-not-found`、`runtime-target-unavailable`、`runtime-route-invalid`、`runtime-capability-mismatch` 和 `launch-request-conflict`。
 
 修改 Remote 装饰方法后必须重新运行构建；[`generate-typert.mjs`](../scripts/generate-typert.mjs) 会调用官方 Typert generator 更新 Host 与 Client 产物，不能手写生成文件。
 
@@ -140,27 +143,27 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 4. 检查打包白名单和干净消费者安装。
 5. 创建临时真实 DSH Web Profile，安装六个 source links，验证 Host import、最终 Cordis 组合和随机端口监听。
 
-2026-09-02 最近一次干净基线全量验证结果：
+2026-09-03 最近一次干净基线全量验证结果：
 
 - 严格上下文检查：`248 passed, 0 warnings`。
-- Vitest：`8` 个测试文件、`93` 个测试全部通过。
-- 归档内容：Ultra domain `13` 个文件、UI `8` 个文件、Profile `4` 个文件，无源码、测试、source map 或 tsbuildinfo 泄漏。
+- Vitest：`8` 个测试文件、`108` 个测试全部通过。
+- 归档内容：Ultra domain `14` 个文件、UI `8` 个文件、Profile `4` 个文件，无源码、测试、source map 或 tsbuildinfo 泄漏。
 - 六个归档可在干净消费者中安装，browser-safe ESM import 正常。
 - 六个源码链接可被真实 DSH Profile 解析；最终配置包含 `agent-team`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team`、`ui-agent-team-ultra`，Web 可监听随机端口。
 
 测试职责分布：
 
-- `packages/domain/tests/profile-service.spec.ts`：schema、不可变 Revision、Head CAS、激活/回滚、归档/恢复、有界差异、先绑定后 provisioning、Lead 权限和 dispose 边界。
+- `packages/domain/tests/profile-service.spec.ts`：schema、不可变 Revision、Head CAS、先绑定后 provisioning、Team-scoped 幂等、多个崩溃边缘、roster 对账、Lead 权限和 dispose 边界。
 - `packages/domain/tests/pinned-route.integration.spec.ts`：真实 Agent Loop、Agent Team、JSONL 持久化、不可变 Profile scope、精确 route descriptor 与冷恢复端到端。
 - `packages/domain/tests/generated-remote.spec.ts`：八个生成 Remote 操作及 Client namespace。
 - `packages/domain/tests/loader-composition.spec.ts`：真实 Loader 和部署限制。
 - `packages/profile/tests/profile.spec.ts`：private bundle 与稳定、无冲突 Loader rows。
-- `packages/ui/tests/studio.client.spec.tsx`：重复操作围栏、Session 切换、错误分层、Revision 发布流程、launch 取消和独立 Client bundle。
+- `packages/ui/tests/studio.client.spec.tsx`：重复操作围栏、Launch Request ID 重试、三维实例状态、Session 切换、错误分层、launch 取消和独立 Client bundle。
 - `packages/ui/tests/mount.client.spec.ts`：Remote/Slot 安装与失败回滚。
 
 ### 本次复验状态
 
-2026-09-02 `pnpm verify` 在锁定 Harness 干净工作区上全绿：严格上下文、Host/Client 构建、Typert 生成、93 项 Vitest、归档安装、browser-safe import、真实源码链接 DSH Web composition 与监听门禁全部通过。
+2026-09-03 `pnpm verify` 在锁定 Harness 干净工作区上全绿：254 项严格上下文检查、Host/Client 构建、Typert 生成、108 项 Vitest、归档安装、browser-safe import、真实源码链接 DSH Web composition 与监听门禁全部通过。
 
 ## 7. 真实模型与冷恢复验收证据
 

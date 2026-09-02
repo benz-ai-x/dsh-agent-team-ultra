@@ -6,8 +6,14 @@ import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import DigitalEmployeeService, {
   digitalEmployeeProfileDraftSchema,
+  launchRequestIdSchema,
   snapshotProfile,
 } from '../lib/index.js'
+import {
+  assignmentContentHash,
+  digitalEmployeeBindingKey,
+  launchRequestFingerprint,
+} from '../src/storage.ts'
 import type {
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
@@ -20,6 +26,7 @@ const DEFAULT_RUNTIME_TARGET = Object.freeze({
   provider: 'test-provider',
   model: 'test-model',
 } as const satisfies DigitalEmployeeRuntimeTarget)
+const LAUNCH_REQUEST_ID = launchRequestIdSchema.parse('11111111-1111-4111-8111-111111111111')
 
 interface FakeLlmRoute {
   readonly provider: string
@@ -100,6 +107,8 @@ interface Harness {
   readonly scopeDisposals: Array<ReturnType<typeof vi.fn>>
   readonly childEvents: string[]
   readonly spawn: ReturnType<typeof vi.fn>
+  readonly listMembers: ReturnType<typeof vi.fn>
+  readonly roster: Array<Record<string, unknown>>
   readonly leader: Agent
   readonly teammate: Agent
   readonly staleLeader: Agent
@@ -114,6 +123,7 @@ async function harness(options: {
   readonly serviceConfig?: { readonly maxRevisionHistory?: number; readonly maxDiffEntries?: number }
   readonly llmRoutes?: readonly FakeLlmRoute[]
   readonly childResolvedRoute?: { readonly provider?: string; readonly model?: string; readonly reasoningEffort?: string }
+  readonly spawnFaultAfter?: 'roster-reservation' | 'initial-work-acceptance'
 } = {}): Promise<Harness> {
   const ctx = new Context()
   const profiles = new MemoryTable<string, unknown>()
@@ -128,9 +138,9 @@ async function harness(options: {
   ])
   let migrationMarker: unknown = { formatVersion: 1, status: 'pending', sourceVersion: 0 }
   const close = vi.fn(async () => undefined)
-  const roster = [
-    { id: 'lead', name: 'lead', role: 'lead' },
-    { id: 'teammate', name: 'worker', role: 'teammate' },
+  const roster: Array<Record<string, unknown>> = [
+    { id: 'lead', name: 'lead', role: 'lead', status: 'idle', diagnostics: [] },
+    { id: 'teammate', name: 'worker', role: 'teammate', status: 'inactive', diagnostics: [] },
   ]
   const scopeDisposals: Array<ReturnType<typeof vi.fn>> = []
   const scopeDisposer = (): ReturnType<typeof vi.fn> => {
@@ -251,7 +261,7 @@ async function harness(options: {
     signal?: AbortSignal
   }) => {
     const pending = [...bindings.records.values()].find(value =>
-      (value as { phase?: string }).phase === 'pending')
+      (value as { provisioningPhase?: string }).provisioningPhase === 'pending')
     expect(pending).toBeDefined()
     if (options.spawnGate !== undefined) {
       await Promise.race([
@@ -263,7 +273,21 @@ async function harness(options: {
         }),
       ])
     }
-    roster.push({ id: 'child', name: request.name, role: 'teammate' })
+    const rosterMember: Record<string, unknown> = {
+      id: 'child',
+      name: request.name,
+      role: 'teammate',
+      status: 'provisioning',
+      requestedRoute: request.agentOptions ?? {},
+      diagnostics: [],
+    }
+    roster.push(rosterMember)
+    if (options.spawnFaultAfter === 'roster-reservation') {
+      throw new Error('fault after permanent roster reservation')
+    }
+    const resolvedRoute = options.childResolvedRoute ?? request.agentOptions ?? {}
+    rosterMember.status = 'idle'
+    rosterMember.resolvedRoute = resolvedRoute
     const childCtx = {
       systemPrompt: { section: sections, context: contexts },
       tools: { restrict: restriction },
@@ -272,9 +296,9 @@ async function harness(options: {
         return scopeDisposer()
       },
     } as unknown as Context
-    const resolvedRoute = options.childResolvedRoute ?? request.agentOptions ?? {}
     const child = {
       id: 'child',
+      status: 'idle',
       session: { header: { parentSession: 'lead' } },
       options: resolvedRoute,
       ctx: childCtx,
@@ -282,6 +306,9 @@ async function harness(options: {
     Object.defineProperty(childCtx, 'agent', { value: child })
     agents.set('child', child)
     ctx.emit('agent/created', { agent: child })
+    if (options.spawnFaultAfter === 'initial-work-acceptance') {
+      throw new Error('fault after durable initial-work acceptance')
+    }
     return {
       member: {
         id: 'child',
@@ -292,15 +319,26 @@ async function harness(options: {
       },
     }
   })
+  const tryMembership = (agent: Agent) => {
+    if (agents.get(agent.id) !== agent) return undefined
+    if (agent.session.header.parentSession === leader.id) {
+      const name = roster.find(member => member.id === agent.id)?.name
+      if (typeof name !== 'string') return undefined
+      return { id: 'lead', root: leader, role: 'teammate', name } as const
+    }
+    return { id: agent.id, root: agent, role: 'lead', name: 'lead' } as const
+  }
+  const listMembers = vi.fn(() => roster)
   ctx.provide('agentTeams', {
+    tryMembership,
     membership: (agent: Agent) => {
-      if (agents.get(agent.id) !== agent) {
+      const membership = tryMembership(agent)
+      if (membership === undefined) {
         throw new TeamError(`agent "${agent.id}" is not a member of an active Agent Team`, 'TEAM_NOT_MEMBER')
       }
-      if (agent === teammate) return { id: 'lead', root: leader, role: 'teammate', name: 'worker' }
-      return { id: agent.id, root: agent, role: 'lead', name: 'lead' }
+      return membership
     },
-    listMembers: () => roster,
+    listMembers,
     spawnTeammate: spawn,
   } as never)
 
@@ -319,6 +357,8 @@ async function harness(options: {
     scopeDisposals,
     childEvents,
     spawn,
+    listMembers,
+    roster,
     leader,
     teammate,
     staleLeader,
@@ -474,7 +514,7 @@ describe('Digital Employee profile contract', () => {
     })
     await expect(service.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'profile-not-active' } })
 
@@ -514,7 +554,7 @@ describe('Digital Employee profile contract', () => {
 
     await expect(service.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({
       ok: true,
@@ -571,7 +611,7 @@ describe('Digital Employee profile contract', () => {
     })).resolves.toMatchObject({ ok: false, error: { code: 'profile-archived' } })
     await expect(service.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'profile-archived' } })
 
@@ -589,7 +629,7 @@ describe('Digital Employee profile contract', () => {
 
     await expect(service.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: true, value: { profileRevision: 1 } })
 
@@ -924,7 +964,7 @@ describe('Digital Employee profile contract', () => {
       )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
       await expect(runtime.ctx.digitalEmployees.spawnProfile(
         caller,
-        { profileId: 'code-reviewer' },
+        { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
         new AbortController().signal,
       )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
       expect(runtime.profiles.size).toBe(0)
@@ -980,7 +1020,11 @@ describe('Digital Employee profile contract', () => {
     })
     const result = await runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer', assignment: 'Review the storage transaction.' },
+      {
+        launchRequestId: LAUNCH_REQUEST_ID,
+        profileId: 'code-reviewer',
+        assignment: 'Review the storage transaction.',
+      },
       new AbortController().signal,
     )
     expect(result).toMatchObject({
@@ -995,7 +1039,10 @@ describe('Digital Employee profile contract', () => {
           contextMode: 'fresh',
           profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
         },
-        phase: 'active',
+        launchRequestId: LAUNCH_REQUEST_ID,
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'idle',
       },
     })
     if (!result.ok) throw new Error('expected a successful launch')
@@ -1031,19 +1078,429 @@ describe('Digital Employee profile contract', () => {
       'tools/post-execute',
     ])
     expect([...runtime.bindings.records.values()][0]).toMatchObject({
-      phase: 'active',
+      launchRequestId: LAUNCH_REQUEST_ID,
+      requestFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      assignmentHash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      profileFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      capabilityGeneration: 1,
+      provisioningPhase: 'active',
       profile: { revision: 1, displayName: 'Code Reviewer' },
       runtimeTarget: selectedTarget,
+      preflightRuntimeTarget: selectedTarget,
       resolvedRuntimeTarget: selectedTarget,
       requiredCapabilities: {
         contextMode: 'fresh',
         profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
       },
     })
+    expect(JSON.stringify([...runtime.bindings.records.values()][0])).not.toContain('Review the storage transaction.')
     await runtime.fiber.dispose()
     expect(runtime.scopeDisposals).toHaveLength(8)
     expect(runtime.scopeDisposals.every(dispose => dispose.mock.calls.length === 1)).toBe(true)
     expect(runtime.close).toHaveBeenCalledOnce()
+  })
+
+  it('requires a canonical caller-minted launch request UUID before durable work', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' } as never,
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'profile-invalid' } })
+    expect(runtime.bindings.size).toBe(0)
+    expect(runtime.spawn).not.toHaveBeenCalled()
+    await runtime.fiber.dispose()
+  })
+
+  it('returns one Binding for identical launch replay and rejects changed input', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const request = {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+      assignment: 'Review the same normalized assignment.',
+    }
+
+    const first = await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )
+    const replay = await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, { ...request, assignment: `  ${request.assignment}  ` }, new AbortController().signal,
+    )
+    const conflict = await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, { ...request, assignment: 'A changed assignment.' }, new AbortController().signal,
+    )
+
+    expect(first).toMatchObject({ ok: true, value: { memberId: 'child' } })
+    expect(replay).toEqual(first)
+    expect(conflict).toMatchObject({ ok: false, error: { code: 'launch-request-conflict' } })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    expect(runtime.bindings.size).toBe(1)
+    await runtime.fiber.dispose()
+  })
+
+  it('coalesces concurrent identical launch calls before the roster reservation', async () => {
+    const gate = Promise.withResolvers<void>()
+    const runtime = await harness({ spawnGate: gate.promise })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const request = { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' }
+
+    const first = runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, request, new AbortController().signal)
+    await vi.waitFor(() => {
+      expect([...runtime.bindings.records.values()][0]).toMatchObject({
+        runtimeTarget: DEFAULT_RUNTIME_TARGET,
+        preflightRuntimeTarget: DEFAULT_RUNTIME_TARGET,
+        provisioningPhase: 'pending',
+      })
+      expect([...runtime.bindings.records.values()][0]).not.toHaveProperty('resolvedRuntimeTarget')
+    })
+    const replay = runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, request, new AbortController().signal)
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    gate.resolve()
+    await expect(Promise.all([first, replay])).resolves.toEqual([
+      expect.objectContaining({ ok: true }),
+      expect.objectContaining({ ok: true }),
+    ])
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    await runtime.fiber.dispose()
+  })
+
+  it('recovers one launch after a fault immediately following the pending Binding commit', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const fault = new Error('fault after pending commit')
+    const put = runtime.bindings.put.bind(runtime.bindings)
+    const injected = vi.spyOn(runtime.bindings, 'put').mockImplementation(async (key, value) => {
+      await put(key, value)
+      if ((value as { provisioningPhase?: string }).provisioningPhase === 'pending') throw fault
+    })
+    const request = {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+      assignment: 'Resume the committed intent.',
+    }
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).rejects.toBe(fault)
+    expect(runtime.spawn).not.toHaveBeenCalled()
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({
+      launchRequestId: LAUNCH_REQUEST_ID,
+      provisioningPhase: 'pending',
+    })
+    injected.mockRestore()
+    await runtime.fiber.dispose()
+
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).resolves.toMatchObject({ ok: true, value: { provisioningPhase: 'active', memberId: 'child' } })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+    expect([...runtime.bindings.records.values()]).toHaveLength(1)
+    await replacement.dispose()
+  })
+
+  it('repairs one launch after the roster becomes active but the active Binding commit faults', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const put = runtime.bindings.put.bind(runtime.bindings)
+    const injected = vi.spyOn(runtime.bindings, 'put').mockImplementation(async (key, value) => {
+      if ((value as { provisioningPhase?: string }).provisioningPhase === 'active') {
+        throw new Error('fault before active Binding commit')
+      }
+      await put(key, value)
+    })
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)).rejects.toBeInstanceOf(AggregateError)
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'pending' })
+    await runtime.fiber.dispose()
+    injected.mockRestore()
+
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({
+      memberId: 'child',
+      provisioningPhase: 'active',
+      resolvedRuntimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+    expect([...runtime.bindings.records.values()]).toHaveLength(1)
+    await replacement.dispose()
+  })
+
+  it('reconciles an injected post-reservation fault without creating a replacement member', async () => {
+    const runtime = await harness({ spawnFaultAfter: 'roster-reservation' })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)).rejects.toThrow('fault after permanent roster reservation')
+    const bindingKey = digitalEmployeeBindingKey('lead', 'code-reviewer')
+    const rosterMember = runtime.roster.find(member => member.name === 'code-reviewer')!
+    expect(runtime.bindings.get(bindingKey)).toMatchObject({
+      memberId: 'child',
+      provisioningPhase: 'pending',
+    })
+    await runtime.fiber.dispose()
+
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    expect(runtime.bindings.get(bindingKey)).toMatchObject({
+      memberId: 'child',
+      provisioningPhase: 'pending',
+    })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+
+    rosterMember.status = 'idle'
+    rosterMember.resolvedRoute = DEFAULT_RUNTIME_TARGET
+    await runtime.ctx.digitalEmployees.remoteView(runtime.leader)
+    expect(runtime.bindings.get(bindingKey)).toMatchObject({
+      memberId: 'child',
+      provisioningPhase: 'active',
+    })
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+    expect([...runtime.bindings.records.values()]).toHaveLength(1)
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    await replacement.dispose()
+  })
+
+  it('reconciles an injected post-acceptance fault and replays one permanent member after restart', async () => {
+    const runtime = await harness({ spawnFaultAfter: 'initial-work-acceptance' })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const request = { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' }
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).resolves.toMatchObject({ ok: true, value: { memberId: 'child', provisioningPhase: 'active' } })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    await runtime.fiber.dispose()
+
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).resolves.toMatchObject({ ok: true, value: { memberId: 'child', provisioningPhase: 'active' } })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+    expect([...runtime.bindings.records.values()]).toHaveLength(1)
+    await replacement.dispose()
+  })
+
+  it('returns the active Binding after response delivery is lost and the service restarts', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const request = { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' }
+    const delivered = await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )
+    await runtime.fiber.dispose()
+
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader, request, new AbortController().signal,
+    )).resolves.toEqual(delivered)
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    expect(runtime.roster.filter(member => member.name === 'code-reviewer')).toHaveLength(1)
+    expect([...runtime.bindings.records.values()]).toHaveLength(1)
+    await replacement.dispose()
+  })
+
+  it('continues a pre-roster pending Binding only when the identical caller request is replayed', async () => {
+    const runtime = await harness()
+    const saved = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    if (!saved.ok) throw new Error(saved.error.message)
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    const assignment = 'Resume this exact pending launch.'
+    const assignmentHash = assignmentContentHash(assignment)
+    const capabilityGeneration = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog.generation
+    const profile = snapshotProfile({
+      ...saved.value.revision.profile,
+      revision: saved.value.revision.revision,
+      createdAt: saved.value.revision.createdAt,
+      updatedAt: saved.value.revision.updatedAt,
+    })
+    const requestFingerprint = launchRequestFingerprint({
+      profileId: profile.id,
+      profileRevision: profile.revision,
+      profileFingerprint: saved.value.revision.fingerprint,
+      runtimeTarget: saved.value.revision.runtimeTarget,
+      preflightRuntimeTarget: saved.value.revision.runtimeTarget,
+      requiredCapabilities: saved.value.revision.requiredCapabilities,
+      capabilityGeneration,
+      assignmentHash,
+    })
+    await runtime.bindings.put(digitalEmployeeBindingKey('lead', profile.employeeName), {
+      schemaVersion: 1,
+      teamId: 'lead',
+      memberName: profile.employeeName,
+      launchRequestId: LAUNCH_REQUEST_ID,
+      requestFingerprint,
+      assignmentHash,
+      profileId: profile.id,
+      profileRevision: profile.revision,
+      profileFingerprint: saved.value.revision.fingerprint,
+      profile,
+      runtimeTarget: saved.value.revision.runtimeTarget,
+      preflightRuntimeTarget: saved.value.revision.runtimeTarget,
+      requiredCapabilities: saved.value.revision.requiredCapabilities,
+      capabilityGeneration,
+      provisioningPhase: 'pending',
+    })
+    await runtime.fiber.dispose()
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+
+    const resumed = await runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: profile.id,
+      assignment,
+    }, new AbortController().signal)
+    expect(resumed).toMatchObject({
+      ok: true,
+      value: { memberId: 'child', provisioningPhase: 'active' },
+    })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    await replacement.dispose()
+  })
+
+  it('repairs a contradictory Binding from the authoritative roster on service restart', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)
+    const key = digitalEmployeeBindingKey('lead', 'code-reviewer')
+    const active = runtime.bindings.get(key) as Record<string, unknown>
+    await runtime.bindings.put(key, {
+      ...active,
+      provisioningPhase: 'failed',
+      error: 'simulated crash before the active Binding commit',
+    })
+
+    await runtime.fiber.dispose()
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    expect(runtime.bindings.get(key)).toMatchObject({
+      memberId: 'child',
+      provisioningPhase: 'active',
+      resolvedRuntimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    expect(runtime.ctx.digitalEmployees.studioView(runtime.leader).instances[0]).toMatchObject({
+      provisioningPhase: 'active',
+      runtimeAvailability: 'available',
+      runtimePresence: 'idle',
+    })
+    expect(runtime.spawn).toHaveBeenCalledOnce()
+    await replacement.dispose()
+  })
+
+  it('derives runtime availability and presence without rewriting durable provisioning', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)
+    const child = runtime.agent('child')!
+
+    runtime.replaceLlmRoutes([])
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    runtime.disposeAgent(child)
+
+    expect(runtime.ctx.digitalEmployees.studioView(runtime.leader).instances[0]).toMatchObject({
+      provisioningPhase: 'active',
+      runtimeAvailability: 'unavailable',
+      runtimePresence: 'inactive',
+    })
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'active' })
+    await runtime.fiber.dispose()
   })
 
   it('rejects an adapter-resolved route mismatch before writing a Binding', async () => {
@@ -1061,7 +1518,7 @@ describe('Digital Employee profile contract', () => {
 
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-route-invalid' } })
     expect(runtime.bindings.size).toBe(0)
@@ -1084,11 +1541,11 @@ describe('Digital Employee profile contract', () => {
 
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-route-invalid' } })
     expect([...runtime.bindings.records.values()][0]).toMatchObject({
-      phase: 'failed',
+      provisioningPhase: 'failed',
       resolvedRuntimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'other-model' },
     })
     await runtime.fiber.dispose()
@@ -1105,7 +1562,7 @@ describe('Digital Employee profile contract', () => {
     })
     await runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )
     const child = runtime.agent('child')
@@ -1120,6 +1577,21 @@ describe('Digital Employee profile contract', () => {
     expect(runtime.close).toHaveBeenCalledOnce()
   })
 
+  it('removes every reconciliation listener on Fiber disposal', async () => {
+    const runtime = await harness()
+    runtime.listMembers.mockClear()
+    runtime.ctx.emit('agent/session-start', { agent: runtime.leader, source: 'resume' })
+    runtime.ctx.emit('session/event', { id: runtime.leader.id } as never, { type: 'team/member' } as never)
+    await vi.waitFor(() => { expect(runtime.listMembers).toHaveBeenCalled() })
+
+    await runtime.fiber.dispose()
+    runtime.listMembers.mockClear()
+    runtime.ctx.emit('agent/session-start', { agent: runtime.leader, source: 'resume' })
+    runtime.ctx.emit('session/event', { id: runtime.leader.id } as never, { type: 'team/member' } as never)
+    await Promise.resolve()
+    expect(runtime.listMembers).not.toHaveBeenCalled()
+  })
+
   it('reinstalls one capability layer without duplicates after service replacement', async () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
@@ -1131,7 +1603,7 @@ describe('Digital Employee profile contract', () => {
     })
     await runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )
     const child = runtime.agent('child')
@@ -1161,7 +1633,7 @@ describe('Digital Employee profile contract', () => {
     })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.teammate,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
     expect(runtime.bindings.size).toBe(0)
@@ -1178,7 +1650,7 @@ describe('Digital Employee profile contract', () => {
     })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer', assignment: 'x'.repeat(32_769) },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer', assignment: 'x'.repeat(32_769) },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'assignment-too-large' } })
     expect(runtime.bindings.size).toBe(0)
@@ -1199,17 +1671,17 @@ describe('Digital Employee profile contract', () => {
     })
     const launch = runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )
     await vi.waitFor(() => {
-      expect([...runtime.bindings.records.values()][0]).toMatchObject({ phase: 'pending' })
+      expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'pending' })
     })
 
     const disposal = runtime.fiber.dispose()
     await expect(launch).rejects.toThrow('Agent Team Ultra service disposed')
     await disposal
-    expect([...runtime.bindings.records.values()][0]).toMatchObject({ phase: 'failed' })
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({ provisioningPhase: 'failed' })
     expect(runtime.close).toHaveBeenCalledOnce()
     gate.resolve()
   })
@@ -1495,7 +1967,7 @@ describe('Digital Employee profile contract', () => {
     })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
-      { profileId: 'code-reviewer' },
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
     expect(runtime.spawn).not.toHaveBeenCalled()

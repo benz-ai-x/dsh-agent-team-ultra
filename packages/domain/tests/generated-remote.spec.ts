@@ -28,9 +28,41 @@ describe('generated Digital Employee Remote contract', () => {
     expect(remote.descriptors.map(method => method.method)).toEqual([
       'activate', 'archive', 'restore', 'revision', 'rollback', 'save', 'spawn', 'view',
     ])
-    expect(remote.descriptors.find(method => method.method === 'spawn')).toMatchObject({
+    const spawn = remote.descriptors.find(method => method.method === 'spawn')
+    expect(spawn).toMatchObject({
       cancellation: { parameter: 'signal' },
     })
+    const codec = spawn?.parameters[1]?.codec.schema as unknown as {
+      safeParse(value: unknown): { readonly success: boolean }
+    }
+    expect(codec.safeParse({ profileId: 'reviewer' }).success).toBe(false)
+    expect(codec.safeParse({
+      launchRequestId: '11111111-1111-4111-8111-111111111111',
+      profileId: 'reviewer',
+    }).success).toBe(true)
+    const resultCodec = spawn?.result.schema as unknown as {
+      safeParse(value: unknown): { readonly success: boolean }
+    }
+    const active = {
+      ok: true,
+      value: {
+        teamId: 'lead',
+        memberName: 'reviewer',
+        launchRequestId: '11111111-1111-4111-8111-111111111111',
+        profileId: 'reviewer',
+        profileRevision: 1,
+        runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
+        requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'idle',
+      },
+    }
+    expect(resultCodec.safeParse(active).success).toBe(true)
+    expect(resultCodec.safeParse({
+      ...active,
+      value: { ...active.value, provisioningPhase: undefined, phase: 'active' },
+    }).success).toBe(false)
     expect(remote.descriptors.filter(method => method.method !== 'spawn')
       .every(method => method.cancellation === undefined)).toBe(true)
     expect(remote.descriptors.map(method => method.parameters[0])).toEqual(
@@ -56,10 +88,13 @@ describe('generated Digital Employee Remote contract', () => {
 
   it('ships the Client namespace declaration used by the UI', () => {
     const declaration = readFileSync(resolve('packages/domain/lib/typert.remote-client.d.ts'), 'utf8')
+    const types = readFileSync(resolve('packages/domain/lib/types/types.d.ts'), 'utf8')
     expect(declaration).toContain("interface TypertRemoteNamespaceMap")
     expect(declaration).toContain("'digitalEmployees':")
     expect(declaration).toContain('spawn: (agentId: SessionId, request: SpawnDigitalEmployeeRequest, signal?: AbortSignal)')
     expect(declaration).toContain("'agent:digitalEmployees/view': () => Promise<RemoteResult<DigitalEmployeeStudioView>>")
+    expect(types).toContain("export type LaunchRequestId = Branded<'LaunchRequestId'>")
+    expect(types).toMatch(/readonly launchRequestId: LaunchRequestId/u)
   })
 
   it('rejects an unknown Session through the real Gateway before business dispatch', async () => {
