@@ -58,7 +58,7 @@ function draft(overrides: Partial<DigitalEmployeeProfileDraft> = {}): DigitalEmp
 interface Harness {
   readonly ctx: Context
   readonly fiber: ReturnType<Context['plugin']>
-  readonly profiles: MemoryTable<string, DigitalEmployeeProfile>
+  readonly profiles: MemoryTable<string, unknown>
   readonly bindings: MemoryTable<string, unknown>
   readonly close: ReturnType<typeof vi.fn>
   readonly restriction: ReturnType<typeof vi.fn>
@@ -77,8 +77,17 @@ interface Harness {
 
 async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Promise<Harness> {
   const ctx = new Context()
-  const profiles = new MemoryTable<string, DigitalEmployeeProfile>()
+  const profiles = new MemoryTable<string, unknown>()
+  const revisions = new MemoryTable<string, unknown>()
   const bindings = new MemoryTable<string, unknown>()
+  const v0Profiles = new MemoryTable<string, unknown>()
+  const v0Bindings = new MemoryTable<string, unknown>()
+  const emptyV1Tables = new Map([
+    ['run_index', new MemoryTable<string, unknown>()],
+    ['eval_sets', new MemoryTable<string, unknown>()],
+    ['eval_runs', new MemoryTable<string, unknown>()],
+  ])
+  let migrationMarker: unknown = { formatVersion: 1, status: 'pending', sourceVersion: 0 }
   const close = vi.fn(async () => undefined)
   const roster = [
     { id: 'lead', name: 'lead', role: 'lead' },
@@ -109,10 +118,29 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
     list: () => [...agents.values()],
   } as never)
   ctx.provide('storageDomain', {
-    open: vi.fn(async () => ({
-      table: (name: string) => name === 'profiles' ? profiles : bindings,
-      close,
-    })),
+    open: vi.fn(async (spec: { readonly name: string }) => {
+      if (spec.name === 'agent_team_ultra') {
+        return {
+          table: (name: string) => name === 'profiles' ? v0Profiles : v0Bindings,
+          close: async () => undefined,
+        }
+      }
+      return {
+        global: {
+          get: () => migrationMarker,
+          set: async (value: unknown) => { migrationMarker = value },
+        },
+        table: (name: string) => {
+          if (name === 'profile_heads') return profiles
+          if (name === 'profile_revisions') return revisions
+          if (name === 'bindings') return bindings
+          const table = emptyV1Tables.get(name)
+          if (table === undefined) throw new Error(`unexpected v1 table ${name}`)
+          return table
+        },
+        close,
+      }
+    }),
   } as never)
   ctx.provide('systemPrompt', {} as never)
   ctx.provide('tools', {

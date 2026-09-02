@@ -102,7 +102,8 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 
 - Remote 请求携带 Session ID，Host 必须将它解析为当前 live Agent，再从 Agent Team 推导 membership；浏览器不能声明 Team、角色或 member 身份。
 - 只有当前 Team 的 Lead 可以创建数字员工。
-- Profile 和绑定写入独立的版本化 `agent_team_ultra` storage domain；不会伪造或扩展 DSH 的 Session event catalog。
+- Profile Head、不可变 Revision 和绑定写入独立的 `agent_team_ultra_v1` 分记录存储；旧 `agent_team_ultra` v0 仅作为只读迁移源，完成后不再打开。
+- v1 迁移以显式格式标记为准，支持 JSON/SQLite 上的幂等崩溃恢复；未知、更高版本或分歧数据会拒绝启动，完成迁移后不支持回退到写 v0 的旧二进制。
 - 绑定先进入 `pending`，再调用 Agent Team provisioning，避免子 Agent 在没有 Profile 快照的情况下启动。
 - 工具名称在创建时相对当前 Lead 的工具目录再次校验；`before-tool` Hook 只能声明拒绝规则。
 - Profile 不包含凭据字段，也不会把 API key 或其他 secret 传给 Client。
@@ -115,7 +116,7 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md) 和 [架构决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md) 和 [v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)。
 
 ## 当前限制
 

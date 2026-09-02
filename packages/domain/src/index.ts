@@ -7,14 +7,21 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
-import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
+import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  digitalEmployeeDomainSpec,
   digitalEmployeeProfileDraftSchema,
   type DigitalEmployeeBinding,
 } from './spec.ts'
+import {
+  DigitalEmployeeStorage,
+  digitalEmployeeBindingKey,
+  legacyInheritLeadRuntimeTarget,
+  openDigitalEmployeeStorage,
+  type DigitalEmployeeBindingV1,
+  type MigratedRuntimeTarget,
+} from './storage.ts'
 import type {
   DeleteDigitalEmployeeProfileRequest,
   DeleteDigitalEmployeeProfileResult,
@@ -179,11 +186,6 @@ function authorityRemoteError(
     : new RemoteError('digital-employees/team-rejected', error.message, details)
 }
 
-/** Stable storage key; record keys never reach a filesystem path. */
-function bindingKey(teamId: string, memberName: string): string {
-  return JSON.stringify([teamId, memberName])
-}
-
 /** Render enabled blocks as one bounded, deterministic prompt section. */
 function blockSection(title: string, blocks: readonly ProfileTextBlock[]): string {
   const enabled = blocks.filter(block => block.enabled)
@@ -227,13 +229,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
   static Config = Config
 
   private readonly resolved: Required<Config>
-  private profiles: KvTable<string, DigitalEmployeeProfile> | undefined
-  private bindings: KvTable<string, DigitalEmployeeBinding> | undefined
+  private storage: DigitalEmployeeStorage | undefined
   private mutationTail: Promise<void> = Promise.resolve()
   private readonly launches = new Set<Promise<unknown>>()
   private readonly childInstallations = new Map<Agent, () => void>()
   private readonly lifecycle = new AbortController()
-  private admissionOpen = true
+  private admissionOpen = false
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'digitalEmployees')
@@ -251,9 +252,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Open durable sidecar state, then compose every matching live and future child scope. */
   protected async [Service.init](): Promise<void> {
-    const domain = await this.ctx.storageDomain.open(digitalEmployeeDomainSpec)
-    this.profiles = domain.table('profiles')
-    this.bindings = domain.table('bindings')
+    const storage = await openDigitalEmployeeStorage(this.ctx.storageDomain, {
+      resolveBindingRuntimeTarget: binding => this.migratedBindingRuntimeTarget(binding),
+    })
+    this.storage = storage
+    this.admissionOpen = true
     let stopCreated = (): void => undefined
     let stopDisposed = (): void => undefined
     this.ctx.effect(() => async () => {
@@ -265,10 +268,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
       try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
       await this.mutationTail
-      try { await domain.close() } catch (error: unknown) { failures.push(error) }
+      try { await storage.close() } catch (error: unknown) { failures.push(error) }
       finally {
-        this.profiles = undefined
-        this.bindings = undefined
+        this.storage = undefined
       }
       if (failures.length > 0) {
         throw new AggregateError(failures, 'Agent Team Ultra disposal failed')
@@ -290,14 +292,14 @@ export class DigitalEmployeeService extends TypertRemoteService {
     const authorityFailure = this.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) throw authorityRemoteError(authorityFailure, 'view')
     const membership = this.ctx.agentTeams.membership(caller)
-    const profiles = [...this.requireProfiles().entries()]
+    const profiles = [...this.requireStorage().profileEntries()]
       .map(([, profile]) => snapshotProfile(profile))
       .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.id.localeCompare(right.id))
     const tools: ProfileToolOption[] = this.ctx.tools.schemas(caller)
       .filter(tool => !TEAM_OWN_TOOL_NAMES.has(tool.name))
       .map(tool => Object.freeze({ name: tool.name, description: tool.description }))
       .sort((left, right) => left.name.localeCompare(right.name))
-    const instances = [...this.requireBindings().entries()]
+    const instances = [...this.requireStorage().bindingEntries()]
       .map(([, binding]) => binding)
       .filter(binding => binding.teamId === membership.id)
       .map(binding => this.instanceView(binding))
@@ -358,12 +360,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
       )))
     }
     return this.enqueue(async () => {
-      const table = this.requireProfiles()
-      const current = table.get(parsed.data.id)
+      const storage = this.requireStorage()
+      const current = storage.getProfile(parsed.data.id)
       if (request.expectedRevision !== (current?.revision ?? null)) {
         return saveRejected(failure('profile-conflict', 'profile revision changed; reload before saving', current))
       }
-      if (current === undefined && table.size >= this.resolved.maxProfiles) {
+      if (current === undefined && storage.profileCount >= this.resolved.maxProfiles) {
         return saveRejected(failure('profile-limit', `profile limit ${this.resolved.maxProfiles} reached`))
       }
       const now = Date.now()
@@ -373,7 +375,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         createdAt: current?.createdAt ?? now,
         updatedAt: current === undefined ? now : Math.max(now, current.updatedAt),
       })
-      await table.put(next.id, next)
+      await storage.putProfile(next)
       return Object.freeze({ ok: true, value: snapshotProfile(next) })
     })
   }
@@ -384,20 +386,20 @@ export class DigitalEmployeeService extends TypertRemoteService {
     const authorityFailure = this.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(deleteRejected(authorityFailure))
     return this.enqueue(async () => {
-      const table = this.requireProfiles()
-      const current = table.get(request.profileId)
+      const storage = this.requireStorage()
+      const current = storage.getProfile(request.profileId)
       if (current === undefined) {
         return deleteRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
       }
       if (request.expectedRevision !== current.revision) {
         return deleteRejected(failure('profile-conflict', 'profile revision changed; reload before deleting', current))
       }
-      const pending = [...this.requireBindings().entries()].some(([, binding]) =>
+      const pending = [...storage.bindingEntries()].some(([, binding]) =>
         binding.profileId === request.profileId && binding.phase === 'pending')
       if (pending) {
         return deleteRejected(failure('profile-in-use', 'profile has a launch still being provisioned'))
       }
-      await table.delete(request.profileId)
+      await storage.deleteProfile(request.profileId)
       return Object.freeze({ ok: true, value: Object.freeze({ deleted: true as const }) })
     })
   }
@@ -441,7 +443,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     if (membership.role !== 'lead') {
       return spawnRejected(failure('team-lead-required', 'only the exact live Team Lead may launch a Digital Employee'))
     }
-    const profile = this.requireProfiles().get(request.profileId)
+    const profile = this.requireStorage().getProfile(request.profileId)
     if (profile === undefined) {
       return spawnRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
     }
@@ -456,10 +458,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
       ))
     }
 
-    const key = bindingKey(membership.id, profile.employeeName)
+    const key = digitalEmployeeBindingKey(membership.id, profile.employeeName)
     const reservation = await this.enqueue(async (): Promise<DigitalEmployeeBinding | DigitalEmployeeFailure> => {
-      const bindings = this.requireBindings()
-      const existing = bindings.get(key)
+      const storage = this.requireStorage()
+      const existing = storage.getBinding(key)
       const rosterOwnsName = this.ctx.agentTeams.listMembers(caller)
         .some(member => member.name === profile.employeeName)
       if (existing !== undefined && rosterOwnsName) {
@@ -473,7 +475,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         profile: snapshotProfile(profile),
         phase: 'pending',
       })
-      await bindings.put(key, pending)
+      await storage.putBinding(key, pending)
       return pending
     })
     if ('code' in reservation) return spawnRejected(reservation)
@@ -500,7 +502,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         memberId: provisionedMemberId,
         phase: 'active',
       })
-      await this.enqueue(async () => { await this.requireBindings().put(key, active) })
+      await this.enqueue(async () => { await this.requireStorage().putBinding(key, active) })
       return Object.freeze({ ok: true, value: this.instanceView(active) })
     } catch (error: unknown) {
       const failed: DigitalEmployeeBinding = Object.freeze({
@@ -510,7 +512,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         error: errorText(error),
       })
       try {
-        await this.enqueue(async () => { await this.requireBindings().put(key, failed) })
+        await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
       } catch (recordError: unknown) {
         throw new AggregateError([error, recordError], 'Digital Employee launch and failure recording both failed')
       }
@@ -651,9 +653,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
   }
 
   /** Resolve by durable member id first, then the pre-publication Team/name reservation. */
-  private bindingFor(agent: Agent): DigitalEmployeeBinding | undefined {
-    const bindings = this.requireBindings()
-    for (const [, binding] of bindings.entries()) {
+  private bindingFor(agent: Agent): DigitalEmployeeBindingV1 | undefined {
+    const storage = this.requireStorage()
+    for (const [, binding] of storage.bindingEntries()) {
       if (binding.memberId === agent.id) return binding
     }
     const parentId = agent.session.header.parentSession
@@ -661,7 +663,44 @@ export class DigitalEmployeeService extends TypertRemoteService {
     const root = this.ctx.agents.get(parentId)
     if (root === undefined) return undefined
     const member = this.ctx.agentTeams.listMembers(root).find(candidate => candidate.id === agent.id)
-    return member === undefined ? undefined : bindings.get(bindingKey(parentId, member.name))
+    return member === undefined
+      ? undefined
+      : storage.getBinding(digitalEmployeeBindingKey(parentId, member.name))
+  }
+
+  /** Record an exact historical route only when the durable child descriptor proves it. */
+  private migratedBindingRuntimeTarget(binding: DigitalEmployeeBinding): MigratedRuntimeTarget {
+    try {
+      if (binding.memberId === undefined) return legacyInheritLeadRuntimeTarget
+      const child = this.ctx.agents.get(binding.memberId as Agent['id'])
+      if (child === undefined || child.session.header.parentSession !== binding.teamId) {
+        return legacyInheritLeadRuntimeTarget
+      }
+      const root = this.ctx.agents.get(binding.teamId as Agent['id'])
+      if (root === undefined) return legacyInheritLeadRuntimeTarget
+      const membership = this.ctx.agentTeams.membership(root)
+      if (membership.role !== 'lead' || membership.root !== root || membership.id !== binding.teamId
+        || !this.ctx.agentTeams.listMembers(root)
+          .some(member => member.id === child.id && member.name === binding.memberName)) {
+        return legacyInheritLeadRuntimeTarget
+      }
+      const descriptor = foldSubagentDescriptor(child.session.snapshotEvents())
+      if (descriptor?.mode !== 'continuable') return legacyInheritLeadRuntimeTarget
+      const provider = descriptor.agentProvider?.trim()
+      const model = descriptor.agentModel?.trim()
+      if (provider === undefined || provider === '' || model === undefined || model === '') {
+        return legacyInheritLeadRuntimeTarget
+      }
+      const reasoningEffort = descriptor.agentReasoningEffort?.trim()
+      return Object.freeze({
+        kind: 'dsh-model',
+        provider,
+        model,
+        ...(reasoningEffort === undefined || reasoningEffort === '' ? {} : { reasoningEffort }),
+      })
+    } catch {
+      return legacyInheritLeadRuntimeTarget
+    }
   }
 
   /** Reject anything except the exact live Agent object currently recognized as a Team Lead. */
@@ -700,14 +739,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
     return run
   }
 
-  private requireProfiles(): KvTable<string, DigitalEmployeeProfile> {
-    if (this.profiles === undefined) throw new Error('Agent Team Ultra profile domain is not ready')
-    return this.profiles
-  }
-
-  private requireBindings(): KvTable<string, DigitalEmployeeBinding> {
-    if (this.bindings === undefined) throw new Error('Agent Team Ultra binding domain is not ready')
-    return this.bindings
+  private requireStorage(): DigitalEmployeeStorage {
+    if (this.storage === undefined) throw new Error('Agent Team Ultra v1 storage is not ready')
+    return this.storage
   }
 }
 

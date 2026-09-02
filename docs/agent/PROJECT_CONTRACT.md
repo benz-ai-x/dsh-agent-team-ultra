@@ -36,8 +36,9 @@ contracts.
   Team claims are never used.
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
-- Profiles and Team/member-to-profile bindings are authoritative records in a
-  versioned DSH storage domain. UI state is only a draft or mirror.
+- Profile Heads, immutable Profile Revisions, and Team/member Bindings are
+  authoritative records in the `agent_team_ultra_v1` DSH storage generation.
+  UI state is only a draft or mirror.
 - A save/delete uses `expectedRevision`; stale writes return
   `profile-conflict` and never overwrite another edit.
 - Launch persists a pending binding before Agent Team provisioning. The
@@ -45,6 +46,28 @@ contracts.
   mailbox, and task facts.
 - Each employee binds to an immutable profile snapshot. Editing a profile
   affects future launches, not already-created teammates or cold resumes.
+
+## Storage generation and migration
+
+- The v1 generation has an explicit application-format marker and six
+  per-record tables: `profile_heads`, `profile_revisions`, `bindings`,
+  `run_index`, `eval_sets`, and `eval_runs`.
+- The Host opens v1 first. A complete marker bypasses v0 entirely; a pending
+  marker opens `agent_team_ultra` version 0 only as a read-only migration
+  source. Mutation admission remains closed until migration completes.
+- Migration writes each deterministic immutable Profile Revision before its
+  Profile Head, preserves legacy revision and timestamps, and starts known
+  history at that legacy revision. Orphan Revisions are not published by a
+  Head and are safe to encounter on retry.
+- A migrated Binding preserves its profile snapshot, phase, member identity,
+  and revision. It receives an exact DSH model target only when the live child
+  descriptor, lineage, and Team roster prove that route; otherwise it retains
+  the explicit `legacy-inherit-lead` compatibility target.
+- Existing identical records make retry idempotent. Divergent partial data,
+  malformed v0 records, unknown markers, and newer marker versions fail
+  closed. The completion marker is the final write and v0 is never modified.
+- After v1 accepts new mutations, downgrading to a binary that writes v0 is
+  unsupported because it would create two divergent authoritative histories.
 
 ## Capability semantics
 
@@ -70,7 +93,7 @@ immutable profile through `agent.ctx` before `agent/session-start` and the
 first prompt assembly; a synchronous installation failure vetoes publication.
 Service disposal closes mutation admission, removes the lifecycle listeners,
 revokes every resident child installation, waits for admitted profile/binding
-commits, and closes its storage domain. Child-scope prompt, tool, and hook
+commits, and closes its v1 storage domain. Child-scope prompt, tool, and hook
 registrations are also disposed when that exact Agent scope ends.
 Installations are keyed by exact Agent object identity. Agent disposal, Fiber
 disposal, and service replacement each revoke a layer at most once, while a

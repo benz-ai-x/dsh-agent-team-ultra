@@ -87,9 +87,21 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: link:../../../deepseek-harness/packages/core/session
         version: link:../../../deepseek-harness/packages/core/session
+      '@deepseek-ai/dsh-storage':
+        specifier: link:../../../deepseek-harness/packages/storage/storage
+        version: link:../../../deepseek-harness/packages/storage/storage
       '@deepseek-ai/dsh-storage-domain':
         specifier: link:../../../deepseek-harness/packages/storage/storage-domain
         version: link:../../../deepseek-harness/packages/storage/storage-domain
+      '@deepseek-ai/dsh-storage-json':
+        specifier: link:../../../deepseek-harness/packages/storage/storage-json
+        version: link:../../../deepseek-harness/packages/storage/storage-json
+      '@deepseek-ai/dsh-storage-sqlite':
+        specifier: link:../../../deepseek-harness/packages/storage/storage-sqlite
+        version: link:../../../deepseek-harness/packages/storage/storage-sqlite
+      '@deepseek-ai/dsh-subagent':
+        specifier: link:../../../deepseek-harness/packages/subagent/subagent
+        version: link:../../../deepseek-harness/packages/subagent/subagent
       '@deepseek-ai/dsh-system-prompt':
         specifier: link:../../../deepseek-harness/packages/core/system-prompt
         version: link:../../../deepseek-harness/packages/core/system-prompt
