@@ -11,7 +11,7 @@ profile as a real continuable Agent Team teammate.
 The first observable scenario is: create a `code-reviewer` profile in the Web
 UI, select read/search tools, add review rules and memory, launch it for the
 current Team, and observe a durable Agent Team member whose prompt and tool
-surface reflect that exact profile snapshot.
+  surface reflect that exact active Profile Revision snapshot.
 
 ## DSH form and topology
 
@@ -39,12 +39,21 @@ contracts.
 - Profile Heads, immutable Profile Revisions, and Team/member Bindings are
   authoritative records in the `agent_team_ultra_v1` DSH storage generation.
   UI state is only a draft or mirror.
-- A save/delete uses `expectedRevision`; stale writes return
-  `profile-conflict` and never overwrite another edit.
+- A save uses `expectedHeadRevision`; activation, rollback, archive, and restore
+  use the same Profile Head CAS discipline. Stale writes return the current
+  Head with `profile-conflict` and never overwrite another edit.
+- Saving normalized content creates an immutable candidate Revision only when
+  its canonical SHA-256 content fingerprint changed. It does not implicitly
+  activate the candidate. An unchanged save is a no-op.
+- Activation promotes only the latest candidate; rollback repoints the Head to
+  an existing older Revision. Launch resolves only `activeRevision`, and an
+  inactive or archived Profile cannot launch.
+- Archive retains the Head, all Revision history, and existing Bindings. Restore
+  is explicit and CAS-guarded; hard delete is not part of the contract.
 - Launch persists a pending binding before Agent Team provisioning. The
   existing Agent Team Lead Session log remains authoritative for roster,
   mailbox, and task facts.
-- Each employee binds to an immutable profile snapshot. Editing a profile
+- Each employee binds to an exact Revision and immutable profile snapshot. Editing a profile
   affects future launches, not already-created teammates or cold resumes.
 
 ## Storage generation and migration
@@ -66,6 +75,9 @@ contracts.
 - Existing identical records make retry idempotent. Divergent partial data,
   malformed v0 records, unknown markers, and newer marker versions fail
   closed. The completion marker is the final write and v0 is never modified.
+- Transitional v1 Revisions created before fingerprints existed are upgraded
+  deterministically before mutation admission. A present non-canonical
+  fingerprint fails closed instead of being rewritten.
 - After v1 accepts new mutations, downgrading to a binary that writes v0 is
   unsupported because it would create two divergent authoritative histories.
 
@@ -106,6 +118,10 @@ replacement service can reconstruct one layer for every resident bound Agent.
 - `maxProfileBytes`: UTF-8 size limit for one normalized profile snapshot.
 - `maxHooks`: hook count limit per profile.
 - `maxAssignmentBytes`: UTF-8 size limit for one launch-specific assignment.
+- `maxRevisionHistory`: maximum Revision summaries returned per Profile in a
+  Studio baseline.
+- `maxDiffEntries`: maximum structured field differences returned by a Revision
+  inspection.
 
 Every field is validated by the exported Standard Schema and again where a
 direct constructor call could bypass Loader validation.
@@ -127,7 +143,7 @@ event vocabulary.
 
 ## External-world acceptance assertion
 
-Through a real DSH Web profile, saving a profile and launching it must create a
-visible teammate in the Agent Team roster; the child sees the configured
+Through a real DSH Web profile, saving and explicitly activating a Profile
+Revision, then launching it, must create a visible teammate in the Agent Team roster; the child sees the configured
 persona/context/memory, cannot execute a filtered inherited tool, retains Team
 tools, and reconstructs the same profile snapshot after cold resume.

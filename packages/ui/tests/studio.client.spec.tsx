@@ -6,6 +6,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   DigitalEmployeeProfile,
+  DigitalEmployeeProfileCatalogEntry,
+  DigitalEmployeeProfileRevision,
   DigitalEmployeeStudioView,
 } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import { DigitalEmployeeStudio, type DigitalEmployeeStudioProps } from '../src/client/Studio.tsx'
@@ -31,12 +33,70 @@ function profile(displayName = 'Reviewer One', revision = 1): DigitalEmployeePro
   }
 }
 
+function immutableRevision(profile: DigitalEmployeeProfile): DigitalEmployeeProfileRevision {
+  const { revision, createdAt, updatedAt, ...draft } = profile
+  return {
+    schemaVersion: 1,
+    profileId: profile.id,
+    revision,
+    profile: draft,
+    runtimeTarget: { kind: 'legacy-inherit-lead' },
+    fingerprint: `${String(revision).padStart(64, '0')}`,
+    createdAt,
+    updatedAt,
+  }
+}
+
+function catalog(
+  latestProfile: DigitalEmployeeProfile,
+  options: {
+    readonly headRevision?: number
+    readonly activeRevision?: number | null
+    readonly archivedAt?: number
+    readonly history?: readonly DigitalEmployeeProfile[]
+  } = {},
+): DigitalEmployeeProfileCatalogEntry {
+  const latest = immutableRevision(latestProfile)
+  const activeRevision = options.activeRevision === undefined ? latest.revision : options.activeRevision
+  const history = (options.history ?? [latestProfile]).map(immutableRevision)
+  return {
+    head: {
+      schemaVersion: 1,
+      profileId: latest.profileId,
+      headRevision: options.headRevision ?? latest.revision,
+      latestRevision: latest.revision,
+      ...(activeRevision === null ? {} : { activeRevision }),
+      historyStartsAtRevision: Math.min(...history.map(revision => revision.revision)),
+      ...(options.archivedAt === undefined ? {} : { archivedAt: options.archivedAt }),
+      createdAt: latest.createdAt,
+      updatedAt: latest.updatedAt,
+    },
+    latest,
+    history: history.map(revision => ({
+      revision: revision.revision,
+      fingerprint: revision.fingerprint,
+      createdAt: revision.createdAt,
+      updatedAt: revision.updatedAt,
+    })),
+    historyTruncated: false,
+  }
+}
+
 function view(profiles: readonly DigitalEmployeeProfile[] = []): DigitalEmployeeStudioView {
   return {
-    profiles,
+    profiles: profiles.map(profile => catalog(profile)),
     tools: [{ name: 'read', description: 'Read files' }],
     instances: [],
   }
+}
+
+function catalogView(profiles: readonly DigitalEmployeeProfileCatalogEntry[]): DigitalEmployeeStudioView {
+  return { profiles, tools: [{ name: 'read', description: 'Read files' }], instances: [] }
+}
+
+function saved(profile: DigitalEmployeeProfile, headRevision = profile.revision) {
+  const entry = catalog(profile, { headRevision })
+  return { unchanged: false, head: entry.head, revision: entry.latest }
 }
 
 function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmployeeStudioProps {
@@ -44,7 +104,11 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
     sessionId: 'session-a' as never,
     load: vi.fn(async () => ({ ok: true, value: view() })),
     save: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-invalid', message: 'invalid' } } })),
-    remove: vi.fn(async () => ({ ok: true, value: { ok: true, value: { deleted: true } } })),
+    revision: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'revision-not-found', message: 'missing' } } })),
+    activate: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-conflict', message: 'stale' } } })),
+    rollback: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-conflict', message: 'stale' } } })),
+    archive: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-conflict', message: 'stale' } } })),
+    restore: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-conflict', message: 'stale' } } })),
     spawn: vi.fn(async () => ({
       ok: true,
       value: {
@@ -104,7 +168,7 @@ describe('Digital Employee Studio', () => {
         ok: true,
         value: {
           ok: true,
-          value: profile('New Employee'),
+          value: saved(profile('New Employee')),
         },
       })
     })
@@ -123,7 +187,7 @@ describe('Digital Employee Studio', () => {
     await waitFor(() => {
       expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Reviewer Two')
     })
-    expect(screen.getByText('Revision 2')).not.toBeNull()
+    expect(screen.getByRole('button', { name: /Reviewer Two/ }).textContent).toContain('Revision 2')
 
     rendered.rerender(<DigitalEmployeeStudio {...props({ sessionId: 'session-b' as never, load })} />)
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -139,17 +203,22 @@ describe('Digital Employee Studio', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('offline (disconnected)')
 
     rendered.unmount()
+    const server = catalog(profile('Server copy', 2), { headRevision: 4 })
+    const load = vi.fn()
+      .mockResolvedValueOnce({ ok: true as const, value: view([profile()]) })
+      .mockResolvedValue({ ok: true as const, value: catalogView([server]) })
     const domainSave = vi.fn(async () => ({
       ok: true,
-      value: { ok: false, error: { code: 'profile-conflict', message: 'stale', current: profile('Server copy', 2) } },
+      value: { ok: false, error: { code: 'profile-conflict', message: 'stale', currentHead: server.head } },
     } as const))
-    render(<DigitalEmployeeStudio {...props({ save: domainSave })} />)
+    render(<DigitalEmployeeStudio {...props({ load, save: domainSave })} />)
     fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
-    await screen.findByRole('button', { name: /New profile/ })
-    fireEvent.click(screen.getByRole('button', { name: /New profile/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
     expect((await screen.findByRole('alert')).textContent).toContain('stale (profile-conflict)')
-    expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Server copy')
+    await waitFor(() => {
+      expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Server copy')
+    })
   })
 
   it('cancels an unaccepted launch when the owning Session changes', async () => {
@@ -170,6 +239,101 @@ describe('Digital Employee Studio', () => {
     rendered.rerender(<DigitalEmployeeStudio {...props({ sessionId: 'session-b' as never, load, spawn })} />)
     await waitFor(() => { expect(launchSignal?.aborted).toBe(true) })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('inspects immutable history and sends explicit activate, rollback, and archive CAS operations', async () => {
+    const oldest = profile('Reviewer One', 1)
+    const active = profile('Reviewer Two', 2)
+    const latest = profile('Reviewer Candidate', 3)
+    const entry = catalog(latest, {
+      headRevision: 5,
+      activeRevision: 2,
+      history: [latest, active, oldest],
+    })
+    const revision = vi.fn(async (_sessionId, _profileId, selectedRevision: number) => {
+      const selected = [latest, active, oldest].find(candidate => candidate.revision === selectedRevision)!
+      return {
+        ok: true as const,
+        value: {
+          ok: true as const,
+          value: {
+            head: entry.head,
+            revision: immutableRevision(selected),
+            comparedToRevision: 2,
+            diff: selectedRevision === 3
+              ? [{ path: 'profile.displayName', kind: 'changed' as const, before: '"Reviewer Two"', after: '"Reviewer Candidate"' }]
+              : [],
+            diffTruncated: false,
+          },
+        },
+      }
+    })
+    const mutate = async () => ({
+      ok: true as const,
+      value: { ok: true as const, value: { head: entry.head } },
+    })
+    const activate = vi.fn(mutate)
+    const rollback = vi.fn(mutate)
+    const archive = vi.fn(mutate)
+    const load = vi.fn(async () => ({ ok: true as const, value: catalogView([entry]) }))
+
+    render(<DigitalEmployeeStudio {...props({ load, revision, activate, rollback, archive })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer Candidate/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Revisions/ }))
+
+    await waitFor(() => {
+      expect(revision).toHaveBeenCalledWith('session-a', 'reviewer', 3)
+    })
+    expect(screen.getByText('profile.displayName')).toBeDefined()
+    expect(screen.getByText(/Active r2/)).toBeDefined()
+    expect(screen.getByText(/Latest r3/)).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Activate latest' }))
+    await waitFor(() => {
+      expect(activate).toHaveBeenCalledWith('session-a', 'reviewer', 3, 5)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    await waitFor(() => {
+      expect(revision).toHaveBeenCalledWith('session-a', 'reviewer', 1)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Roll back to revision 1' }))
+    await waitFor(() => {
+      expect(rollback).toHaveBeenCalledWith('session-a', 'reviewer', 1, 5)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archive profile' }))
+    await waitFor(() => {
+      expect(archive).toHaveBeenCalledWith('session-a', 'reviewer', 5)
+    })
+  })
+
+  it('blocks launch without an active Revision and offers restore for an archived Head', async () => {
+    const candidate = profile('Inactive Reviewer', 1)
+    const inactive = catalog(candidate, { headRevision: 1, activeRevision: null })
+    const archived = catalog(candidate, { headRevision: 2, activeRevision: 1, archivedAt: 5 })
+    const load = vi.fn()
+      .mockResolvedValueOnce({ ok: true as const, value: catalogView([inactive]) })
+      .mockResolvedValue({ ok: true as const, value: catalogView([archived]) })
+    const restore = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: true as const, value: { head: archived.head } },
+    }))
+    const rendered = render(<DigitalEmployeeStudio {...props({ load, restore })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Inactive Reviewer/ }))
+    expect((screen.getByRole('button', { name: 'Launch employee' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('No active revision')).toBeDefined()
+
+    rendered.unmount()
+    render(<DigitalEmployeeStudio {...props({ load, restore })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Inactive Reviewer/ }))
+    expect((screen.getByRole('button', { name: 'Launch employee' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Restore profile' }))
+    await waitFor(() => {
+      expect(restore).toHaveBeenCalledWith('session-a', 'reviewer', 2)
+    })
   })
 })
 
@@ -293,7 +457,7 @@ describe('draft dirty tracking', () => {
     const load = vi.fn()
       .mockResolvedValueOnce({ ok: true as const, value: view([profile()]) })
       .mockResolvedValue({ ok: true as const, value: view([renamed]) })
-    const save = vi.fn(async () => ({ ok: true as const, value: { ok: true as const, value: renamed } }))
+    const save = vi.fn(async () => ({ ok: true as const, value: { ok: true as const, value: saved(renamed) } }))
     render(<DigitalEmployeeStudio {...props({ load, save })} />)
     fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
@@ -318,7 +482,7 @@ describe('text block cards', () => {
   it('toggles a memory block from its card header and persists the change on save', async () => {
     const save = vi.fn(async () => ({
       ok: true as const,
-      value: { ok: true as const, value: { ...withMemory(), revision: 2 } },
+      value: { ok: true as const, value: saved({ ...withMemory(), revision: 2 }) },
     }))
     const load = vi.fn(async () => ({ ok: true as const, value: view([withMemory()]) }))
     render(<DigitalEmployeeStudio {...props({ load, save })} />)

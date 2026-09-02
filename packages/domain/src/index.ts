@@ -19,21 +19,33 @@ import {
   digitalEmployeeBindingKey,
   legacyInheritLeadRuntimeTarget,
   openDigitalEmployeeStorage,
+  profileContentFingerprint,
   type DigitalEmployeeBindingV1,
   type MigratedRuntimeTarget,
 } from './storage.ts'
 import type {
-  DeleteDigitalEmployeeProfileRequest,
-  DeleteDigitalEmployeeProfileResult,
+  ActivateDigitalEmployeeProfileRequest,
+  ArchiveDigitalEmployeeProfileRequest,
   DigitalEmployeeAuthorityErrorDetails,
   DigitalEmployeeFailure,
   DigitalEmployeeInstanceView,
+  DigitalEmployeeProfileCatalogEntry,
+  DigitalEmployeeProfileHead,
   DigitalEmployeeProfile,
+  DigitalEmployeeProfileDraft,
+  DigitalEmployeeProfileRevision,
+  DigitalEmployeeProfileDiffEntry,
+  DigitalEmployeeProfileRevisionSummary,
   DigitalEmployeeStudioView,
+  GetDigitalEmployeeProfileRevisionRequest,
+  GetDigitalEmployeeProfileRevisionResult,
+  MutateDigitalEmployeeProfileHeadResult,
   ProfileHook,
   ProfileTextBlock,
   ProfileToolOption,
   ProfileToolPolicy,
+  RollbackDigitalEmployeeProfileRequest,
+  RestoreDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileResult,
   SpawnDigitalEmployeeRequest,
@@ -64,6 +76,8 @@ export interface Config {
   readonly maxProfileBytes?: number
   readonly maxHooks?: number
   readonly maxAssignmentBytes?: number
+  readonly maxRevisionHistory?: number
+  readonly maxDiffEntries?: number
 }
 
 const DEFAULT_PROVIDER = 'spawn'
@@ -71,6 +85,8 @@ const DEFAULT_MAX_PROFILES = 64
 const DEFAULT_MAX_PROFILE_BYTES = 131_072
 const DEFAULT_MAX_HOOKS = 32
 const DEFAULT_MAX_ASSIGNMENT_BYTES = 32_768
+const DEFAULT_MAX_REVISION_HISTORY = 32
+const DEFAULT_MAX_DIFF_ENTRIES = 512
 
 const TEAM_OWN_TOOL_NAMES = new Set([
   'spawn_teammate',
@@ -95,6 +111,8 @@ export const Config: s<Config> = s.object({
   maxProfileBytes: s.number().step(1).min(1024).default(DEFAULT_MAX_PROFILE_BYTES),
   maxHooks: s.number().step(1).min(0).default(DEFAULT_MAX_HOOKS),
   maxAssignmentBytes: s.number().step(1).min(1).default(DEFAULT_MAX_ASSIGNMENT_BYTES),
+  maxRevisionHistory: s.number().step(1).min(1).default(DEFAULT_MAX_REVISION_HISTORY),
+  maxDiffEntries: s.number().step(1).min(1).default(DEFAULT_MAX_DIFF_ENTRIES),
 })
 
 /** Validate a direct-constructor integer that Loader normally checks. */
@@ -135,6 +153,16 @@ function freezeHook(hook: ProfileHook): ProfileHook {
 
 /** Deep-detach the full profile snapshot. */
 export function snapshotProfile(profile: DigitalEmployeeProfile): DigitalEmployeeProfile {
+  return Object.freeze({
+    ...snapshotProfileDraft(profile),
+    revision: profile.revision,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+  })
+}
+
+/** Deep-detach normalized editable content from storage or caller ownership. */
+function snapshotProfileDraft(profile: DigitalEmployeeProfileDraft): DigitalEmployeeProfileDraft {
   const names = Object.freeze([...profile.toolPolicy.names])
   const toolPolicy: ProfileToolPolicy = Object.freeze({ mode: profile.toolPolicy.mode, names })
   return Object.freeze({
@@ -150,17 +178,47 @@ export function snapshotProfile(profile: DigitalEmployeeProfile): DigitalEmploye
     context: Object.freeze(profile.context.map(freezeTextBlock)),
     memory: Object.freeze(profile.memory.map(freezeTextBlock)),
     hooks: Object.freeze(profile.hooks.map(freezeHook)),
-    revision: profile.revision,
-    createdAt: profile.createdAt,
-    updatedAt: profile.updatedAt,
   })
 }
 
-function failure(code: DigitalEmployeeFailure['code'], message: string, current?: DigitalEmployeeProfile): DigitalEmployeeFailure {
+function snapshotProfileHead(head: DigitalEmployeeProfileHead): DigitalEmployeeProfileHead {
+  return Object.freeze({
+    schemaVersion: 1,
+    profileId: head.profileId,
+    headRevision: head.headRevision,
+    latestRevision: head.latestRevision,
+    ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
+    historyStartsAtRevision: head.historyStartsAtRevision,
+    ...(head.requiredEvalSet === undefined
+      ? {}
+      : { requiredEvalSet: Object.freeze({ ...head.requiredEvalSet }) }),
+    ...(head.archivedAt === undefined ? {} : { archivedAt: head.archivedAt }),
+    createdAt: head.createdAt,
+    updatedAt: head.updatedAt,
+  })
+}
+
+function snapshotProfileRevision(revision: DigitalEmployeeProfileRevision): DigitalEmployeeProfileRevision {
+  const target = revision.runtimeTarget.kind === 'legacy-inherit-lead'
+    ? legacyInheritLeadRuntimeTarget
+    : Object.freeze({ ...revision.runtimeTarget })
+  return Object.freeze({
+    schemaVersion: 1,
+    profileId: revision.profileId,
+    revision: revision.revision,
+    profile: snapshotProfileDraft(revision.profile),
+    runtimeTarget: target,
+    fingerprint: revision.fingerprint,
+    createdAt: revision.createdAt,
+    updatedAt: revision.updatedAt,
+  })
+}
+
+function failure(code: DigitalEmployeeFailure['code'], message: string, currentHead?: DigitalEmployeeProfileHead): DigitalEmployeeFailure {
   return Object.freeze({
     code,
     message,
-    ...(current === undefined ? {} : { current: snapshotProfile(current) }),
+    ...(currentHead === undefined ? {} : { currentHead: snapshotProfileHead(currentHead) }),
   })
 }
 
@@ -168,11 +226,15 @@ function saveRejected(error: DigitalEmployeeFailure): SaveDigitalEmployeeProfile
   return Object.freeze({ ok: false, error })
 }
 
-function deleteRejected(error: DigitalEmployeeFailure): DeleteDigitalEmployeeProfileResult {
+function spawnRejected(error: DigitalEmployeeFailure): SpawnDigitalEmployeeResult {
   return Object.freeze({ ok: false, error })
 }
 
-function spawnRejected(error: DigitalEmployeeFailure): SpawnDigitalEmployeeResult {
+function headMutationRejected(error: DigitalEmployeeFailure): MutateDigitalEmployeeProfileHeadResult {
+  return Object.freeze({ ok: false, error })
+}
+
+function revisionRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeProfileRevisionResult {
   return Object.freeze({ ok: false, error })
 }
 
@@ -223,6 +285,63 @@ function hookMessage(text: string): UserMessage {
   return createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE })
 }
 
+function diffValue(value: unknown): string {
+  return JSON.stringify(value) ?? 'null'
+}
+
+/** Deterministic, bounded structural comparison of immutable Revision content. */
+function profileRevisionDiff(
+  before: DigitalEmployeeProfileRevision | undefined,
+  after: DigitalEmployeeProfileRevision,
+  limit: number,
+): { readonly entries: readonly DigitalEmployeeProfileDiffEntry[]; readonly truncated: boolean } {
+  const entries: DigitalEmployeeProfileDiffEntry[] = []
+  const append = (entry: DigitalEmployeeProfileDiffEntry): void => {
+    if (entries.length <= limit) entries.push(Object.freeze(entry))
+  }
+  const walk = (left: unknown, right: unknown, path: string): void => {
+    if (entries.length > limit || Object.is(left, right)) return
+    if (Array.isArray(left) && Array.isArray(right)) {
+      const length = Math.max(left.length, right.length)
+      for (let index = 0; index < length && entries.length <= limit; index += 1) {
+        const nextPath = `${path}[${index}]`
+        if (index >= left.length) append({ path: nextPath, kind: 'added', after: diffValue(right[index]) })
+        else if (index >= right.length) append({ path: nextPath, kind: 'removed', before: diffValue(left[index]) })
+        else walk(left[index], right[index], nextPath)
+      }
+      return
+    }
+    if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object'
+      && !Array.isArray(left) && !Array.isArray(right)) {
+      const leftRecord = left as Record<string, unknown>
+      const rightRecord = right as Record<string, unknown>
+      const keys = [...new Set([...Object.keys(leftRecord), ...Object.keys(rightRecord)])].sort()
+      for (const key of keys) {
+        if (entries.length > limit) break
+        const nextPath = path === '' ? key : `${path}.${key}`
+        if (!Object.hasOwn(leftRecord, key)) {
+          append({ path: nextPath, kind: 'added', after: diffValue(rightRecord[key]) })
+        } else if (!Object.hasOwn(rightRecord, key)) {
+          append({ path: nextPath, kind: 'removed', before: diffValue(leftRecord[key]) })
+        } else {
+          walk(leftRecord[key], rightRecord[key], nextPath)
+        }
+      }
+      return
+    }
+    append({ path, kind: 'changed', before: diffValue(left), after: diffValue(right) })
+  }
+  walk(
+    before === undefined ? {} : { profile: before.profile, runtimeTarget: before.runtimeTarget },
+    { profile: after.profile, runtimeTarget: after.runtimeTarget },
+    '',
+  )
+  return Object.freeze({
+    entries: Object.freeze(entries.slice(0, limit)),
+    truncated: entries.length > limit,
+  })
+}
+
 /** Concrete Host service; one provider is sufficient for this local overlay. */
 export class DigitalEmployeeService extends TypertRemoteService {
   static inject = ['agents', 'agentTeams', 'storageDomain', 'systemPrompt', 'tools']
@@ -244,6 +363,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
       maxProfileBytes: positiveInteger('maxProfileBytes', config.maxProfileBytes ?? DEFAULT_MAX_PROFILE_BYTES, 1024),
       maxHooks: positiveInteger('maxHooks', config.maxHooks ?? DEFAULT_MAX_HOOKS, 0),
       maxAssignmentBytes: positiveInteger('maxAssignmentBytes', config.maxAssignmentBytes ?? DEFAULT_MAX_ASSIGNMENT_BYTES),
+      maxRevisionHistory: positiveInteger(
+        'maxRevisionHistory',
+        config.maxRevisionHistory ?? DEFAULT_MAX_REVISION_HISTORY,
+      ),
+      maxDiffEntries: positiveInteger('maxDiffEntries', config.maxDiffEntries ?? DEFAULT_MAX_DIFF_ENTRIES),
     }
     if (this.resolved.defaultProvider === '') {
       throw new TypeError('agent-team-ultra: defaultProvider must not be blank')
@@ -287,14 +411,24 @@ export class DigitalEmployeeService extends TypertRemoteService {
     return this.studioView(agent)
   }
 
+  /** Fetch one immutable Revision and its bounded comparison with active. */
+  @Remote('revision')
+  remoteRevision(
+    agent: Agent,
+    request: GetDigitalEmployeeProfileRevisionRequest,
+  ): Promise<GetDigitalEmployeeProfileRevisionResult> {
+    return this.profileRevision(agent, request)
+  }
+
   /** Build the complete replaceable Studio view for one exact live Team Lead. */
   studioView(caller: Agent): DigitalEmployeeStudioView {
     const authorityFailure = this.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) throw authorityRemoteError(authorityFailure, 'view')
     const membership = this.ctx.agentTeams.membership(caller)
-    const profiles = [...this.requireStorage().profileEntries()]
-      .map(([, profile]) => snapshotProfile(profile))
-      .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.id.localeCompare(right.id))
+    const profiles = [...this.requireStorage().profileHeadEntries()]
+      .map(([, head]) => this.profileCatalogEntry(head))
+      .sort((left, right) => left.latest.profile.displayName.localeCompare(right.latest.profile.displayName)
+        || left.head.profileId.localeCompare(right.head.profileId))
     const tools: ProfileToolOption[] = this.ctx.tools.schemas(caller)
       .filter(tool => !TEAM_OWN_TOOL_NAMES.has(tool.name))
       .map(tool => Object.freeze({ name: tool.name, description: tool.description }))
@@ -311,16 +445,92 @@ export class DigitalEmployeeService extends TypertRemoteService {
     })
   }
 
+  /** Public Host Revision inspector guarded by exact live Lead authority. */
+  profileRevision(
+    caller: Agent,
+    request: GetDigitalEmployeeProfileRevisionRequest,
+  ): Promise<GetDigitalEmployeeProfileRevisionResult> {
+    if (!this.admissionOpen) {
+      return Promise.resolve(revisionRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+    }
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return Promise.resolve(revisionRejected(authorityFailure))
+    if (!Number.isSafeInteger(request.revision) || request.revision < 1) {
+      return Promise.resolve(revisionRejected(failure('profile-invalid', 'Revision must be a positive integer')))
+    }
+    const storage = this.requireStorage()
+    const head = storage.getProfileHead(request.profileId)
+    if (head === undefined) {
+      return Promise.resolve(revisionRejected(failure('profile-not-found', `profile "${request.profileId}" not found`)))
+    }
+    const revision = storage.getProfileRevision(request.profileId, request.revision)
+    if (revision === undefined || request.revision < head.historyStartsAtRevision
+      || request.revision > head.latestRevision) {
+      return Promise.resolve(revisionRejected(failure(
+        'revision-not-found',
+        `Profile Revision ${request.revision} is not in retained history`,
+        head,
+      )))
+    }
+    const active = head.activeRevision === undefined
+      ? undefined
+      : storage.getProfileRevision(head.profileId, head.activeRevision)
+    if (head.activeRevision !== undefined && active === undefined) {
+      throw new Error(`Digital Employee Profile Head "${head.profileId}" has no active Revision`)
+    }
+    const comparison = profileRevisionDiff(active, revision, this.resolved.maxDiffEntries)
+    return Promise.resolve(Object.freeze({
+      ok: true as const,
+      value: Object.freeze({
+        head: snapshotProfileHead(head),
+        revision: snapshotProfileRevision(revision),
+        ...(active === undefined ? {} : { comparedToRevision: active.revision }),
+        diff: comparison.entries,
+        diffTruncated: comparison.truncated,
+      }),
+    }))
+  }
+
   /** Save one normalized profile with an exact CAS precondition. */
   @Remote('save')
   remoteSave(agent: Agent, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
     return this.saveProfile(agent, request)
   }
 
-  /** Delete one profile with an exact CAS precondition. Active employees retain snapshots. */
-  @Remote('deleteProfile')
-  remoteDelete(agent: Agent, request: DeleteDigitalEmployeeProfileRequest): Promise<DeleteDigitalEmployeeProfileResult> {
-    return this.deleteProfile(agent, request)
+  /** Promote the latest candidate without rewriting any Revision. */
+  @Remote('activate')
+  remoteActivate(
+    agent: Agent,
+    request: ActivateDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.activateProfile(agent, request)
+  }
+
+  /** Repoint activeRevision to an older immutable Revision. */
+  @Remote('rollback')
+  remoteRollback(
+    agent: Agent,
+    request: RollbackDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.rollbackProfile(agent, request)
+  }
+
+  /** Archive a Profile Head while retaining every historical reference. */
+  @Remote('archive')
+  remoteArchive(
+    agent: Agent,
+    request: ArchiveDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.archiveProfile(agent, request)
+  }
+
+  /** Restore an archived Profile Head through exact CAS. */
+  @Remote('restore')
+  remoteRestore(
+    agent: Agent,
+    request: RestoreDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.restoreProfile(agent, request)
   }
 
   /** Launch one profile as a real Agent Team teammate under exact Lead authority. */
@@ -338,6 +548,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
     if (!this.admissionOpen) return Promise.resolve(saveRejected(failure('service-disposed', 'Digital Employee service is disposing')))
     const authorityFailure = this.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(saveRejected(authorityFailure))
+    if (request.expectedHeadRevision !== null
+      && (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1)) {
+      return Promise.resolve(saveRejected(failure('profile-invalid', 'Head revision must be null or a positive integer')))
+    }
     const provider = request.profile.provider.trim() || this.resolved.defaultProvider
     const parsed = digitalEmployeeProfileDraftSchema.safeParse({ ...request.profile, provider })
     if (!parsed.success) {
@@ -361,47 +575,105 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
     return this.enqueue(async () => {
       const storage = this.requireStorage()
-      const current = storage.getProfile(parsed.data.id)
-      if (request.expectedRevision !== (current?.revision ?? null)) {
-        return saveRejected(failure('profile-conflict', 'profile revision changed; reload before saving', current))
+      const currentHead = storage.getProfileHead(parsed.data.id)
+      if (request.expectedHeadRevision !== (currentHead?.headRevision ?? null)) {
+        return saveRejected(failure(
+          'profile-conflict',
+          'Profile Head changed; reload before saving',
+          currentHead,
+        ))
       }
-      if (current === undefined && storage.profileCount >= this.resolved.maxProfiles) {
+      if (currentHead === undefined && storage.profileCount >= this.resolved.maxProfiles) {
         return saveRejected(failure('profile-limit', `profile limit ${this.resolved.maxProfiles} reached`))
       }
+
+      const normalized = snapshotProfileDraft(parsed.data)
+      const latest = currentHead === undefined
+        ? undefined
+        : storage.getProfileRevision(parsed.data.id, currentHead.latestRevision)
+      if (currentHead !== undefined && latest === undefined) {
+        throw new Error(`Digital Employee Profile Head "${parsed.data.id}" has no latest Revision`)
+      }
+      const runtimeTarget = latest?.runtimeTarget ?? legacyInheritLeadRuntimeTarget
+      const fingerprint = profileContentFingerprint(normalized, runtimeTarget)
+      if (latest?.fingerprint === fingerprint) {
+        return Object.freeze({
+          ok: true as const,
+          value: Object.freeze({
+            unchanged: true,
+            head: snapshotProfileHead(currentHead!),
+            revision: snapshotProfileRevision(latest),
+          }),
+        })
+      }
+
+      const known = [...storage.profileRevisionEntries(parsed.data.id)].map(([, revision]) => revision)
+      const reusable = known
+        .filter(revision => revision.revision > (currentHead?.latestRevision ?? 0)
+          && revision.fingerprint === fingerprint)
+        .sort((left, right) => left.revision - right.revision)[0]
       const now = Date.now()
-      const next = snapshotProfile({
-        ...parsed.data,
-        revision: (current?.revision ?? 0) + 1,
-        createdAt: current?.createdAt ?? now,
-        updatedAt: current === undefined ? now : Math.max(now, current.updatedAt),
+      const revision = reusable ?? snapshotProfileRevision({
+        schemaVersion: 1,
+        profileId: normalized.id,
+        revision: Math.max(0, ...known.map(candidate => candidate.revision)) + 1,
+        profile: normalized,
+        runtimeTarget,
+        fingerprint,
+        createdAt: currentHead?.createdAt ?? now,
+        updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
       })
-      await storage.putProfile(next)
-      return Object.freeze({ ok: true, value: snapshotProfile(next) })
+      const nextHead = snapshotProfileHead({
+        schemaVersion: 1,
+        profileId: normalized.id,
+        headRevision: (currentHead?.headRevision ?? 0) + 1,
+        latestRevision: revision.revision,
+        ...(currentHead?.activeRevision === undefined ? {} : { activeRevision: currentHead.activeRevision }),
+        historyStartsAtRevision: currentHead?.historyStartsAtRevision ?? revision.revision,
+        ...(currentHead?.requiredEvalSet === undefined ? {} : { requiredEvalSet: currentHead.requiredEvalSet }),
+        ...(currentHead?.archivedAt === undefined ? {} : { archivedAt: currentHead.archivedAt }),
+        createdAt: currentHead?.createdAt ?? now,
+        updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
+      })
+      await storage.putProfileRevision(revision)
+      await storage.putProfileHead(nextHead)
+      return Object.freeze({
+        ok: true as const,
+        value: Object.freeze({ unchanged: false, head: nextHead, revision }),
+      })
     })
   }
 
-  /** Public Host delete API. */
-  deleteProfile(caller: Agent, request: DeleteDigitalEmployeeProfileRequest): Promise<DeleteDigitalEmployeeProfileResult> {
-    if (!this.admissionOpen) return Promise.resolve(deleteRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(deleteRejected(authorityFailure))
-    return this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const current = storage.getProfile(request.profileId)
-      if (current === undefined) {
-        return deleteRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
-      }
-      if (request.expectedRevision !== current.revision) {
-        return deleteRejected(failure('profile-conflict', 'profile revision changed; reload before deleting', current))
-      }
-      const pending = [...storage.bindingEntries()].some(([, binding]) =>
-        binding.profileId === request.profileId && binding.phase === 'pending')
-      if (pending) {
-        return deleteRejected(failure('profile-in-use', 'profile has a launch still being provisioned'))
-      }
-      await storage.deleteProfile(request.profileId)
-      return Object.freeze({ ok: true, value: Object.freeze({ deleted: true as const }) })
-    })
+  /** Activate only the latest candidate through exact Head CAS. */
+  activateProfile(
+    caller: Agent,
+    request: ActivateDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.setActiveRevision(caller, request, 'activate')
+  }
+
+  /** Roll back to an older existing Revision through exact Head CAS. */
+  rollbackProfile(
+    caller: Agent,
+    request: RollbackDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.setActiveRevision(caller, request, 'rollback')
+  }
+
+  /** Archive without removing immutable history or active Binding snapshots. */
+  archiveProfile(
+    caller: Agent,
+    request: ArchiveDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.setArchiveState(caller, request, true)
+  }
+
+  /** Restore one archived Head through exact CAS. */
+  restoreProfile(
+    caller: Agent,
+    request: RestoreDigitalEmployeeProfileRequest,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    return this.setArchiveState(caller, request, false)
   }
 
   /** Public Host launch API with cancellation preserved through Agent Team provisioning. */
@@ -443,9 +715,20 @@ export class DigitalEmployeeService extends TypertRemoteService {
     if (membership.role !== 'lead') {
       return spawnRejected(failure('team-lead-required', 'only the exact live Team Lead may launch a Digital Employee'))
     }
-    const profile = this.requireStorage().getProfile(request.profileId)
-    if (profile === undefined) {
+    const storage = this.requireStorage()
+    const head = storage.getProfileHead(request.profileId)
+    if (head === undefined) {
       return spawnRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
+    }
+    if (head.archivedAt !== undefined) {
+      return spawnRejected(failure('profile-archived', `profile "${request.profileId}" is archived`, head))
+    }
+    if (head.activeRevision === undefined) {
+      return spawnRejected(failure('profile-not-active', `profile "${request.profileId}" has no active Revision`, head))
+    }
+    const profile = storage.getProfileAtRevision(request.profileId, head.activeRevision)
+    if (profile === undefined) {
+      return spawnRejected(failure('revision-not-found', `active Profile Revision ${head.activeRevision} was not found`, head))
     }
     const unavailable = profile.toolPolicy.mode === 'inherit'
       ? []
@@ -701,6 +984,135 @@ export class DigitalEmployeeService extends TypertRemoteService {
     } catch {
       return legacyInheritLeadRuntimeTarget
     }
+  }
+
+  /** Build one bounded, detached catalog entry from authoritative v1 records. */
+  private profileCatalogEntry(head: DigitalEmployeeProfileHead): DigitalEmployeeProfileCatalogEntry {
+    const storage = this.requireStorage()
+    const latest = storage.getProfileRevision(head.profileId, head.latestRevision)
+    if (latest === undefined) {
+      throw new Error(`Digital Employee Profile Head "${head.profileId}" has no latest Revision`)
+    }
+    const revisions = [...storage.profileRevisionEntries(head.profileId)]
+      .map(([, revision]) => revision)
+      .filter(revision => revision.revision >= head.historyStartsAtRevision
+        && revision.revision <= head.latestRevision)
+      .sort((left, right) => right.revision - left.revision)
+    const history: DigitalEmployeeProfileRevisionSummary[] = revisions
+      .slice(0, this.resolved.maxRevisionHistory)
+      .map(revision => Object.freeze({
+        revision: revision.revision,
+        fingerprint: revision.fingerprint,
+        createdAt: revision.createdAt,
+        updatedAt: revision.updatedAt,
+      }))
+    return Object.freeze({
+      head: snapshotProfileHead(head),
+      latest: snapshotProfileRevision(latest),
+      history: Object.freeze(history),
+      historyTruncated: revisions.length > history.length,
+    })
+  }
+
+  /** Shared Head-only mutation; immutable Revision rows are read, never rewritten. */
+  private setActiveRevision(
+    caller: Agent,
+    request: ActivateDigitalEmployeeProfileRequest | RollbackDigitalEmployeeProfileRequest,
+    operation: 'activate' | 'rollback',
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    if (!this.admissionOpen) {
+      return Promise.resolve(headMutationRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+    }
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
+    if (!Number.isSafeInteger(request.revision) || request.revision < 1
+      || !Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
+      return Promise.resolve(headMutationRejected(failure('profile-invalid', 'Revision CAS values must be positive integers')))
+    }
+    return this.enqueue(async () => {
+      const storage = this.requireStorage()
+      const head = storage.getProfileHead(request.profileId)
+      if (head === undefined) {
+        return headMutationRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
+      }
+      if (request.expectedHeadRevision !== head.headRevision) {
+        return headMutationRejected(failure('profile-conflict', 'Profile Head changed; reload before promotion', head))
+      }
+      if (head.archivedAt !== undefined) {
+        return headMutationRejected(failure('profile-archived', `profile "${request.profileId}" is archived`, head))
+      }
+      const revision = storage.getProfileRevision(request.profileId, request.revision)
+      if (revision === undefined || request.revision < head.historyStartsAtRevision
+        || request.revision > head.latestRevision) {
+        return headMutationRejected(failure(
+          'revision-not-found',
+          `Profile Revision ${request.revision} is not in retained history`,
+          head,
+        ))
+      }
+      if (operation === 'activate' && request.revision !== head.latestRevision) {
+        return headMutationRejected(failure('revision-not-found', 'activation requires the latest candidate Revision', head))
+      }
+      if (operation === 'rollback'
+        && (head.activeRevision === undefined || request.revision > head.activeRevision)) {
+        return headMutationRejected(failure('revision-not-found', 'rollback requires an active or older Revision', head))
+      }
+      if (head.activeRevision === request.revision) {
+        return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
+      }
+      const next = snapshotProfileHead({
+        ...head,
+        headRevision: head.headRevision + 1,
+        activeRevision: request.revision,
+        updatedAt: Math.max(Date.now(), head.updatedAt),
+      })
+      await storage.putProfileHead(next)
+      return Object.freeze({ ok: true as const, value: Object.freeze({ head: next }) })
+    })
+  }
+
+  /** Toggle archive state as a Head-only CAS mutation. */
+  private setArchiveState(
+    caller: Agent,
+    request: ArchiveDigitalEmployeeProfileRequest | RestoreDigitalEmployeeProfileRequest,
+    archived: boolean,
+  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
+    if (!this.admissionOpen) {
+      return Promise.resolve(headMutationRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+    }
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
+    if (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
+      return Promise.resolve(headMutationRejected(failure('profile-invalid', 'Head revision must be a positive integer')))
+    }
+    return this.enqueue(async () => {
+      const storage = this.requireStorage()
+      const head = storage.getProfileHead(request.profileId)
+      if (head === undefined) {
+        return headMutationRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
+      }
+      if (request.expectedHeadRevision !== head.headRevision) {
+        return headMutationRejected(failure('profile-conflict', 'Profile Head changed; reload before archive mutation', head))
+      }
+      if ((head.archivedAt !== undefined) === archived) {
+        return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
+      }
+      const now = Math.max(Date.now(), head.updatedAt)
+      const next = snapshotProfileHead({
+        schemaVersion: 1,
+        profileId: head.profileId,
+        headRevision: head.headRevision + 1,
+        latestRevision: head.latestRevision,
+        ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
+        historyStartsAtRevision: head.historyStartsAtRevision,
+        ...(head.requiredEvalSet === undefined ? {} : { requiredEvalSet: head.requiredEvalSet }),
+        ...(archived ? { archivedAt: now } : {}),
+        createdAt: head.createdAt,
+        updatedAt: now,
+      })
+      await storage.putProfileHead(next)
+      return Object.freeze({ ok: true as const, value: Object.freeze({ head: next }) })
+    })
   }
 
   /** Reject anything except the exact live Agent object currently recognized as a Team Lead. */

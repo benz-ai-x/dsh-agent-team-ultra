@@ -59,6 +59,7 @@ interface Harness {
   readonly ctx: Context
   readonly fiber: ReturnType<Context['plugin']>
   readonly profiles: MemoryTable<string, unknown>
+  readonly revisions: MemoryTable<string, unknown>
   readonly bindings: MemoryTable<string, unknown>
   readonly close: ReturnType<typeof vi.fn>
   readonly restriction: ReturnType<typeof vi.fn>
@@ -75,7 +76,10 @@ interface Harness {
   readonly disposeAgent: (agent: Agent) => void
 }
 
-async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Promise<Harness> {
+async function harness(options: {
+  readonly spawnGate?: Promise<void>
+  readonly serviceConfig?: { readonly maxRevisionHistory?: number; readonly maxDiffEntries?: number }
+} = {}): Promise<Harness> {
   const ctx = new Context()
   const profiles = new MemoryTable<string, unknown>()
   const revisions = new MemoryTable<string, unknown>()
@@ -197,12 +201,13 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
     spawnTeammate: spawn,
   } as never)
 
-  const fiber = ctx.plugin(DigitalEmployeeService)
+  const fiber = ctx.plugin(DigitalEmployeeService, options.serviceConfig)
   await fiber
   return {
     ctx,
     fiber,
     profiles,
+    revisions,
     bindings,
     close,
     restriction,
@@ -224,6 +229,309 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
 }
 
 describe('Digital Employee profile contract', () => {
+  it('creates immutable candidates and no-ops unchanged normalized saves with Head CAS', async () => {
+    const runtime = await harness()
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      saveProfile: (
+        caller: Agent,
+        request: { readonly expectedHeadRevision: number | null; readonly profile: DigitalEmployeeProfileDraft },
+      ) => Promise<{
+        readonly ok: boolean
+        readonly value?: {
+          readonly unchanged: boolean
+          readonly head: { readonly headRevision: number; readonly latestRevision: number; readonly activeRevision?: number }
+          readonly revision: { readonly revision: number; readonly fingerprint: string }
+        }
+      }>
+    }
+
+    const created = await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+    })
+    expect(created).toMatchObject({
+      ok: true,
+      value: {
+        unchanged: false,
+        head: { headRevision: 1, latestRevision: 1 },
+        revision: { revision: 1, fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u) },
+      },
+    })
+    expect(created.value?.head).not.toHaveProperty('activeRevision')
+
+    const unchanged = await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: 1,
+      profile: { ...draft(), displayName: '  Code Reviewer  ' },
+    })
+    expect(unchanged).toMatchObject({
+      ok: true,
+      value: {
+        unchanged: true,
+        head: { headRevision: 1, latestRevision: 1 },
+        revision: { revision: 1, fingerprint: created.value?.revision.fingerprint },
+      },
+    })
+    expect(runtime.revisions.size).toBe(1)
+
+    const changed = await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: 1,
+      profile: draft({ displayName: 'Reviewer Candidate' }),
+    })
+    expect(changed).toMatchObject({
+      ok: true,
+      value: {
+        unchanged: false,
+        head: { headRevision: 2, latestRevision: 2 },
+        revision: { revision: 2, fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u) },
+      },
+    })
+    expect(changed.value?.revision.fingerprint).not.toBe(created.value?.revision.fingerprint)
+    expect(runtime.revisions.size).toBe(2)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('reuses an orphan Revision when the first Head publication is retried after a crash', async () => {
+    const runtime = await harness()
+    const publishHead = vi.spyOn(runtime.profiles, 'put')
+      .mockRejectedValueOnce(new Error('simulated crash before Head publication'))
+
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+    })).rejects.toThrow('simulated crash before Head publication')
+    expect(runtime.profiles.size).toBe(0)
+    expect(runtime.revisions.size).toBe(1)
+
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+    })).resolves.toMatchObject({
+      ok: true,
+      value: { head: { latestRevision: 1 }, revision: { revision: 1 } },
+    })
+    expect(runtime.revisions.size).toBe(1)
+    expect(publishHead).toHaveBeenCalledTimes(2)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('rejects an invalid Head CAS value before writing a candidate', async () => {
+    const runtime = await harness()
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      saveProfile: (
+        caller: Agent,
+        request: { readonly expectedHeadRevision: number | null; readonly profile: DigitalEmployeeProfileDraft },
+      ) => Promise<unknown>
+    }
+
+    await expect(service.saveProfile(runtime.leader, {
+      expectedHeadRevision: -1,
+      profile: draft(),
+    })).resolves.toMatchObject({ ok: false, error: { code: 'profile-invalid' } })
+    expect(runtime.profiles.size).toBe(0)
+    expect(runtime.revisions.size).toBe(0)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('activates and rolls back existing Revisions while launch resolves only activeRevision', async () => {
+    const runtime = await harness()
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      saveProfile: (
+        caller: Agent,
+        request: { readonly expectedHeadRevision: number | null; readonly profile: DigitalEmployeeProfileDraft },
+      ) => Promise<{ readonly ok: boolean; readonly value?: { readonly head: { readonly headRevision: number } } }>
+      activateProfile: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly revision: number; readonly expectedHeadRevision: number },
+      ) => Promise<unknown>
+      rollbackProfile: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly revision: number; readonly expectedHeadRevision: number },
+      ) => Promise<unknown>
+      spawnProfile: DigitalEmployeeService['spawnProfile']
+      studioView: DigitalEmployeeService['studioView']
+    }
+
+    await service.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await expect(service.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'profile-not-active' } })
+
+    await expect(service.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer',
+      revision: 1,
+      expectedHeadRevision: 1,
+    })).resolves.toMatchObject({
+      ok: true,
+      value: { head: { headRevision: 2, latestRevision: 1, activeRevision: 1 } },
+    })
+
+    await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: 2,
+      profile: draft({ displayName: 'Candidate Reviewer' }),
+    })
+    expect(service.studioView(runtime.leader).profiles[0]?.head).toMatchObject({
+      headRevision: 3,
+      latestRevision: 2,
+      activeRevision: 1,
+    })
+
+    await expect(service.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer',
+      revision: 2,
+      expectedHeadRevision: 3,
+    })).resolves.toMatchObject({ ok: true, value: { head: { headRevision: 4, activeRevision: 2 } } })
+    await expect(service.rollbackProfile(runtime.leader, {
+      profileId: 'code-reviewer',
+      revision: 1,
+      expectedHeadRevision: 4,
+    })).resolves.toMatchObject({
+      ok: true,
+      value: { head: { headRevision: 5, latestRevision: 2, activeRevision: 1 } },
+    })
+
+    await expect(service.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({
+      ok: true,
+      value: { profileRevision: 1 },
+    })
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({
+      profileRevision: 1,
+      profile: { displayName: 'Code Reviewer' },
+    })
+
+    await runtime.fiber.dispose()
+  })
+
+  it('archives and restores a Profile through Head CAS without deleting history', async () => {
+    const runtime = await harness()
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      saveProfile: (
+        caller: Agent,
+        request: { readonly expectedHeadRevision: number | null; readonly profile: DigitalEmployeeProfileDraft },
+      ) => Promise<unknown>
+      activateProfile: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly revision: number; readonly expectedHeadRevision: number },
+      ) => Promise<unknown>
+      archiveProfile: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly expectedHeadRevision: number },
+      ) => Promise<unknown>
+      restoreProfile: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly expectedHeadRevision: number },
+      ) => Promise<unknown>
+      spawnProfile: DigitalEmployeeService['spawnProfile']
+    }
+
+    await service.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await service.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await expect(service.archiveProfile(runtime.leader, {
+      profileId: 'code-reviewer', expectedHeadRevision: 2,
+    })).resolves.toMatchObject({
+      ok: true,
+      value: { head: { headRevision: 3, activeRevision: 1, archivedAt: expect.any(Number) } },
+    })
+    expect(runtime.revisions.size).toBe(1)
+
+    await expect(service.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 3,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'profile-archived' } })
+    await expect(service.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'profile-archived' } })
+
+    await expect(service.restoreProfile(runtime.leader, {
+      profileId: 'code-reviewer', expectedHeadRevision: 2,
+    })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'profile-conflict', currentHead: { headRevision: 3 } },
+    })
+    const restored = await service.restoreProfile(runtime.leader, {
+      profileId: 'code-reviewer', expectedHeadRevision: 3,
+    }) as { readonly ok: boolean; readonly value?: { readonly head: object } }
+    expect(restored).toMatchObject({ ok: true, value: { head: { headRevision: 4, activeRevision: 1 } } })
+    expect(restored.value?.head).not.toHaveProperty('archivedAt')
+
+    await expect(service.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: true, value: { profileRevision: 1 } })
+
+    await runtime.fiber.dispose()
+  })
+
+  it('returns bounded history and a bounded structured diff against the active Revision', async () => {
+    const runtime = await harness({ serviceConfig: { maxRevisionHistory: 2, maxDiffEntries: 1 } })
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      saveProfile: (
+        caller: Agent,
+        request: { readonly expectedHeadRevision: number | null; readonly profile: DigitalEmployeeProfileDraft },
+      ) => Promise<unknown>
+      activateProfile: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly revision: number; readonly expectedHeadRevision: number },
+      ) => Promise<unknown>
+      profileRevision: (
+        caller: Agent,
+        request: { readonly profileId: string; readonly revision: number },
+      ) => Promise<unknown>
+      studioView: DigitalEmployeeService['studioView']
+    }
+
+    await service.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await service.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: 2,
+      profile: draft({ displayName: 'Candidate Two', persona: 'Candidate persona two.' }),
+    })
+    await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: 3,
+      profile: draft({ displayName: 'Candidate Three', persona: 'Candidate persona three.' }),
+    })
+
+    const entry = service.studioView(runtime.leader).profiles[0]
+    expect(entry).toMatchObject({
+      head: { headRevision: 4, latestRevision: 3, activeRevision: 1 },
+      latest: { revision: 3, profile: { displayName: 'Candidate Three' } },
+      history: [{ revision: 3 }, { revision: 2 }],
+      historyTruncated: true,
+    })
+    expect(Object.isFrozen(entry?.history)).toBe(true)
+
+    await expect(service.profileRevision(runtime.leader, {
+      profileId: 'code-reviewer', revision: 3,
+    })).resolves.toMatchObject({
+      ok: true,
+      value: {
+        comparedToRevision: 1,
+        revision: { revision: 3, fingerprint: entry?.latest.fingerprint },
+        diff: [{ path: 'profile.displayName', kind: 'changed', before: '"Code Reviewer"', after: '"Candidate Three"' }],
+        diffTruncated: true,
+      },
+    })
+    await expect(service.profileRevision(runtime.teammate, {
+      profileId: 'code-reviewer', revision: 3,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
+
+    await runtime.fiber.dispose()
+  })
+
   it('rejects executable or internally inconsistent hooks', () => {
     const invalid: ProfileHook = {
       id: 'unsafe',
@@ -360,16 +668,28 @@ describe('Digital Employee profile contract', () => {
 
   it('serializes CAS writes so one stale concurrent editor loses', async () => {
     const runtime = await harness()
-    const first = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
-    expect(first).toMatchObject({ ok: true, value: { revision: 1 } })
+    const first = await runtime.ctx.digitalEmployees.saveProfile(
+      runtime.leader,
+      { expectedHeadRevision: null, profile: draft() },
+    )
+    expect(first).toMatchObject({
+      ok: true,
+      value: { head: { headRevision: 1 }, revision: { revision: 1 } },
+    })
     const [left, right] = await Promise.all([
-      runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: 1, profile: draft({ displayName: 'Reviewer A' }) }),
-      runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: 1, profile: draft({ displayName: 'Reviewer B' }) }),
+      runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+        expectedHeadRevision: 1,
+        profile: draft({ displayName: 'Reviewer A' }),
+      }),
+      runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+        expectedHeadRevision: 1,
+        profile: draft({ displayName: 'Reviewer B' }),
+      }),
     ])
     expect([left, right].filter(result => result.ok)).toHaveLength(1)
     expect([left, right].find(result => !result.ok)).toMatchObject({
       ok: false,
-      error: { code: 'profile-conflict', current: { revision: 2 } },
+      error: { code: 'profile-conflict', currentHead: { headRevision: 2, latestRevision: 2 } },
     })
     await runtime.fiber.dispose()
   })
@@ -380,33 +700,34 @@ describe('Digital Employee profile contract', () => {
     const service = runtime.ctx.digitalEmployees as unknown as {
       saveProfile: (
         caller: Agent,
-        request: { readonly expectedRevision: null; readonly profile: DigitalEmployeeProfileDraft },
+        request: { readonly expectedHeadRevision: null; readonly profile: DigitalEmployeeProfileDraft },
       ) => Promise<unknown>
     }
-    await expect(service.saveProfile(runtime.teammate, { expectedRevision: null, profile: draft() }))
+    await expect(service.saveProfile(runtime.teammate, { expectedHeadRevision: null, profile: draft() }))
       .resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
     expect(runtime.profiles.size).toBe(0)
 
     await runtime.fiber.dispose()
   })
 
-  it('rejects an exact teammate at the exported delete seam without deleting', async () => {
+  it('rejects an exact teammate at the exported archive seam without changing the Head', async () => {
     const runtime = await harness()
     const saved = await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft() },
     )
-    expect(saved).toMatchObject({ ok: true, value: { revision: 1 } })
+    expect(saved).toMatchObject({ ok: true, value: { head: { headRevision: 1 } } })
 
-    const remove = runtime.ctx.digitalEmployees.deleteProfile as unknown as (
+    const archive = runtime.ctx.digitalEmployees.archiveProfile as unknown as (
       caller: Agent,
-      request: { readonly profileId: string; readonly expectedRevision: number },
+      request: { readonly profileId: string; readonly expectedHeadRevision: number },
     ) => Promise<unknown>
-    await expect(remove.call(runtime.ctx.digitalEmployees, runtime.teammate, {
+    await expect(archive.call(runtime.ctx.digitalEmployees, runtime.teammate, {
       profileId: 'code-reviewer',
-      expectedRevision: 1,
+      expectedHeadRevision: 1,
     })).resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
     expect(runtime.profiles.size).toBe(1)
+    expect(runtime.profiles.get('code-reviewer')).not.toHaveProperty('archivedAt')
 
     await runtime.fiber.dispose()
   })
@@ -445,11 +766,27 @@ describe('Digital Employee profile contract', () => {
       expect(viewFailure).toMatchObject({ code: 'digital-employees/team-rejected' })
       await expect(runtime.ctx.digitalEmployees.saveProfile(
         caller,
-        { expectedRevision: null, profile: draft() },
+        { expectedHeadRevision: null, profile: draft() },
       )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
-      await expect(runtime.ctx.digitalEmployees.deleteProfile(
+      await expect(runtime.ctx.digitalEmployees.profileRevision(
         caller,
-        { profileId: 'code-reviewer', expectedRevision: 1 },
+        { profileId: 'code-reviewer', revision: 1 },
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      await expect(runtime.ctx.digitalEmployees.activateProfile(
+        caller,
+        { profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1 },
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      await expect(runtime.ctx.digitalEmployees.rollbackProfile(
+        caller,
+        { profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1 },
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      await expect(runtime.ctx.digitalEmployees.archiveProfile(
+        caller,
+        { profileId: 'code-reviewer', expectedHeadRevision: 1 },
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      await expect(runtime.ctx.digitalEmployees.restoreProfile(
+        caller,
+        { profileId: 'code-reviewer', expectedHeadRevision: 1 },
       )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
       await expect(runtime.ctx.digitalEmployees.spawnProfile(
         caller,
@@ -467,12 +804,16 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft() },
     )
 
     const view = runtime.ctx.digitalEmployees.studioView(runtime.leader)
     expect(view).toMatchObject({
-      profiles: [{ id: 'code-reviewer', revision: 1 }],
+      profiles: [{
+        head: { profileId: 'code-reviewer', headRevision: 1, latestRevision: 1 },
+        latest: { revision: 1, profile: { id: 'code-reviewer' } },
+        history: [{ revision: 1 }],
+      }],
       tools: [
         { name: 'bash', description: 'Run a shell' },
         { name: 'read', description: 'Read files' },
@@ -482,10 +823,11 @@ describe('Digital Employee profile contract', () => {
     expect(Object.isFrozen(view)).toBe(true)
     expect(Object.isFrozen(view.profiles)).toBe(true)
     expect(Object.isFrozen(view.profiles[0])).toBe(true)
-    expect(Object.isFrozen(view.profiles[0]!.context[0])).toBe(true)
+    expect(Object.isFrozen(view.profiles[0]!.latest.profile.context[0])).toBe(true)
     expect(Object.isFrozen(view.tools)).toBe(true)
     expect(Object.isFrozen(view.tools[0])).toBe(true)
-    expect(view.profiles[0]).not.toBe(runtime.profiles.get('code-reviewer'))
+    expect(view.profiles[0]!.head).not.toBe(runtime.profiles.get('code-reviewer'))
+    expect(view.profiles[0]!.latest).not.toBe([...runtime.revisions.records.values()][0])
     expect(structuredClone(view)).toEqual(view)
 
     await runtime.fiber.dispose()
@@ -493,8 +835,14 @@ describe('Digital Employee profile contract', () => {
 
   it('persists the binding before provisioning and composes the immutable child scope', async () => {
     const runtime = await harness()
-    const saved = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
+    const saved = await runtime.ctx.digitalEmployees.saveProfile(
+      runtime.leader,
+      { expectedHeadRevision: null, profile: draft() },
+    )
     expect(saved.ok).toBe(true)
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
     const result = await runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer', assignment: 'Review the storage transaction.' },
@@ -535,8 +883,11 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft() },
     )
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
     await runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer' },
@@ -558,8 +909,11 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft() },
     )
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
     await runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer' },
@@ -585,7 +939,7 @@ describe('Digital Employee profile contract', () => {
 
   it('rejects an exact teammate at the exported launch seam before provisioning', async () => {
     const runtime = await harness()
-    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.teammate,
       { profileId: 'code-reviewer' },
@@ -598,7 +952,7 @@ describe('Digital Employee profile contract', () => {
 
   it('rejects an oversized assignment before reserving a Team member name', async () => {
     const runtime = await harness()
-    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer', assignment: 'x'.repeat(32_769) },
@@ -612,7 +966,10 @@ describe('Digital Employee profile contract', () => {
   it('closes admission but lets an admitted launch record its terminal edge before storage closes', async () => {
     const gate = Promise.withResolvers<void>()
     const runtime = await harness({ spawnGate: gate.promise })
-    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
     const launch = runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer' },

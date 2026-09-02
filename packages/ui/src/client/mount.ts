@@ -27,8 +27,20 @@ function registerStudio(ctx: ClientContext): void {
     async save(sessionId, request) {
       return await ctx.remote.digitalEmployees.save(sessionId, request)
     },
-    async remove(sessionId, profileId, expectedRevision) {
-      return await ctx.remote.digitalEmployees.deleteProfile(sessionId, { profileId, expectedRevision })
+    async revision(sessionId, profileId, revision) {
+      return await ctx.remote.digitalEmployees.revision(sessionId, { profileId, revision })
+    },
+    async activate(sessionId, profileId, revision, expectedHeadRevision) {
+      return await ctx.remote.digitalEmployees.activate(sessionId, { profileId, revision, expectedHeadRevision })
+    },
+    async rollback(sessionId, profileId, revision, expectedHeadRevision) {
+      return await ctx.remote.digitalEmployees.rollback(sessionId, { profileId, revision, expectedHeadRevision })
+    },
+    async archive(sessionId, profileId, expectedHeadRevision) {
+      return await ctx.remote.digitalEmployees.archive(sessionId, { profileId, expectedHeadRevision })
+    },
+    async restore(sessionId, profileId, expectedHeadRevision) {
+      return await ctx.remote.digitalEmployees.restore(sessionId, { profileId, expectedHeadRevision })
     },
     async spawn(sessionId, profileId, assignment, signal) {
       return await ctx.remote.digitalEmployees.spawn(

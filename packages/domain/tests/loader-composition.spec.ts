@@ -145,15 +145,18 @@ describe('Agent Team Ultra Loader composition', () => {
     expect(unloaded).toEqual([])
 
     const saved = await ctx.digitalEmployees.saveProfile(leader, {
-      expectedRevision: null,
+      expectedHeadRevision: null,
       profile: profile('reviewer'),
     })
     expect(saved).toMatchObject({
       ok: true,
-      value: { provider: 'fixture-provider', revision: 1 },
+      value: {
+        head: { headRevision: 1, latestRevision: 1 },
+        revision: { revision: 1, profile: { provider: 'fixture-provider' } },
+      },
     })
     await expect(ctx.digitalEmployees.saveProfile(leader, {
-      expectedRevision: null,
+      expectedHeadRevision: null,
       profile: profile('writer'),
     })).resolves.toMatchObject({
       ok: false,

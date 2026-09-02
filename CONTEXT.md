@@ -9,12 +9,20 @@ A reusable definition of one Digital Employee's identity, behavior, context, mem
 _Avoid_: Template, agent config
 
 **Profile Revision**:
-An immutable historical version of a Digital Employee Profile.
+A complete, normalized, immutable version of a Digital Employee Profile and its Runtime Target, identified by a canonical content fingerprint.
 _Avoid_: Profile copy, profile snapshot record
 
 **Profile Head**:
-The current catalog entry that identifies the latest and active Profile Revisions for one Profile.
+The stable catalog identity and CAS boundary that identifies latest and optional active Profile Revisions, archive state, and optional evaluation requirement.
 _Avoid_: Current profile, mutable revision
+
+**Candidate Revision**:
+The latest saved Profile Revision, which is not launchable until explicitly activated.
+_Avoid_: Draft row, automatically active version
+
+**Active Revision**:
+The Profile Revision selected by a Profile Head as the only launchable definition.
+_Avoid_: Current candidate, latest version
 
 **Binding**:
 The durable association between an exact Team member identity and the Profile Revision used to create or restore that member.

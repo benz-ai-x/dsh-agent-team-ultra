@@ -73,16 +73,16 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 - Remote 只接收 Session ID；Host 必须通过 `ctx.agents.get()` 解析为当前精确的 live `Agent`。
 - Team、角色和 member 身份必须由 Agent Team 服务推导，不能相信 Client 声明。
 - 只有当前 Team 的精确 live Lead 能创建数字员工。
-- 保存和删除 Profile 要求 live Session，但目前不要求 Lead；创建员工明确要求 Lead。
+- 查看、保存、激活、回滚、归档、恢复和启动都要求精确 live Team Lead。
 
 ### 持久化与恢复
 
-- Profile 和 Team/member 绑定写入版本化 storage domain `agent_team_ultra`，当前 domain version 为 `0`。
-- `profiles` 保存完整版本化 Profile；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile 快照和 `pending | active | failed` 状态。
+- Profile Head、不可变 Profile Revision 和 Team/member Binding 写入独立的分记录 storage generation `agent_team_ultra_v1`；`agent_team_ultra` v0 仅是只读迁移源。
+- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target 与 SHA-256 指纹；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile 快照和 `pending | active | failed` 状态。
 - 创建流程必须先持久化 `pending` 绑定，再调用 Agent Team provisioning。否则 child 可能在 Profile 快照存在前启动。
-- 已创建员工始终使用绑定时的快照。后续修改或删除 Profile 不会热更新已有员工。
+- 已创建员工始终使用绑定时的快照。后续候选、激活、回滚或归档不会热更新已有员工。
 - 不要向 DSH 的闭集 Session event catalog 添加自定义事件；本插件使用独立 storage domain。
-- 修改 storage schema 前必须先设计迁移并提升 domain version，不能原地改变 version `0` 的持久格式。
+- 不兼容格式必须使用新的 Storage Generation 名称，不能提升现有分记录 envelope version 伪装原地迁移。
 
 ### 工具、提示词与 Hook
 
@@ -100,7 +100,7 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 
 ### 并发与生命周期
 
-- Profile 保存/删除使用 `expectedRevision` compare-and-set；过期编辑必须返回 `profile-conflict`，不能覆盖新版本。
+- Profile 保存及 Head 发布操作使用 `expectedHeadRevision` compare-and-set；过期编辑必须返回当前 Head 和 `profile-conflict`，不能覆盖新版本。
 - 读改写通过 Host mutation queue 串行化；Profile 对外和绑定内均使用深拷贝冻结快照。
 - spawn 接受调用方取消信号，并与服务生命周期信号合并。
 - 服务 dispose 时先关闭 admission，再撤销 child setup，等待已接纳 launch 和 mutation queue 收敛，最后关闭 storage domain。
@@ -110,16 +110,20 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 
 ## 5. Remote 与错误语义
 
-生成的 `digitalEmployees` Remote 提供四个操作：
+生成的 `digitalEmployees` Remote 提供八个操作：
 
 | 操作 | 用途 | 可取消 |
 |---|---|---:|
 | `view` | 获取完整可替换 Studio view：Profiles、Lead 可继承工具、当前 Team 实例 | 否 |
-| `save` | 按 `expectedRevision` 新建或更新 Profile | 否 |
-| `deleteProfile` | 按 revision 删除 Profile | 否 |
-| `spawn` | 使用 Profile 和可选 assignment 创建真实队友 | 是 |
+| `revision` | 读取一个不可变 Revision 及其相对 active 的有界差异 | 否 |
+| `save` | 按 `expectedHeadRevision` 保存候选 Revision | 否 |
+| `activate` | 显式激活最新候选 Revision | 否 |
+| `rollback` | 将 active 指针回滚到已有更早 Revision | 否 |
+| `archive` | 保留历史并阻止激活和启动 | 否 |
+| `restore` | 恢复归档的 Profile Head | 否 |
+| `spawn` | 仅使用 active Revision 和可选 assignment 创建真实队友 | 是 |
 
-业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码包括 `profile-invalid`、`profile-not-found`、`profile-conflict`、`profile-limit`、`profile-in-use`、`tool-unavailable`、`team-lead-required`、`team-rejected`、`assignment-too-large` 和 `service-disposed`。
+业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived` 和 `revision-not-found`。
 
 修改 Remote 装饰方法后必须重新运行构建；[`generate-typert.mjs`](../scripts/generate-typert.mjs) 会调用官方 Typert generator 更新 Host 与 Client 产物，不能手写生成文件。
 
@@ -143,11 +147,11 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 
 测试职责分布：
 
-- `packages/domain/tests/profile-service.spec.ts`：schema、不可变快照、并发 CAS、先绑定后 provisioning、Lead 权限、大小限制和 dispose 边界。
-- `packages/domain/tests/generated-remote.spec.ts`：四个生成 Remote 操作及 Client namespace。
+- `packages/domain/tests/profile-service.spec.ts`：schema、不可变 Revision、Head CAS、激活/回滚、归档/恢复、有界差异、先绑定后 provisioning、Lead 权限和 dispose 边界。
+- `packages/domain/tests/generated-remote.spec.ts`：八个生成 Remote 操作及 Client namespace。
 - `packages/domain/tests/loader-composition.spec.ts`：真实 Loader 和部署限制。
 - `packages/profile/tests/profile.spec.ts`：private bundle 与稳定、无冲突 Loader rows。
-- `packages/ui/tests/studio.client.spec.tsx`：重复操作围栏、Session 切换、错误分层、launch 取消和独立 Client bundle。
+- `packages/ui/tests/studio.client.spec.tsx`：重复操作围栏、Session 切换、错误分层、Revision 发布流程、launch 取消和独立 Client bundle。
 - `packages/ui/tests/mount.client.spec.ts`：Remote/Slot 安装与失败回滚。
 
 ### 本次复验状态
@@ -222,7 +226,7 @@ node "$DSH_HARNESS_ROOT/apps/cli/lib/bin.js" \
 
 1. 用隔离 Profile 启动 Web，创建新的 Lead 会话并完成一次真实模型调用。
 2. 在 Lead 会话头部打开“数字员工”，创建带唯一 marker 的 Profile。
-3. 保存、创建员工，并让 child 返回 persona/context/memory/hook marker。
+3. 保存候选 Revision、显式激活，再创建员工，并让 child 返回 persona/context/memory/hook marker。
 4. 正常停止该隔离 Web 进程，确认端口不再监听。
 5. 使用相同 `DSH_HOME`、Profile 名和模型配置重启。
 6. 先重新打开 Lead，再进入已恢复的 child。

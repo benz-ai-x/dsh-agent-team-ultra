@@ -7,7 +7,7 @@
 - [x] Implement profile schemas, immutable snapshots, and CAS storage.
 - [x] Persist Team/name binding before teammate provisioning.
 - [x] Install tool filters, persona, context, memory, and declarative hooks in child scope.
-- [x] Expose generated Remote view/save/delete/spawn operations.
+- [x] Expose generated Remote view/revision/save/release/spawn operations.
 - [x] Add the Digital Employee Studio Client slot.
 - [x] Compose stable Loader rows in the bundle patch.
 - [x] Pass unit, lifecycle, Loader/profile, Client, and packed-artifact checks.
@@ -16,6 +16,7 @@
 - [x] Make the Studio window movable, eight-direction resizable, viewport-bounded, and container-responsive.
 - [x] Harden Studio, Remote, and headless seams to exact live Team Lead authority with reusable snapshot and Agent-scope lifecycle primitives.
 - [x] Add the isolated v1 storage generation and idempotently migrate v0 Profiles and Bindings on JSON and SQLite.
+- [x] Deliver immutable Profile Revisions with fingerprints, Head CAS, explicit activation/rollback, archive/restore, and bounded Studio history/diffs.
 
 ## Later
 

@@ -23,10 +23,10 @@ class DigitalEmployeesGatewayFixture extends Service {
 }
 
 describe('generated Digital Employee Remote contract', () => {
-  it('publishes four strict operations and cancellation only on spawn', () => {
+  it('publishes the immutable release workflow without a hard-delete operation', () => {
     expect(remote.package).toBe('@deepseek-ai/dsh-agent-team-ultra')
     expect(remote.descriptors.map(method => method.method)).toEqual([
-      'deleteProfile', 'save', 'spawn', 'view',
+      'activate', 'archive', 'restore', 'revision', 'rollback', 'save', 'spawn', 'view',
     ])
     expect(remote.descriptors.find(method => method.method === 'spawn')).toMatchObject({
       cancellation: { parameter: 'signal' },
@@ -34,7 +34,7 @@ describe('generated Digital Employee Remote contract', () => {
     expect(remote.descriptors.filter(method => method.method !== 'spawn')
       .every(method => method.cancellation === undefined)).toBe(true)
     expect(remote.descriptors.map(method => method.parameters[0])).toEqual(
-      Array.from({ length: 4 }, () => expect.objectContaining({
+      Array.from({ length: 8 }, () => expect.objectContaining({
         name: 'agent',
         wire: 'agentId',
         source: 'lookup',
@@ -43,7 +43,11 @@ describe('generated Digital Employee Remote contract', () => {
     )
     const host = TYPERT as { invocations: { id: string }[] }
     expect(host.invocations.map(invocation => invocation.id)).toEqual([
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/deleteProfile',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/activate',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/archive',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/restore',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/revision',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/rollback',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/save',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/spawn',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/view',

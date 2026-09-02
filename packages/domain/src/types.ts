@@ -67,6 +67,87 @@ export interface DigitalEmployeeProfile extends DigitalEmployeeProfileDraft {
   readonly updatedAt: number
 }
 
+/** Compatibility route retained when migration cannot prove an exact model route. */
+export interface LegacyInheritLeadRuntimeTarget {
+  readonly kind: 'legacy-inherit-lead'
+}
+
+/** Exact DSH provider/model route pinned inside an immutable Revision. */
+export interface DshModelRuntimeTarget {
+  readonly kind: 'dsh-model'
+  readonly provider: string
+  readonly model: string
+  readonly reasoningEffort?: string
+}
+
+/** Runtime identity that is immutable for one Revision. */
+export type DigitalEmployeeRuntimeTarget = LegacyInheritLeadRuntimeTarget | DshModelRuntimeTarget
+
+/** Optional activation gate owned by a Profile Head. */
+export interface RequiredEvalSetReference {
+  readonly evalSetId: string
+  readonly revision: number
+}
+
+/** Mutable catalog pointer; its CAS revision is distinct from content Revision numbers. */
+export interface DigitalEmployeeProfileHead {
+  readonly schemaVersion: 1
+  readonly profileId: DigitalEmployeeProfileId
+  readonly headRevision: number
+  readonly latestRevision: number
+  readonly activeRevision?: number
+  readonly historyStartsAtRevision: number
+  readonly requiredEvalSet?: RequiredEvalSetReference
+  readonly archivedAt?: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** Complete normalized immutable content and its canonical content fingerprint. */
+export interface DigitalEmployeeProfileRevision {
+  readonly schemaVersion: 1
+  readonly profileId: DigitalEmployeeProfileId
+  readonly revision: number
+  readonly profile: DigitalEmployeeProfileDraft
+  readonly runtimeTarget: DigitalEmployeeRuntimeTarget
+  readonly fingerprint: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** Bounded history row included in the replaceable Studio baseline. */
+export interface DigitalEmployeeProfileRevisionSummary {
+  readonly revision: number
+  readonly fingerprint: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** One catalog entry backed by a Head and its latest immutable Revision. */
+export interface DigitalEmployeeProfileCatalogEntry {
+  readonly head: DigitalEmployeeProfileHead
+  readonly latest: DigitalEmployeeProfileRevision
+  readonly history: readonly DigitalEmployeeProfileRevisionSummary[]
+  readonly historyTruncated: boolean
+}
+
+/** One deterministic field-level difference against the active Revision. */
+export interface DigitalEmployeeProfileDiffEntry {
+  readonly path: string
+  readonly kind: 'added' | 'removed' | 'changed'
+  readonly before?: string
+  readonly after?: string
+}
+
+/** Lazily loaded Revision body and bounded comparison with the active Revision. */
+export interface DigitalEmployeeProfileRevisionDetail {
+  readonly head: DigitalEmployeeProfileHead
+  readonly revision: DigitalEmployeeProfileRevision
+  readonly comparedToRevision?: number
+  readonly diff: readonly DigitalEmployeeProfileDiffEntry[]
+  readonly diffTruncated: boolean
+}
+
 /** One tool visible to the current Team Lead and eligible for inheritance filtering. */
 export interface ProfileToolOption {
   readonly name: string
@@ -86,21 +167,47 @@ export interface DigitalEmployeeInstanceView {
 
 /** Complete replaceable Studio baseline. */
 export interface DigitalEmployeeStudioView {
-  readonly profiles: readonly DigitalEmployeeProfile[]
+  readonly profiles: readonly DigitalEmployeeProfileCatalogEntry[]
   readonly tools: readonly ProfileToolOption[]
   readonly instances: readonly DigitalEmployeeInstanceView[]
 }
 
 /** Save request with a compare-and-set precondition. */
 export interface SaveDigitalEmployeeProfileRequest {
-  readonly expectedRevision: number | null
+  readonly expectedHeadRevision: number | null
   readonly profile: DigitalEmployeeProfileDraft
 }
 
-/** Delete request with a compare-and-set precondition. */
-export interface DeleteDigitalEmployeeProfileRequest {
+/** Promote one existing immutable Revision through Profile Head CAS. */
+export interface ActivateDigitalEmployeeProfileRequest {
   readonly profileId: DigitalEmployeeProfileId
-  readonly expectedRevision: number
+  readonly revision: number
+  readonly expectedHeadRevision: number
+}
+
+/** Move activeRevision back to one existing immutable Revision through Head CAS. */
+export interface RollbackDigitalEmployeeProfileRequest {
+  readonly profileId: DigitalEmployeeProfileId
+  readonly revision: number
+  readonly expectedHeadRevision: number
+}
+
+/** Archive one Profile without deleting its Head, Revisions, or Bindings. */
+export interface ArchiveDigitalEmployeeProfileRequest {
+  readonly profileId: DigitalEmployeeProfileId
+  readonly expectedHeadRevision: number
+}
+
+/** Restore one archived Profile through Head CAS. */
+export interface RestoreDigitalEmployeeProfileRequest {
+  readonly profileId: DigitalEmployeeProfileId
+  readonly expectedHeadRevision: number
+}
+
+/** Fetch one immutable Revision and compare it with the active Revision. */
+export interface GetDigitalEmployeeProfileRevisionRequest {
+  readonly profileId: DigitalEmployeeProfileId
+  readonly revision: number
 }
 
 /** Launch one profile with an optional assignment specific to this Team. */
@@ -117,23 +224,38 @@ export interface DigitalEmployeeFailure {
     | 'profile-conflict'
     | 'profile-limit'
     | 'profile-in-use'
+    | 'profile-not-active'
+    | 'profile-archived'
+    | 'revision-not-found'
     | 'tool-unavailable'
     | 'team-lead-required'
     | 'team-rejected'
     | 'assignment-too-large'
     | 'service-disposed'
   readonly message: string
-  readonly current?: DigitalEmployeeProfile
+  readonly currentHead?: DigitalEmployeeProfileHead
 }
 
 /** Save result preserving validation and stale-revision conflicts as domain data. */
 export type SaveDigitalEmployeeProfileResult =
-  | { readonly ok: true; readonly value: DigitalEmployeeProfile }
+  | {
+    readonly ok: true
+    readonly value: {
+      readonly unchanged: boolean
+      readonly head: DigitalEmployeeProfileHead
+      readonly revision: DigitalEmployeeProfileRevision
+    }
+  }
   | { readonly ok: false; readonly error: DigitalEmployeeFailure }
 
-/** Delete result preserving absence and stale-revision conflicts as domain data. */
-export type DeleteDigitalEmployeeProfileResult =
-  | { readonly ok: true; readonly value: { readonly deleted: true } }
+/** Result of activation or rollback; Revisions themselves are never rewritten. */
+export type MutateDigitalEmployeeProfileHeadResult =
+  | { readonly ok: true; readonly value: { readonly head: DigitalEmployeeProfileHead } }
+  | { readonly ok: false; readonly error: DigitalEmployeeFailure }
+
+/** Lazy Revision detail result used by the Studio history inspector. */
+export type GetDigitalEmployeeProfileRevisionResult =
+  | { readonly ok: true; readonly value: DigitalEmployeeProfileRevisionDetail }
   | { readonly ok: false; readonly error: DigitalEmployeeFailure }
 
 /** Launch result after the Team roster and Ultra binding both reach a terminal edge. */

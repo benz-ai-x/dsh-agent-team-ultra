@@ -12,14 +12,14 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
 - Hook：安全的声明式 `session-start`、`before-step`、`before-tool`、`after-tool` 行为，不执行任意 JavaScript 或 shell。
-- 生命周期：Profile CAS 版本控制、不可变启动快照、创建前持久化绑定、冷恢复重建和完整 Fiber 清理。
-- 工作台：分区式配置导航，窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
+- 生命周期：不可变 Profile Revision、内容指纹、Head CAS、显式激活/回滚、归档/恢复、不可变启动快照和完整 Fiber 清理。
+- 工作台：分区式配置导航及有界版本历史/结构化差异，窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
 
 ```mermaid
 flowchart LR
   UI[数字员工工作室] --> RPC[生成的 Typert Remote]
   RPC --> HOST[DigitalEmployeeService]
-  HOST --> STORE[(storageDomain\nProfile + Binding)]
+  HOST --> STORE[(storageDomain\nHead + Revision + Binding)]
   HOST --> TEAM[DSH Agent Team]
   TEAM --> CHILD[Continuable Teammate]
   STORE --> CHILD
@@ -37,7 +37,7 @@ pnpm install
 pnpm verify
 ```
 
-`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；26 项单元、Cordis、Loader、Client 与生命周期测试；六包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
+`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；六包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
 
 ## 安装到本地 DSH Web
 
@@ -74,9 +74,10 @@ dsh web
 
 1. 新建 Profile，填写身份、persona 和 mission。
 2. 选择 `fresh` 或 `fork`，再配置可继承工具、上下文、记忆和 Hook。
-3. 保存 Profile；保存使用 `expectedRevision`，过期编辑不会覆盖新版本。
-4. 可选填写本次任务，点击“创建数字员工”。
-5. 左侧实例列表显示准备中、已激活或失败状态，以及该员工绑定的 Profile revision。
+3. 保存候选 Revision；保存使用 `expectedHeadRevision`，规范化内容未变化时不会新增版本，过期编辑不会覆盖新版本。
+4. 在“版本”页检查指纹及相对已激活版本的结构化差异，再显式激活最新候选（也可回滚到更早的不可变版本）。
+5. 可选填写本次任务，点击“创建数字员工”；只有未归档 Profile 的 `activeRevision` 可以启动。
+6. 左侧实例列表显示准备中、已激活或失败状态，以及该员工绑定的 Profile revision。
 
 修改 Profile 只影响后续创建。已经创建或冷恢复的员工始终使用其绑定的不可变快照。
 
@@ -89,6 +90,8 @@ dsh web
 | `maxProfileBytes` | `131072` | 单个规范化 Profile 的 UTF-8 字节上限 |
 | `maxHooks` | `32` | 单个 Profile 的 Hook 数量上限 |
 | `maxAssignmentBytes` | `32768` | 单次创建任务说明的 UTF-8 字节上限 |
+| `maxRevisionHistory` | `32` | Studio 每个 Profile 返回的版本摘要上限 |
+| `maxDiffEntries` | `512` | 单次版本结构化差异返回项上限 |
 
 部署值位于 [cordis.patch.yml](packages/profile/cordis.patch.yml)。DSH patch 会替换目标行的完整配置；覆盖时应重述需要保留的全部字段。
 
@@ -103,6 +106,7 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - Remote 请求携带 Session ID，Host 必须将它解析为当前 live Agent，再从 Agent Team 推导 membership；浏览器不能声明 Team、角色或 member 身份。
 - 只有当前 Team 的 Lead 可以创建数字员工。
 - Profile Head、不可变 Revision 和绑定写入独立的 `agent_team_ultra_v1` 分记录存储；旧 `agent_team_ultra` v0 仅作为只读迁移源，完成后不再打开。
+- Profile 无硬删除；归档保留完整历史与绑定但阻止激活和启动，恢复必须经过 Head CAS。
 - v1 迁移以显式格式标记为准，支持 JSON/SQLite 上的幂等崩溃恢复；未知、更高版本或分歧数据会拒绝启动，完成迁移后不支持回退到写 v0 的旧二进制。
 - 绑定先进入 `pending`，再调用 Agent Team provisioning，避免子 Agent 在没有 Profile 快照的情况下启动。
 - 工具名称在创建时相对当前 Lead 的工具目录再次校验；`before-tool` Hook 只能声明拒绝规则。
@@ -116,7 +120,7 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md) 和 [v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md) 和 [Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)。
 
 ## 当前限制
 

@@ -8,9 +8,11 @@ import {
 } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
-  DeleteDigitalEmployeeProfileResult,
-  DigitalEmployeeProfile,
+  GetDigitalEmployeeProfileRevisionResult,
+  MutateDigitalEmployeeProfileHeadResult,
+  DigitalEmployeeProfileCatalogEntry,
   DigitalEmployeeProfileDraft,
+  DigitalEmployeeProfileRevisionDetail,
   DigitalEmployeeStudioView,
   ProfileHook,
   ProfileHookPoint,
@@ -46,11 +48,33 @@ export interface DigitalEmployeeStudioInjected {
     sessionId: SessionId,
     request: SaveDigitalEmployeeProfileRequest,
   ) => Promise<RemoteResult<SaveDigitalEmployeeProfileResult>>
-  remove: (
+  revision: (
     sessionId: SessionId,
     profileId: string,
-    expectedRevision: number,
-  ) => Promise<RemoteResult<DeleteDigitalEmployeeProfileResult>>
+    revision: number,
+  ) => Promise<RemoteResult<GetDigitalEmployeeProfileRevisionResult>>
+  activate: (
+    sessionId: SessionId,
+    profileId: string,
+    revision: number,
+    expectedHeadRevision: number,
+  ) => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>
+  rollback: (
+    sessionId: SessionId,
+    profileId: string,
+    revision: number,
+    expectedHeadRevision: number,
+  ) => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>
+  archive: (
+    sessionId: SessionId,
+    profileId: string,
+    expectedHeadRevision: number,
+  ) => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>
+  restore: (
+    sessionId: SessionId,
+    profileId: string,
+    expectedHeadRevision: number,
+  ) => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>
   spawn: (
     sessionId: SessionId,
     profileId: string,
@@ -65,8 +89,8 @@ export type DigitalEmployeeStudioProps =
   & PropsLocale<typeof NS>
 
 type Translate = DigitalEmployeeStudioProps['t']
-type BusyOperation = 'save' | 'delete' | 'spawn'
-type SectionId = 'identity' | 'persona' | 'tools' | 'context' | 'memory' | 'hooks'
+type BusyOperation = 'save' | 'activate' | 'rollback' | 'archive' | 'restore' | 'spawn'
+type SectionId = 'identity' | 'persona' | 'tools' | 'context' | 'memory' | 'hooks' | 'revisions'
 type ResizeEdge = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw'
 
 interface StudioWindowRect {
@@ -93,7 +117,7 @@ interface ViewportSize {
   readonly height: number
 }
 
-const SECTION_ORDER: readonly SectionId[] = ['identity', 'persona', 'tools', 'context', 'memory', 'hooks']
+const SECTION_ORDER: readonly SectionId[] = ['identity', 'persona', 'tools', 'context', 'memory', 'hooks', 'revisions']
 const RESIZE_EDGES: readonly ResizeEdge[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']
 const WINDOW_MARGIN = 16
 const WINDOW_MIN_WIDTH = 680
@@ -133,7 +157,7 @@ function emptyProfile(): DigitalEmployeeProfileDraft {
   }
 }
 
-function cloneProfile(profile: DigitalEmployeeProfile): DigitalEmployeeProfileDraft {
+function cloneProfile(profile: DigitalEmployeeProfileDraft): DigitalEmployeeProfileDraft {
   return {
     id: profile.id,
     employeeName: profile.employeeName,
@@ -196,6 +220,7 @@ function sectionNavKey(section: SectionId): UltraKey {
     case 'context': return 'navContext'
     case 'memory': return 'navMemory'
     case 'hooks': return 'navHooks'
+    case 'revisions': return 'navRevisions'
   }
 }
 
@@ -207,6 +232,7 @@ function sectionTitleKey(section: SectionId): UltraKey {
     case 'context': return 'context'
     case 'memory': return 'memory'
     case 'hooks': return 'hooks'
+    case 'revisions': return 'revisions'
   }
 }
 
@@ -218,6 +244,7 @@ function sectionDescKey(section: SectionId): UltraKey {
     case 'context': return 'contextDesc'
     case 'memory': return 'memoryDesc'
     case 'hooks': return 'hooksDesc'
+    case 'revisions': return 'revisionsDesc'
   }
 }
 
@@ -229,6 +256,7 @@ function SectionIcon({ section }: { section: SectionId }) {
     case 'context': return <IconContextInjectionOutline16 size={13} />
     case 'memory': return <IconGoalOutline16 size={13} />
     case 'hooks': return <IconSettingsOutline16 size={13} />
+    case 'revisions': return <IconRefreshOutline14 />
   }
 }
 
@@ -242,6 +270,7 @@ function sectionSummary(draft: DigitalEmployeeProfileDraft, section: SectionId, 
       const enabled = draft.hooks.filter(hook => hook.enabled).length
       return `${enabled} / ${draft.hooks.length}`
     }
+    case 'revisions': return null
     default: return null
   }
 }
@@ -359,7 +388,11 @@ export function DigitalEmployeeStudio({
   sessionId,
   load,
   save,
-  remove,
+  revision,
+  activate,
+  rollback,
+  archive,
+  restore,
   spawn,
   t,
 }: DigitalEmployeeStudioProps) {
@@ -370,7 +403,9 @@ export function DigitalEmployeeStudio({
   const [baseline, setBaseline] = useState<string | null>(null)
   const [section, setSection] = useState<SectionId>('identity')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [expectedRevision, setExpectedRevision] = useState<number | null>(null)
+  const [expectedHeadRevision, setExpectedHeadRevision] = useState<number | null>(null)
+  const [revisionDetail, setRevisionDetail] = useState<DigitalEmployeeProfileRevisionDetail | null>(null)
+  const [revisionLoading, setRevisionLoading] = useState(false)
   const [assignment, setAssignment] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
@@ -381,6 +416,7 @@ export function DigitalEmployeeStudio({
   const sessionRef = useRef(sessionId)
   const selectedRef = useRef(selectedId)
   const refreshGeneration = useRef(0)
+  const revisionGeneration = useRef(0)
   const busyRef = useRef<BusyOperation | null>(null)
   const launchAbortRef = useRef<AbortController | null>(null)
   const windowRectRef = useRef<StudioWindowRect | null>(windowRect)
@@ -415,7 +451,9 @@ export function DigitalEmployeeStudio({
     setBaseline(null)
     setSection('identity')
     setSelectedId(null)
-    setExpectedRevision(null)
+    setExpectedHeadRevision(null)
+    setRevisionDetail(null)
+    setRevisionLoading(false)
     setAssignment('')
     setCollapsed(new Set())
     setError(null)
@@ -492,10 +530,13 @@ export function DigitalEmployeeStudio({
     setWindowInteraction(mode === 'move' ? 'move' : edge ?? null)
   }
 
-  const select = useCallback((profile: DigitalEmployeeProfile, resetFeedback = true): void => {
-    const next = cloneProfile(profile)
-    setSelectedId(profile.id)
-    setExpectedRevision(profile.revision)
+  const select = useCallback((entry: DigitalEmployeeProfileCatalogEntry, resetFeedback = true): void => {
+    const next = cloneProfile(entry.latest.profile)
+    revisionGeneration.current += 1
+    setSelectedId(entry.head.profileId)
+    setExpectedHeadRevision(entry.head.headRevision)
+    setRevisionDetail(null)
+    setRevisionLoading(false)
     setDraft(next)
     setBaseline(JSON.stringify(next))
     setAssignment('')
@@ -518,14 +559,16 @@ export function DigitalEmployeeStudio({
       }
       setView(result.value)
       const targetId = preferredId ?? selectedRef.current
-      const selected = result.value.profiles.find(profile => profile.id === targetId)
+      const selected = result.value.profiles.find(profile => profile.head.profileId === targetId)
       if (selected !== undefined) {
         select(selected)
       } else {
         setDraft(null)
         setBaseline(null)
         setSelectedId(null)
-        setExpectedRevision(null)
+        setExpectedHeadRevision(null)
+        setRevisionDetail(null)
+        setRevisionLoading(false)
       }
       setError(null)
       return true
@@ -560,15 +603,19 @@ export function DigitalEmployeeStudio({
     if (draft === null || !begin('save')) return
     const requestedSession = sessionId
     try {
-      const result = await save(requestedSession, { expectedRevision, profile: draft })
+      const result = await save(requestedSession, { expectedHeadRevision, profile: draft })
       if (sessionRef.current !== requestedSession) return
       if (!result.ok) {
         setError(failureText(result.error))
       } else if (!result.value.ok) {
-        setError(failureText(result.value.error))
-        if (result.value.error.current !== undefined) select(result.value.error.current, false)
+        const failure = failureText(result.value.error)
+        setError(failure)
+        if (result.value.error.currentHead !== undefined) {
+          await refresh(result.value.error.currentHead.profileId)
+          if (sessionRef.current === requestedSession) setError(failure)
+        }
       } else {
-        const id = result.value.value.id
+        const id = result.value.value.head.profileId
         if (await refresh(id) && sessionRef.current === requestedSession) setNotice(t('saved'))
       }
     } catch (reason: unknown) {
@@ -578,23 +625,52 @@ export function DigitalEmployeeStudio({
     }
   }
 
-  const deleteDraft = async (): Promise<void> => {
-    if (draft === null || expectedRevision === null || !begin('delete')) return
+  const inspectRevision = useCallback(async (profileId: string, selectedRevision: number): Promise<void> => {
     const requestedSession = sessionId
+    const generation = ++revisionGeneration.current
+    setRevisionLoading(true)
     try {
-      const result = await remove(requestedSession, draft.id, expectedRevision)
-      if (sessionRef.current !== requestedSession) return
+      const result = await revision(requestedSession, profileId, selectedRevision)
+      if (sessionRef.current !== requestedSession || revisionGeneration.current !== generation) return
       if (!result.ok) {
         setError(failureText(result.error))
       } else if (!result.value.ok) {
         setError(failureText(result.value.error))
-        if (result.value.error.current !== undefined) select(result.value.error.current, false)
       } else {
-        setDraft(null)
-        setBaseline(null)
-        setSelectedId(null)
-        setExpectedRevision(null)
-        if (await refresh() && sessionRef.current === requestedSession) setNotice(t('deleted'))
+        setRevisionDetail(result.value.value)
+        setError(null)
+      }
+    } catch (reason: unknown) {
+      if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
+    } finally {
+      if (sessionRef.current === requestedSession && revisionGeneration.current === generation) {
+        setRevisionLoading(false)
+      }
+    }
+  }, [revision, sessionId, t])
+
+  const mutateHead = async (
+    operation: Exclude<BusyOperation, 'save' | 'spawn'>,
+    profileId: string,
+    invoke: () => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>,
+    successKey: UltraKey,
+  ): Promise<void> => {
+    if (!begin(operation)) return
+    const requestedSession = sessionId
+    try {
+      const result = await invoke()
+      if (sessionRef.current !== requestedSession) return
+      if (!result.ok) {
+        setError(failureText(result.error))
+      } else if (!result.value.ok) {
+        const failure = failureText(result.value.error)
+        setError(failure)
+        if (result.value.error.currentHead !== undefined) {
+          await refresh(result.value.error.currentHead.profileId)
+          if (sessionRef.current === requestedSession) setError(failure)
+        }
+      } else if (await refresh(profileId) && sessionRef.current === requestedSession) {
+        setNotice(t(successKey))
       }
     } catch (reason: unknown) {
       if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
@@ -604,7 +680,7 @@ export function DigitalEmployeeStudio({
   }
 
   const launchDraft = async (): Promise<void> => {
-    if (draft === null || expectedRevision === null || !begin('spawn')) return
+    if (draft === null || expectedHeadRevision === null || !begin('spawn')) return
     const requestedSession = sessionId
     const requestedProfileId = draft.id
     const controller = new AbortController()
@@ -671,7 +747,11 @@ export function DigitalEmployeeStudio({
 
   const profiles = view?.profiles ?? []
   const instances = view?.instances ?? []
+  const selectedEntry = profiles.find(profile => profile.head.profileId === selectedId)
   const dirty = draft !== null && baseline !== null && JSON.stringify(draft) !== baseline
+  const canLaunch = selectedEntry !== undefined
+    && selectedEntry.head.activeRevision !== undefined
+    && selectedEntry.head.archivedAt === undefined
 
   return (
     <div className={css.root} data-digital-employee-studio>
@@ -744,7 +824,9 @@ export function DigitalEmployeeStudio({
                     setBaseline(JSON.stringify(next))
                     setSection('identity')
                     setSelectedId(next.id)
-                    setExpectedRevision(null)
+                    setExpectedHeadRevision(null)
+                    setRevisionDetail(null)
+                    setRevisionLoading(false)
                     setAssignment('')
                     setError(null)
                     setNotice(null)
@@ -757,18 +839,24 @@ export function DigitalEmployeeStudio({
                   {profiles.map(profile => (
                     <button
                       type="button"
-                      key={profile.id}
-                      className={profile.id === selectedId ? css.profileSelected : css.profile}
+                      key={profile.head.profileId}
+                      className={profile.head.profileId === selectedId ? css.profileSelected : css.profile}
                       disabled={busy !== null}
                       onClick={() => { select(profile) }}
                     >
-                      <span className={css.avatar} style={{ background: avatarGradient(profile.id) }} aria-hidden>
-                        {displayInitial(profile.displayName)}
+                      <span className={css.avatar} style={{ background: avatarGradient(profile.head.profileId) }} aria-hidden>
+                        {displayInitial(profile.latest.profile.displayName)}
                       </span>
                       <span className={css.profileMeta}>
-                        <strong>{profile.displayName}</strong>
-                        <span>{profile.employeeName}</span>
-                        <small>{t('revision')} {profile.revision}</small>
+                        <strong>{profile.latest.profile.displayName}</strong>
+                        <span>{profile.latest.profile.employeeName}</span>
+                        <small>
+                          {t('revision')} {profile.head.latestRevision}
+                          {profile.head.activeRevision === undefined
+                            ? ` · ${t('noActiveRevision')}`
+                            : ` · ${t('activeShort')} ${profile.head.activeRevision}`}
+                          {profile.head.archivedAt === undefined ? '' : ` · ${t('archived')}`}
+                        </small>
                       </span>
                     </button>
                   ))}
@@ -785,7 +873,12 @@ export function DigitalEmployeeStudio({
                           key={item}
                           className={item === section ? css.navItemActive : css.navItem}
                           aria-current={item === section ? 'true' : undefined}
-                          onClick={() => { setSection(item) }}
+                          onClick={() => {
+                            setSection(item)
+                            if (item === 'revisions' && selectedEntry !== undefined) {
+                              void inspectRevision(selectedEntry.head.profileId, selectedEntry.head.latestRevision)
+                            }
+                          }}
                         >
                           <SectionIcon section={item} />
                           <span>{t(sectionNavKey(item))}</span>
@@ -822,7 +915,7 @@ export function DigitalEmployeeStudio({
                           <SectionPage title={t(sectionTitleKey('identity'))} desc={t(sectionDescKey('identity'))}>
                             <div className={css.grid}>
                               <Field label={t('profileId')}>
-                                <input value={draft.id} disabled={expectedRevision !== null} onChange={event => { update('id', event.target.value) }} />
+                                <input value={draft.id} disabled={expectedHeadRevision !== null} onChange={event => { update('id', event.target.value) }} />
                               </Field>
                               <Field label={t('employeeName')}>
                                 <input value={draft.employeeName} onChange={event => { update('employeeName', event.target.value) }} />
@@ -1016,13 +1109,162 @@ export function DigitalEmployeeStudio({
                             </div>
                           </SectionPage>
                         )}
+
+                        {section === 'revisions' && selectedEntry !== undefined && (
+                          <SectionPage
+                            title={t(sectionTitleKey('revisions'))}
+                            desc={t(sectionDescKey('revisions'))}
+                          >
+                            <div className={css.releaseSummary}>
+                              <span>{t('latestLabel')} r{selectedEntry.head.latestRevision}</span>
+                              <span>
+                                {selectedEntry.head.activeRevision === undefined
+                                  ? t('noActiveRevision')
+                                  : `${t('activeLabel')} r${selectedEntry.head.activeRevision}`}
+                              </span>
+                              <span>{t('headRevision')} {selectedEntry.head.headRevision}</span>
+                              {selectedEntry.head.archivedAt !== undefined && <span>{t('archived')}</span>}
+                            </div>
+                            <div className={css.revisionWorkspace}>
+                              <div className={css.revisionList}>
+                                {selectedEntry.history.map(item => (
+                                  <button
+                                    type="button"
+                                    key={item.revision}
+                                    aria-label={`${t('revision')} ${item.revision}`}
+                                    className={revisionDetail?.revision.revision === item.revision
+                                      ? css.revisionSelected
+                                      : css.revisionItem}
+                                    disabled={busy !== null}
+                                    onClick={() => {
+                                      void inspectRevision(selectedEntry.head.profileId, item.revision)
+                                    }}
+                                  >
+                                    <strong>r{item.revision}</strong>
+                                    <span>
+                                      {item.revision === selectedEntry.head.latestRevision && t('latest')}
+                                      {item.revision === selectedEntry.head.latestRevision
+                                        && item.revision === selectedEntry.head.activeRevision && ' · '}
+                                      {item.revision === selectedEntry.head.activeRevision && t('active')}
+                                    </span>
+                                    <code>{item.fingerprint.slice(0, 12)}</code>
+                                  </button>
+                                ))}
+                                {selectedEntry.historyTruncated && <p className={css.muted}>{t('historyTruncated')}</p>}
+                              </div>
+                              <div className={css.revisionDetail}>
+                                {revisionLoading && <p className={css.muted}>{t('loadingRevision')}</p>}
+                                {!revisionLoading && revisionDetail === null && (
+                                  <p className={css.muted}>{t('selectRevision')}</p>
+                                )}
+                                {!revisionLoading && revisionDetail !== null && (
+                                  <>
+                                    <div className={css.revisionDetailHead}>
+                                      <div>
+                                        <strong>{t('revision')} {revisionDetail.revision.revision}</strong>
+                                        <code title={revisionDetail.revision.fingerprint}>
+                                          {revisionDetail.revision.fingerprint}
+                                        </code>
+                                      </div>
+                                      <span className={css.spacer} />
+                                      {revisionDetail.revision.revision === selectedEntry.head.latestRevision
+                                        && revisionDetail.revision.revision !== selectedEntry.head.activeRevision
+                                        && selectedEntry.head.archivedAt === undefined && (
+                                        <button
+                                          type="button"
+                                          className={css.primaryButton}
+                                          disabled={busy !== null}
+                                          onClick={() => {
+                                            void mutateHead(
+                                              'activate',
+                                              selectedEntry.head.profileId,
+                                              () => activate(
+                                                sessionId,
+                                                selectedEntry.head.profileId,
+                                                revisionDetail.revision.revision,
+                                                selectedEntry.head.headRevision,
+                                              ),
+                                              'activated',
+                                            )
+                                          }}
+                                        >
+                                          {t('activateLatest')}
+                                        </button>
+                                      )}
+                                      {revisionDetail.revision.revision < selectedEntry.head.latestRevision
+                                        && revisionDetail.revision.revision !== selectedEntry.head.activeRevision
+                                        && selectedEntry.head.archivedAt === undefined && (
+                                        <button
+                                          type="button"
+                                          className={css.secondaryButton}
+                                          disabled={busy !== null}
+                                          onClick={() => {
+                                            void mutateHead(
+                                              'rollback',
+                                              selectedEntry.head.profileId,
+                                              () => rollback(
+                                                sessionId,
+                                                selectedEntry.head.profileId,
+                                                revisionDetail.revision.revision,
+                                                selectedEntry.head.headRevision,
+                                              ),
+                                              'rolledBack',
+                                            )
+                                          }}
+                                        >
+                                          {t('rollbackTo')} {revisionDetail.revision.revision}
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className={css.comparison}>
+                                      {revisionDetail.comparedToRevision === undefined
+                                        ? t('noComparison')
+                                        : `${t('comparedTo')} r${revisionDetail.comparedToRevision}`}
+                                    </p>
+                                    <div className={css.diffList}>
+                                      {revisionDetail.diff.length === 0 && <p className={css.muted}>{t('noDiff')}</p>}
+                                      {revisionDetail.diff.map((entry, index) => (
+                                        <div key={`${entry.path}/${index}`} className={css.diffEntry}>
+                                          <strong>{entry.path}</strong>
+                                          <span>{entry.kind}</span>
+                                          <code>{entry.before ?? '∅'} → {entry.after ?? '∅'}</code>
+                                        </div>
+                                      ))}
+                                      {revisionDetail.diffTruncated && <p className={css.muted}>{t('diffTruncated')}</p>}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </SectionPage>
+                        )}
                       </div>
 
                       <footer className={css.actions}>
-                        <button type="button" className={css.dangerButton} disabled={expectedRevision === null || busy !== null} onClick={() => { void deleteDraft() }}>
-                          <IconTrashOutline16 size={14} /> {t('remove')}
-                        </button>
+                        {selectedEntry !== undefined && (
+                          <button
+                            type="button"
+                            className={selectedEntry.head.archivedAt === undefined ? css.dangerButton : css.secondaryButton}
+                            disabled={busy !== null}
+                            onClick={() => {
+                              const archived = selectedEntry.head.archivedAt !== undefined
+                              void mutateHead(
+                                archived ? 'restore' : 'archive',
+                                selectedEntry.head.profileId,
+                                () => archived
+                                  ? restore(sessionId, selectedEntry.head.profileId, selectedEntry.head.headRevision)
+                                  : archive(sessionId, selectedEntry.head.profileId, selectedEntry.head.headRevision),
+                                archived ? 'restored' : 'archivedNotice',
+                              )
+                            }}
+                          >
+                            {selectedEntry.head.archivedAt === undefined ? t('archiveProfile') : t('restoreProfile')}
+                          </button>
+                        )}
                         {dirty && <span className={css.unsaved}>{t('unsaved')}</span>}
+                        {selectedEntry !== undefined && selectedEntry.head.activeRevision === undefined && (
+                          <span className={css.unsaved}>{t('noActiveRevision')}</span>
+                        )}
                         <span className={css.spacer} />
                         <button type="button" className={css.secondaryButton} disabled={busy !== null} onClick={() => { void saveDraft() }}>
                           {busy === 'save' ? t('saving') : t('save')}
@@ -1034,7 +1276,7 @@ export function DigitalEmployeeStudio({
                           value={assignment}
                           onChange={event => { setAssignment(event.target.value) }}
                         />
-                        <button type="button" className={css.primaryButton} disabled={expectedRevision === null || busy !== null} onClick={() => { void launchDraft() }}>
+                        <button type="button" className={css.primaryButton} disabled={!canLaunch || busy !== null} onClick={() => { void launchDraft() }}>
                           <IconPlayOutline16 size={14} /> {busy === 'spawn' ? t('launching') : t('launch')}
                         </button>
                       </footer>

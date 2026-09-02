@@ -16,6 +16,7 @@ import {
   digitalEmployeeV1DomainSpec,
   digitalEmployeeBindingKey,
   openDigitalEmployeeStorage,
+  profileContentFingerprint,
   profileRevisionKey,
 } from '../src/storage.ts'
 import type { DigitalEmployeeProfile, DigitalEmployeeProfileDraft } from '../src/types.ts'
@@ -195,6 +196,196 @@ describe('Digital Employee v1 storage generation', () => {
       'run_index',
     ])
   })
+
+  it('derives a stable content fingerprint without operational metadata', () => {
+    const target = { kind: 'legacy-inherit-lead' } as const
+    const reordered = {
+      hooks: legacyProfileDraft.hooks,
+      memory: legacyProfileDraft.memory,
+      context: legacyProfileDraft.context,
+      toolPolicy: legacyProfileDraft.toolPolicy,
+      mission: legacyProfileDraft.mission,
+      persona: legacyProfileDraft.persona,
+      contextMode: legacyProfileDraft.contextMode,
+      provider: legacyProfileDraft.provider,
+      description: legacyProfileDraft.description,
+      displayName: legacyProfileDraft.displayName,
+      employeeName: legacyProfileDraft.employeeName,
+      id: legacyProfileDraft.id,
+    }
+
+    expect(profileContentFingerprint(legacyProfileDraft, target)).toBe(
+      profileContentFingerprint(reordered, target),
+    )
+    expect(profileContentFingerprint(legacyProfileDraft, target)).toMatch(/^[a-f0-9]{64}$/u)
+  })
+
+  it.each(['json', 'sqlite'] as const)(
+    'upgrades an Issue #3 v1 Revision without a fingerprint before admission on %s',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const transitional = await runtime.ctx.storageDomain.open(permissiveV1Spec({
+          formatVersion: 1,
+          status: 'complete',
+          sourceVersion: 0,
+        }))
+        await transitional.table('profile_heads').put(legacyProfile.id, {
+          schemaVersion: 1,
+          profileId: legacyProfile.id,
+          headRevision: 1,
+          latestRevision: legacyProfile.revision,
+          activeRevision: legacyProfile.revision,
+          historyStartsAtRevision: legacyProfile.revision,
+          createdAt: legacyProfile.createdAt,
+          updatedAt: legacyProfile.updatedAt,
+        })
+        const key = profileRevisionKey(legacyProfile.id, legacyProfile.revision)
+        await transitional.table('profile_revisions').put(key, {
+          schemaVersion: 1,
+          profileId: legacyProfile.id,
+          revision: legacyProfile.revision,
+          profile: legacyProfileDraft,
+          runtimeTarget: { kind: 'legacy-inherit-lead' },
+          createdAt: legacyProfile.createdAt,
+          updatedAt: legacyProfile.updatedAt,
+        })
+        await transitional.close()
+
+        const upgraded = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        expect(upgraded.getProfileRevision(legacyProfile.id, legacyProfile.revision)).toMatchObject({
+          fingerprint: profileContentFingerprint(legacyProfileDraft, { kind: 'legacy-inherit-lead' }),
+        })
+        await upgraded.close()
+
+        const reopened = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        expect(reopened.getProfileRevision(legacyProfile.id, legacyProfile.revision)?.fingerprint).toBe(
+          profileContentFingerprint(legacyProfileDraft, { kind: 'legacy-inherit-lead' }),
+        )
+        await reopened.close()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'fails closed when an existing v1 fingerprint is non-canonical on %s',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const transitional = await runtime.ctx.storageDomain.open(permissiveV1Spec({
+          formatVersion: 1,
+          status: 'complete',
+          sourceVersion: 0,
+        }))
+        const key = profileRevisionKey(legacyProfile.id, legacyProfile.revision)
+        await transitional.table('profile_revisions').put(key, {
+          schemaVersion: 1,
+          profileId: legacyProfile.id,
+          revision: legacyProfile.revision,
+          profile: legacyProfileDraft,
+          runtimeTarget: { kind: 'legacy-inherit-lead' },
+          fingerprint: '0'.repeat(64),
+          createdAt: legacyProfile.createdAt,
+          updatedAt: legacyProfile.updatedAt,
+        })
+        await transitional.close()
+
+        await expect(openDigitalEmployeeStorage(runtime.ctx.storageDomain)).rejects.toMatchObject({
+          name: 'DigitalEmployeeMigrationError',
+          code: 'target-inconsistent',
+        })
+        expect(runtime.ctx.storageDomain.get('agent_team_ultra_v1')).toBeUndefined()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'fails closed when a v1 Revision snapshot disagrees with its identity on %s',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const seeded = await runtime.ctx.storageDomain.open(permissiveV1Spec({
+          formatVersion: 1,
+          status: 'complete',
+          sourceVersion: 0,
+        }))
+        await seeded.table('profile_heads').put(legacyProfile.id, {
+          schemaVersion: 1,
+          profileId: legacyProfile.id,
+          headRevision: 1,
+          latestRevision: 1,
+          activeRevision: 1,
+          historyStartsAtRevision: 1,
+          createdAt: 100,
+          updatedAt: 200,
+        })
+        await seeded.table('profile_revisions').put(profileRevisionKey(legacyProfile.id, 1), {
+          schemaVersion: 1,
+          profileId: legacyProfile.id,
+          revision: 1,
+          profile: { ...legacyProfileDraft, id: 'different-reviewer' },
+          runtimeTarget: { kind: 'legacy-inherit-lead' },
+          createdAt: 100,
+          updatedAt: 200,
+        })
+        await seeded.close()
+
+        await expect(openDigitalEmployeeStorage(runtime.ctx.storageDomain)).rejects.toMatchObject({
+          name: 'DigitalEmployeeMigrationError',
+          code: 'target-inconsistent',
+        })
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'fails closed when retained v1 Revision history has a gap on %s',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const seeded = await runtime.ctx.storageDomain.open(permissiveV1Spec({
+          formatVersion: 1,
+          status: 'complete',
+          sourceVersion: 0,
+        }))
+        await seeded.table('profile_heads').put(legacyProfile.id, {
+          schemaVersion: 1,
+          profileId: legacyProfile.id,
+          headRevision: 3,
+          latestRevision: 3,
+          activeRevision: 3,
+          historyStartsAtRevision: 1,
+          createdAt: 100,
+          updatedAt: 200,
+        })
+        for (const revision of [1, 3]) {
+          await seeded.table('profile_revisions').put(profileRevisionKey(legacyProfile.id, revision), {
+            schemaVersion: 1,
+            profileId: legacyProfile.id,
+            revision,
+            profile: legacyProfileDraft,
+            runtimeTarget: { kind: 'legacy-inherit-lead' },
+            createdAt: 100,
+            updatedAt: 200,
+          })
+        }
+        await seeded.close()
+
+        await expect(openDigitalEmployeeStorage(runtime.ctx.storageDomain)).rejects.toMatchObject({
+          name: 'DigitalEmployeeMigrationError',
+          code: 'target-inconsistent',
+        })
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
 
   it.each(['json', 'sqlite'] as const)(
     'finalizes an empty v0 source without inventing records on the %s backend',
@@ -485,7 +676,14 @@ describe('Digital Employee v1 storage generation', () => {
         const service = runtime.ctx.plugin(DigitalEmployeeService)
         await service
         expect(runtime.ctx.digitalEmployees.studioView(leader)).toMatchObject({
-          profiles: [{ id: 'legacy-reviewer', revision: 7 }],
+          profiles: [{
+            head: {
+              profileId: 'legacy-reviewer',
+              latestRevision: 7,
+              activeRevision: 7,
+            },
+            latest: { revision: 7, profile: { id: 'legacy-reviewer' } },
+          }],
           instances: [{
             teamId: 'lead',
             memberName: 'legacy-reviewer',

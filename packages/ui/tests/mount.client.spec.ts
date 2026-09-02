@@ -38,7 +38,11 @@ async function bench(registrationFailure = false) {
   ctx.provide('remote.digitalEmployees', {
     view: answer('view', { profiles: [], tools: [], instances: [] }),
     save: answer('save', { ok: true, value: {} }),
-    deleteProfile: answer('deleteProfile', { ok: true, value: { deleted: true } }),
+    revision: answer('revision', { ok: true, value: {} }),
+    activate: answer('activate', { ok: true, value: {} }),
+    rollback: answer('rollback', { ok: true, value: {} }),
+    archive: answer('archive', { ok: true, value: {} }),
+    restore: answer('restore', { ok: true, value: {} }),
     spawn: answer('spawn', { ok: true, value: {} }),
   } as never)
   ctx.provide('conversation', {})
@@ -78,9 +82,25 @@ describe('Digital Employee Studio mount lifecycle', () => {
 
     const actions = (runtime.entry()!.inject as unknown as () => DigitalEmployeeStudioInjected)()
     await actions.load('lead-session')
+    await actions.revision('lead-session', 'reviewer', 2)
+    await actions.activate('lead-session', 'reviewer', 2, 4)
+    await actions.rollback('lead-session', 'reviewer', 1, 5)
+    await actions.archive('lead-session', 'reviewer', 6)
+    await actions.restore('lead-session', 'reviewer', 7)
     await actions.spawn('lead-session', 'reviewer', '  Review this change.  ', new AbortController().signal)
     expect(runtime.calls).toEqual([
       { method: 'view', args: ['lead-session'] },
+      { method: 'revision', args: ['lead-session', { profileId: 'reviewer', revision: 2 }] },
+      {
+        method: 'activate',
+        args: ['lead-session', { profileId: 'reviewer', revision: 2, expectedHeadRevision: 4 }],
+      },
+      {
+        method: 'rollback',
+        args: ['lead-session', { profileId: 'reviewer', revision: 1, expectedHeadRevision: 5 }],
+      },
+      { method: 'archive', args: ['lead-session', { profileId: 'reviewer', expectedHeadRevision: 6 }] },
+      { method: 'restore', args: ['lead-session', { profileId: 'reviewer', expectedHeadRevision: 7 }] },
       {
         method: 'spawn',
         args: [

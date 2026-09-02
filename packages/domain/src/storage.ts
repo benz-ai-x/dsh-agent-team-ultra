@@ -11,7 +11,13 @@ import {
   digitalEmployeeProfileDraftSchema,
   digitalEmployeeProfileSchema,
 } from './spec.ts'
-import type { DigitalEmployeeProfile, DigitalEmployeeProfileDraft } from './types.ts'
+import type {
+  DigitalEmployeeProfile,
+  DigitalEmployeeProfileDraft,
+  DigitalEmployeeProfileHead,
+  DigitalEmployeeProfileRevision,
+  DigitalEmployeeRuntimeTarget,
+} from './types.ts'
 
 /** Marker committed only after every deterministic v0 copy is durable. */
 export type DigitalEmployeeMigrationMarker =
@@ -30,50 +36,21 @@ export const completeMigrationMarker: DigitalEmployeeMigrationMarker = Object.fr
   sourceVersion: 0,
 })
 
-/** Compatibility target attached only where v0 could not prove an exact route. */
-export interface LegacyInheritLeadRuntimeTarget {
-  readonly kind: 'legacy-inherit-lead'
-}
+export type MigratedRuntimeTarget = DigitalEmployeeRuntimeTarget
 
-/** Exact DSH route recovered from an authoritative child descriptor. */
-export interface MigratedDshModelRuntimeTarget {
-  readonly kind: 'dsh-model'
-  readonly provider: string
-  readonly model: string
-  readonly reasoningEffort?: string
-}
-
-export type MigratedRuntimeTarget = LegacyInheritLeadRuntimeTarget | MigratedDshModelRuntimeTarget
-
-export const legacyInheritLeadRuntimeTarget: LegacyInheritLeadRuntimeTarget = Object.freeze({
+export const legacyInheritLeadRuntimeTarget = Object.freeze({
   kind: 'legacy-inherit-lead',
-})
+} as const)
 
-export interface DigitalEmployeeProfileHeadV1 {
-  readonly schemaVersion: 1
-  readonly profileId: string
-  readonly headRevision: number
-  readonly latestRevision: number
-  readonly activeRevision: number
-  readonly historyStartsAtRevision: number
-  readonly createdAt: number
-  readonly updatedAt: number
-}
-
-export interface DigitalEmployeeProfileRevisionV1 {
-  readonly schemaVersion: 1
-  readonly profileId: string
-  readonly revision: number
-  readonly profile: DigitalEmployeeProfileDraft
-  readonly runtimeTarget: MigratedRuntimeTarget
-  readonly createdAt: number
-  readonly updatedAt: number
-}
+type StoredDigitalEmployeeProfileRevisionV1 =
+  Omit<DigitalEmployeeProfileRevision, 'fingerprint'>
+  & { readonly fingerprint?: string }
 
 const safeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 const boundedId = z.string().min(1).max(256)
 const nonEmptyText = z.string().min(1)
+const fingerprintSchema = z.string().regex(/^[a-f0-9]{64}$/u)
 
 export const migrationMarkerSchema = z.union([
   z.object({ formatVersion: z.literal(1), status: z.literal('pending'), sourceVersion: z.literal(0) }).strict(),
@@ -88,28 +65,38 @@ export const migratedRuntimeTargetSchema = z.union([
     model: nonEmptyText,
     reasoningEffort: nonEmptyText.optional(),
   }).strict(),
-]) as z.ZodType<MigratedRuntimeTarget>
+]) as z.ZodType<DigitalEmployeeRuntimeTarget>
+
+const requiredEvalSetReferenceSchema = z.object({
+  evalSetId: boundedId,
+  revision: positiveInteger,
+}).strict()
 
 export const digitalEmployeeProfileHeadV1Schema = z.object({
   schemaVersion: z.literal(1),
   profileId: boundedId,
   headRevision: positiveInteger,
   latestRevision: positiveInteger,
-  activeRevision: positiveInteger,
+  activeRevision: positiveInteger.optional(),
   historyStartsAtRevision: positiveInteger,
+  requiredEvalSet: requiredEvalSetReferenceSchema.optional(),
+  archivedAt: safeInteger.optional(),
   createdAt: safeInteger,
   updatedAt: safeInteger,
 }).strict().superRefine((head, ctx) => {
   if (head.historyStartsAtRevision > head.latestRevision) {
     ctx.addIssue({ code: 'custom', path: ['historyStartsAtRevision'], message: 'history start exceeds latest revision' })
   }
-  if (head.activeRevision > head.latestRevision) {
+  if (head.activeRevision !== undefined && head.activeRevision > head.latestRevision) {
     ctx.addIssue({ code: 'custom', path: ['activeRevision'], message: 'active revision exceeds latest revision' })
   }
   if (head.updatedAt < head.createdAt) {
     ctx.addIssue({ code: 'custom', path: ['updatedAt'], message: 'updatedAt precedes createdAt' })
   }
-}) as z.ZodType<DigitalEmployeeProfileHeadV1>
+  if (head.archivedAt !== undefined && head.archivedAt < head.createdAt) {
+    ctx.addIssue({ code: 'custom', path: ['archivedAt'], message: 'archivedAt precedes createdAt' })
+  }
+}) as z.ZodType<DigitalEmployeeProfileHead>
 
 export const digitalEmployeeProfileRevisionV1Schema = z.object({
   schemaVersion: z.literal(1),
@@ -117,12 +104,13 @@ export const digitalEmployeeProfileRevisionV1Schema = z.object({
   revision: positiveInteger,
   profile: digitalEmployeeProfileDraftSchema,
   runtimeTarget: migratedRuntimeTargetSchema,
+  fingerprint: fingerprintSchema.optional(),
   createdAt: safeInteger,
   updatedAt: safeInteger,
 }).strict().refine(record => record.updatedAt >= record.createdAt, {
   path: ['updatedAt'],
   message: 'updatedAt must not precede createdAt',
-}) as z.ZodType<DigitalEmployeeProfileRevisionV1>
+}) as z.ZodType<StoredDigitalEmployeeProfileRevisionV1>
 
 export const digitalEmployeeBindingV1Schema = z.object({
   schemaVersion: z.literal(1),
@@ -157,8 +145,8 @@ export const digitalEmployeeV1DomainSpec = defineDomain({
     initial: pendingMigrationMarker,
   },
   tables: {
-    profile_heads: domainTable<string, DigitalEmployeeProfileHeadV1>(digitalEmployeeProfileHeadV1Schema),
-    profile_revisions: domainTable<string, DigitalEmployeeProfileRevisionV1>(digitalEmployeeProfileRevisionV1Schema),
+    profile_heads: domainTable<string, DigitalEmployeeProfileHead>(digitalEmployeeProfileHeadV1Schema),
+    profile_revisions: domainTable<string, StoredDigitalEmployeeProfileRevisionV1>(digitalEmployeeProfileRevisionV1Schema),
     bindings: domainTable<string, DigitalEmployeeBindingV1>(digitalEmployeeBindingV1Schema),
     run_index: domainTable<string, z.infer<typeof runIndexRecordSchema>>(runIndexRecordSchema),
     eval_sets: domainTable<string, z.infer<typeof evalSetRecordSchema>>(evalSetRecordSchema),
@@ -216,6 +204,28 @@ function legacyBindingKey(teamId: string, memberName: string): string {
   return JSON.stringify([teamId, memberName])
 }
 
+/** Canonical JSON: object keys sort lexically while array order remains semantic. */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  const record = value as Record<string, unknown>
+  return `{${Object.keys(record)
+    .filter(key => record[key] !== undefined)
+    .sort()
+    .map(key => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(',')}}`
+}
+
+/** Fingerprint only immutable normalized content, never counters or operational timestamps. */
+export function profileContentFingerprint(
+  profile: DigitalEmployeeProfileDraft,
+  runtimeTarget: DigitalEmployeeRuntimeTarget,
+): string {
+  return createHash('sha256')
+    .update(canonicalJson({ profile, runtimeTarget }), 'utf8')
+    .digest('hex')
+}
+
 function deepFreeze<T>(borrowed: T): T {
   const value = structuredClone(borrowed)
   const visit = (candidate: unknown): void => {
@@ -247,19 +257,21 @@ function profileDraft(profile: DigitalEmployeeProfile): DigitalEmployeeProfileDr
 function revisionRecord(
   profile: DigitalEmployeeProfile,
   runtimeTarget: MigratedRuntimeTarget = legacyInheritLeadRuntimeTarget,
-): DigitalEmployeeProfileRevisionV1 {
+): DigitalEmployeeProfileRevision {
+  const draft = profileDraft(profile)
   return deepFreeze({
     schemaVersion: 1,
     profileId: profile.id,
     revision: profile.revision,
-    profile: profileDraft(profile),
+    profile: draft,
     runtimeTarget,
+    fingerprint: profileContentFingerprint(draft, runtimeTarget),
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   })
 }
 
-function migratedHead(profile: DigitalEmployeeProfile): DigitalEmployeeProfileHeadV1 {
+function migratedHead(profile: DigitalEmployeeProfile): DigitalEmployeeProfileHead {
   return Object.freeze({
     schemaVersion: 1,
     profileId: profile.id,
@@ -272,7 +284,7 @@ function migratedHead(profile: DigitalEmployeeProfile): DigitalEmployeeProfileHe
   })
 }
 
-function profileFromRevision(record: DigitalEmployeeProfileRevisionV1): DigitalEmployeeProfile {
+function profileFromRevision(record: DigitalEmployeeProfileRevision): DigitalEmployeeProfile {
   return deepFreeze({
     ...record.profile,
     revision: record.revision,
@@ -321,6 +333,40 @@ async function putImmutable<V>(
   await table.put(key, value)
   state.copiedRecords += 1
   await hooks.afterRecord?.({ table: tableName, key, copiedRecords: state.copiedRecords })
+}
+
+function completeRevision(record: StoredDigitalEmployeeProfileRevisionV1): DigitalEmployeeProfileRevision {
+  if (record.fingerprint === undefined) {
+    throw new DigitalEmployeeMigrationError(
+      `Profile Revision ${record.profileId}@${record.revision} has no content fingerprint`,
+      'target-inconsistent',
+    )
+  }
+  return record as DigitalEmployeeProfileRevision
+}
+
+/** Enrich transitional v1 records from Issue #3 before any mutation is admitted. */
+async function ensureRevisionFingerprints(v1: DigitalEmployeeV1Domain): Promise<void> {
+  const revisions = v1.table('profile_revisions')
+  for (const [key, stored] of revisions.entries()) {
+    if (key !== profileRevisionKey(stored.profileId, stored.revision)
+      || stored.profile.id !== stored.profileId) {
+      throw new DigitalEmployeeMigrationError(
+        `Profile Revision ${JSON.stringify(key)} has inconsistent key or Profile identity`,
+        'target-inconsistent',
+      )
+    }
+    const fingerprint = profileContentFingerprint(stored.profile, stored.runtimeTarget)
+    if (stored.fingerprint !== undefined && stored.fingerprint !== fingerprint) {
+      throw new DigitalEmployeeMigrationError(
+        `Profile Revision ${stored.profileId}@${stored.revision} has a non-canonical fingerprint`,
+        'target-inconsistent',
+      )
+    }
+    if (stored.fingerprint === undefined) {
+      await revisions.put(key, deepFreeze({ ...stored, fingerprint }))
+    }
+  }
 }
 
 async function migrateV0(
@@ -393,9 +439,31 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
         'target-inconsistent',
       )
     }
-    for (const revision of new Set([head.latestRevision, head.activeRevision])) {
+    if (head.activeRevision !== undefined && head.activeRevision < head.historyStartsAtRevision) {
+      throw new DigitalEmployeeMigrationError(
+        `Profile Head ${JSON.stringify(head.profileId)} points outside retained history`,
+        'target-inconsistent',
+      )
+    }
+    const retained = [...revisions.entries()]
+      .map(([, revision]) => revision)
+      .filter(revision => revision.profileId === head.profileId
+        && revision.revision >= head.historyStartsAtRevision
+        && revision.revision <= head.latestRevision)
+    const expectedCount = head.latestRevision - head.historyStartsAtRevision + 1
+    if (retained.length !== expectedCount) {
+      throw new DigitalEmployeeMigrationError(
+        `Profile Head ${JSON.stringify(head.profileId)} has a gap in retained Revision history`,
+        'target-inconsistent',
+      )
+    }
+    const referenced = head.activeRevision === undefined
+      ? [head.latestRevision]
+      : [head.latestRevision, head.activeRevision]
+    for (const revision of new Set(referenced)) {
       const record = revisions.get(profileRevisionKey(head.profileId, revision))
-      if (record === undefined || record.profileId !== head.profileId || record.revision !== revision) {
+      if (record === undefined || record.fingerprint === undefined
+        || record.profileId !== head.profileId || record.revision !== revision) {
         throw new DigitalEmployeeMigrationError(
           `Profile Head ${JSON.stringify(head.profileId)} points to missing Revision ${revision}`,
           'target-inconsistent',
@@ -434,10 +502,30 @@ async function closeAfterFailure(
 export class DigitalEmployeeStorage {
   constructor(private readonly domain: DigitalEmployeeV1Domain) {}
 
+  getProfileHead(id: string): DigitalEmployeeProfileHead | undefined {
+    return this.domain.table('profile_heads').get(id)
+  }
+
+  profileHeadEntries(): IterableIterator<[string, DigitalEmployeeProfileHead]> {
+    return this.domain.table('profile_heads').entries()
+  }
+
+  getProfileRevision(id: string, revision: number): DigitalEmployeeProfileRevision | undefined {
+    const record = this.domain.table('profile_revisions').get(profileRevisionKey(id, revision))
+    return record === undefined ? undefined : completeRevision(record)
+  }
+
+  profileRevisionEntries(id: string): IterableIterator<[string, DigitalEmployeeProfileRevision]> {
+    const entries = [...this.domain.table('profile_revisions').entries()]
+      .filter(([, record]) => record.profileId === id)
+      .map(([key, record]): [string, DigitalEmployeeProfileRevision] => [key, completeRevision(record)])
+    return entries[Symbol.iterator]()
+  }
+
   getProfile(id: string): DigitalEmployeeProfile | undefined {
     const head = this.domain.table('profile_heads').get(id)
     if (head === undefined) return undefined
-    const revision = this.domain.table('profile_revisions').get(profileRevisionKey(id, head.latestRevision))
+    const revision = this.getProfileRevision(id, head.latestRevision)
     if (revision === undefined) {
       throw new DigitalEmployeeMigrationError(
         `Profile Head ${JSON.stringify(id)} points to missing latest Revision ${head.latestRevision}`,
@@ -445,6 +533,18 @@ export class DigitalEmployeeStorage {
       )
     }
     return profileFromRevision(revision)
+  }
+
+  getProfileAtRevision(id: string, revision: number): DigitalEmployeeProfile | undefined {
+    const record = this.getProfileRevision(id, revision)
+    return record === undefined ? undefined : profileFromRevision(record)
+  }
+
+  getActiveProfile(id: string): DigitalEmployeeProfile | undefined {
+    const head = this.getProfileHead(id)
+    return head?.activeRevision === undefined
+      ? undefined
+      : this.getProfileAtRevision(id, head.activeRevision)
   }
 
   profileEntries(): IterableIterator<[string, DigitalEmployeeProfile]> {
@@ -462,33 +562,19 @@ export class DigitalEmployeeStorage {
     return this.domain.table('profile_heads').size
   }
 
-  async putProfile(profile: DigitalEmployeeProfile): Promise<void> {
-    const heads = this.domain.table('profile_heads')
-    const current = heads.get(profile.id)
-    const revision = revisionRecord(profile)
-    await putImmutable(
+  putProfileRevision(revision: DigitalEmployeeProfileRevision): Promise<void> {
+    return putImmutable(
       this.domain.table('profile_revisions'),
       'profile_revisions',
-      profileRevisionKey(profile.id, profile.revision),
+      profileRevisionKey(revision.profileId, revision.revision),
       revision,
       { copiedRecords: 0 },
       {},
     )
-    const next: DigitalEmployeeProfileHeadV1 = Object.freeze({
-      schemaVersion: 1,
-      profileId: profile.id,
-      headRevision: (current?.headRevision ?? 0) + 1,
-      latestRevision: profile.revision,
-      activeRevision: profile.revision,
-      historyStartsAtRevision: current?.historyStartsAtRevision ?? profile.revision,
-      createdAt: current?.createdAt ?? profile.createdAt,
-      updatedAt: profile.updatedAt,
-    })
-    await heads.put(profile.id, next)
   }
 
-  deleteProfile(id: string): Promise<boolean> {
-    return this.domain.table('profile_heads').delete(id)
+  putProfileHead(head: DigitalEmployeeProfileHead): Promise<void> {
+    return this.domain.table('profile_heads').put(head.profileId, head)
   }
 
   getBinding(key: string): DigitalEmployeeBindingV1 | undefined {
@@ -514,6 +600,11 @@ export async function openDigitalEmployeeStorage(
   options: OpenDigitalEmployeeStorageOptions = {},
 ): Promise<DigitalEmployeeStorage> {
   const v1 = await facility.open(digitalEmployeeV1DomainSpec)
+  try {
+    await ensureRevisionFingerprints(v1)
+  } catch (error: unknown) {
+    return await closeAfterFailure(error, [v1])
+  }
   if (v1.global.get().status === 'complete') {
     try {
       assertV1Consistency(v1)

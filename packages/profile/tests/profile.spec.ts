@@ -53,7 +53,14 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(new Set(inserted.map(entry => entry.id)).size).toBe(inserted.length)
     expect(inserted.find(entry => entry.id === 'agent-team-ultra')).toMatchObject({
       name: '@deepseek-ai/dsh-agent-team-ultra',
-      config: { defaultProvider: 'spawn', maxProfiles: 64, maxHooks: 32, maxAssignmentBytes: 32768 },
+      config: {
+        defaultProvider: 'spawn',
+        maxProfiles: 64,
+        maxHooks: 32,
+        maxAssignmentBytes: 32768,
+        maxRevisionHistory: 32,
+        maxDiffEntries: 512,
+      },
     })
   })
 })

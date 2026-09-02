@@ -46,6 +46,8 @@
         maxProfileBytes: 131072
         maxHooks: 32
         maxAssignmentBytes: 32768
+        maxRevisionHistory: 32
+        maxDiffEntries: 512
 
     - id: ui-agent-team
       name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'
