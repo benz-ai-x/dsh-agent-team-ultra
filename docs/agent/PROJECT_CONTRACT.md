@@ -31,9 +31,11 @@ contracts.
 ## Authority and state
 
 - The Client sends a Session id through the generated Typert contract. The Host
-  resolves that id to the exact current live `Agent` and derives Team membership
-  from the resolved object; Client-supplied role or Team claims are never used.
-- Only an Agent Team Lead may launch a Digital Employee.
+  treats it only as an Agent lookup key, resolves the exact current live
+  `Agent`, and derives Team membership from that object; Client-supplied role or
+  Team claims are never used.
+- Only an exact live Agent Team Lead may view or mutate the shared profile
+  catalog, launch a Digital Employee, or invoke an exported headless mutation.
 - Profiles and Team/member-to-profile bindings are authoritative records in a
   versioned DSH storage domain. UI state is only a draft or mirror.
 - A save/delete uses `expectedRevision`; stale writes return
@@ -54,6 +56,9 @@ contracts.
 - Hooks are safe declarative adapters for `session-start`, `before-step`,
   `before-tool`, and `after-tool`. Arbitrary shell/JavaScript hooks are not in
   the first increment.
+- The reusable Host capability installer accepts an exact Lead caller, exact
+  target Agent scope, and detached profile snapshot, then owns all persona,
+  context, memory, tool-policy, and hook registrations as one lifecycle layer.
 
 ## Cancellation and disposal
 
@@ -67,6 +72,9 @@ Service disposal closes mutation admission, removes the lifecycle listeners,
 revokes every resident child installation, waits for admitted profile/binding
 commits, and closes its storage domain. Child-scope prompt, tool, and hook
 registrations are also disposed when that exact Agent scope ends.
+Installations are keyed by exact Agent object identity. Agent disposal, Fiber
+disposal, and service replacement each revoke a layer at most once, while a
+replacement service can reconstruct one layer for every resident bound Agent.
 
 ## Configuration
 

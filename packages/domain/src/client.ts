@@ -3,6 +3,7 @@
 export type {
   DeleteDigitalEmployeeProfileRequest,
   DeleteDigitalEmployeeProfileResult,
+  DigitalEmployeeAuthorityErrorDetails,
   DigitalEmployeeFailure,
   DigitalEmployeeInstanceView,
   DigitalEmployeeProfile,

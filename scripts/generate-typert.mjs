@@ -44,6 +44,66 @@ function copyPackage(source, target) {
   })
 }
 
+function writeAgentFacade(source, target) {
+  // Generation only needs the audited Agent identity/lifecycle surface imported
+  // by this plugin. The real Host build type-checks the complete source package
+  // first; this isolated facade keeps unrelated declaration merges out of the
+  // generator sandbox without weakening that check.
+  mkdirSync(join(target, 'src'), { recursive: true })
+  cpSync(join(source, 'package.json'), join(target, 'package.json'))
+  writeFileSync(join(target, 'src', 'index.ts'), `
+import type { Context } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { TypertContext, TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
+
+export interface Agent {
+  readonly id: SessionId
+  readonly session: { readonly header: { readonly parentSession?: SessionId } }
+  readonly ctx: Context
+  inject(message: unknown): void
+}
+
+export type PreStepDecision =
+  | { readonly kind: 'reject' }
+  | { readonly kind: 'enter'; readonly messages: readonly unknown[]; readonly startsRequestSeries?: true }
+
+export interface AgentRegistry {
+  get(id: SessionId): Agent | undefined
+  list(): readonly Agent[]
+}
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface TypertLookupMap {
+    agent: TypertLookup<Agent, SessionId>
+  }
+  interface TypertContextMap {
+    agent: TypertContext<SessionId>
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    agents: AgentRegistry
+    agent?: Agent
+  }
+  interface Events {
+    'agent/created'(payload: { readonly agent: Agent }): void
+    'agent/disposed'(payload: { readonly agent: Agent }): void
+    'agent/session-start'(payload: { readonly agent: Agent }): void
+    'agent/pre-step'(
+      payload: unknown,
+      next: () => Promise<PreStepDecision>,
+    ): Promise<PreStepDecision>
+  }
+}
+`)
+  writeJson(join(target, 'tsconfig.json'), {
+    extends: join(harnessRoot, 'tsconfig.base.json'),
+    compilerOptions: { rootDir: 'src', outDir: 'lib/types' },
+    include: ['src'],
+  })
+}
+
 try {
   const domainRoot = join(temporaryRoot, 'packages', 'domain')
   const protocolRoot = join(temporaryRoot, 'packages', 'typert-protocol')
@@ -53,7 +113,7 @@ try {
   copyPackage(join(projectRoot, 'packages', 'domain'), domainRoot)
   copyPackage(join(harnessRoot, 'packages', 'typert', 'protocol'), protocolRoot)
   copyPackage(join(harnessRoot, 'packages', 'core', 'session'), sessionRoot)
-  copyPackage(join(harnessRoot, 'packages', 'core', 'agent'), agentRoot)
+  writeAgentFacade(join(harnessRoot, 'packages', 'core', 'agent'), agentRoot)
 
   const baseRead = ts.readConfigFile(join(harnessRoot, 'tsconfig.base.json'), ts.sys.readFile)
   if (baseRead.error !== undefined) {
@@ -69,8 +129,7 @@ try {
   paths['@deepseek-ai/dsh-session'] = [join(sessionRoot, 'src', 'index.ts')]
   paths['@deepseek-ai/dsh-session/types'] = [join(sessionRoot, 'src', 'types.ts')]
   paths['@deepseek-ai/dsh-agent'] = [join(agentRoot, 'src', 'index.ts')]
-  paths['@deepseek-ai/dsh-agent/types'] = [join(agentRoot, 'src', 'types.ts')]
-  paths['@deepseek-ai/dsh-agent/brand'] = [join(agentRoot, 'src', 'brand.ts')]
+  paths['@deepseek-ai/dsh-agent/types'] = [join(agentRoot, 'src', 'index.ts')]
 
   writeJson(join(temporaryRoot, 'tsconfig.host.json'), {
     extends: join(harnessRoot, 'tsconfig.base.json'),

@@ -1,6 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DigitalEmployeeService from '../lib/index.js'
@@ -48,15 +49,29 @@ afterEach(async () => {
   context = undefined
 })
 
-async function loadComposition(): Promise<{ readonly ctx: Context; readonly close: ReturnType<typeof vi.fn> }> {
+async function loadComposition(): Promise<{
+  readonly ctx: Context
+  readonly close: ReturnType<typeof vi.fn>
+  readonly leader: Agent
+}> {
   const profiles = new MemoryTable<string, never>()
   const bindings = new MemoryTable<string, never>()
   const close = vi.fn(async () => undefined)
+  let leader: Agent | undefined
   const runtimePlugin = {
     name: 'fixture-agent-team-runtime',
     apply(ctx: Context) {
-      ctx.provide('agents', { get: () => undefined, list: () => [] } as never)
-      ctx.provide('agentTeams', {} as never)
+      leader = { id: 'lead', session: { header: {} }, ctx } as unknown as Agent
+      ctx.provide('agents', {
+        get: (id: string) => id === leader?.id ? leader : undefined,
+        list: () => leader === undefined ? [] : [leader],
+      } as never)
+      ctx.provide('agentTeams', {
+        membership: (agent: Agent) => {
+          if (agent !== leader) throw new Error('fixture only recognizes the exact live Team Lead')
+          return { id: agent.id, root: agent, role: 'lead', name: 'lead' }
+        },
+      } as never)
       ctx.provide('storageDomain', {
         open: async () => ({
           table: (name: string) => name === 'profiles' ? profiles : bindings,
@@ -89,18 +104,19 @@ async function loadComposition(): Promise<{ readonly ctx: Context; readonly clos
     config: { path: new URL('./fixtures/cordis.yml', import.meta.url).href },
   })
   await context.loader.await()
-  return { ctx: context, close }
+  if (leader === undefined) throw new Error('fixture runtime did not install its Team Lead')
+  return { ctx: context, close, leader }
 }
 
 describe('Agent Team Ultra Loader composition', () => {
   it('loads the built public plugin with schema-validated deployment limits', async () => {
-    const { ctx, close } = await loadComposition()
+    const { ctx, close, leader } = await loadComposition()
     const unloaded = [...ctx.loader.entries()]
       .filter(entry => entry.fiber === undefined && !entry.disabled)
       .map(entry => entry.options.name)
     expect(unloaded).toEqual([])
 
-    const saved = await ctx.digitalEmployees.saveProfile({
+    const saved = await ctx.digitalEmployees.saveProfile(leader, {
       expectedRevision: null,
       profile: profile('reviewer'),
     })
@@ -108,7 +124,7 @@ describe('Agent Team Ultra Loader composition', () => {
       ok: true,
       value: { provider: 'fixture-provider', revision: 1 },
     })
-    await expect(ctx.digitalEmployees.saveProfile({
+    await expect(ctx.digitalEmployees.saveProfile(leader, {
       expectedRevision: null,
       profile: profile('writer'),
     })).resolves.toMatchObject({

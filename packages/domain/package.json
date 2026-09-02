@@ -61,12 +61,14 @@
     "@deepseek-ai/cordis-plugin-include": "link:../../../deepseek-harness/vendor/include",
     "@deepseek-ai/cordis-plugin-loader": "link:../../../deepseek-harness/vendor/loader",
     "@deepseek-ai/dsh-agent": "link:../../../deepseek-harness/packages/core/agent",
+    "@deepseek-ai/dsh-api-gateway": "link:../../../deepseek-harness/packages/api/gateway",
     "@deepseek-ai/dsh-experimental-agent-team": "link:../../../deepseek-harness/packages/experimental/agent-team",
     "@deepseek-ai/dsh-llm": "link:../../../deepseek-harness/packages/llm/llm",
     "@deepseek-ai/dsh-session": "link:../../../deepseek-harness/packages/core/session",
     "@deepseek-ai/dsh-storage-domain": "link:../../../deepseek-harness/packages/storage/storage-domain",
     "@deepseek-ai/dsh-system-prompt": "link:../../../deepseek-harness/packages/core/system-prompt",
     "@deepseek-ai/dsh-tools": "link:../../../deepseek-harness/packages/core/tools",
-    "@deepseek-ai/dsh-typert-protocol": "link:../../../deepseek-harness/packages/typert/protocol"
+    "@deepseek-ai/dsh-typert-protocol": "link:../../../deepseek-harness/packages/typert/protocol",
+    "@deepseek-ai/dsh-typert-registry": "link:../../../deepseek-harness/packages/typert/registry"
   }
 }

@@ -1,6 +1,9 @@
 import { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
 import { describe, expect, it, vi } from 'vitest'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
+import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import DigitalEmployeeService, {
   digitalEmployeeProfileDraftSchema,
   snapshotProfile,
@@ -64,7 +67,12 @@ interface Harness {
   readonly scopeDisposals: Array<ReturnType<typeof vi.fn>>
   readonly childEvents: string[]
   readonly spawn: ReturnType<typeof vi.fn>
-  readonly setRole: (role: 'lead' | 'teammate') => void
+  readonly leader: Agent
+  readonly teammate: Agent
+  readonly staleLeader: Agent
+  readonly foreignRoot: Agent
+  readonly agent: (id: string) => Agent | undefined
+  readonly disposeAgent: (agent: Agent) => void
 }
 
 async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Promise<Harness> {
@@ -72,8 +80,10 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
   const profiles = new MemoryTable<string, DigitalEmployeeProfile>()
   const bindings = new MemoryTable<string, unknown>()
   const close = vi.fn(async () => undefined)
-  let role: 'lead' | 'teammate' = 'lead'
-  const roster = [{ id: 'lead', name: 'lead', role: 'lead' }]
+  const roster = [
+    { id: 'lead', name: 'lead', role: 'lead' },
+    { id: 'teammate', name: 'worker', role: 'teammate' },
+  ]
   const scopeDisposals: Array<ReturnType<typeof vi.fn>> = []
   const scopeDisposer = (): ReturnType<typeof vi.fn> => {
     const dispose = vi.fn()
@@ -84,11 +94,19 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
   const contexts = vi.fn(scopeDisposer)
   const restriction = vi.fn(scopeDisposer)
   const childEvents: string[] = []
-  const leader = { id: 'lead', session: { header: {} }, ctx }
+  const leader = { id: 'lead', session: { header: {} }, ctx } as unknown as Agent
+  const teammate = {
+    id: 'teammate',
+    session: { header: { parentSession: 'lead' } },
+    ctx,
+  } as unknown as Agent
+  const staleLeader = { id: 'lead', session: { header: {} }, ctx } as unknown as Agent
+  const foreignRoot = { id: 'foreign', session: { header: {} }, ctx } as unknown as Agent
+  const agents = new Map<string, Agent>([['lead', leader], ['teammate', teammate]])
 
   ctx.provide('agents', {
-    get: (id: string) => id === 'lead' ? leader : undefined,
-    list: () => [leader],
+    get: (id: string) => agents.get(id),
+    list: () => [...agents.values()],
   } as never)
   ctx.provide('storageDomain', {
     open: vi.fn(async () => ({
@@ -133,12 +151,20 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
       id: 'child',
       session: { header: { parentSession: 'lead' } },
       ctx: childCtx,
-    }
-    ctx.emit('agent/created', { agent: child as never })
+    } as unknown as Agent
+    Object.defineProperty(childCtx, 'agent', { value: child })
+    agents.set('child', child)
+    ctx.emit('agent/created', { agent: child })
     return { member: { id: 'child', name: request.name } }
   })
   ctx.provide('agentTeams', {
-    membership: () => ({ id: 'lead', root: leader, role, name: role === 'lead' ? 'lead' : 'worker' }),
+    membership: (agent: Agent) => {
+      if (agents.get(agent.id) !== agent) {
+        throw new TeamError(`agent "${agent.id}" is not a member of an active Agent Team`, 'TEAM_NOT_MEMBER')
+      }
+      if (agent === teammate) return { id: 'lead', root: leader, role: 'teammate', name: 'worker' }
+      return { id: agent.id, root: agent, role: 'lead', name: 'lead' }
+    },
     listMembers: () => roster,
     spawnTeammate: spawn,
   } as never)
@@ -157,7 +183,15 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
     scopeDisposals,
     childEvents,
     spawn,
-    setRole: value => { role = value },
+    leader,
+    teammate,
+    staleLeader,
+    foreignRoot,
+    agent: id => agents.get(id),
+    disposeAgent: (agent) => {
+      if (agents.get(agent.id) === agent) agents.delete(agent.id)
+      ctx.emit('agent/disposed', { agent })
+    },
   }
 }
 
@@ -189,13 +223,120 @@ describe('Digital Employee profile contract', () => {
     expect(frozen.context).not.toBe(source.context)
   })
 
+  it('installs one immutable Profile capability layer with idempotent cleanup', async () => {
+    const runtime = await harness()
+    const disposals: Array<ReturnType<typeof vi.fn>> = []
+    const registration = () => {
+      const dispose = vi.fn()
+      disposals.push(dispose)
+      return dispose
+    }
+    const section = vi.fn(registration)
+    const context = vi.fn(registration)
+    const restrict = vi.fn(registration)
+    const events: string[] = []
+    const childCtx = {
+      systemPrompt: { section, context },
+      tools: { restrict },
+      on: (event: string) => {
+        events.push(event)
+        return registration()
+      },
+    } as unknown as Context
+    const child = {
+      id: 'profile-worker',
+      session: { header: {} },
+      ctx: childCtx,
+    } as unknown as Agent
+    Object.defineProperty(childCtx, 'agent', { value: child })
+    const source: DigitalEmployeeProfile = {
+      ...draft(),
+      revision: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      installProfileCapabilities: (
+        caller: Agent,
+        target: Agent,
+        profile: DigitalEmployeeProfile,
+      ) => () => void
+    }
+    const dispose = service.installProfileCapabilities(runtime.leader, child, source)
+    ;(source.toolPolicy.names as string[]).push('bash')
+
+    expect(section).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'deployment:persona',
+      text: 'Be precise, skeptical, and evidence-driven.',
+    }))
+    expect(context).toHaveBeenCalledTimes(2)
+    expect(restrict).toHaveBeenCalledWith({ allow: ['read'] })
+    expect(events).toEqual([
+      'agent/session-start',
+      'agent/pre-step',
+      'tools/pre-execute',
+      'tools/post-execute',
+    ])
+
+    dispose()
+    dispose()
+    expect(disposals).toHaveLength(8)
+    expect(disposals.every(candidate => candidate.mock.calls.length === 1)).toBe(true)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('rejects a teammate before the exported capability installer mutates a target scope', async () => {
+    const runtime = await harness()
+    const section = vi.fn(() => vi.fn())
+    const childCtx = {
+      systemPrompt: { section, context: vi.fn(() => vi.fn()) },
+      tools: { restrict: vi.fn(() => vi.fn()) },
+      on: vi.fn(() => vi.fn()),
+    } as unknown as Context
+    const child = {
+      id: 'profile-worker',
+      session: { header: {} },
+      ctx: childCtx,
+    } as unknown as Agent
+    Object.defineProperty(childCtx, 'agent', { value: child })
+    const profile: DigitalEmployeeProfile = {
+      ...draft(),
+      revision: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      installProfileCapabilities: (
+        caller: Agent,
+        target: Agent,
+        profile: DigitalEmployeeProfile,
+      ) => () => void
+    }
+    let rejected: unknown
+    try {
+      service.installProfileCapabilities(runtime.teammate, child, profile)
+    } catch (error: unknown) {
+      rejected = remoteErrorOf(error)
+    }
+    expect(rejected).toMatchObject({
+      code: 'digital-employees/team-lead-required',
+      details: { operation: 'install-profile-capabilities' },
+    })
+    expect(section).not.toHaveBeenCalled()
+
+    await runtime.fiber.dispose()
+  })
+
   it('serializes CAS writes so one stale concurrent editor loses', async () => {
     const runtime = await harness()
-    const first = await runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: null, profile: draft() })
+    const first = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
     expect(first).toMatchObject({ ok: true, value: { revision: 1 } })
     const [left, right] = await Promise.all([
-      runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: 1, profile: draft({ displayName: 'Reviewer A' }) }),
-      runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: 1, profile: draft({ displayName: 'Reviewer B' }) }),
+      runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: 1, profile: draft({ displayName: 'Reviewer A' }) }),
+      runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: 1, profile: draft({ displayName: 'Reviewer B' }) }),
     ])
     expect([left, right].filter(result => result.ok)).toHaveLength(1)
     expect([left, right].find(result => !result.ok)).toMatchObject({
@@ -205,12 +346,129 @@ describe('Digital Employee profile contract', () => {
     await runtime.fiber.dispose()
   })
 
+  it('rejects an exact teammate at the exported save seam without writing', async () => {
+    const runtime = await harness()
+
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      saveProfile: (
+        caller: Agent,
+        request: { readonly expectedRevision: null; readonly profile: DigitalEmployeeProfileDraft },
+      ) => Promise<unknown>
+    }
+    await expect(service.saveProfile(runtime.teammate, { expectedRevision: null, profile: draft() }))
+      .resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
+    expect(runtime.profiles.size).toBe(0)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('rejects an exact teammate at the exported delete seam without deleting', async () => {
+    const runtime = await harness()
+    const saved = await runtime.ctx.digitalEmployees.saveProfile(
+      runtime.leader,
+      { expectedRevision: null, profile: draft() },
+    )
+    expect(saved).toMatchObject({ ok: true, value: { revision: 1 } })
+
+    const remove = runtime.ctx.digitalEmployees.deleteProfile as unknown as (
+      caller: Agent,
+      request: { readonly profileId: string; readonly expectedRevision: number },
+    ) => Promise<unknown>
+    await expect(remove.call(runtime.ctx.digitalEmployees, runtime.teammate, {
+      profileId: 'code-reviewer',
+      expectedRevision: 1,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
+    expect(runtime.profiles.size).toBe(1)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('rejects an exact teammate from the Host-owned Studio snapshot seam', async () => {
+    const runtime = await harness()
+
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      studioView: (caller: Agent) => unknown
+    }
+    let rejected: unknown
+    try {
+      service.studioView(runtime.teammate)
+    } catch (error: unknown) {
+      rejected = remoteErrorOf(error)
+    }
+    expect(rejected).toMatchObject({
+      code: 'digital-employees/team-lead-required',
+      details: { operation: 'view' },
+    })
+
+    await runtime.fiber.dispose()
+  })
+
+  it.each(['staleLeader', 'foreignRoot'] as const)(
+    'rejects the %s identity from every exported Host operation',
+    async (identity) => {
+      const runtime = await harness()
+      const caller = runtime[identity]
+      let viewFailure: unknown
+      try {
+        runtime.ctx.digitalEmployees.studioView(caller)
+      } catch (error: unknown) {
+        viewFailure = remoteErrorOf(error)
+      }
+      expect(viewFailure).toMatchObject({ code: 'digital-employees/team-rejected' })
+      await expect(runtime.ctx.digitalEmployees.saveProfile(
+        caller,
+        { expectedRevision: null, profile: draft() },
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      await expect(runtime.ctx.digitalEmployees.deleteProfile(
+        caller,
+        { profileId: 'code-reviewer', expectedRevision: 1 },
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      await expect(runtime.ctx.digitalEmployees.spawnProfile(
+        caller,
+        { profileId: 'code-reviewer' },
+        new AbortController().signal,
+      )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
+      expect(runtime.profiles.size).toBe(0)
+      expect(runtime.bindings.size).toBe(0)
+
+      await runtime.fiber.dispose()
+    },
+  )
+
+  it('returns one deeply detached browser-safe Studio snapshot to the exact live Lead', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(
+      runtime.leader,
+      { expectedRevision: null, profile: draft() },
+    )
+
+    const view = runtime.ctx.digitalEmployees.studioView(runtime.leader)
+    expect(view).toMatchObject({
+      profiles: [{ id: 'code-reviewer', revision: 1 }],
+      tools: [
+        { name: 'bash', description: 'Run a shell' },
+        { name: 'read', description: 'Read files' },
+      ],
+      instances: [],
+    })
+    expect(Object.isFrozen(view)).toBe(true)
+    expect(Object.isFrozen(view.profiles)).toBe(true)
+    expect(Object.isFrozen(view.profiles[0])).toBe(true)
+    expect(Object.isFrozen(view.profiles[0]!.context[0])).toBe(true)
+    expect(Object.isFrozen(view.tools)).toBe(true)
+    expect(Object.isFrozen(view.tools[0])).toBe(true)
+    expect(view.profiles[0]).not.toBe(runtime.profiles.get('code-reviewer'))
+    expect(structuredClone(view)).toEqual(view)
+
+    await runtime.fiber.dispose()
+  })
+
   it('persists the binding before provisioning and composes the immutable child scope', async () => {
     const runtime = await harness()
-    const saved = await runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: null, profile: draft() })
+    const saved = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
     expect(saved.ok).toBe(true)
     const result = await runtime.ctx.digitalEmployees.spawnProfile(
-      'lead',
+      runtime.leader,
       { profileId: 'code-reviewer', assignment: 'Review the storage transaction.' },
       new AbortController().signal,
     )
@@ -245,24 +503,76 @@ describe('Digital Employee profile contract', () => {
     expect(runtime.close).toHaveBeenCalledOnce()
   })
 
-  it('rejects a non-Lead before Agent Team provisioning', async () => {
+  it('removes an exact Agent installation once across Agent and Fiber disposal', async () => {
     const runtime = await harness()
-    await runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: null, profile: draft() })
-    runtime.setRole('teammate')
+    await runtime.ctx.digitalEmployees.saveProfile(
+      runtime.leader,
+      { expectedRevision: null, profile: draft() },
+    )
+    await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )
+    const child = runtime.agent('child')
+    expect(child).toBeDefined()
+    expect(runtime.scopeDisposals).toHaveLength(8)
+
+    runtime.disposeAgent(child!)
+    runtime.disposeAgent(child!)
+    await runtime.fiber.dispose()
+
+    expect(runtime.scopeDisposals.every(dispose => dispose.mock.calls.length === 1)).toBe(true)
+    expect(runtime.close).toHaveBeenCalledOnce()
+  })
+
+  it('reinstalls one capability layer without duplicates after service replacement', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(
+      runtime.leader,
+      { expectedRevision: null, profile: draft() },
+    )
+    await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )
+    const child = runtime.agent('child')
+    expect(child).toBeDefined()
+    const firstInstallation = [...runtime.scopeDisposals]
+
+    await runtime.fiber.dispose()
+    expect(firstInstallation).toHaveLength(8)
+    expect(firstInstallation.every(dispose => dispose.mock.calls.length === 1)).toBe(true)
+
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    runtime.ctx.emit('agent/created', { agent: child! })
+    expect(runtime.scopeDisposals).toHaveLength(16)
+
+    await replacement.dispose()
+    expect(runtime.scopeDisposals.every(dispose => dispose.mock.calls.length === 1)).toBe(true)
+    expect(runtime.close).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an exact teammate at the exported launch seam before provisioning', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
-      'lead',
+      runtime.teammate,
       { profileId: 'code-reviewer' },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
+    expect(runtime.bindings.size).toBe(0)
     expect(runtime.spawn).not.toHaveBeenCalled()
     await runtime.fiber.dispose()
   })
 
   it('rejects an oversized assignment before reserving a Team member name', async () => {
     const runtime = await harness()
-    await runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
-      'lead',
+      runtime.leader,
       { profileId: 'code-reviewer', assignment: 'x'.repeat(32_769) },
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'assignment-too-large' } })
@@ -274,9 +584,9 @@ describe('Digital Employee profile contract', () => {
   it('closes admission but lets an admitted launch record its terminal edge before storage closes', async () => {
     const gate = Promise.withResolvers<void>()
     const runtime = await harness({ spawnGate: gate.promise })
-    await runtime.ctx.digitalEmployees.saveProfile({ expectedRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedRevision: null, profile: draft() })
     const launch = runtime.ctx.digitalEmployees.spawnProfile(
-      'lead',
+      runtime.leader,
       { profileId: 'code-reviewer' },
       new AbortController().signal,
     )

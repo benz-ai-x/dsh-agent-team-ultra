@@ -90,6 +90,7 @@ try {
     if (leaked.length > 0) throw new Error(`${candidate.directory} leaks development files: ${leaked.join(', ')}`)
     console.log(`PASS ${candidate.directory}: ${files.size} packed file(s)`)
   }
+  const ultraArchives = [...archives]
   for (const packageRoot of privateClosure) pack(packageRoot)
 
   mkdirSync(consumer, { recursive: true })
@@ -98,11 +99,17 @@ try {
     private: true,
     type: 'module',
   }, null, 2)}\n`)
+  writeFileSync(join(consumer, 'pnpm-workspace.yaml'), [
+    'packages: []',
+    'overrides:',
+    `  '@deepseek-ai/schemastery': ${JSON.stringify(`link:${join(harness, 'vendor', 'schemastery')}`)}`,
+    '',
+  ].join('\n'))
   checkedRun(
     'pnpm',
-    ['add', '--offline', '--config.auto-install-peers=false', ...archives],
+    ['add', '--offline', '--config.auto-install-peers=false', ...ultraArchives],
     consumer,
-    'private archive-set install',
+    'Ultra archive-set install',
   )
   checkedRun(
     process.execPath,
@@ -114,7 +121,8 @@ try {
     consumer,
     'ordinary-resolution public import',
   )
-  console.log(`PASS private archive set: ${archives.length} archive(s) install and browser-safe imports resolve`)
+  console.log(`PASS Ultra archive set: ${ultraArchives.length} archive(s) install and browser-safe imports resolve`)
+  console.log(`PASS private archive content: ${archives.length - ultraArchives.length} local-only archive(s) packed`)
 
   const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
   const sourceRoots = [

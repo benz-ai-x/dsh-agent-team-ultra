@@ -1,5 +1,19 @@
 /** Browser-safe public values for Digital Employee profiles and instances. */
 
+import type {} from '@deepseek-ai/dsh-typert-protocol'
+
+/** Stable metadata for Studio authorization failures transported by Typert. */
+export interface DigitalEmployeeAuthorityErrorDetails {
+  readonly operation: 'view' | 'install-profile-capabilities'
+}
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'digital-employees/team-lead-required': DigitalEmployeeAuthorityErrorDetails
+    'digital-employees/team-rejected': DigitalEmployeeAuthorityErrorDetails
+  }
+}
+
 /** Stable lower-kebab profile identity. */
 export type DigitalEmployeeProfileId = string
 

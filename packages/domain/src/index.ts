@@ -9,7 +9,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   digitalEmployeeDomainSpec,
   digitalEmployeeProfileDraftSchema,
@@ -18,6 +18,7 @@ import {
 import type {
   DeleteDigitalEmployeeProfileRequest,
   DeleteDigitalEmployeeProfileResult,
+  DigitalEmployeeAuthorityErrorDetails,
   DigitalEmployeeFailure,
   DigitalEmployeeInstanceView,
   DigitalEmployeeProfile,
@@ -168,6 +169,16 @@ function spawnRejected(error: DigitalEmployeeFailure): SpawnDigitalEmployeeResul
   return Object.freeze({ ok: false, error })
 }
 
+function authorityRemoteError(
+  error: DigitalEmployeeFailure,
+  operation: DigitalEmployeeAuthorityErrorDetails['operation'],
+): RemoteError<'digital-employees/team-lead-required' | 'digital-employees/team-rejected'> {
+  const details = Object.freeze({ operation })
+  return error.code === 'team-lead-required'
+    ? new RemoteError('digital-employees/team-lead-required', error.message, details)
+    : new RemoteError('digital-employees/team-rejected', error.message, details)
+}
+
 /** Stable storage key; record keys never reach a filesystem path. */
 function bindingKey(teamId: string, memberName: string): string {
   return JSON.stringify([teamId, memberName])
@@ -268,15 +279,21 @@ export class DigitalEmployeeService extends TypertRemoteService {
     for (const agent of this.ctx.agents.list()) this.installBoundAgent(agent)
   }
 
-  /** Complete replaceable Studio view for one exact live Team member. */
+  /** Complete replaceable Studio view for one exact live Team Lead. */
   @Remote('view')
-  remoteView(sessionId: string): DigitalEmployeeStudioView {
-    const agent = this.requireLiveAgent(sessionId)
-    const membership = this.ctx.agentTeams.membership(agent)
+  remoteView(agent: Agent): DigitalEmployeeStudioView {
+    return this.studioView(agent)
+  }
+
+  /** Build the complete replaceable Studio view for one exact live Team Lead. */
+  studioView(caller: Agent): DigitalEmployeeStudioView {
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) throw authorityRemoteError(authorityFailure, 'view')
+    const membership = this.ctx.agentTeams.membership(caller)
     const profiles = [...this.requireProfiles().entries()]
       .map(([, profile]) => snapshotProfile(profile))
       .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.id.localeCompare(right.id))
-    const tools: ProfileToolOption[] = this.ctx.tools.schemas(agent)
+    const tools: ProfileToolOption[] = this.ctx.tools.schemas(caller)
       .filter(tool => !TEAM_OWN_TOOL_NAMES.has(tool.name))
       .map(tool => Object.freeze({ name: tool.name, description: tool.description }))
       .sort((left, right) => left.name.localeCompare(right.name))
@@ -294,31 +311,31 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Save one normalized profile with an exact CAS precondition. */
   @Remote('save')
-  remoteSave(sessionId: string, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
-    this.requireLiveAgent(sessionId)
-    return this.saveProfile(request)
+  remoteSave(agent: Agent, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
+    return this.saveProfile(agent, request)
   }
 
   /** Delete one profile with an exact CAS precondition. Active employees retain snapshots. */
   @Remote('deleteProfile')
-  remoteDelete(sessionId: string, request: DeleteDigitalEmployeeProfileRequest): Promise<DeleteDigitalEmployeeProfileResult> {
-    this.requireLiveAgent(sessionId)
-    return this.deleteProfile(request)
+  remoteDelete(agent: Agent, request: DeleteDigitalEmployeeProfileRequest): Promise<DeleteDigitalEmployeeProfileResult> {
+    return this.deleteProfile(agent, request)
   }
 
   /** Launch one profile as a real Agent Team teammate under exact Lead authority. */
   @Remote('spawn')
   remoteSpawn(
-    sessionId: string,
+    agent: Agent,
     request: SpawnDigitalEmployeeRequest,
     signal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
-    return this.spawnProfile(sessionId, request, signal)
+    return this.spawnProfile(agent, request, signal)
   }
 
   /** Public Host API used by headless consumers and tests. */
-  saveProfile(request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
+  saveProfile(caller: Agent, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
     if (!this.admissionOpen) return Promise.resolve(saveRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return Promise.resolve(saveRejected(authorityFailure))
     const provider = request.profile.provider.trim() || this.resolved.defaultProvider
     const parsed = digitalEmployeeProfileDraftSchema.safeParse({ ...request.profile, provider })
     if (!parsed.success) {
@@ -362,8 +379,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
   }
 
   /** Public Host delete API. */
-  deleteProfile(request: DeleteDigitalEmployeeProfileRequest): Promise<DeleteDigitalEmployeeProfileResult> {
+  deleteProfile(caller: Agent, request: DeleteDigitalEmployeeProfileRequest): Promise<DeleteDigitalEmployeeProfileResult> {
     if (!this.admissionOpen) return Promise.resolve(deleteRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return Promise.resolve(deleteRejected(authorityFailure))
     return this.enqueue(async () => {
       const table = this.requireProfiles()
       const current = table.get(request.profileId)
@@ -385,12 +404,14 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Public Host launch API with cancellation preserved through Agent Team provisioning. */
   spawnProfile(
-    sessionId: string,
+    caller: Agent,
     request: SpawnDigitalEmployeeRequest,
     signal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
     if (!this.admissionOpen) return Promise.resolve(spawnRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    const operation = this.spawnAdmitted(this.requireLiveAgent(sessionId), request, signal)
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return Promise.resolve(spawnRejected(authorityFailure))
+    const operation = this.spawnAdmitted(caller, request, signal)
     this.launches.add(operation)
     void operation.finally(() => { this.launches.delete(operation) }).catch(() => undefined)
     return operation
@@ -504,12 +525,21 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
   }
 
-  /** Compose one matching immutable binding during the synchronous `agent/created` publication edge. */
-  private installForChild(agent: Agent): (() => void) | undefined {
-    const binding = this.bindingFor(agent)
-    if (binding === undefined) return undefined
+  /** Install one immutable Profile layer into exactly the supplied Agent scope. */
+  installProfileCapabilities(caller: Agent, agent: Agent, source: DigitalEmployeeProfile): () => void {
+    if (!this.admissionOpen) throw new Error('Digital Employee service is disposing')
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) {
+      throw authorityRemoteError(authorityFailure, 'install-profile-capabilities')
+    }
+    if (agent.ctx.agent !== agent) {
+      throw new TypeError('Digital Employee Profile capabilities require the exact Agent-owned scope')
+    }
+    if (this.childInstallations.has(agent)) {
+      throw new Error(`Digital Employee Profile capabilities are already installed for Agent "${agent.id}"`)
+    }
     const childCtx = agent.ctx
-    const profile = binding.profile
+    const profile = snapshotProfile(source)
     const disposers: Array<() => unknown> = []
     const add = (dispose: () => unknown): void => { disposers.push(dispose) }
     try {
@@ -532,20 +562,31 @@ export class DigitalEmployeeService extends TypertRemoteService {
       for (const dispose of disposers.reverse()) void dispose()
       throw error
     }
-    return () => {
+    let active = true
+    const dispose = (): void => {
+      if (!active) return
+      active = false
+      if (this.childInstallations.get(agent) === dispose) this.childInstallations.delete(agent)
       const failures: unknown[] = []
       for (const dispose of disposers.reverse()) {
         try { void dispose() } catch (error: unknown) { failures.push(error) }
       }
       if (failures.length > 0) throw new AggregateError(failures, 'Digital Employee child-scope disposal failed')
     }
+    this.childInstallations.set(agent, dispose)
+    return dispose
   }
 
   /** Install at most once for an exact Agent object; an id reused later is a distinct lifecycle. */
   private installBoundAgent(agent: Agent): void {
     if (!this.admissionOpen || this.childInstallations.has(agent)) return
-    const dispose = this.installForChild(agent)
-    if (dispose !== undefined) this.childInstallations.set(agent, dispose)
+    const binding = this.bindingFor(agent)
+    if (binding === undefined) return
+    const caller = this.ctx.agents.get(binding.teamId as Agent['id'])
+    if (caller === undefined) {
+      throw new Error(`Digital Employee Team Lead "${binding.teamId}" is not active`)
+    }
+    this.installProfileCapabilities(caller, agent, binding.profile)
   }
 
   /** Revoke one exact Agent installation when its published lifecycle ends. */
@@ -623,11 +664,21 @@ export class DigitalEmployeeService extends TypertRemoteService {
     return member === undefined ? undefined : bindings.get(bindingKey(parentId, member.name))
   }
 
-  /** Resolve the explicit wire identity to the exact currently registered Agent. */
-  private requireLiveAgent(sessionId: string): Agent {
-    const agent = this.ctx.agents.get(sessionId as Agent['id'])
-    if (agent === undefined) throw new Error(`Digital Employee session "${sessionId}" is not active`)
-    return agent
+  /** Reject anything except the exact live Agent object currently recognized as a Team Lead. */
+  private leadAuthorityFailure(caller: Agent): DigitalEmployeeFailure | undefined {
+    if (this.ctx.agents.get(caller.id) !== caller) {
+      return failure('team-rejected', 'caller is not the exact live Agent registered on this Host')
+    }
+    try {
+      const membership = this.ctx.agentTeams.membership(caller)
+      if (membership.role !== 'lead') {
+        return failure('team-lead-required', 'only the exact live Team Lead may manage Digital Employee profiles')
+      }
+      return undefined
+    } catch (error: unknown) {
+      if (error instanceof TeamError) return failure('team-rejected', error.message)
+      throw error
+    }
   }
 
   private instanceView(binding: DigitalEmployeeBinding): DigitalEmployeeInstanceView {
