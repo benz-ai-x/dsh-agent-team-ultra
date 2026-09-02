@@ -1,8 +1,8 @@
 # DSH Agent Team Ultra 交接文档
 
-> 交接快照：2026-08-30（Asia/Shanghai）
+> 交接快照：2026-09-02（Asia/Shanghai）
 >
-> 当前阶段：首个端到端 vertical slice 已完成，包含 Web 创建数字员工、真实模型调用和进程重启后的冷恢复。
+> 当前阶段：端到端 vertical slice 与固定 dsh-model 路由均已完成，包含 Web 创建数字员工、真实模型调用、精确路由证明和进程重启后的冷恢复。
 
 ## 1. 接手结论
 
@@ -20,9 +20,10 @@ pnpm verify
 
 | 项目 | 固定值 |
 |---|---|
-| DSH 版本 | `0.1.2-alpha.1` |
-| Harness commit | `cd5ef8148158c3a752a658978873241fdf8e2bbc` |
-| Harness docs digest | `80f2fb6fc17b9d071a7985ae331ccd6cec0be637d53916c574f92fdce1b75c07` |
+| DSH 版本 | `0.1.2-alpha.4` |
+| Harness source fork | `https://github.com/benz-ai-x/deepseek-harness.git` |
+| Harness commit | `acb483a997b8b04e64ce5cbbfd660b3c1a92208f` |
+| Harness docs digest | `0068acfd2dbe885220684e8a6f60eca913c24e518ec4cdd2d317b07aa204c833` |
 | Node.js | `^22.19.0 || >=24.0.0` |
 | pnpm | `11.7.0` |
 | 交付方式 | local-only、六个源码 `link:` |
@@ -33,11 +34,10 @@ pnpm verify
 
 - 分支：`main`
 - 远端：`git@github.com:benz-ai-x/dsh-agent-team-ultra.git`
-- 已推送基线提交：`c7ca014`（`feat: initialize DSH agent team plugin`）
-- 本交接快照中的本地待提交内容：人工冷恢复验收已在 [`TODO.md`](../TODO.md) 勾选，以及本交接文档和 README 入口。
-- 锁定的 Harness checkout 当前位于 `/Users/pc2026/Dev-Space/deepseek-harness`，commit 正确；但交接末次复验时该 checkout 出现了其他进行中的 `ui-workspace` 修改，详见“本次复验状态”。
-- 人工验收使用的隔离 DSH Profile 仍保留在 `/Users/pc2026/.dsh/profiles/agent-team-ultra-e2e`；测试 Web 服务已停止。
-- 本机没有全局 `dsh` 命令。需要使用 `/Users/pc2026/Dev-Space/deepseek-harness/apps/cli/lib/bin.js`，或自行安装与锁定版本一致的 CLI。
+- 本快照对应 Issue #6 的完整实现；最终提交以远端 `main` 的 HEAD 为准。
+- 锁定 Harness checkout 位于 `/root/workspace/deepseek-harness`，并在 source fork 分支 `agent-team-ultra-pinned-route` 的固定 commit 上保持干净。
+- 2026-08-30 的 credentialed 人工验收未重复执行；本次已用真实 Agent Loop、Agent Team、JSONL persistence/query 和冷恢复集成测试覆盖固定路由，并通过真实源码链接 Web 组合门禁。
+- 本地启动应使用锁定源码 CLI 或与锁定版本一致的 CLI，并使用隔离的 `DSH_HOME`。
 
 交接文档不会记录 API key、凭据正文、临时 Web token 或 Session URL。隔离 Profile 只应保留在本机，不能提交进仓库。
 
@@ -80,8 +80,9 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 ### 持久化与恢复
 
 - Profile Head、不可变 Profile Revision 和 Team/member Binding 写入独立的分记录 storage generation `agent_team_ultra_v1`；`agent_team_ultra` v0 仅是只读迁移源。
-- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target、Required Capabilities 与 SHA-256 指纹；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile/目标/能力快照和 `pending | active | failed` 状态。
+- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target、Required Capabilities 与 SHA-256 指纹；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile/能力快照、所选 Runtime Target、descriptor 证明的实际 Runtime Target 和 `pending | active | failed` 状态。
 - 创建流程必须先持久化 `pending` 绑定，再调用 Agent Team provisioning。否则 child 可能在 Profile 快照存在前启动。
+- dsh-model 创建会在 pending Binding 前重新解析精确 adapter 路由，把规范化 provider/model/reasoning options 原样交给 Agent Team，并在 active Binding 前核对 child continuation descriptor；任何 alias 或不一致都会以稳定错误失败，不采用 Lead/default 回退。
 - 已创建员工始终使用绑定时的快照。后续候选、激活、回滚或归档不会热更新已有员工。
 - 不要向 DSH 的闭集 Session event catalog 添加自定义事件；本插件使用独立 storage domain。
 - 不兼容格式必须使用新的 Storage Generation 名称，不能提升现有分记录 envelope version 伪装原地迁移。
@@ -139,17 +140,18 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 4. 检查打包白名单和干净消费者安装。
 5. 创建临时真实 DSH Web Profile，安装六个 source links，验证 Host import、最终 Cordis 组合和随机端口监听。
 
-最近一次干净基线全量验证（本交接文档生成前）的结果：
+2026-09-02 最近一次干净基线全量验证结果：
 
-- 严格上下文检查：`182 passed, 0 warnings`。
-- Vitest：`6` 个测试文件、`18` 个测试全部通过。
-- 归档内容：Ultra domain `11` 个文件、UI `8` 个文件、Profile `4` 个文件，无源码、测试、source map 或 tsbuildinfo 泄漏。
+- 严格上下文检查：`248 passed, 0 warnings`。
+- Vitest：`8` 个测试文件、`93` 个测试全部通过。
+- 归档内容：Ultra domain `13` 个文件、UI `8` 个文件、Profile `4` 个文件，无源码、测试、source map 或 tsbuildinfo 泄漏。
 - 六个归档可在干净消费者中安装，browser-safe ESM import 正常。
 - 六个源码链接可被真实 DSH Profile 解析；最终配置包含 `agent-team`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team`、`ui-agent-team-ultra`，Web 可监听随机端口。
 
 测试职责分布：
 
 - `packages/domain/tests/profile-service.spec.ts`：schema、不可变 Revision、Head CAS、激活/回滚、归档/恢复、有界差异、先绑定后 provisioning、Lead 权限和 dispose 边界。
+- `packages/domain/tests/pinned-route.integration.spec.ts`：真实 Agent Loop、Agent Team、JSONL 持久化、不可变 Profile scope、精确 route descriptor 与冷恢复端到端。
 - `packages/domain/tests/generated-remote.spec.ts`：八个生成 Remote 操作及 Client namespace。
 - `packages/domain/tests/loader-composition.spec.ts`：真实 Loader 和部署限制。
 - `packages/profile/tests/profile.spec.ts`：private bundle 与稳定、无冲突 Loader rows。
@@ -158,23 +160,7 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`s
 
 ### 本次复验状态
 
-生成交接文档前，`pnpm context:check:strict` 在干净基线上通过了 `182` 项检查。文档生成后再次执行 `pnpm verify` 时，锁定 Harness checkout 新出现以下未提交修改：
-
-```text
-packages/client/ui-workspace/src/client/contract/slots.ts
-packages/client/ui-workspace/src/client/index.ts
-packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.module.css
-packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx
-packages/client/ui-workspace/tests/apply.client.spec.ts
-packages/client/ui-workspace/tests/workspace-browser.client.spec.tsx
-```
-
-因此末次 `pnpm verify` 在严格上下文阶段按设计退出，后续 build、test 和 pack 阶段没有在该次命令中执行。随后独立执行的 `pnpm build` 通过，`pnpm test` 仍为 `6` 个文件、`18` 项测试全部通过；pack/Web 组合门禁没有绕过严格基线检查重复执行。这些文件位于相邻 Harness 仓库，不属于本交接任务，未被修改或回退。确认这些改动已由其所有者处理、Harness 工作区重新干净后，再运行：
-
-```sh
-pnpm context:check:strict
-pnpm verify
-```
+2026-09-02 `pnpm verify` 在锁定 Harness 干净工作区上全绿：严格上下文、Host/Client 构建、Typert 生成、93 项 Vitest、归档安装、browser-safe import、真实源码链接 DSH Web composition 与监听门禁全部通过。
 
 ## 7. 真实模型与冷恢复验收证据
 
@@ -207,22 +193,22 @@ COLD_RESUME_SECOND_CALL_OK ULTRA_PROFILE_MARKER_0830_1505 CONTEXT_MARKER_0830_15
 
 ## 8. 本机启动与复验 Runbook
 
-本机没有全局 `dsh`，可用锁定源码 CLI：
+使用锁定源码 CLI 和隔离的 DSH Home：
 
 ```sh
-export DSH_HARNESS_ROOT=/Users/pc2026/Dev-Space/deepseek-harness
-export DSH_HOME=/Users/pc2026/.dsh
+export DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness
+export DSH_HOME=/absolute/path/to/isolated-dsh-home
 
 node "$DSH_HARNESS_ROOT/apps/cli/lib/bin.js" \
-  --profile agent-team-ultra-e2e \
+  --profile web \
   --dump-config
 
 node "$DSH_HARNESS_ROOT/apps/cli/lib/bin.js" \
-  --profile agent-team-ultra-e2e \
-  web --no-open --port 4317
+  --profile web \
+  --no-open --port 4317
 ```
 
-端口被占用时换一个空闲端口。不要停止或修改用户已有的其他 DSH Web 进程。
+先按 [`README.md`](../README.md#安装到本地-dsh-web) 把六个源码链接安装到该隔离 Profile。端口被占用时换一个空闲端口，不要停止或修改用户已有的其他 DSH Web 进程。
 
 重新做完整冷恢复验收时：
 

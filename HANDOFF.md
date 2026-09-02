@@ -1,10 +1,10 @@
-# 会话交接：DSH Agent Team Ultra — 可拖动工作室与 alpha.4 迁移已完成
+# 历史会话交接：DSH Agent Team Ultra — 可拖动工作室与 alpha.4 迁移
 
 > 交接时间：2026-09-02（Asia/Shanghai）
-> 项目：`/Users/pc2026/Dev-Space/dsh-agent-team-ultra`
+> 原会话项目路径：`/Users/pc2026/Dev-Space/dsh-agent-team-ultra`
 > 适用对象：下一个接手本会话的 agent
 >
-> 本文件是最新交接。[`docs/HANDOFF.md`](docs/HANDOFF.md) 是 2026-08-30 的历史快照；其中冷恢复验收证据仍可参考，但旧基线、child setup seam 与 Web Runbook 已由本文件和 `PROJECT_CONTRACT.md` 覆盖。
+> 本文件保留 2026-09-02 UI/alpha.4 迁移的历史上下文；当前技术状态、固定 Harness source lock、验证证据与 Web Runbook 以 [`docs/HANDOFF.md`](docs/HANDOFF.md) 和 [`PROJECT_CONTRACT.md`](docs/agent/PROJECT_CONTRACT.md) 为准。
 
 ## 1. 本次会话完成了什么
 
@@ -16,7 +16,7 @@
   - `packages/ui/src/client/locales.ts` — +20 键中英双语；移除 `hookEffect` 键
   - `packages/ui/tests/studio.client.spec.tsx` — 分节编辑测试之外，新增拖动、八手柄、最小尺寸与视口缩小回归测试
   - `packages/domain/src/index.ts` — alpha.4 移除 `registerContinuableSetup` 后，迁移到官方同步 `agent/created` 生命周期；通过精确 `agent.ctx` 安装 Profile，子 Agent 或服务 Fiber 销毁时完整撤销
-  - `dsh-reference.lock.json`、三个 package manifest 与 lockfile — 钉住官方 `dsh-v0.1.2-alpha.4` / `4e84901e6471b79ec0338099867ebb4606d12bb5`
+  - `dsh-reference.lock.json`、三个 package manifest 与 lockfile — 钉住 `dsh-v0.1.2-alpha.4` 兼容 source fork / `acb483a997b8b04e64ce5cbbfd660b3c1a92208f`
   - `.gitignore` — 增加 `.superpowers/`
   - `README.md`、`TODO.md` — 上个会话遗留的小改（未提交）
   - `docs/HANDOFF.md` — 上个会话的交接文档（未跟踪）

@@ -5,7 +5,8 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { TeamMemberRouteSnapshot } from '@deepseek-ai/dsh-experimental-agent-team'
+import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
@@ -45,6 +46,7 @@ import type {
   DigitalEmployeeProfileDiffEntry,
   DigitalEmployeeProfileRevisionSummary,
   DigitalEmployeeRuntimeTarget,
+  DshModelRuntimeTarget,
   DigitalEmployeeStudioView,
   GetDigitalEmployeeProfileRevisionRequest,
   GetDigitalEmployeeProfileRevisionResult,
@@ -258,6 +260,31 @@ function saveRejected(error: DigitalEmployeeFailure): SaveDigitalEmployeeProfile
 
 function spawnRejected(error: DigitalEmployeeFailure): SpawnDigitalEmployeeResult {
   return Object.freeze({ ok: false, error })
+}
+
+function dshTargetFromRoute(route: TeamMemberRouteSnapshot | undefined): DshModelRuntimeTarget | undefined {
+  if (route?.provider === undefined || route.model === undefined) return undefined
+  return Object.freeze({
+    kind: 'dsh-model',
+    provider: route.provider,
+    model: route.model,
+    ...(route.reasoningEffort === undefined ? {} : { reasoningEffort: route.reasoningEffort }),
+  })
+}
+
+function sameDshTarget(left: DshModelRuntimeTarget, right: DshModelRuntimeTarget): boolean {
+  return left.provider === right.provider
+    && left.model === right.model
+    && left.reasoningEffort === right.reasoningEffort
+}
+
+function sameRuntimeTarget(left: DigitalEmployeeRuntimeTarget, right: DigitalEmployeeRuntimeTarget): boolean {
+  if (left.kind !== right.kind) return false
+  if (left.kind === 'legacy-inherit-lead' || right.kind === 'legacy-inherit-lead') return true
+  if (left.kind === 'external-agent' || right.kind === 'external-agent') {
+    return left.kind === 'external-agent' && right.kind === 'external-agent' && left.provider === right.provider
+  }
+  return sameDshTarget(left, right)
 }
 
 function headMutationRejected(error: DigitalEmployeeFailure): MutateDigitalEmployeeProfileHeadResult {
@@ -661,7 +688,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
       requiredCapabilities,
       'save',
     )
-    if (targetProblem !== undefined) return saveRejected(failure(targetProblem.code, targetProblem.message))
+    if (targetProblem !== undefined && targetProblem.code !== 'runtime-target-unavailable') {
+      return saveRejected(failure(targetProblem.code, targetProblem.message))
+    }
     return await this.enqueue(async () => {
       const storage = this.requireStorage()
       const currentHead = storage.getProfileHead(parsed.data.id)
@@ -681,6 +710,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
         : storage.getProfileRevision(parsed.data.id, currentHead.latestRevision)
       if (currentHead !== undefined && latest === undefined) {
         throw new Error(`Digital Employee Profile Head "${parsed.data.id}" has no latest Revision`)
+      }
+      if (targetProblem !== undefined
+        && (latest === undefined
+          || !sameRuntimeTarget(latest.runtimeTarget, runtimeTarget)
+          || latest.profile.continuationProvider !== normalized.continuationProvider)) {
+        return saveRejected(failure(targetProblem.code, targetProblem.message, currentHead))
       }
       const fingerprint = profileContentFingerprint(normalized, runtimeTarget, requiredCapabilities)
       if (latest?.fingerprint === fingerprint) {
@@ -834,12 +869,20 @@ export class DigitalEmployeeService extends TypertRemoteService {
     if (targetProblem !== undefined) {
       return spawnRejected(failure(targetProblem.code, targetProblem.message, head))
     }
-    if (activeRevision.runtimeTarget.kind === 'external-agent') {
+    const selectedTarget = activeRevision.runtimeTarget
+    if (selectedTarget.kind === 'external-agent') {
       return spawnRejected(failure(
         'runtime-capability-mismatch',
-        `external runtime provider "${activeRevision.runtimeTarget.provider}" has no executable teammate seam in this build`,
+        `external runtime provider "${selectedTarget.provider}" has no executable teammate seam in this build`,
         head,
       ))
+    }
+    if (selectedTarget.kind !== 'dsh-model') {
+      return spawnRejected(failure('runtime-route-invalid', 'the active Revision has no exact executable route', head))
+    }
+    const resolutionProblem = await this.runtimeBackends.verifyDshModelRoute(selectedTarget)
+    if (resolutionProblem !== undefined) {
+      return spawnRejected(failure(resolutionProblem.code, resolutionProblem.message, head))
     }
     const unavailable = profile.toolPolicy.mode === 'inherit'
       ? []
@@ -868,9 +911,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         profileId: profile.id,
         profileRevision: profile.revision,
         profile: snapshotProfile(profile),
-        runtimeTarget: activeRevision.runtimeTarget.kind === 'legacy-inherit-lead'
-          ? legacyInheritLeadRuntimeTarget
-          : Object.freeze({ ...activeRevision.runtimeTarget }),
+        runtimeTarget: Object.freeze({ ...selectedTarget }),
         requiredCapabilities: snapshotRequiredCapabilities(activeRevision.requiredCapabilities),
         phase: 'pending',
       })
@@ -893,12 +934,33 @@ export class DigitalEmployeeService extends TypertRemoteService {
         prompt: [{ type: 'text', text: prompt }],
         context: profile.contextMode,
         provider: profile.continuationProvider,
+        agentOptions: {
+          provider: selectedTarget.provider,
+          model: selectedTarget.model,
+          ...(selectedTarget.reasoningEffort === undefined
+            ? {}
+            : { reasoningEffort: ReasoningEffortId(selectedTarget.reasoningEffort) }),
+        },
         signal,
       })
       provisionedMemberId = result.member.id
+      const resolvedRuntimeTarget = dshTargetFromRoute(result.member.resolvedRoute)
+      if (resolvedRuntimeTarget === undefined || !sameDshTarget(selectedTarget, resolvedRuntimeTarget)) {
+        const message = `teammate "${profile.employeeName}" did not resolve the selected DSH model route`
+        const failed: DigitalEmployeeBindingV1 = Object.freeze({
+          ...reservation,
+          memberId: provisionedMemberId,
+          ...(resolvedRuntimeTarget === undefined ? {} : { resolvedRuntimeTarget }),
+          phase: 'failed',
+          error: message,
+        })
+        await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
+        return spawnRejected(failure('runtime-route-invalid', message, head))
+      }
       const active: DigitalEmployeeBindingV1 = Object.freeze({
         ...reservation,
         memberId: provisionedMemberId,
+        resolvedRuntimeTarget,
         phase: 'active',
       })
       await this.enqueue(async () => { await this.requireStorage().putBinding(key, active) })
@@ -918,7 +980,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
       if (signal.aborted) signal.throwIfAborted()
       if (error instanceof TeamError) {
         return spawnRejected(failure(
-          error.code === 'TEAM_LEAD_REQUIRED' ? 'team-lead-required' : 'team-rejected',
+          error.code === 'TEAM_LEAD_REQUIRED'
+            ? 'team-lead-required'
+            : error.code === 'TEAM_RUNTIME_ROUTE_MISMATCH'
+              ? 'runtime-route-invalid'
+              : 'team-rejected',
           error.message,
         ))
       }
@@ -1268,6 +1334,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
       runtimeTarget: binding.runtimeTarget.kind === 'legacy-inherit-lead'
         ? legacyInheritLeadRuntimeTarget
         : Object.freeze({ ...binding.runtimeTarget }),
+      ...(binding.resolvedRuntimeTarget === undefined
+        ? {}
+        : { resolvedRuntimeTarget: Object.freeze({ ...binding.resolvedRuntimeTarget }) }),
       requiredCapabilities: snapshotRequiredCapabilities(binding.requiredCapabilities),
       phase: binding.phase,
       ...(binding.error === undefined ? {} : { error: binding.error }),

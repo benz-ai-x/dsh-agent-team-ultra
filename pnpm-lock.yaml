@@ -75,6 +75,12 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: link:../../../deepseek-harness/packages/core/agent
         version: link:../../../deepseek-harness/packages/core/agent
+      '@deepseek-ai/dsh-agent-loop':
+        specifier: link:../../../deepseek-harness/packages/core/agent-loop
+        version: link:../../../deepseek-harness/packages/core/agent-loop
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: link:../../../deepseek-harness/packages/test-support/agent-loop-testkit
+        version: link:../../../deepseek-harness/packages/test-support/agent-loop-testkit
       '@deepseek-ai/dsh-api-gateway':
         specifier: link:../../../deepseek-harness/packages/api/gateway
         version: link:../../../deepseek-harness/packages/api/gateway
@@ -87,6 +93,15 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: link:../../../deepseek-harness/packages/core/session
         version: link:../../../deepseek-harness/packages/core/session
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: link:../../../deepseek-harness/packages/session/session-persistence-jsonl
+        version: link:../../../deepseek-harness/packages/session/session-persistence-jsonl
+      '@deepseek-ai/dsh-session-projection':
+        specifier: link:../../../deepseek-harness/packages/session/session-projection
+        version: link:../../../deepseek-harness/packages/session/session-projection
+      '@deepseek-ai/dsh-session-query':
+        specifier: link:../../../deepseek-harness/packages/session-query/session-query
+        version: link:../../../deepseek-harness/packages/session-query/session-query
       '@deepseek-ai/dsh-storage':
         specifier: link:../../../deepseek-harness/packages/storage/storage
         version: link:../../../deepseek-harness/packages/storage/storage
@@ -102,6 +117,9 @@ importers:
       '@deepseek-ai/dsh-subagent':
         specifier: link:../../../deepseek-harness/packages/subagent/subagent
         version: link:../../../deepseek-harness/packages/subagent/subagent
+      '@deepseek-ai/dsh-subagent-spawn-in-process':
+        specifier: link:../../../deepseek-harness/packages/subagent/subagent-spawn-in-process
+        version: link:../../../deepseek-harness/packages/subagent/subagent-spawn-in-process
       '@deepseek-ai/dsh-system-prompt':
         specifier: link:../../../deepseek-harness/packages/core/system-prompt
         version: link:../../../deepseek-harness/packages/core/system-prompt

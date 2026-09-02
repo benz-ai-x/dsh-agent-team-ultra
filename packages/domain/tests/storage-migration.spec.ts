@@ -10,7 +10,7 @@ import * as SqliteStorage from '@deepseek-ai/dsh-storage-sqlite'
 import { SUBAGENT_DESCRIPTOR_VERSION } from '@deepseek-ai/dsh-subagent'
 import { z } from 'zod'
 import { describe, expect, it, vi } from 'vitest'
-import DigitalEmployeeService from '../lib/index.js'
+import DigitalEmployeeService, { requiredCapabilitiesForProfile } from '../lib/index.js'
 import {
   digitalEmployeeDomainSpec,
   type LegacyDigitalEmployeeProfile,
@@ -260,6 +260,44 @@ describe('Digital Employee v1 storage generation', () => {
     )
     expect(profileContentFingerprint(migratedProfileDraft, target)).toMatch(/^[a-f0-9]{64}$/u)
   })
+
+  it.each(['json', 'sqlite'] as const)(
+    'round-trips selected and resolved Binding routes on the %s backend',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const storage = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        const key = digitalEmployeeBindingKey('lead', migratedProfile.employeeName)
+        const selected = {
+          kind: 'dsh-model' as const,
+          provider: 'selected-provider',
+          model: 'selected-model',
+          reasoningEffort: 'high',
+        }
+        await storage.putBinding(key, {
+          ...migratedBinding,
+          schemaVersion: 1,
+          runtimeTarget: selected,
+          resolvedRuntimeTarget: { ...selected },
+          requiredCapabilities: requiredCapabilitiesForProfile(migratedProfileDraft),
+        })
+        expect(storage.getBinding(key)).toMatchObject({
+          runtimeTarget: selected,
+          resolvedRuntimeTarget: selected,
+        })
+        await storage.close()
+
+        const reopened = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
+        expect(reopened.getBinding(key)).toMatchObject({
+          runtimeTarget: selected,
+          resolvedRuntimeTarget: selected,
+        })
+        await reopened.close()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
 
   it.each(['json', 'sqlite'] as const)(
     'upgrades an Issue #3 v1 Revision without a fingerprint before admission on %s',

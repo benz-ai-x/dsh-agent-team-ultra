@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "upstream": {
-    "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+    "repository": "https://github.com/benz-ai-x/deepseek-harness.git",
     "version": "0.1.2-alpha.4",
     "node": "^22.19.0 || >=24.0.0",
-    "commit": "4e84901e6471b79ec0338099867ebb4606d12bb5",
-    "docsDigest": "b0e83ae78c5bf2523dd860382e72aa331cd65ab64e7d81a50a70251a10e0752e"
+    "commit": "acb483a997b8b04e64ce5cbbfd660b3c1a92208f",
+    "docsDigest": "0068acfd2dbe885220684e8a6f60eca913c24e518ec4cdd2d317b07aa204c833"
   },
   "localResolution": {
     "environmentVariable": "DSH_HARNESS_ROOT",

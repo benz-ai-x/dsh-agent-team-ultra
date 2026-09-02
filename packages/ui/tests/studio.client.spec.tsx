@@ -9,6 +9,7 @@ import type {
   DigitalEmployeeProfileCatalogEntry,
   DigitalEmployeeProfileRevision,
   DigitalEmployeeRuntimeCatalog,
+  DigitalEmployeeRuntimeTarget,
   DigitalEmployeeStudioView,
 } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import { DigitalEmployeeStudio, type DigitalEmployeeStudioProps } from '../src/client/Studio.tsx'
@@ -34,14 +35,19 @@ function profile(displayName = 'Reviewer One', revision = 1): DigitalEmployeePro
   }
 }
 
-function immutableRevision(profile: DigitalEmployeeProfile): DigitalEmployeeProfileRevision {
+function immutableRevision(
+  profile: DigitalEmployeeProfile,
+  runtimeTarget: DigitalEmployeeRuntimeTarget = {
+    kind: 'dsh-model', provider: 'test-provider', model: 'test-model',
+  },
+): DigitalEmployeeProfileRevision {
   const { revision, createdAt, updatedAt, ...draft } = profile
   return {
     schemaVersion: 1,
     profileId: profile.id,
     revision,
     profile: draft,
-    runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
+    runtimeTarget,
     requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission', 'tool-policy'] },
     fingerprint: `${String(revision).padStart(64, '0')}`,
     createdAt,
@@ -56,9 +62,10 @@ function catalog(
     readonly activeRevision?: number | null
     readonly archivedAt?: number
     readonly history?: readonly DigitalEmployeeProfile[]
+    readonly runtimeTarget?: DigitalEmployeeRuntimeTarget
   } = {},
 ): DigitalEmployeeProfileCatalogEntry {
-  const latest = immutableRevision(latestProfile)
+  const latest = immutableRevision(latestProfile, options.runtimeTarget)
   const activeRevision = options.activeRevision === undefined ? latest.revision : options.activeRevision
   const history = (options.history ?? [latestProfile]).map(immutableRevision)
   return {
@@ -176,6 +183,7 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
           profileId: 'reviewer',
           profileRevision: 1,
           runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
+          resolvedRuntimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
           requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
           phase: 'active',
         },
@@ -245,6 +253,62 @@ describe('Digital Employee Studio', () => {
       profile: { continuationProvider: 'spawn' },
       runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
     })
+  })
+
+  it('allows saving edits that retain the latest unavailable historical route', async () => {
+    const historical = catalog(profile(), {
+      headRevision: 4,
+      runtimeTarget: { kind: 'dsh-model', provider: 'retired-provider', model: 'retired-model' },
+    })
+    const save = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: false as const, error: { code: 'runtime-target-unavailable' as const, message: 'captured' } },
+    }))
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: catalogView([historical]) })),
+      save,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated while route is offline.' } })
+
+    const saveButton = screen.getByRole('button', { name: 'Save profile' }) as HTMLButtonElement
+    expect(saveButton.disabled).toBe(false)
+    fireEvent.click(saveButton)
+    await waitFor(() => { expect(save).toHaveBeenCalledOnce() })
+    expect(save.mock.calls[0]?.[1]).toMatchObject({
+      expectedHeadRevision: 4,
+      runtimeTarget: { kind: 'dsh-model', provider: 'retired-provider', model: 'retired-model' },
+    })
+  })
+
+  it('shows selected and actual runtime routes for a launched instance', async () => {
+    const loaded = view([profile()])
+    const withInstance: DigitalEmployeeStudioView = {
+      ...loaded,
+      instances: [{
+        teamId: 'session-a',
+        memberName: 'reviewer',
+        memberId: 'child',
+        profileId: 'reviewer',
+        profileRevision: 1,
+        runtimeTarget: {
+          kind: 'dsh-model', provider: 'test-provider', model: 'test-model', reasoningEffort: 'high',
+        },
+        resolvedRuntimeTarget: {
+          kind: 'dsh-model', provider: 'test-provider', model: 'test-model', reasoningEffort: 'high',
+        },
+        requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
+        phase: 'active',
+      }],
+    }
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: withInstance })),
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+
+    expect(await screen.findByText('Selected route: test-provider/test-model · high')).toBeDefined()
+    expect(screen.getByText('Actual route: test-provider/test-model · high')).toBeDefined()
   })
 
   it('fences duplicate saves before React can render the pending state', async () => {

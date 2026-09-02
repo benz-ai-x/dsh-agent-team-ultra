@@ -55,12 +55,15 @@ contracts.
   inactive or archived Profile cannot launch.
 - Archive retains the Head, all Revision history, and existing Bindings. Restore
   is explicit and CAS-guarded; hard delete is not part of the contract.
-- Launch persists a pending binding before Agent Team provisioning. The
-  existing Agent Team Lead Session log remains authoritative for roster,
-  mailbox, and task facts.
-- Each employee binds to an exact Revision, Runtime Target, Required
-  Capabilities, and immutable profile snapshot. Editing a profile affects
-  future launches, not already-created teammates or cold resumes.
+- Launch resolves the active Revision's selected DSH route, then persists a
+  pending binding before Agent Team provisioning. After the child accepts its
+  prompt, the Host correlates the continuation descriptor and records the
+  actual resolved route separately. The existing Agent Team Lead Session log
+  remains authoritative for roster, mailbox, and task facts.
+- Each employee binds to an exact Revision, selected Runtime Target, resolved
+  child Runtime Target, Required Capabilities, and immutable profile snapshot.
+  Editing a profile or changing the Lead/default route affects future launches,
+  not already-created teammates or cold resumes.
 
 ## Storage generation and migration
 
@@ -103,9 +106,12 @@ contracts.
 - Required Capabilities canonically record the selected context mode plus the
   persona, mission, enabled context/memory, non-inherit tool policy, and enabled
   Hook behavior the Runtime Backend must enforce.
-- Save accepts only a live, available, compatible backend. Activation, launch,
-  and evaluation revalidate it. Missing or malformed routes and capability
-  mismatches return stable runtime errors without substituting the Lead route.
+- A new or changed selection can save only a live, available, compatible
+  backend. An edit may retain its latest temporarily unavailable target and
+  continuation provider so historical configuration is not destroyed.
+  Activation, launch, and evaluation still revalidate it. Missing or malformed
+  routes and capability mismatches return stable runtime errors without
+  substituting the Lead route.
 - One-shot-only Codex and Claude Code providers may appear as unsupported
   diagnostics, but are disabled until a durable runtime registers.
 - A tool policy filters capabilities inherited from the parent preset. Team
@@ -172,8 +178,10 @@ event vocabulary.
 
 Through a real DSH Web profile, the Studio must show the Host catalog grouped as
 DSH Models and Local Agents, save an exact compatible Runtime Target into an
-immutable candidate, and refuse an unavailable target without fallback. After
-explicit activation and launch, the teammate must be visible in the Agent Team
-roster; it sees the configured persona/context/memory, cannot execute a
-filtered inherited tool, retains Team tools, and reconstructs the same target
-and Profile snapshot after cold resume.
+immutable candidate, and refuse a newly selected unavailable target without
+fallback. After explicit activation and launch, the teammate must be visible in
+the Agent Team roster; Studio and the launch result distinguish the selected
+route from the actual descriptor-resolved route. The child sees the configured
+persona/context/memory, cannot execute a filtered inherited tool, retains Team
+tools, and reconstructs the same route and Profile snapshot after cold resume,
+even if the Lead route or active Profile later changes.

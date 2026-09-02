@@ -2,12 +2,12 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-当前实现绑定 DSH `0.1.2-alpha.4` 与提交 `4e84901e6471b79ec0338099867ebb4606d12bb5`。由于上游 Agent Team 包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `acb483a997b8b04e64ce5cbbfd660b3c1a92208f`。该 source-linked fork 为 Agent Team 增加精确 teammate route 证明；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 能力
 
 - 身份：Profile ID、队友名称、显示名称、职责描述。
-- 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；`fresh`/`fork` 延续策略与模型路由彼此独立。
+- 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；`fresh`/`fork` 延续策略与模型路由彼此独立，Binding 同时保留所选路由与 child descriptor 证明的实际路由。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
@@ -80,9 +80,9 @@ dsh web
 4. 保存候选 Revision；Runtime Target 和规范化 Required Capabilities 会参与指纹、历史和差异，过期编辑不会覆盖新版本。
 5. 在“版本”页检查指纹及相对已激活版本的结构化差异，再显式激活最新候选（也可回滚到更早的不可变版本）。
 6. 可选填写本次任务，点击“创建数字员工”；只有未归档 Profile 的 `activeRevision` 可以启动。
-7. 左侧实例列表显示准备中、已激活或失败状态，以及该员工绑定的 Profile revision 与固定运行目标。
+7. 左侧实例列表显示准备中、已激活或失败状态，以及该员工绑定的 Profile revision、所选运行目标与实际解析目标。
 
-修改 Profile 只影响后续创建。已经创建或冷恢复的员工始终使用其绑定的不可变快照。
+修改 Profile 或改变 Lead/部署默认路由只影响后续创建。已经创建或冷恢复的员工始终使用其绑定的不可变快照与 continuation descriptor 固定路由。编辑时可以原样保留最新但暂时离线的历史目标；新选离线目标、激活和启动仍会稳定失败且绝不回退。
 
 ## 配置
 
@@ -131,6 +131,6 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - 仅支持同一进程内的现有 Agent Team，不支持嵌套 Team 或跨进程 Team 消息。
 - 不热更新已存在员工的 Profile，不自动写回策展记忆。
 - Hook 不执行用户代码；首版仅提供上下文注入和工具拒绝。
-- 已安装但只支持一次性调用的 Codex/Claude Code 会显示为“不支持”，必须先注册耐久 Runtime Provider 才能选择；历史中暂时缺失的目标只显示为不可用，激活或启动不会回退到 Lead 路由。
+- 已安装但只支持一次性调用的 Codex/Claude Code 会显示为“不支持”，必须先注册耐久 Runtime Provider 才能选择；历史中暂时缺失的目标可原样保留但显示为不可用，激活或启动不会回退到 Lead 路由。
 - 不提供托管 worktree、自动任务所有权、Profile 导入导出或 secret reference。
 - 自动化无凭据测试覆盖完整组合与协议边界；2026-08-30 已在隔离 Profile 完成一次真实模型 Web 创建与冷恢复验收，后续变更仍应在目标 DSH 安装中复验。

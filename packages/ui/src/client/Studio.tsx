@@ -189,6 +189,23 @@ function runtimeTargetId(target: DigitalEmployeeRuntimeTarget | null): string {
   return `dsh-model/${encodeURIComponent(target.provider)}/${encodeURIComponent(target.model)}`
 }
 
+function sameRuntimeTarget(left: DigitalEmployeeRuntimeTarget, right: DigitalEmployeeRuntimeTarget): boolean {
+  if (left.kind !== right.kind) return false
+  if (left.kind === 'legacy-inherit-lead' || right.kind === 'legacy-inherit-lead') return true
+  if (left.kind === 'external-agent' || right.kind === 'external-agent') {
+    return left.kind === 'external-agent' && right.kind === 'external-agent' && left.provider === right.provider
+  }
+  return left.provider === right.provider
+    && left.model === right.model
+    && left.reasoningEffort === right.reasoningEffort
+}
+
+function runtimeTargetLabel(target: DigitalEmployeeRuntimeTarget): string {
+  if (target.kind === 'legacy-inherit-lead') return target.kind
+  if (target.kind === 'external-agent') return `external-agent/${target.provider}`
+  return `${target.provider}/${target.model}${target.reasoningEffort === undefined ? '' : ` · ${target.reasoningEffort}`}`
+}
+
 function targetFromBackend(backend: DigitalEmployeeRuntimeBackend): DigitalEmployeeRuntimeTarget {
   switch (backend.family) {
     case 'legacy-inherit-lead': return { kind: 'legacy-inherit-lead' }
@@ -831,6 +848,9 @@ export function DigitalEmployeeStudio({
   const runtimeBackends = view?.runtimeCatalog.backends ?? []
   const selectedEntry = profiles.find(profile => profile.head.profileId === selectedId)
   const selectedRuntimeBackend = runtimeBackends.find(backend => backend.routingId === runtimeTargetId(runtimeTarget))
+  const retainsLatestRuntimeTarget = runtimeTarget !== null
+    && selectedEntry !== undefined
+    && sameRuntimeTarget(runtimeTarget, selectedEntry.latest.runtimeTarget)
   const dirty = draft !== null
     && baseline !== null
     && draftBaseline(draft, runtimeTarget) !== baseline
@@ -839,7 +859,8 @@ export function DigitalEmployeeStudio({
     && selectedEntry.head.archivedAt === undefined
   const canSave = runtimeTarget !== null
     && runtimeTarget.kind !== 'legacy-inherit-lead'
-    && selectedRuntimeBackend?.availability === 'available'
+    && (selectedRuntimeBackend?.availability === 'available'
+      || (selectedRuntimeBackend?.availability === 'unavailable' && retainsLatestRuntimeTarget))
 
   return (
     <div className={css.root} data-digital-employee-studio>
@@ -988,6 +1009,10 @@ export function DigitalEmployeeStudio({
                       <span>
                         <strong>{instance.memberName}</strong>
                         <small>{t(instanceStatusKey(instance.phase))} · r{instance.profileRevision}</small>
+                        <small>{t('selectedRoute')}: {runtimeTargetLabel(instance.runtimeTarget)}</small>
+                        {instance.resolvedRuntimeTarget !== undefined && (
+                          <small>{t('actualRoute')}: {runtimeTargetLabel(instance.resolvedRuntimeTarget)}</small>
+                        )}
                         {instance.error !== undefined && <small className={css.diagnostic}>{instance.error}</small>}
                       </span>
                     </div>

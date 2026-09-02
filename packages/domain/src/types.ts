@@ -249,7 +249,10 @@ export interface DigitalEmployeeInstanceView {
   readonly memberId?: string
   readonly profileId: DigitalEmployeeProfileId
   readonly profileRevision: number
+  /** Runtime Target selected by the immutable Profile Revision. */
   readonly runtimeTarget: DigitalEmployeeRuntimeTarget
+  /** Exact route reported by the child runtime after teammate provisioning. */
+  readonly resolvedRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
   readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
   readonly phase: 'pending' | 'active' | 'failed'
   readonly error?: string

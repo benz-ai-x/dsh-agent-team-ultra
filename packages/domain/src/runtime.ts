@@ -6,6 +6,7 @@ import type { LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type {
   DigitalEmployeeContextMode,
+  DshModelRuntimeTarget,
   DigitalEmployeeDshModelBackend,
   DigitalEmployeeProfileCapability,
   DigitalEmployeeProfileDraft,
@@ -404,6 +405,33 @@ export class RuntimeBackendRegistry {
     return undefined
   }
 
+  /** Re-resolve one selected DSH route at launch time and reject adapter aliases or disappearance. */
+  async verifyDshModelRoute(target: DshModelRuntimeTarget): Promise<RuntimeTargetProblem | undefined> {
+    let resolved: LlmResolvedModelInfo
+    try {
+      resolved = await this.llm.resolveModelInfo(target.provider, target.model)
+    } catch {
+      return Object.freeze({
+        code: 'runtime-route-invalid',
+        message: `DSH model route "${target.provider}/${target.model}" could not be resolved by its adapter`,
+      })
+    }
+    if (resolved.provider !== target.provider || resolved.id !== target.model) {
+      return Object.freeze({
+        code: 'runtime-route-invalid',
+        message: `DSH model route "${target.provider}/${target.model}" resolved to a different provider or model`,
+      })
+    }
+    if (target.reasoningEffort !== undefined
+      && !resolved.reasoning?.efforts.some(effort => effort.id === target.reasoningEffort)) {
+      return Object.freeze({
+        code: 'runtime-route-invalid',
+        message: `reasoning effort "${target.reasoningEffort}" is not supported by "${target.provider}/${target.model}"`,
+      })
+    }
+    return undefined
+  }
+
   private scheduleRefresh(initial = false): Promise<void> {
     if (this.disposed) return Promise.resolve()
     const request = ++this.refreshRequest
@@ -448,7 +476,9 @@ export class RuntimeBackendRegistry {
         })
         let resolved: LlmResolvedModelInfo | undefined
         try {
-          resolved = await this.llm.resolveModelInfo(provider.id, model.id)
+          const candidate = await this.llm.resolveModelInfo(provider.id, model.id)
+          if (candidate.provider === provider.id && candidate.id === model.id) resolved = candidate
+          else invalidDshRoutes.add(routingId)
         } catch {
           invalidDshRoutes.add(routingId)
         }

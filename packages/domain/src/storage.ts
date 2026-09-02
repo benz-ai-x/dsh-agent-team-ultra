@@ -24,6 +24,7 @@ import type {
   DigitalEmployeeProfileRevision,
   DigitalEmployeeRequiredCapabilities,
   DigitalEmployeeRuntimeTarget,
+  SelectableDigitalEmployeeRuntimeTarget,
 } from './types.ts'
 
 /** Marker committed only after every deterministic v0 copy is durable. */
@@ -68,6 +69,11 @@ export const migrationMarkerSchema = z.union([
 ]) as z.ZodType<DigitalEmployeeMigrationMarker>
 
 export const migratedRuntimeTargetSchema = digitalEmployeeRuntimeTargetSchema
+
+const resolvedRuntimeTargetSchema = digitalEmployeeRuntimeTargetSchema.refine(
+  (target): target is SelectableDigitalEmployeeRuntimeTarget => target.kind !== 'legacy-inherit-lead',
+  { message: 'resolved runtime target cannot inherit the Lead route' },
+)
 
 const profileCapabilitySchema = z.union([
   z.literal('persona'),
@@ -164,6 +170,7 @@ export const digitalEmployeeBindingV1Schema = z.object({
   profileRevision: positiveInteger,
   profile: storedProfileSchema,
   runtimeTarget: migratedRuntimeTargetSchema,
+  resolvedRuntimeTarget: resolvedRuntimeTargetSchema.optional(),
   requiredCapabilities: requiredCapabilitiesSchema.optional(),
   phase: z.union([z.literal('pending'), z.literal('active'), z.literal('failed')]),
   error: z.string().max(2048).optional(),
@@ -372,6 +379,9 @@ function bindingRecord(
     profileRevision: binding.profileRevision,
     profile,
     runtimeTarget,
+    ...('resolvedRuntimeTarget' in binding && binding.resolvedRuntimeTarget !== undefined
+      ? { resolvedRuntimeTarget: binding.resolvedRuntimeTarget }
+      : {}),
     requiredCapabilities,
     phase: binding.phase,
     ...(binding.error === undefined ? {} : { error: binding.error }),

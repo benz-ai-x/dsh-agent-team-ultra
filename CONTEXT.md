@@ -25,12 +25,16 @@ The Profile Revision selected by a Profile Head as the only launchable definitio
 _Avoid_: Current candidate, latest version
 
 **Binding**:
-The durable association between an exact Team member identity and the Profile Revision used to create or restore that member.
+The durable association between an exact Team member identity and the Profile Revision, selected Runtime Target, descriptor-resolved Runtime Target, Required Capabilities, and immutable Profile snapshot used to create or restore that member.
 _Avoid_: Assignment, link
 
 **Runtime Target**:
 The exact discriminated placement pinned by a Profile Revision: either a DSH provider/model/reasoning route or a durable external-agent provider identity. `legacy-inherit-lead` is migration-only.
 _Avoid_: Provider guess, inferred model, display label
+
+**Resolved Runtime Target**:
+The actual provider/model/reasoning route proven by a created child's durable continuation descriptor. It must preserve every explicit field of the selected Runtime Target and is recorded separately in the Binding and Studio.
+_Avoid_: Lead route, adapter fallback, display selection
 
 **Runtime Backend**:
 A detached, browser-safe catalog row describing one stable Runtime Target route, current availability, context semantics, and enforceable Profile capabilities.

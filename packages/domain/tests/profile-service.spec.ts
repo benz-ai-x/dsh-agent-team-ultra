@@ -30,6 +30,8 @@ interface FakeLlmRoute {
     readonly efforts: readonly { readonly id: string; readonly name: string; readonly description?: string }[]
     readonly defaultEffort?: string
   }
+  readonly resolvedProvider?: string
+  readonly resolvedModel?: string
   readonly secret?: string
 }
 
@@ -111,6 +113,7 @@ async function harness(options: {
   readonly spawnGate?: Promise<void>
   readonly serviceConfig?: { readonly maxRevisionHistory?: number; readonly maxDiffEntries?: number }
   readonly llmRoutes?: readonly FakeLlmRoute[]
+  readonly childResolvedRoute?: { readonly provider?: string; readonly model?: string; readonly reasoningEffort?: string }
 } = {}): Promise<Harness> {
   const ctx = new Context()
   const profiles = new MemoryTable<string, unknown>()
@@ -205,8 +208,8 @@ async function harness(options: {
       const route = llmRoutes.find(candidate => candidate.provider === provider && candidate.model === model)
       if (route === undefined) throw new Error('unknown fake model route')
       return {
-        provider,
-        id: model,
+        provider: route.resolvedProvider ?? provider,
+        id: route.resolvedModel ?? model,
         name: route.modelName,
         ...(route.reasoning === undefined ? {} : { reasoning: route.reasoning }),
         ...(route.secret === undefined ? {} : { credential: route.secret, nativePath: `/tmp/${route.secret}` }),
@@ -242,7 +245,11 @@ async function harness(options: {
     getProvider: (name: string) => continuationProviders.get(name),
   } as never)
 
-  const spawn = vi.fn(async (_caller: unknown, request: { name: string; signal?: AbortSignal }) => {
+  const spawn = vi.fn(async (_caller: unknown, request: {
+    name: string
+    agentOptions?: { readonly provider?: string; readonly model?: string; readonly reasoningEffort?: string }
+    signal?: AbortSignal
+  }) => {
     const pending = [...bindings.records.values()].find(value =>
       (value as { phase?: string }).phase === 'pending')
     expect(pending).toBeDefined()
@@ -265,15 +272,25 @@ async function harness(options: {
         return scopeDisposer()
       },
     } as unknown as Context
+    const resolvedRoute = options.childResolvedRoute ?? request.agentOptions ?? {}
     const child = {
       id: 'child',
       session: { header: { parentSession: 'lead' } },
+      options: resolvedRoute,
       ctx: childCtx,
     } as unknown as Agent
     Object.defineProperty(childCtx, 'agent', { value: child })
     agents.set('child', child)
     ctx.emit('agent/created', { agent: child })
-    return { member: { id: 'child', name: request.name } }
+    return {
+      member: {
+        id: 'child',
+        name: request.name,
+        requestedRoute: request.agentOptions ?? {},
+        resolvedRoute,
+        ...(resolvedRoute.model === undefined ? {} : { model: resolvedRoute.model }),
+      },
+    }
   })
   ctx.provide('agentTeams', {
     membership: (agent: Agent) => {
@@ -952,9 +969,10 @@ describe('Digital Employee profile contract', () => {
 
   it('persists the binding before provisioning and composes the immutable child scope', async () => {
     const runtime = await harness()
+    const selectedTarget = { ...DEFAULT_RUNTIME_TARGET, reasoningEffort: 'high' } as const
     const saved = await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: selectedTarget },
     )
     expect(saved.ok).toBe(true)
     await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
@@ -971,7 +989,8 @@ describe('Digital Employee profile contract', () => {
         memberName: 'code-reviewer',
         memberId: 'child',
         profileRevision: 1,
-        runtimeTarget: DEFAULT_RUNTIME_TARGET,
+        runtimeTarget: selectedTarget,
+        resolvedRuntimeTarget: selectedTarget,
         requiredCapabilities: {
           contextMode: 'fresh',
           profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
@@ -981,13 +1000,24 @@ describe('Digital Employee profile contract', () => {
     })
     if (!result.ok) throw new Error('expected a successful launch')
     expect(Object.isFrozen(result.value.runtimeTarget)).toBe(true)
+    expect(Object.isFrozen(result.value.resolvedRuntimeTarget)).toBe(true)
     expect(Object.isFrozen(result.value.requiredCapabilities)).toBe(true)
     expect(Object.isFrozen(result.value.requiredCapabilities.profileCapabilities)).toBe(true)
     expect(runtime.spawn).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       name: 'code-reviewer',
       context: 'fresh',
       provider: 'spawn',
+      agentOptions: {
+        provider: 'test-provider',
+        model: 'test-model',
+        reasoningEffort: 'high',
+      },
     }))
+    expect(runtime.agent('child')?.options).toMatchObject({
+      provider: 'test-provider',
+      model: 'test-model',
+      reasoningEffort: 'high',
+    })
     expect(runtime.sections).toHaveBeenCalledWith(expect.objectContaining({
       name: 'deployment:persona',
       text: 'Be precise, skeptical, and evidence-driven.',
@@ -1003,7 +1033,8 @@ describe('Digital Employee profile contract', () => {
     expect([...runtime.bindings.records.values()][0]).toMatchObject({
       phase: 'active',
       profile: { revision: 1, displayName: 'Code Reviewer' },
-      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+      runtimeTarget: selectedTarget,
+      resolvedRuntimeTarget: selectedTarget,
       requiredCapabilities: {
         contextMode: 'fresh',
         profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
@@ -1013,6 +1044,54 @@ describe('Digital Employee profile contract', () => {
     expect(runtime.scopeDisposals).toHaveLength(8)
     expect(runtime.scopeDisposals.every(dispose => dispose.mock.calls.length === 1)).toBe(true)
     expect(runtime.close).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an adapter-resolved route mismatch before writing a Binding', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    runtime.replaceLlmRoutes([{ ...DEFAULT_LLM_ROUTE, resolvedModel: 'other-model' }])
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-route-invalid' } })
+    expect(runtime.bindings.size).toBe(0)
+    expect(runtime.spawn).not.toHaveBeenCalled()
+    await runtime.fiber.dispose()
+  })
+
+  it('records a stable failure when the child reports a different actual route', async () => {
+    const runtime = await harness({
+      childResolvedRoute: { provider: 'test-provider', model: 'other-model' },
+    })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-route-invalid' } })
+    expect([...runtime.bindings.records.values()][0]).toMatchObject({
+      phase: 'failed',
+      resolvedRuntimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'other-model' },
+    })
+    await runtime.fiber.dispose()
   })
 
   it('removes an exact Agent installation once across Agent and Fiber disposal', async () => {
@@ -1420,6 +1499,15 @@ describe('Digital Employee profile contract', () => {
       new AbortController().signal,
     )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
     expect(runtime.spawn).not.toHaveBeenCalled()
+
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: 2,
+      profile: draft({ description: 'Retains its temporarily unavailable historical route.' }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })).resolves.toMatchObject({
+      ok: true,
+      value: { unchanged: false, head: { headRevision: 3 }, revision: { revision: 2 } },
+    })
 
     await runtime.fiber.dispose()
   })
