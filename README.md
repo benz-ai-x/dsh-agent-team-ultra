@@ -7,7 +7,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 ## 能力
 
 - 身份：Profile ID、队友名称、显示名称、职责描述。
-- 运行时：`fresh` 或 `fork` 上下文，以及 continuable provider。
+- 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；`fresh`/`fork` 延续策略与模型路由彼此独立。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
@@ -19,6 +19,8 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 flowchart LR
   UI[数字员工工作室] --> RPC[生成的 Typert Remote]
   RPC --> HOST[DigitalEmployeeService]
+  MODELS[DSH Model Registry] --> HOST
+  LOCAL[Durable Local Runtime Registry] --> HOST
   HOST --> STORE[(storageDomain\nHead + Revision + Binding)]
   HOST --> TEAM[DSH Agent Team]
   TEAM --> CHILD[Continuable Teammate]
@@ -73,11 +75,12 @@ dsh web
 在 DSH Web 中打开 Lead 会话，点击会话头部的“数字员工”：
 
 1. 新建 Profile，填写身份、persona 和 mission。
-2. 选择 `fresh` 或 `fork`，再配置可继承工具、上下文、记忆和 Hook。
-3. 保存候选 Revision；保存使用 `expectedHeadRevision`，规范化内容未变化时不会新增版本，过期编辑不会覆盖新版本。
-4. 在“版本”页检查指纹及相对已激活版本的结构化差异，再显式激活最新候选（也可回滚到更早的不可变版本）。
-5. 可选填写本次任务，点击“创建数字员工”；只有未归档 Profile 的 `activeRevision` 可以启动。
-6. 左侧实例列表显示准备中、已激活或失败状态，以及该员工绑定的 Profile revision。
+2. 在分组目录中选择一个可用 Runtime Backend；DSH 模型会固定 provider/model/推理强度，本地 Agent 会固定耐久 provider id。
+3. 选择 `fresh` 或 `fork` 及匹配的延续 Provider，再配置可继承工具、上下文、记忆和 Hook。
+4. 保存候选 Revision；Runtime Target 和规范化 Required Capabilities 会参与指纹、历史和差异，过期编辑不会覆盖新版本。
+5. 在“版本”页检查指纹及相对已激活版本的结构化差异，再显式激活最新候选（也可回滚到更早的不可变版本）。
+6. 可选填写本次任务，点击“创建数字员工”；只有未归档 Profile 的 `activeRevision` 可以启动。
+7. 左侧实例列表显示准备中、已激活或失败状态，以及该员工绑定的 Profile revision 与固定运行目标。
 
 修改 Profile 只影响后续创建。已经创建或冷恢复的员工始终使用其绑定的不可变快照。
 
@@ -85,7 +88,7 @@ dsh web
 
 | 字段 | 默认值 | 含义 |
 |---|---:|---|
-| `defaultProvider` | `spawn` | Profile provider 留空时使用的 continuable provider |
+| `defaultContinuationProvider` | `spawn` | Profile 延续 Provider 留空时使用的默认值；旧 `defaultProvider` 仅作迁移别名 |
 | `maxProfiles` | `64` | 持久 Profile 数量上限 |
 | `maxProfileBytes` | `131072` | 单个规范化 Profile 的 UTF-8 字节上限 |
 | `maxHooks` | `32` | 单个 Profile 的 Hook 数量上限 |
@@ -110,6 +113,7 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - v1 迁移以显式格式标记为准，支持 JSON/SQLite 上的幂等崩溃恢复；未知、更高版本或分歧数据会拒绝启动，完成迁移后不支持回退到写 v0 的旧二进制。
 - 绑定先进入 `pending`，再调用 Agent Team provisioning，避免子 Agent 在没有 Profile 快照的情况下启动。
 - 工具名称在创建时相对当前 Lead 的工具目录再次校验；`before-tool` Hook 只能声明拒绝规则。
+- Runtime Catalog 只包含白名单化的展示、可用性、上下文、能力和推理元数据；API key、endpoint、环境值、本机路径、登录状态及 live adapter 均不会传给 Client。
 - Profile 不包含凭据字段，也不会把 API key 或其他 secret 传给 Client。
 
 ## 代码结构
@@ -120,12 +124,13 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md) 和 [Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md) 和 [能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)。
 
 ## 当前限制
 
 - 仅支持同一进程内的现有 Agent Team，不支持嵌套 Team 或跨进程 Team 消息。
 - 不热更新已存在员工的 Profile，不自动写回策展记忆。
 - Hook 不执行用户代码；首版仅提供上下文注入和工具拒绝。
+- 已安装但只支持一次性调用的 Codex/Claude Code 会显示为“不支持”，必须先注册耐久 Runtime Provider 才能选择；历史中暂时缺失的目标只显示为不可用，激活或启动不会回退到 Lead 路由。
 - 不提供托管 worktree、自动任务所有权、Profile 导入导出或 secret reference。
 - 自动化无凭据测试覆盖完整组合与协议边界；2026-08-30 已在隔离 Profile 完成一次真实模型 Web 创建与冷恢复验收，后续变更仍应在目标 DSH 安装中复验。

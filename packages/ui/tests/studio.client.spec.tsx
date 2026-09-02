@@ -8,6 +8,7 @@ import type {
   DigitalEmployeeProfile,
   DigitalEmployeeProfileCatalogEntry,
   DigitalEmployeeProfileRevision,
+  DigitalEmployeeRuntimeCatalog,
   DigitalEmployeeStudioView,
 } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import { DigitalEmployeeStudio, type DigitalEmployeeStudioProps } from '../src/client/Studio.tsx'
@@ -19,7 +20,7 @@ function profile(displayName = 'Reviewer One', revision = 1): DigitalEmployeePro
     employeeName: 'reviewer',
     displayName,
     description: 'Reviews code.',
-    provider: 'spawn',
+    continuationProvider: 'spawn',
     contextMode: 'fresh',
     persona: 'Be precise.',
     mission: 'Find defects.',
@@ -40,7 +41,8 @@ function immutableRevision(profile: DigitalEmployeeProfile): DigitalEmployeeProf
     profileId: profile.id,
     revision,
     profile: draft,
-    runtimeTarget: { kind: 'legacy-inherit-lead' },
+    runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
+    requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission', 'tool-policy'] },
     fingerprint: `${String(revision).padStart(64, '0')}`,
     createdAt,
     updatedAt,
@@ -82,16 +84,71 @@ function catalog(
   }
 }
 
+function runtimeCatalog(): DigitalEmployeeRuntimeCatalog {
+  return {
+    generation: 1,
+    backends: [
+      {
+        routingId: 'dsh-model/test-provider/test-model',
+        family: 'dsh-model',
+        availability: 'available',
+        provider: 'test-provider',
+        providerDisplayName: 'Test Provider',
+        model: 'test-model',
+        displayName: 'Test Model',
+        contextModes: ['fresh', 'fork'],
+        profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+        reasoning: {
+          efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
+          defaultEffort: 'low',
+        },
+      },
+      {
+        routingId: 'external-agent/native-reviewer',
+        family: 'external-agent',
+        availability: 'available',
+        provider: 'native-reviewer',
+        displayName: 'Native Reviewer',
+        contextModes: ['fresh'],
+        profileCapabilities: ['persona', 'mission'],
+      },
+      {
+        routingId: 'dsh-model/retired-provider/retired-model',
+        family: 'dsh-model',
+        availability: 'unavailable',
+        provider: 'retired-provider',
+        providerDisplayName: 'Retired Provider',
+        model: 'retired-model',
+        displayName: 'Retired Model',
+        contextModes: [],
+        profileCapabilities: [],
+        diagnostic: 'Historical route is missing.',
+      },
+      {
+        routingId: 'external-agent/codex',
+        family: 'external-agent',
+        availability: 'unsupported',
+        provider: 'codex',
+        displayName: 'Codex',
+        contextModes: [],
+        profileCapabilities: [],
+        diagnostic: 'One-shot only.',
+      },
+    ],
+  }
+}
+
 function view(profiles: readonly DigitalEmployeeProfile[] = []): DigitalEmployeeStudioView {
   return {
     profiles: profiles.map(profile => catalog(profile)),
+    runtimeCatalog: runtimeCatalog(),
     tools: [{ name: 'read', description: 'Read files' }],
     instances: [],
   }
 }
 
 function catalogView(profiles: readonly DigitalEmployeeProfileCatalogEntry[]): DigitalEmployeeStudioView {
-  return { profiles, tools: [{ name: 'read', description: 'Read files' }], instances: [] }
+  return { profiles, runtimeCatalog: runtimeCatalog(), tools: [{ name: 'read', description: 'Read files' }], instances: [] }
 }
 
 function saved(profile: DigitalEmployeeProfile, headRevision = profile.revision) {
@@ -114,7 +171,13 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
       value: {
         ok: true,
         value: {
-          teamId: 'session-a', memberName: 'reviewer', profileId: 'reviewer', profileRevision: 1, phase: 'active',
+          teamId: 'session-a',
+          memberName: 'reviewer',
+          profileId: 'reviewer',
+          profileRevision: 1,
+          runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
+          requiredCapabilities: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'] },
+          phase: 'active',
         },
       },
     })),
@@ -150,6 +213,40 @@ afterEach(() => {
 })
 
 describe('Digital Employee Studio', () => {
+  it('groups stable Runtime Backends, exposes capabilities, and saves the selected target separately', async () => {
+    const save = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: false as const, error: { code: 'profile-invalid' as const, message: 'stop after capture' } },
+    }))
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: view([profile()]) })),
+      save,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+
+    const backend = screen.getByLabelText('Runtime backend') as HTMLSelectElement
+    expect([...backend.querySelectorAll('optgroup')].map(group => group.label)).toEqual([
+      'DSH Models',
+      'Local Agents',
+    ])
+    expect((within(backend).getByRole('option', { name: /Test Provider · Test Model/ }) as HTMLOptionElement).disabled).toBe(false)
+    expect((within(backend).getByRole('option', { name: /Retired Provider · Retired Model.*unavailable/i }) as HTMLOptionElement).disabled).toBe(true)
+    expect((within(backend).getByRole('option', { name: /Codex.*unsupported/i }) as HTMLOptionElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Reasoning effort') as HTMLSelectElement).value).toBe('')
+    expect(within(screen.getByLabelText('Reasoning effort')).getByRole('option', { name: /High/ })).toBeTruthy()
+
+    fireEvent.change(backend, { target: { value: 'external-agent/native-reviewer' } })
+    expect(screen.getByText(/Available.*Fresh/)).toBeTruthy()
+    expect(screen.getByText(/Persona.*Mission/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await waitFor(() => { expect(save).toHaveBeenCalledOnce() })
+    expect(save.mock.calls[0]?.[1]).toMatchObject({
+      profile: { continuationProvider: 'spawn' },
+      runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+  })
+
   it('fences duplicate saves before React can render the pending state', async () => {
     let settle: ((value: Awaited<ReturnType<DigitalEmployeeStudioProps['save']>>) => void) | undefined
     const save = vi.fn(() => new Promise<Awaited<ReturnType<DigitalEmployeeStudioProps['save']>>>(resolveSave => {

@@ -13,12 +13,16 @@ import type {
   DigitalEmployeeProfileCatalogEntry,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeProfileRevisionDetail,
+  DigitalEmployeeProfileCapability,
+  DigitalEmployeeRuntimeBackend,
+  DigitalEmployeeRuntimeTarget,
   DigitalEmployeeStudioView,
   ProfileHook,
   ProfileHookPoint,
   ProfileTextBlock,
   SaveDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileResult,
+  SelectableDigitalEmployeeRuntimeTarget,
   SpawnDigitalEmployeeResult,
 } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -146,7 +150,7 @@ function emptyProfile(): DigitalEmployeeProfileDraft {
     employeeName: id,
     displayName: 'New Employee',
     description: 'A profile-bound Agent Team teammate.',
-    provider: 'spawn',
+    continuationProvider: 'spawn',
     contextMode: 'fresh',
     persona: 'Act as a reliable specialist. State assumptions and report concrete outcomes.',
     mission: 'Complete delegated work while coordinating clearly with the Team Lead.',
@@ -163,7 +167,7 @@ function cloneProfile(profile: DigitalEmployeeProfileDraft): DigitalEmployeeProf
     employeeName: profile.employeeName,
     displayName: profile.displayName,
     description: profile.description,
-    provider: profile.provider,
+    continuationProvider: profile.continuationProvider,
     contextMode: profile.contextMode,
     persona: profile.persona,
     mission: profile.mission,
@@ -174,12 +178,75 @@ function cloneProfile(profile: DigitalEmployeeProfileDraft): DigitalEmployeeProf
   }
 }
 
+function cloneRuntimeTarget(target: DigitalEmployeeRuntimeTarget): DigitalEmployeeRuntimeTarget {
+  return target.kind === 'legacy-inherit-lead' ? { kind: target.kind } : { ...target }
+}
+
+function runtimeTargetId(target: DigitalEmployeeRuntimeTarget | null): string {
+  if (target === null) return ''
+  if (target.kind === 'legacy-inherit-lead') return target.kind
+  if (target.kind === 'external-agent') return `external-agent/${encodeURIComponent(target.provider)}`
+  return `dsh-model/${encodeURIComponent(target.provider)}/${encodeURIComponent(target.model)}`
+}
+
+function targetFromBackend(backend: DigitalEmployeeRuntimeBackend): DigitalEmployeeRuntimeTarget {
+  switch (backend.family) {
+    case 'legacy-inherit-lead': return { kind: 'legacy-inherit-lead' }
+    case 'external-agent': return { kind: 'external-agent', provider: backend.provider }
+    case 'dsh-model': return { kind: 'dsh-model', provider: backend.provider, model: backend.model }
+  }
+}
+
+function firstAvailableTarget(backends: readonly DigitalEmployeeRuntimeBackend[]): DigitalEmployeeRuntimeTarget | null {
+  const backend = backends.find(candidate => candidate.availability === 'available'
+    && candidate.family !== 'legacy-inherit-lead')
+  return backend === undefined ? null : targetFromBackend(backend)
+}
+
+function draftBaseline(
+  profile: DigitalEmployeeProfileDraft,
+  runtimeTarget: DigitalEmployeeRuntimeTarget | null,
+): string {
+  return JSON.stringify({ profile, runtimeTarget })
+}
+
 function failureText(error: { readonly code: string; readonly message: string }): string {
   return `${error.message} (${error.code})`
 }
 
 function instanceStatusKey(phase: 'pending' | 'active' | 'failed'): UltraKey {
   return phase
+}
+
+function runtimeAvailabilityLabel(
+  availability: DigitalEmployeeRuntimeBackend['availability'],
+  t: Translate,
+): string {
+  switch (availability) {
+    case 'available': return t('runtimeAvailable')
+    case 'unavailable': return t('runtimeUnavailable')
+    case 'unsupported': return t('runtimeUnsupported')
+  }
+}
+
+function profileCapabilityLabel(capability: DigitalEmployeeProfileCapability, t: Translate): string {
+  switch (capability) {
+    case 'persona': return t('capabilityPersona')
+    case 'mission': return t('capabilityMission')
+    case 'context': return t('capabilityContext')
+    case 'memory': return t('capabilityMemory')
+    case 'tool-policy': return t('capabilityToolPolicy')
+    case 'hooks': return t('capabilityHooks')
+  }
+}
+
+function runtimeOptionLabel(backend: DigitalEmployeeRuntimeBackend, t: Translate): string {
+  const name = backend.family === 'dsh-model'
+    ? `${backend.providerDisplayName} · ${backend.displayName}`
+    : backend.displayName
+  return backend.availability === 'available'
+    ? name
+    : `${name} — ${runtimeAvailabilityLabel(backend.availability, t)}`
 }
 
 function hookPointLabel(point: ProfileHookPoint, t: Translate): string {
@@ -400,6 +467,7 @@ export function DigitalEmployeeStudio({
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<DigitalEmployeeStudioView | null>(null)
   const [draft, setDraft] = useState<DigitalEmployeeProfileDraft | null>(null)
+  const [runtimeTarget, setRuntimeTarget] = useState<DigitalEmployeeRuntimeTarget | null>(null)
   const [baseline, setBaseline] = useState<string | null>(null)
   const [section, setSection] = useState<SectionId>('identity')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -448,6 +516,7 @@ export function DigitalEmployeeStudio({
     setLoading(false)
     setView(null)
     setDraft(null)
+    setRuntimeTarget(null)
     setBaseline(null)
     setSection('identity')
     setSelectedId(null)
@@ -532,13 +601,15 @@ export function DigitalEmployeeStudio({
 
   const select = useCallback((entry: DigitalEmployeeProfileCatalogEntry, resetFeedback = true): void => {
     const next = cloneProfile(entry.latest.profile)
+    const nextTarget = cloneRuntimeTarget(entry.latest.runtimeTarget)
     revisionGeneration.current += 1
     setSelectedId(entry.head.profileId)
     setExpectedHeadRevision(entry.head.headRevision)
     setRevisionDetail(null)
     setRevisionLoading(false)
     setDraft(next)
-    setBaseline(JSON.stringify(next))
+    setRuntimeTarget(nextTarget)
+    setBaseline(draftBaseline(next, nextTarget))
     setAssignment('')
     if (resetFeedback) {
       setError(null)
@@ -564,6 +635,7 @@ export function DigitalEmployeeStudio({
         select(selected)
       } else {
         setDraft(null)
+        setRuntimeTarget(null)
         setBaseline(null)
         setSelectedId(null)
         setExpectedHeadRevision(null)
@@ -600,10 +672,19 @@ export function DigitalEmployeeStudio({
   }
 
   const saveDraft = async (): Promise<void> => {
-    if (draft === null || !begin('save')) return
+    if (draft === null || runtimeTarget === null) return
+    if (runtimeTarget.kind === 'legacy-inherit-lead') {
+      setError(t('legacyTargetCannotSave'))
+      return
+    }
+    if (!begin('save')) return
     const requestedSession = sessionId
     try {
-      const result = await save(requestedSession, { expectedHeadRevision, profile: draft })
+      const result = await save(requestedSession, {
+        expectedHeadRevision,
+        profile: draft,
+        runtimeTarget: runtimeTarget as SelectableDigitalEmployeeRuntimeTarget,
+      })
       if (sessionRef.current !== requestedSession) return
       if (!result.ok) {
         setError(failureText(result.error))
@@ -747,11 +828,18 @@ export function DigitalEmployeeStudio({
 
   const profiles = view?.profiles ?? []
   const instances = view?.instances ?? []
+  const runtimeBackends = view?.runtimeCatalog.backends ?? []
   const selectedEntry = profiles.find(profile => profile.head.profileId === selectedId)
-  const dirty = draft !== null && baseline !== null && JSON.stringify(draft) !== baseline
+  const selectedRuntimeBackend = runtimeBackends.find(backend => backend.routingId === runtimeTargetId(runtimeTarget))
+  const dirty = draft !== null
+    && baseline !== null
+    && draftBaseline(draft, runtimeTarget) !== baseline
   const canLaunch = selectedEntry !== undefined
     && selectedEntry.head.activeRevision !== undefined
     && selectedEntry.head.archivedAt === undefined
+  const canSave = runtimeTarget !== null
+    && runtimeTarget.kind !== 'legacy-inherit-lead'
+    && selectedRuntimeBackend?.availability === 'available'
 
   return (
     <div className={css.root} data-digital-employee-studio>
@@ -820,8 +908,10 @@ export function DigitalEmployeeStudio({
                   disabled={busy !== null}
                   onClick={() => {
                     const next = emptyProfile()
+                    const nextTarget = firstAvailableTarget(view.runtimeCatalog.backends)
                     setDraft(next)
-                    setBaseline(JSON.stringify(next))
+                    setRuntimeTarget(nextTarget)
+                    setBaseline(draftBaseline(next, nextTarget))
                     setSection('identity')
                     setSelectedId(next.id)
                     setExpectedHeadRevision(null)
@@ -923,12 +1013,108 @@ export function DigitalEmployeeStudio({
                               <Field label={t('displayName')}>
                                 <input value={draft.displayName} onChange={event => { update('displayName', event.target.value) }} />
                               </Field>
-                              <Field label={t('provider')}>
-                                <input value={draft.provider} onChange={event => { update('provider', event.target.value) }} />
+                              <Field label={t('continuationProvider')}>
+                                <input
+                                  value={draft.continuationProvider}
+                                  onChange={event => { update('continuationProvider', event.target.value) }}
+                                />
                               </Field>
                               <Field label={t('description')} wide>
                                 <input value={draft.description} onChange={event => { update('description', event.target.value) }} />
                               </Field>
+                              <Field label={t('runtimeBackend')} wide>
+                                <select
+                                  value={runtimeTargetId(runtimeTarget)}
+                                  onChange={(event) => {
+                                    const backend = runtimeBackends.find(candidate => candidate.routingId === event.target.value)
+                                    if (backend !== undefined) setRuntimeTarget(targetFromBackend(backend))
+                                  }}
+                                >
+                                  {runtimeTarget === null && <option value="">{t('selectRuntimeBackend')}</option>}
+                                  <optgroup label={t('dshModels')}>
+                                    {runtimeBackends.filter(backend => backend.family === 'dsh-model').map(backend => (
+                                      <option
+                                        key={backend.routingId}
+                                        value={backend.routingId}
+                                        disabled={backend.availability !== 'available'}
+                                      >
+                                        {runtimeOptionLabel(backend, t)}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label={t('localAgents')}>
+                                    {runtimeBackends.filter(backend => backend.family === 'external-agent').map(backend => (
+                                      <option
+                                        key={backend.routingId}
+                                        value={backend.routingId}
+                                        disabled={backend.availability !== 'available'}
+                                      >
+                                        {runtimeOptionLabel(backend, t)}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  {runtimeBackends.some(backend => backend.family === 'legacy-inherit-lead') && (
+                                    <optgroup label={t('historicalRuntime')}>
+                                      {runtimeBackends.filter(backend => backend.family === 'legacy-inherit-lead').map(backend => (
+                                        <option key={backend.routingId} value={backend.routingId} disabled>
+                                          {runtimeOptionLabel(backend, t)}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                </select>
+                              </Field>
+                              {selectedRuntimeBackend !== undefined && (
+                                <div className={css.runtimeDetails}>
+                                  <strong>
+                                    {runtimeAvailabilityLabel(selectedRuntimeBackend.availability, t)}
+                                    {' · '}
+                                    {selectedRuntimeBackend.contextModes.length === 0
+                                      ? t('noContextModes')
+                                      : selectedRuntimeBackend.contextModes.map(mode => t(mode)).join(', ')}
+                                  </strong>
+                                  <span>
+                                    {selectedRuntimeBackend.profileCapabilities.length === 0
+                                      ? t('noProfileCapabilities')
+                                      : selectedRuntimeBackend.profileCapabilities
+                                        .map(capability => profileCapabilityLabel(capability, t)).join(' · ')}
+                                  </span>
+                                  {selectedRuntimeBackend.diagnostic !== undefined && (
+                                    <small className={css.diagnostic}>{selectedRuntimeBackend.diagnostic}</small>
+                                  )}
+                                </div>
+                              )}
+                              {runtimeTarget?.kind === 'dsh-model'
+                                && selectedRuntimeBackend?.family === 'dsh-model'
+                                && selectedRuntimeBackend.reasoning !== undefined && (
+                                  <Field label={t('reasoningEffort')} wide>
+                                    <select
+                                      value={runtimeTarget.reasoningEffort ?? ''}
+                                      onChange={(event) => {
+                                        const reasoningEffort = event.target.value
+                                        setRuntimeTarget((current) => {
+                                          if (current?.kind !== 'dsh-model') return current
+                                          if (reasoningEffort !== '') return { ...current, reasoningEffort }
+                                          return {
+                                            kind: 'dsh-model',
+                                            provider: current.provider,
+                                            model: current.model,
+                                          }
+                                        })
+                                      }}
+                                    >
+                                      <option value="">
+                                        {t('providerDefault')}
+                                        {selectedRuntimeBackend.reasoning.defaultEffort === undefined
+                                          ? ''
+                                          : ` (${selectedRuntimeBackend.reasoning.defaultEffort})`}
+                                      </option>
+                                      {selectedRuntimeBackend.reasoning.efforts.map(effort => (
+                                        <option key={effort.id} value={effort.id}>{effort.name}</option>
+                                      ))}
+                                    </select>
+                                  </Field>
+                                )}
                               <div className={css.fieldWide}>
                                 <span className={css.fieldLabel}>{t('contextMode')}</span>
                                 <div className={css.segmented}>
@@ -1266,7 +1452,7 @@ export function DigitalEmployeeStudio({
                           <span className={css.unsaved}>{t('noActiveRevision')}</span>
                         )}
                         <span className={css.spacer} />
-                        <button type="button" className={css.secondaryButton} disabled={busy !== null} onClick={() => { void saveDraft() }}>
+                        <button type="button" className={css.secondaryButton} disabled={!canSave || busy !== null} onClick={() => { void saveDraft() }}>
                           {busy === 'save' ? t('saving') : t('save')}
                         </button>
                         <input

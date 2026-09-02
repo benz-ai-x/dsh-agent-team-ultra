@@ -4,14 +4,15 @@
 
 Agent Team Ultra adds a visual Digital Employee Studio to the DSH Web UI. A
 Team Lead can create versioned employee profiles, choose a teammate name,
-provider/context mode, inherited tool allow/deny policy, curated context,
-long-term profile memory, and declarative lifecycle hooks, then launch that
-profile as a real continuable Agent Team teammate.
+a capability-aware Runtime Backend, a separate continuation provider/context
+mode, inherited tool allow/deny policy, curated context, long-term profile
+memory, and declarative lifecycle hooks, then launch that profile as a real
+continuable Agent Team teammate.
 
 The first observable scenario is: create a `code-reviewer` profile in the Web
 UI, select read/search tools, add review rules and memory, launch it for the
-current Team, and observe a durable Agent Team member whose prompt and tool
-  surface reflect that exact active Profile Revision snapshot.
+current Team, and observe a durable Agent Team member whose pinned route,
+prompt, and tool surface reflect that exact active Profile Revision snapshot.
 
 ## DSH form and topology
 
@@ -21,8 +22,8 @@ current Team, and observe a durable Agent Team member whose prompt and tool
   and React Studio surface.
 - `@deepseek-ai/dsh-agent-team-ultra-profile` is the bundle patch that activates
   the Host and UI rows alongside the experimental Agent Team rows.
-- Required Host services: `agents`, `agentTeams`, `storageDomain`,
-  `systemPrompt`, and `tools`.
+- Required Host services: `agents`, `agentTeams`, `llm`, `storageDomain`,
+  `subagents`, `systemPrompt`, and `tools`.
 
 The packages remain together in one workspace, but Host, Client, and bundle
 boundaries are separate because they have different runtime and delivery
@@ -39,6 +40,10 @@ contracts.
 - Profile Heads, immutable Profile Revisions, and Team/member Bindings are
   authoritative records in the `agent_team_ultra_v1` DSH storage generation.
   UI state is only a draft or mirror.
+- The Host composes the replaceable Runtime Backend catalog from the live DSH
+  model registry and Fiber-owned durable external-provider registrations.
+  Stable routing ids are authoritative; labels and Client catalog copies are
+  presentation only.
 - A save uses `expectedHeadRevision`; activation, rollback, archive, and restore
   use the same Profile Head CAS discipline. Stale writes return the current
   Head with `profile-conflict` and never overwrite another edit.
@@ -53,8 +58,9 @@ contracts.
 - Launch persists a pending binding before Agent Team provisioning. The
   existing Agent Team Lead Session log remains authoritative for roster,
   mailbox, and task facts.
-- Each employee binds to an exact Revision and immutable profile snapshot. Editing a profile
-  affects future launches, not already-created teammates or cold resumes.
+- Each employee binds to an exact Revision, Runtime Target, Required
+  Capabilities, and immutable profile snapshot. Editing a profile affects
+  future launches, not already-created teammates or cold resumes.
 
 ## Storage generation and migration
 
@@ -78,12 +84,30 @@ contracts.
 - Transitional v1 Revisions created before fingerprints existed are upgraded
   deterministically before mutation admission. A present non-canonical
   fingerprint fails closed instead of being rewritten.
+- Transitional `provider` fields are migrated to `continuationProvider`.
+  Required Capabilities are derived from Profile content, added to Revisions
+  and Bindings, and included in the canonical fingerprint. Conflicting stored
+  capability claims fail closed.
 - After v1 accepts new mutations, downgrading to a binary that writes v0 is
   unsupported because it would create two divergent authoritative histories.
 
 ## Capability semantics
 
-- `contextMode` maps to the upstream `fresh`/`fork` teammate contract.
+- A `dsh-model` Runtime Target pins the exact DSH provider/model and optional
+  supported reasoning effort. An `external-agent` target pins one durable
+  provider identity. `legacy-inherit-lead` is migration-only and cannot be
+  selected or activated.
+- `continuationProvider` independently selects the DSH continuable-child
+  mechanism. Its `inheritsParentContext` contract must match `contextMode`
+  (`fresh` or `fork`); it never supplies a fallback model route.
+- Required Capabilities canonically record the selected context mode plus the
+  persona, mission, enabled context/memory, non-inherit tool policy, and enabled
+  Hook behavior the Runtime Backend must enforce.
+- Save accepts only a live, available, compatible backend. Activation, launch,
+  and evaluation revalidate it. Missing or malformed routes and capability
+  mismatches return stable runtime errors without substituting the Lead route.
+- One-shot-only Codex and Claude Code providers may appear as unsupported
+  diagnostics, but are disabled until a durable runtime registers.
 - A tool policy filters capabilities inherited from the parent preset. Team
   tools installed in the teammate's own scope remain available.
 - Context and curated memory are bounded prompt sections. The employee's
@@ -104,16 +128,19 @@ matches the exact Agent against the already-persisted binding. It installs the
 immutable profile through `agent.ctx` before `agent/session-start` and the
 first prompt assembly; a synchronous installation failure vetoes publication.
 Service disposal closes mutation admission, removes the lifecycle listeners,
-revokes every resident child installation, waits for admitted profile/binding
-commits, and closes its v1 storage domain. Child-scope prompt, tool, and hook
-registrations are also disposed when that exact Agent scope ends.
+revokes every resident child installation and Runtime Backend registration,
+waits for admitted profile/binding commits, and closes its v1 storage domain.
+Child-scope prompt, tool, and hook registrations are also disposed when that
+exact Agent scope ends.
 Installations are keyed by exact Agent object identity. Agent disposal, Fiber
 disposal, and service replacement each revoke a layer at most once, while a
 replacement service can reconstruct one layer for every resident bound Agent.
 
 ## Configuration
 
-- `defaultProvider`: provider used when a profile leaves it blank.
+- `defaultContinuationProvider`: continuation provider used when a Profile
+  leaves it blank. `defaultProvider` is accepted only as a transitional Loader
+  alias.
 - `maxProfiles`: durable profile count limit.
 - `maxProfileBytes`: UTF-8 size limit for one normalized profile snapshot.
 - `maxHooks`: hook count limit per profile.
@@ -143,7 +170,10 @@ event vocabulary.
 
 ## External-world acceptance assertion
 
-Through a real DSH Web profile, saving and explicitly activating a Profile
-Revision, then launching it, must create a visible teammate in the Agent Team roster; the child sees the configured
-persona/context/memory, cannot execute a filtered inherited tool, retains Team
-tools, and reconstructs the same profile snapshot after cold resume.
+Through a real DSH Web profile, the Studio must show the Host catalog grouped as
+DSH Models and Local Agents, save an exact compatible Runtime Target into an
+immutable candidate, and refuse an unavailable target without fallback. After
+explicit activation and launch, the teammate must be visible in the Agent Team
+roster; it sees the configured persona/context/memory, cannot execute a
+filtered inherited tool, retains Team tools, and reconstructs the same target
+and Profile snapshot after cold resume.

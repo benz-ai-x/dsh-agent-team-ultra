@@ -2,7 +2,7 @@
 
 - name: '@deepseek-ai/dsh-agent-team-ultra'
   config:
-    defaultProvider: fixture-provider
+    defaultContinuationProvider: fixture-provider
     maxProfiles: 1
     maxProfileBytes: 4096
     maxHooks: 2

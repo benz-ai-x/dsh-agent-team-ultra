@@ -12,8 +12,16 @@ import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   digitalEmployeeProfileDraftSchema,
+  selectableDigitalEmployeeRuntimeTargetSchema,
   type DigitalEmployeeBinding,
 } from './spec.ts'
+import {
+  requiredCapabilitiesForProfile,
+  RuntimeBackendRegistry,
+  snapshotRequiredCapabilities,
+  type DigitalEmployeeExternalRuntimeProvider,
+  type DigitalEmployeeExternalRuntimeRegistration,
+} from './runtime.ts'
 import {
   DigitalEmployeeStorage,
   digitalEmployeeBindingKey,
@@ -36,6 +44,7 @@ import type {
   DigitalEmployeeProfileRevision,
   DigitalEmployeeProfileDiffEntry,
   DigitalEmployeeProfileRevisionSummary,
+  DigitalEmployeeRuntimeTarget,
   DigitalEmployeeStudioView,
   GetDigitalEmployeeProfileRevisionRequest,
   GetDigitalEmployeeProfileRevisionResult,
@@ -53,15 +62,22 @@ import type {
 } from './types.ts'
 
 export type * from './types.ts'
+export type {
+  DigitalEmployeeExternalRuntimeProvider,
+  DigitalEmployeeExternalRuntimeRegistration,
+} from './runtime.ts'
 export {
   digitalEmployeeBindingSchema,
   digitalEmployeeDomainSpec,
   digitalEmployeeProfileDraftSchema,
   digitalEmployeeProfileSchema,
+  digitalEmployeeRuntimeTargetSchema,
   profileHookSchema,
   profileTextBlockSchema,
   profileToolPolicySchema,
+  selectableDigitalEmployeeRuntimeTargetSchema,
 } from './spec.ts'
+export { requiredCapabilitiesForProfile, runtimeTargetRoutingId } from './runtime.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -69,8 +85,10 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Deployment limits and the fallback continuable provider. */
+/** Deployment limits and the fallback continuation provider. */
 export interface Config {
+  readonly defaultContinuationProvider?: string
+  /** Transitional loader spelling accepted while local profiles upgrade. */
   readonly defaultProvider?: string
   readonly maxProfiles?: number
   readonly maxProfileBytes?: number
@@ -78,6 +96,16 @@ export interface Config {
   readonly maxAssignmentBytes?: number
   readonly maxRevisionHistory?: number
   readonly maxDiffEntries?: number
+}
+
+interface ResolvedConfig {
+  readonly defaultContinuationProvider: string
+  readonly maxProfiles: number
+  readonly maxProfileBytes: number
+  readonly maxHooks: number
+  readonly maxAssignmentBytes: number
+  readonly maxRevisionHistory: number
+  readonly maxDiffEntries: number
 }
 
 const DEFAULT_PROVIDER = 'spawn'
@@ -106,7 +134,8 @@ const PLUGIN_SOURCE = { kind: 'plugin', plugin: 'agent-team-ultra' } as const
 
 /** Loader schema; defaults are universal operational limits, not deployment policy guesses. */
 export const Config: s<Config> = s.object({
-  defaultProvider: s.string().default(DEFAULT_PROVIDER),
+  defaultContinuationProvider: s.string(),
+  defaultProvider: s.string(),
   maxProfiles: s.number().step(1).min(1).default(DEFAULT_MAX_PROFILES),
   maxProfileBytes: s.number().step(1).min(1024).default(DEFAULT_MAX_PROFILE_BYTES),
   maxHooks: s.number().step(1).min(0).default(DEFAULT_MAX_HOOKS),
@@ -170,7 +199,7 @@ function snapshotProfileDraft(profile: DigitalEmployeeProfileDraft): DigitalEmpl
     employeeName: profile.employeeName,
     displayName: profile.displayName,
     description: profile.description,
-    provider: profile.provider,
+    continuationProvider: profile.continuationProvider,
     contextMode: profile.contextMode,
     persona: profile.persona,
     mission: profile.mission,
@@ -199,7 +228,7 @@ function snapshotProfileHead(head: DigitalEmployeeProfileHead): DigitalEmployeeP
 }
 
 function snapshotProfileRevision(revision: DigitalEmployeeProfileRevision): DigitalEmployeeProfileRevision {
-  const target = revision.runtimeTarget.kind === 'legacy-inherit-lead'
+  const target: DigitalEmployeeRuntimeTarget = revision.runtimeTarget.kind === 'legacy-inherit-lead'
     ? legacyInheritLeadRuntimeTarget
     : Object.freeze({ ...revision.runtimeTarget })
   return Object.freeze({
@@ -208,6 +237,7 @@ function snapshotProfileRevision(revision: DigitalEmployeeProfileRevision): Digi
     revision: revision.revision,
     profile: snapshotProfileDraft(revision.profile),
     runtimeTarget: target,
+    requiredCapabilities: snapshotRequiredCapabilities(revision.requiredCapabilities),
     fingerprint: revision.fingerprint,
     createdAt: revision.createdAt,
     updatedAt: revision.updatedAt,
@@ -332,8 +362,18 @@ function profileRevisionDiff(
     append({ path, kind: 'changed', before: diffValue(left), after: diffValue(right) })
   }
   walk(
-    before === undefined ? {} : { profile: before.profile, runtimeTarget: before.runtimeTarget },
-    { profile: after.profile, runtimeTarget: after.runtimeTarget },
+    before === undefined
+      ? {}
+      : {
+        profile: before.profile,
+        runtimeTarget: before.runtimeTarget,
+        requiredCapabilities: before.requiredCapabilities,
+      },
+    {
+      profile: after.profile,
+      runtimeTarget: after.runtimeTarget,
+      requiredCapabilities: after.requiredCapabilities,
+    },
     '',
   )
   return Object.freeze({
@@ -344,21 +384,25 @@ function profileRevisionDiff(
 
 /** Concrete Host service; one provider is sufficient for this local overlay. */
 export class DigitalEmployeeService extends TypertRemoteService {
-  static inject = ['agents', 'agentTeams', 'storageDomain', 'systemPrompt', 'tools']
+  static inject = ['agents', 'agentTeams', 'llm', 'storageDomain', 'subagents', 'systemPrompt', 'tools']
   static Config = Config
 
-  private readonly resolved: Required<Config>
+  private readonly resolved: ResolvedConfig
   private storage: DigitalEmployeeStorage | undefined
   private mutationTail: Promise<void> = Promise.resolve()
   private readonly launches = new Set<Promise<unknown>>()
   private readonly childInstallations = new Map<Agent, () => void>()
   private readonly lifecycle = new AbortController()
+  private readonly runtimeBackends: RuntimeBackendRegistry
   private admissionOpen = false
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'digitalEmployees')
+    this.runtimeBackends = new RuntimeBackendRegistry(ctx, ctx.llm, ctx.subagents)
     this.resolved = {
-      defaultProvider: (config.defaultProvider ?? DEFAULT_PROVIDER).trim(),
+      defaultContinuationProvider: (
+        config.defaultContinuationProvider ?? config.defaultProvider ?? DEFAULT_PROVIDER
+      ).trim(),
       maxProfiles: positiveInteger('maxProfiles', config.maxProfiles ?? DEFAULT_MAX_PROFILES),
       maxProfileBytes: positiveInteger('maxProfileBytes', config.maxProfileBytes ?? DEFAULT_MAX_PROFILE_BYTES, 1024),
       maxHooks: positiveInteger('maxHooks', config.maxHooks ?? DEFAULT_MAX_HOOKS, 0),
@@ -369,13 +413,14 @@ export class DigitalEmployeeService extends TypertRemoteService {
       ),
       maxDiffEntries: positiveInteger('maxDiffEntries', config.maxDiffEntries ?? DEFAULT_MAX_DIFF_ENTRIES),
     }
-    if (this.resolved.defaultProvider === '') {
-      throw new TypeError('agent-team-ultra: defaultProvider must not be blank')
+    if (this.resolved.defaultContinuationProvider === '') {
+      throw new TypeError('agent-team-ultra: defaultContinuationProvider must not be blank')
     }
   }
 
   /** Open durable sidecar state, then compose every matching live and future child scope. */
   protected async [Service.init](): Promise<void> {
+    await this.runtimeBackends.initialize()
     const storage = await openDigitalEmployeeStorage(this.ctx.storageDomain, {
       resolveBindingRuntimeTarget: binding => this.migratedBindingRuntimeTarget(binding),
     })
@@ -386,6 +431,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     this.ctx.effect(() => async () => {
       this.admissionOpen = false
       this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
+      this.runtimeBackends.dispose()
       const failures: unknown[] = []
       try { stopCreated() } catch (error: unknown) { failures.push(error) }
       try { stopDisposed() } catch (error: unknown) { failures.push(error) }
@@ -403,6 +449,18 @@ export class DigitalEmployeeService extends TypertRemoteService {
     stopCreated = this.ctx.on('agent/created', ({ agent }) => { this.installBoundAgent(agent) })
     stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => { this.removeBoundAgent(agent) })
     for (const agent of this.ctx.agents.list()) this.installBoundAgent(agent)
+  }
+
+  /** Register one durable local-agent runtime; the provider object remains Host-only. */
+  registerExternalRuntimeProvider(
+    provider: DigitalEmployeeExternalRuntimeProvider,
+  ): DigitalEmployeeExternalRuntimeRegistration {
+    return this.runtimeBackends.registerExternalRuntimeProvider(this.ctx, provider)
+  }
+
+  /** Await the latest topology generation; useful to coordinate Host startup and tests. */
+  whenRuntimeCatalogSettled(): Promise<void> {
+    return this.runtimeBackends.whenSettled()
   }
 
   /** Complete replaceable Studio view for one exact live Team Lead. */
@@ -438,8 +496,15 @@ export class DigitalEmployeeService extends TypertRemoteService {
       .filter(binding => binding.teamId === membership.id)
       .map(binding => this.instanceView(binding))
       .sort((left, right) => left.memberName.localeCompare(right.memberName))
+    const historicalTargets = profiles.flatMap(entry =>
+      [...this.requireStorage().profileRevisionEntries(entry.head.profileId)]
+        .map(([, revision]) => revision.runtimeTarget))
+    for (const [, binding] of this.requireStorage().bindingEntries()) {
+      if (binding.teamId === membership.id) historicalTargets.push(binding.runtimeTarget)
+    }
     return Object.freeze({
       profiles: Object.freeze(profiles),
+      runtimeCatalog: this.runtimeBackends.snapshot(historicalTargets),
       tools: Object.freeze(tools),
       instances: Object.freeze(instances),
     })
@@ -544,36 +609,60 @@ export class DigitalEmployeeService extends TypertRemoteService {
   }
 
   /** Public Host API used by headless consumers and tests. */
-  saveProfile(caller: Agent, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
-    if (!this.admissionOpen) return Promise.resolve(saveRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+  async saveProfile(caller: Agent, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
+    if (!this.admissionOpen) return saveRejected(failure('service-disposed', 'Digital Employee service is disposing'))
     const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(saveRejected(authorityFailure))
+    if (authorityFailure !== undefined) return saveRejected(authorityFailure)
     if (request.expectedHeadRevision !== null
       && (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1)) {
-      return Promise.resolve(saveRejected(failure('profile-invalid', 'Head revision must be null or a positive integer')))
+      return saveRejected(failure('profile-invalid', 'Head revision must be null or a positive integer'))
     }
-    const provider = request.profile.provider.trim() || this.resolved.defaultProvider
-    const parsed = digitalEmployeeProfileDraftSchema.safeParse({ ...request.profile, provider })
+    const continuationProvider = typeof request.profile.continuationProvider === 'string'
+      ? request.profile.continuationProvider.trim() || this.resolved.defaultContinuationProvider
+      : this.resolved.defaultContinuationProvider
+    const parsed = digitalEmployeeProfileDraftSchema.safeParse({ ...request.profile, continuationProvider })
     if (!parsed.success) {
-      return Promise.resolve(saveRejected(failure(
+      return saveRejected(failure(
         'profile-invalid',
         parsed.error.issues.map(issue => `${issue.path.join('.') || 'profile'}: ${issue.message}`).join('; ').slice(0, 2048),
-      )))
+      ))
+    }
+    const parsedTarget = selectableDigitalEmployeeRuntimeTargetSchema.safeParse(request.runtimeTarget)
+    if (!parsedTarget.success) {
+      return saveRejected(failure(
+        'runtime-route-invalid',
+        parsedTarget.error.issues.map(issue => `${issue.path.join('.') || 'runtimeTarget'}: ${issue.message}`).join('; ').slice(0, 2048),
+      ))
     }
     if (parsed.data.hooks.length > this.resolved.maxHooks) {
-      return Promise.resolve(saveRejected(failure(
+      return saveRejected(failure(
         'profile-invalid',
         `profile has ${parsed.data.hooks.length} hooks; maximum is ${this.resolved.maxHooks}`,
-      )))
+      ))
     }
-    const bytes = Buffer.byteLength(JSON.stringify(parsed.data), 'utf8')
+    const normalized = snapshotProfileDraft(parsed.data)
+    const runtimeTarget = Object.freeze({ ...parsedTarget.data })
+    const requiredCapabilities = requiredCapabilitiesForProfile(normalized)
+    const bytes = Buffer.byteLength(JSON.stringify({
+      profile: normalized,
+      runtimeTarget,
+      requiredCapabilities,
+    }), 'utf8')
     if (bytes > this.resolved.maxProfileBytes) {
-      return Promise.resolve(saveRejected(failure(
+      return saveRejected(failure(
         'profile-invalid',
-        `profile is ${bytes} UTF-8 bytes; maximum is ${this.resolved.maxProfileBytes}`,
-      )))
+        `Revision content is ${bytes} UTF-8 bytes; maximum is ${this.resolved.maxProfileBytes}`,
+      ))
     }
-    return this.enqueue(async () => {
+    await this.runtimeBackends.whenSettled()
+    const targetProblem = this.runtimeBackends.validate(
+      normalized,
+      runtimeTarget,
+      requiredCapabilities,
+      'save',
+    )
+    if (targetProblem !== undefined) return saveRejected(failure(targetProblem.code, targetProblem.message))
+    return await this.enqueue(async () => {
       const storage = this.requireStorage()
       const currentHead = storage.getProfileHead(parsed.data.id)
       if (request.expectedHeadRevision !== (currentHead?.headRevision ?? null)) {
@@ -587,15 +676,13 @@ export class DigitalEmployeeService extends TypertRemoteService {
         return saveRejected(failure('profile-limit', `profile limit ${this.resolved.maxProfiles} reached`))
       }
 
-      const normalized = snapshotProfileDraft(parsed.data)
       const latest = currentHead === undefined
         ? undefined
         : storage.getProfileRevision(parsed.data.id, currentHead.latestRevision)
       if (currentHead !== undefined && latest === undefined) {
         throw new Error(`Digital Employee Profile Head "${parsed.data.id}" has no latest Revision`)
       }
-      const runtimeTarget = latest?.runtimeTarget ?? legacyInheritLeadRuntimeTarget
-      const fingerprint = profileContentFingerprint(normalized, runtimeTarget)
+      const fingerprint = profileContentFingerprint(normalized, runtimeTarget, requiredCapabilities)
       if (latest?.fingerprint === fingerprint) {
         return Object.freeze({
           ok: true as const,
@@ -619,6 +706,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         revision: Math.max(0, ...known.map(candidate => candidate.revision)) + 1,
         profile: normalized,
         runtimeTarget,
+        requiredCapabilities,
         fingerprint,
         createdAt: currentHead?.createdAt ?? now,
         updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
@@ -726,9 +814,32 @@ export class DigitalEmployeeService extends TypertRemoteService {
     if (head.activeRevision === undefined) {
       return spawnRejected(failure('profile-not-active', `profile "${request.profileId}" has no active Revision`, head))
     }
-    const profile = storage.getProfileAtRevision(request.profileId, head.activeRevision)
-    if (profile === undefined) {
+    const activeRevision = storage.getProfileRevision(request.profileId, head.activeRevision)
+    if (activeRevision === undefined) {
       return spawnRejected(failure('revision-not-found', `active Profile Revision ${head.activeRevision} was not found`, head))
+    }
+    const profile = snapshotProfile({
+      ...activeRevision.profile,
+      revision: activeRevision.revision,
+      createdAt: activeRevision.createdAt,
+      updatedAt: activeRevision.updatedAt,
+    })
+    await this.runtimeBackends.whenSettled()
+    const targetProblem = this.runtimeBackends.validate(
+      activeRevision.profile,
+      activeRevision.runtimeTarget,
+      activeRevision.requiredCapabilities,
+      'launch',
+    )
+    if (targetProblem !== undefined) {
+      return spawnRejected(failure(targetProblem.code, targetProblem.message, head))
+    }
+    if (activeRevision.runtimeTarget.kind === 'external-agent') {
+      return spawnRejected(failure(
+        'runtime-capability-mismatch',
+        `external runtime provider "${activeRevision.runtimeTarget.provider}" has no executable teammate seam in this build`,
+        head,
+      ))
     }
     const unavailable = profile.toolPolicy.mode === 'inherit'
       ? []
@@ -742,7 +853,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
 
     const key = digitalEmployeeBindingKey(membership.id, profile.employeeName)
-    const reservation = await this.enqueue(async (): Promise<DigitalEmployeeBinding | DigitalEmployeeFailure> => {
+    const reservation = await this.enqueue(async (): Promise<DigitalEmployeeBindingV1 | DigitalEmployeeFailure> => {
       const storage = this.requireStorage()
       const existing = storage.getBinding(key)
       const rosterOwnsName = this.ctx.agentTeams.listMembers(caller)
@@ -750,12 +861,17 @@ export class DigitalEmployeeService extends TypertRemoteService {
       if (existing !== undefined && rosterOwnsName) {
         return failure('profile-in-use', `Team member name "${profile.employeeName}" is already reserved`)
       }
-      const pending: DigitalEmployeeBinding = Object.freeze({
+      const pending: DigitalEmployeeBindingV1 = Object.freeze({
+        schemaVersion: 1,
         teamId: membership.id,
         memberName: profile.employeeName,
         profileId: profile.id,
         profileRevision: profile.revision,
         profile: snapshotProfile(profile),
+        runtimeTarget: activeRevision.runtimeTarget.kind === 'legacy-inherit-lead'
+          ? legacyInheritLeadRuntimeTarget
+          : Object.freeze({ ...activeRevision.runtimeTarget }),
+        requiredCapabilities: snapshotRequiredCapabilities(activeRevision.requiredCapabilities),
         phase: 'pending',
       })
       await storage.putBinding(key, pending)
@@ -776,11 +892,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
         description: profile.description,
         prompt: [{ type: 'text', text: prompt }],
         context: profile.contextMode,
-        provider: profile.provider,
+        provider: profile.continuationProvider,
         signal,
       })
       provisionedMemberId = result.member.id
-      const active: DigitalEmployeeBinding = Object.freeze({
+      const active: DigitalEmployeeBindingV1 = Object.freeze({
         ...reservation,
         memberId: provisionedMemberId,
         phase: 'active',
@@ -788,7 +904,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       await this.enqueue(async () => { await this.requireStorage().putBinding(key, active) })
       return Object.freeze({ ok: true, value: this.instanceView(active) })
     } catch (error: unknown) {
-      const failed: DigitalEmployeeBinding = Object.freeze({
+      const failed: DigitalEmployeeBindingV1 = Object.freeze({
         ...reservation,
         ...(provisionedMemberId === undefined ? {} : { memberId: provisionedMemberId }),
         phase: 'failed',
@@ -1057,6 +1173,16 @@ export class DigitalEmployeeService extends TypertRemoteService {
         && (head.activeRevision === undefined || request.revision > head.activeRevision)) {
         return headMutationRejected(failure('revision-not-found', 'rollback requires an active or older Revision', head))
       }
+      await this.runtimeBackends.whenSettled()
+      const targetProblem = this.runtimeBackends.validate(
+        revision.profile,
+        revision.runtimeTarget,
+        revision.requiredCapabilities,
+        'activate',
+      )
+      if (targetProblem !== undefined) {
+        return headMutationRejected(failure(targetProblem.code, targetProblem.message, head))
+      }
       if (head.activeRevision === request.revision) {
         return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
       }
@@ -1132,13 +1258,17 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
   }
 
-  private instanceView(binding: DigitalEmployeeBinding): DigitalEmployeeInstanceView {
+  private instanceView(binding: DigitalEmployeeBindingV1): DigitalEmployeeInstanceView {
     return Object.freeze({
       teamId: binding.teamId,
       memberName: binding.memberName,
       ...(binding.memberId === undefined ? {} : { memberId: binding.memberId }),
       profileId: binding.profileId,
       profileRevision: binding.profileRevision,
+      runtimeTarget: binding.runtimeTarget.kind === 'legacy-inherit-lead'
+        ? legacyInheritLeadRuntimeTarget
+        : Object.freeze({ ...binding.runtimeTarget }),
+      requiredCapabilities: snapshotRequiredCapabilities(binding.requiredCapabilities),
       phase: binding.phase,
       ...(binding.error === undefined ? {} : { error: binding.error }),
     })

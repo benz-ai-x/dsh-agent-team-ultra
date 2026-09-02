@@ -31,7 +31,7 @@ function profile(id: string): DigitalEmployeeProfileDraft {
     employeeName: id,
     displayName: id === 'reviewer' ? 'Reviewer' : 'Writer',
     description: 'Loader-composed profile.',
-    provider: '',
+    continuationProvider: '',
     contextMode: 'fresh',
     persona: 'Be precise.',
     mission: 'Complete the assigned work.',
@@ -107,7 +107,23 @@ async function loadComposition(): Promise<{
         },
       } as never)
       ctx.provide('systemPrompt', {} as never)
-      ctx.provide('tools', {} as never)
+      ctx.provide('tools', { schemas: () => [], get: () => undefined } as never)
+      ctx.provide('llm', {
+        listProviders: () => [{ id: 'fixture-llm', name: 'Fixture LLM' }],
+        listModels: async () => [{ provider: 'fixture-llm', id: 'fixture-model', name: 'Fixture Model' }],
+        resolveModelInfo: async () => ({ provider: 'fixture-llm', id: 'fixture-model', name: 'Fixture Model' }),
+      } as never)
+      ctx.provide('subagents', {
+        list: () => ['fixture-provider'],
+        getProvider: (name: string) => name === 'fixture-provider'
+          ? {
+            name,
+            inheritsParentContext: false,
+            capabilities: {},
+            prepareContinuable: async () => ({}),
+          }
+          : undefined,
+      } as never)
     },
   }
 
@@ -147,17 +163,19 @@ describe('Agent Team Ultra Loader composition', () => {
     const saved = await ctx.digitalEmployees.saveProfile(leader, {
       expectedHeadRevision: null,
       profile: profile('reviewer'),
+      runtimeTarget: { kind: 'dsh-model', provider: 'fixture-llm', model: 'fixture-model' },
     })
     expect(saved).toMatchObject({
       ok: true,
       value: {
         head: { headRevision: 1, latestRevision: 1 },
-        revision: { revision: 1, profile: { provider: 'fixture-provider' } },
+        revision: { revision: 1, profile: { continuationProvider: 'fixture-provider' } },
       },
     })
     await expect(ctx.digitalEmployees.saveProfile(leader, {
       expectedHeadRevision: null,
       profile: profile('writer'),
+      runtimeTarget: { kind: 'dsh-model', provider: 'fixture-llm', model: 'fixture-model' },
     })).resolves.toMatchObject({
       ok: false,
       error: { code: 'profile-limit' },

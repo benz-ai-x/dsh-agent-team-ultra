@@ -17,6 +17,9 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 /** Stable lower-kebab profile identity. */
 export type DigitalEmployeeProfileId = string
 
+/** Initial Lead-history policy for a newly created employee conversation. */
+export type DigitalEmployeeContextMode = 'fresh' | 'fork'
+
 /** A bounded context or curated-memory fragment. */
 export interface ProfileTextBlock {
   readonly id: string
@@ -50,8 +53,8 @@ export interface DigitalEmployeeProfileDraft {
   readonly employeeName: string
   readonly displayName: string
   readonly description: string
-  readonly provider: string
-  readonly contextMode: 'fresh' | 'fork'
+  readonly continuationProvider: string
+  readonly contextMode: DigitalEmployeeContextMode
   readonly persona: string
   readonly mission: string
   readonly toolPolicy: ProfileToolPolicy
@@ -80,8 +83,35 @@ export interface DshModelRuntimeTarget {
   readonly reasoningEffort?: string
 }
 
+/** Stable identity of one provider implementing the durable native teammate contract. */
+export interface ExternalAgentRuntimeTarget {
+  readonly kind: 'external-agent'
+  readonly provider: string
+}
+
 /** Runtime identity that is immutable for one Revision. */
-export type DigitalEmployeeRuntimeTarget = LegacyInheritLeadRuntimeTarget | DshModelRuntimeTarget
+export type DigitalEmployeeRuntimeTarget =
+  | LegacyInheritLeadRuntimeTarget
+  | DshModelRuntimeTarget
+  | ExternalAgentRuntimeTarget
+
+/** Runtime Targets a Team Lead may select for a new candidate Revision. */
+export type SelectableDigitalEmployeeRuntimeTarget = DshModelRuntimeTarget | ExternalAgentRuntimeTarget
+
+/** Profile behavior a runtime must be able to enforce, not merely advertise. */
+export type DigitalEmployeeProfileCapability =
+  | 'persona'
+  | 'mission'
+  | 'context'
+  | 'memory'
+  | 'tool-policy'
+  | 'hooks'
+
+/** Normalized capability demand stored with immutable Revision content. */
+export interface DigitalEmployeeRequiredCapabilities {
+  readonly contextMode: DigitalEmployeeContextMode
+  readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
+}
 
 /** Optional activation gate owned by a Profile Head. */
 export interface RequiredEvalSetReference {
@@ -110,6 +140,7 @@ export interface DigitalEmployeeProfileRevision {
   readonly revision: number
   readonly profile: DigitalEmployeeProfileDraft
   readonly runtimeTarget: DigitalEmployeeRuntimeTarget
+  readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
   readonly fingerprint: string
   readonly createdAt: number
   readonly updatedAt: number
@@ -154,6 +185,63 @@ export interface ProfileToolOption {
   readonly description: string
 }
 
+/** Browser-safe reasoning choice advertised for one exact DSH model route. */
+export interface DigitalEmployeeReasoningEffortOption {
+  readonly id: string
+  readonly name: string
+  readonly description?: string
+}
+
+/** Detached reasoning metadata for one exact DSH model route. */
+export interface DigitalEmployeeReasoningOptions {
+  readonly efforts: readonly DigitalEmployeeReasoningEffortOption[]
+  readonly defaultEffort?: string
+}
+
+/** Common detached metadata for one selectable or diagnostic runtime row. */
+export interface DigitalEmployeeRuntimeBackendBase {
+  /** Stable routing identity; display labels never participate in routing. */
+  readonly routingId: string
+  readonly availability: 'available' | 'unavailable' | 'unsupported'
+  readonly displayName: string
+  readonly contextModes: readonly DigitalEmployeeContextMode[]
+  readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
+  readonly diagnostic?: string
+}
+
+/** One exact model route composed from the live DSH LLM registry. */
+export interface DigitalEmployeeDshModelBackend extends DigitalEmployeeRuntimeBackendBase {
+  readonly family: 'dsh-model'
+  readonly provider: string
+  readonly providerDisplayName: string
+  readonly model: string
+  readonly reasoning?: DigitalEmployeeReasoningOptions
+}
+
+/** One durable external provider, or an installed one-shot-only diagnostic. */
+export interface DigitalEmployeeExternalAgentBackend extends DigitalEmployeeRuntimeBackendBase {
+  readonly family: 'external-agent'
+  readonly provider: string
+}
+
+/** Migration-only diagnostic for a historical Revision without a proven route. */
+export interface DigitalEmployeeLegacyRuntimeBackend extends DigitalEmployeeRuntimeBackendBase {
+  readonly family: 'legacy-inherit-lead'
+  readonly routingId: 'legacy-inherit-lead'
+}
+
+/** One row shown by the grouped Runtime Backend selector. */
+export type DigitalEmployeeRuntimeBackend =
+  | DigitalEmployeeDshModelBackend
+  | DigitalEmployeeExternalAgentBackend
+  | DigitalEmployeeLegacyRuntimeBackend
+
+/** Replaceable Host-composed runtime topology snapshot. */
+export interface DigitalEmployeeRuntimeCatalog {
+  readonly generation: number
+  readonly backends: readonly DigitalEmployeeRuntimeBackend[]
+}
+
 /** One profile-bound Agent Team member as the Studio reads it. */
 export interface DigitalEmployeeInstanceView {
   readonly teamId: string
@@ -161,6 +249,8 @@ export interface DigitalEmployeeInstanceView {
   readonly memberId?: string
   readonly profileId: DigitalEmployeeProfileId
   readonly profileRevision: number
+  readonly runtimeTarget: DigitalEmployeeRuntimeTarget
+  readonly requiredCapabilities: DigitalEmployeeRequiredCapabilities
   readonly phase: 'pending' | 'active' | 'failed'
   readonly error?: string
 }
@@ -168,6 +258,7 @@ export interface DigitalEmployeeInstanceView {
 /** Complete replaceable Studio baseline. */
 export interface DigitalEmployeeStudioView {
   readonly profiles: readonly DigitalEmployeeProfileCatalogEntry[]
+  readonly runtimeCatalog: DigitalEmployeeRuntimeCatalog
   readonly tools: readonly ProfileToolOption[]
   readonly instances: readonly DigitalEmployeeInstanceView[]
 }
@@ -176,6 +267,7 @@ export interface DigitalEmployeeStudioView {
 export interface SaveDigitalEmployeeProfileRequest {
   readonly expectedHeadRevision: number | null
   readonly profile: DigitalEmployeeProfileDraft
+  readonly runtimeTarget: SelectableDigitalEmployeeRuntimeTarget
 }
 
 /** Promote one existing immutable Revision through Profile Head CAS. */
@@ -227,6 +319,9 @@ export interface DigitalEmployeeFailure {
     | 'profile-not-active'
     | 'profile-archived'
     | 'revision-not-found'
+    | 'runtime-target-unavailable'
+    | 'runtime-route-invalid'
+    | 'runtime-capability-mismatch'
     | 'tool-unavailable'
     | 'team-lead-required'
     | 'team-rejected'

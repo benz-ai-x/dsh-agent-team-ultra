@@ -10,12 +10,19 @@ import {
   type DigitalEmployeeBinding,
   digitalEmployeeProfileDraftSchema,
   digitalEmployeeProfileSchema,
+  digitalEmployeeRuntimeTargetSchema,
+  legacyDigitalEmployeeProfileDraftSchema,
+  legacyDigitalEmployeeProfileSchema,
+  type LegacyDigitalEmployeeProfile,
+  type LegacyDigitalEmployeeProfileDraft,
 } from './spec.ts'
+import { requiredCapabilitiesForProfile } from './runtime.ts'
 import type {
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeProfileHead,
   DigitalEmployeeProfileRevision,
+  DigitalEmployeeRequiredCapabilities,
   DigitalEmployeeRuntimeTarget,
 } from './types.ts'
 
@@ -43,8 +50,11 @@ export const legacyInheritLeadRuntimeTarget = Object.freeze({
 } as const)
 
 type StoredDigitalEmployeeProfileRevisionV1 =
-  Omit<DigitalEmployeeProfileRevision, 'fingerprint'>
-  & { readonly fingerprint?: string }
+  Omit<DigitalEmployeeProfileRevision, 'fingerprint' | 'requiredCapabilities'>
+  & {
+    readonly fingerprint?: string
+    readonly requiredCapabilities?: DigitalEmployeeRequiredCapabilities
+  }
 
 const safeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
@@ -57,15 +67,47 @@ export const migrationMarkerSchema = z.union([
   z.object({ formatVersion: z.literal(1), status: z.literal('complete'), sourceVersion: z.literal(0) }).strict(),
 ]) as z.ZodType<DigitalEmployeeMigrationMarker>
 
-export const migratedRuntimeTargetSchema = z.union([
-  z.object({ kind: z.literal('legacy-inherit-lead') }).strict(),
-  z.object({
-    kind: z.literal('dsh-model'),
-    provider: nonEmptyText,
-    model: nonEmptyText,
-    reasoningEffort: nonEmptyText.optional(),
-  }).strict(),
-]) as z.ZodType<DigitalEmployeeRuntimeTarget>
+export const migratedRuntimeTargetSchema = digitalEmployeeRuntimeTargetSchema
+
+const profileCapabilitySchema = z.union([
+  z.literal('persona'),
+  z.literal('mission'),
+  z.literal('context'),
+  z.literal('memory'),
+  z.literal('tool-policy'),
+  z.literal('hooks'),
+])
+
+const requiredCapabilitiesSchema = z.object({
+  contextMode: z.union([z.literal('fresh'), z.literal('fork')]),
+  profileCapabilities: z.array(profileCapabilitySchema).max(6),
+}).strict() as z.ZodType<DigitalEmployeeRequiredCapabilities>
+
+function migratedProfileDraftVocabulary(
+  profile: DigitalEmployeeProfileDraft | LegacyDigitalEmployeeProfileDraft,
+): DigitalEmployeeProfileDraft {
+  if ('continuationProvider' in profile) return profile
+  const { provider, ...rest } = profile
+  return { ...rest, continuationProvider: provider }
+}
+
+function migratedProfileVocabulary(
+  profile: DigitalEmployeeProfile | LegacyDigitalEmployeeProfile,
+): DigitalEmployeeProfile {
+  if ('continuationProvider' in profile) return profile
+  const { provider, ...rest } = profile
+  return { ...rest, continuationProvider: provider }
+}
+
+const storedProfileDraftSchema = z.union([
+  digitalEmployeeProfileDraftSchema,
+  legacyDigitalEmployeeProfileDraftSchema,
+]).transform(migratedProfileDraftVocabulary) as z.ZodType<DigitalEmployeeProfileDraft>
+
+const storedProfileSchema = z.union([
+  digitalEmployeeProfileSchema,
+  legacyDigitalEmployeeProfileSchema,
+]).transform(migratedProfileVocabulary) as z.ZodType<DigitalEmployeeProfile>
 
 const requiredEvalSetReferenceSchema = z.object({
   evalSetId: boundedId,
@@ -102,8 +144,9 @@ export const digitalEmployeeProfileRevisionV1Schema = z.object({
   schemaVersion: z.literal(1),
   profileId: boundedId,
   revision: positiveInteger,
-  profile: digitalEmployeeProfileDraftSchema,
+  profile: storedProfileDraftSchema,
   runtimeTarget: migratedRuntimeTargetSchema,
+  requiredCapabilities: requiredCapabilitiesSchema.optional(),
   fingerprint: fingerprintSchema.optional(),
   createdAt: safeInteger,
   updatedAt: safeInteger,
@@ -119,11 +162,15 @@ export const digitalEmployeeBindingV1Schema = z.object({
   memberId: nonEmptyText.optional(),
   profileId: z.string().min(1).max(64),
   profileRevision: positiveInteger,
-  profile: digitalEmployeeProfileSchema,
+  profile: storedProfileSchema,
   runtimeTarget: migratedRuntimeTargetSchema,
+  requiredCapabilities: requiredCapabilitiesSchema.optional(),
   phase: z.union([z.literal('pending'), z.literal('active'), z.literal('failed')]),
   error: z.string().max(2048).optional(),
-}).strict()
+}).strict().transform(binding => ({
+  ...binding,
+  requiredCapabilities: binding.requiredCapabilities ?? requiredCapabilitiesForProfile(binding.profile),
+}))
 
 export type DigitalEmployeeBindingV1 = z.infer<typeof digitalEmployeeBindingV1Schema>
 
@@ -220,9 +267,21 @@ function canonicalJson(value: unknown): string {
 export function profileContentFingerprint(
   profile: DigitalEmployeeProfileDraft,
   runtimeTarget: DigitalEmployeeRuntimeTarget,
+  requiredCapabilities: DigitalEmployeeRequiredCapabilities = requiredCapabilitiesForProfile(profile),
 ): string {
   return createHash('sha256')
-    .update(canonicalJson({ profile, runtimeTarget }), 'utf8')
+    .update(canonicalJson({ profile, runtimeTarget, requiredCapabilities }), 'utf8')
+    .digest('hex')
+}
+
+/** Issue #4 fingerprint spelling, accepted only while enriching transitional v1 rows. */
+function legacyProfileContentFingerprint(
+  profile: DigitalEmployeeProfileDraft,
+  runtimeTarget: DigitalEmployeeRuntimeTarget,
+): string {
+  const { continuationProvider, ...rest } = profile
+  return createHash('sha256')
+    .update(canonicalJson({ profile: { ...rest, provider: continuationProvider }, runtimeTarget }), 'utf8')
     .digest('hex')
 }
 
@@ -237,13 +296,13 @@ function deepFreeze<T>(borrowed: T): T {
   return value
 }
 
-function profileDraft(profile: DigitalEmployeeProfile): DigitalEmployeeProfileDraft {
+function profileDraft(profile: LegacyDigitalEmployeeProfile): DigitalEmployeeProfileDraft {
   return deepFreeze({
     id: profile.id,
     employeeName: profile.employeeName,
     displayName: profile.displayName,
     description: profile.description,
-    provider: profile.provider,
+    continuationProvider: profile.provider,
     contextMode: profile.contextMode,
     persona: profile.persona,
     mission: profile.mission,
@@ -255,23 +314,25 @@ function profileDraft(profile: DigitalEmployeeProfile): DigitalEmployeeProfileDr
 }
 
 function revisionRecord(
-  profile: DigitalEmployeeProfile,
+  profile: LegacyDigitalEmployeeProfile,
   runtimeTarget: MigratedRuntimeTarget = legacyInheritLeadRuntimeTarget,
 ): DigitalEmployeeProfileRevision {
   const draft = profileDraft(profile)
+  const requiredCapabilities = requiredCapabilitiesForProfile(draft)
   return deepFreeze({
     schemaVersion: 1,
     profileId: profile.id,
     revision: profile.revision,
     profile: draft,
     runtimeTarget,
-    fingerprint: profileContentFingerprint(draft, runtimeTarget),
+    requiredCapabilities,
+    fingerprint: profileContentFingerprint(draft, runtimeTarget, requiredCapabilities),
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   })
 }
 
-function migratedHead(profile: DigitalEmployeeProfile): DigitalEmployeeProfileHead {
+function migratedHead(profile: LegacyDigitalEmployeeProfile): DigitalEmployeeProfileHead {
   return Object.freeze({
     schemaVersion: 1,
     profileId: profile.id,
@@ -298,6 +359,10 @@ function bindingRecord(
   fallbackTarget: MigratedRuntimeTarget = legacyInheritLeadRuntimeTarget,
 ): DigitalEmployeeBindingV1 {
   const runtimeTarget = 'runtimeTarget' in binding ? binding.runtimeTarget : fallbackTarget
+  const profile = migratedProfileVocabulary(binding.profile)
+  const requiredCapabilities = 'requiredCapabilities' in binding
+    ? binding.requiredCapabilities
+    : requiredCapabilitiesForProfile(profile)
   return deepFreeze({
     schemaVersion: 1,
     teamId: binding.teamId,
@@ -305,8 +370,9 @@ function bindingRecord(
     ...(binding.memberId === undefined ? {} : { memberId: binding.memberId }),
     profileId: binding.profileId,
     profileRevision: binding.profileRevision,
-    profile: binding.profile,
+    profile,
     runtimeTarget,
+    requiredCapabilities,
     phase: binding.phase,
     ...(binding.error === undefined ? {} : { error: binding.error }),
   })
@@ -336,17 +402,17 @@ async function putImmutable<V>(
 }
 
 function completeRevision(record: StoredDigitalEmployeeProfileRevisionV1): DigitalEmployeeProfileRevision {
-  if (record.fingerprint === undefined) {
+  if (record.fingerprint === undefined || record.requiredCapabilities === undefined) {
     throw new DigitalEmployeeMigrationError(
-      `Profile Revision ${record.profileId}@${record.revision} has no content fingerprint`,
+      `Profile Revision ${record.profileId}@${record.revision} has incomplete normalized content`,
       'target-inconsistent',
     )
   }
   return record as DigitalEmployeeProfileRevision
 }
 
-/** Enrich transitional v1 records from Issue #3 before any mutation is admitted. */
-async function ensureRevisionFingerprints(v1: DigitalEmployeeV1Domain): Promise<void> {
+/** Enrich transitional v1 records from Issues #3/#4 before any mutation is admitted. */
+async function ensureRevisionContracts(v1: DigitalEmployeeV1Domain): Promise<void> {
   const revisions = v1.table('profile_revisions')
   for (const [key, stored] of revisions.entries()) {
     if (key !== profileRevisionKey(stored.profileId, stored.revision)
@@ -356,15 +422,27 @@ async function ensureRevisionFingerprints(v1: DigitalEmployeeV1Domain): Promise<
         'target-inconsistent',
       )
     }
-    const fingerprint = profileContentFingerprint(stored.profile, stored.runtimeTarget)
-    if (stored.fingerprint !== undefined && stored.fingerprint !== fingerprint) {
+    const canonicalRequiredCapabilities = requiredCapabilitiesForProfile(stored.profile)
+    if (stored.requiredCapabilities !== undefined
+      && !isDeepStrictEqual(stored.requiredCapabilities, canonicalRequiredCapabilities)) {
+      throw new DigitalEmployeeMigrationError(
+        `Profile Revision ${stored.profileId}@${stored.revision} has non-canonical required capabilities`,
+        'target-inconsistent',
+      )
+    }
+    const requiredCapabilities = stored.requiredCapabilities ?? canonicalRequiredCapabilities
+    const fingerprint = profileContentFingerprint(stored.profile, stored.runtimeTarget, requiredCapabilities)
+    const transitionalFingerprint = legacyProfileContentFingerprint(stored.profile, stored.runtimeTarget)
+    if (stored.fingerprint !== undefined
+      && stored.fingerprint !== fingerprint
+      && !(stored.requiredCapabilities === undefined && stored.fingerprint === transitionalFingerprint)) {
       throw new DigitalEmployeeMigrationError(
         `Profile Revision ${stored.profileId}@${stored.revision} has a non-canonical fingerprint`,
         'target-inconsistent',
       )
     }
-    if (stored.fingerprint === undefined) {
-      await revisions.put(key, deepFreeze({ ...stored, fingerprint }))
+    if (stored.fingerprint !== fingerprint || stored.requiredCapabilities === undefined) {
+      await revisions.put(key, deepFreeze({ ...stored, requiredCapabilities, fingerprint }))
     }
   }
 }
@@ -477,6 +555,12 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       || binding.profile.revision !== binding.profileRevision) {
       throw new DigitalEmployeeMigrationError(
         `Binding ${JSON.stringify(key)} has inconsistent key or Profile identity`,
+        'target-inconsistent',
+      )
+    }
+    if (!isDeepStrictEqual(binding.requiredCapabilities, requiredCapabilitiesForProfile(binding.profile))) {
+      throw new DigitalEmployeeMigrationError(
+        `Binding ${JSON.stringify(key)} has non-canonical required capabilities`,
         'target-inconsistent',
       )
     }
@@ -601,7 +685,7 @@ export async function openDigitalEmployeeStorage(
 ): Promise<DigitalEmployeeStorage> {
   const v1 = await facility.open(digitalEmployeeV1DomainSpec)
   try {
-    await ensureRevisionFingerprints(v1)
+    await ensureRevisionContracts(v1)
   } catch (error: unknown) {
     return await closeAfterFailure(error, [v1])
   }

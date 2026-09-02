@@ -11,7 +11,11 @@ import { SUBAGENT_DESCRIPTOR_VERSION } from '@deepseek-ai/dsh-subagent'
 import { z } from 'zod'
 import { describe, expect, it, vi } from 'vitest'
 import DigitalEmployeeService from '../lib/index.js'
-import { digitalEmployeeDomainSpec } from '../src/spec.ts'
+import {
+  digitalEmployeeDomainSpec,
+  type LegacyDigitalEmployeeProfile,
+  type LegacyDigitalEmployeeProfileDraft,
+} from '../src/spec.ts'
 import {
   digitalEmployeeV1DomainSpec,
   digitalEmployeeBindingKey,
@@ -21,7 +25,7 @@ import {
 } from '../src/storage.ts'
 import type { DigitalEmployeeProfile, DigitalEmployeeProfileDraft } from '../src/types.ts'
 
-const legacyProfileDraft: DigitalEmployeeProfileDraft = {
+const legacyProfileDraft: LegacyDigitalEmployeeProfileDraft = {
   id: 'legacy-reviewer',
   employeeName: 'legacy-reviewer',
   displayName: 'Legacy Reviewer',
@@ -36,11 +40,24 @@ const legacyProfileDraft: DigitalEmployeeProfileDraft = {
   hooks: [],
 }
 
-const legacyProfile: DigitalEmployeeProfile = {
+const legacyProfile: LegacyDigitalEmployeeProfile = {
   ...legacyProfileDraft,
   revision: 7,
   createdAt: 100,
   updatedAt: 200,
+}
+
+const { provider: legacyContinuationProvider, ...legacyProfileFields } = legacyProfileDraft
+const migratedProfileDraft: DigitalEmployeeProfileDraft = {
+  ...legacyProfileFields,
+  continuationProvider: legacyContinuationProvider,
+}
+
+const migratedProfile: DigitalEmployeeProfile = {
+  ...migratedProfileDraft,
+  revision: legacyProfile.revision,
+  createdAt: legacyProfile.createdAt,
+  updatedAt: legacyProfile.updatedAt,
 }
 
 const legacyBinding = {
@@ -51,6 +68,11 @@ const legacyBinding = {
   profileRevision: legacyProfile.revision,
   profile: legacyProfile,
   phase: 'active' as const,
+}
+
+const migratedBinding = {
+  ...legacyBinding,
+  profile: migratedProfile,
 }
 
 const laxV0Spec = StorageDomain.defineDomain({
@@ -172,6 +194,25 @@ function installAgentRuntime(
     schemas: () => [],
     get: () => undefined,
   } as never)
+  ctx.provide('llm', {
+    listProviders: () => [{ id: 'deepseek', name: 'DeepSeek' }],
+    listModels: async () => [{ provider: 'deepseek', id: 'deepseek-chat', name: 'DeepSeek Chat' }],
+    resolveModelInfo: async () => ({
+      provider: 'deepseek', id: 'deepseek-chat', name: 'DeepSeek Chat',
+      reasoning: { efforts: [{ id: 'high', name: 'High' }] },
+    }),
+  } as never)
+  ctx.provide('subagents', {
+    list: () => ['spawn'],
+    getProvider: (name: string) => name === 'spawn'
+      ? {
+        name: 'spawn',
+        inheritsParentContext: false,
+        capabilities: {},
+        prepareContinuable: async () => ({}),
+      }
+      : undefined,
+  } as never)
   return { leader, child }
 }
 
@@ -200,24 +241,24 @@ describe('Digital Employee v1 storage generation', () => {
   it('derives a stable content fingerprint without operational metadata', () => {
     const target = { kind: 'legacy-inherit-lead' } as const
     const reordered = {
-      hooks: legacyProfileDraft.hooks,
-      memory: legacyProfileDraft.memory,
-      context: legacyProfileDraft.context,
-      toolPolicy: legacyProfileDraft.toolPolicy,
-      mission: legacyProfileDraft.mission,
-      persona: legacyProfileDraft.persona,
-      contextMode: legacyProfileDraft.contextMode,
-      provider: legacyProfileDraft.provider,
-      description: legacyProfileDraft.description,
-      displayName: legacyProfileDraft.displayName,
-      employeeName: legacyProfileDraft.employeeName,
-      id: legacyProfileDraft.id,
+      hooks: migratedProfileDraft.hooks,
+      memory: migratedProfileDraft.memory,
+      context: migratedProfileDraft.context,
+      toolPolicy: migratedProfileDraft.toolPolicy,
+      mission: migratedProfileDraft.mission,
+      persona: migratedProfileDraft.persona,
+      contextMode: migratedProfileDraft.contextMode,
+      continuationProvider: migratedProfileDraft.continuationProvider,
+      description: migratedProfileDraft.description,
+      displayName: migratedProfileDraft.displayName,
+      employeeName: migratedProfileDraft.employeeName,
+      id: migratedProfileDraft.id,
     }
 
-    expect(profileContentFingerprint(legacyProfileDraft, target)).toBe(
+    expect(profileContentFingerprint(migratedProfileDraft, target)).toBe(
       profileContentFingerprint(reordered, target),
     )
-    expect(profileContentFingerprint(legacyProfileDraft, target)).toMatch(/^[a-f0-9]{64}$/u)
+    expect(profileContentFingerprint(migratedProfileDraft, target)).toMatch(/^[a-f0-9]{64}$/u)
   })
 
   it.each(['json', 'sqlite'] as const)(
@@ -254,13 +295,13 @@ describe('Digital Employee v1 storage generation', () => {
 
         const upgraded = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
         expect(upgraded.getProfileRevision(legacyProfile.id, legacyProfile.revision)).toMatchObject({
-          fingerprint: profileContentFingerprint(legacyProfileDraft, { kind: 'legacy-inherit-lead' }),
+          fingerprint: profileContentFingerprint(migratedProfileDraft, { kind: 'legacy-inherit-lead' }),
         })
         await upgraded.close()
 
         const reopened = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
         expect(reopened.getProfileRevision(legacyProfile.id, legacyProfile.revision)?.fingerprint).toBe(
-          profileContentFingerprint(legacyProfileDraft, { kind: 'legacy-inherit-lead' }),
+          profileContentFingerprint(migratedProfileDraft, { kind: 'legacy-inherit-lead' }),
         )
         await reopened.close()
       } finally {
@@ -297,6 +338,50 @@ describe('Digital Employee v1 storage generation', () => {
           code: 'target-inconsistent',
         })
         expect(runtime.ctx.storageDomain.get('agent_team_ultra_v1')).toBeUndefined()
+      } finally {
+        await runtime.close()
+      }
+    },
+  )
+
+  it.each(['json', 'sqlite'] as const)(
+    'fails closed when stored required capabilities disagree with Revision content on %s',
+    async (backend) => {
+      const runtime = await backendHarness(backend)
+      try {
+        const seeded = await runtime.ctx.storageDomain.open(permissiveV1Spec({
+          formatVersion: 1,
+          status: 'complete',
+          sourceVersion: 0,
+        }))
+        const requiredCapabilities = {
+          contextMode: 'fork' as const,
+          profileCapabilities: ['persona' as const],
+        }
+        await seeded.table('profile_revisions').put(
+          profileRevisionKey(migratedProfile.id, migratedProfile.revision),
+          {
+            schemaVersion: 1,
+            profileId: migratedProfile.id,
+            revision: migratedProfile.revision,
+            profile: migratedProfileDraft,
+            runtimeTarget: { kind: 'legacy-inherit-lead' },
+            requiredCapabilities,
+            fingerprint: profileContentFingerprint(
+              migratedProfileDraft,
+              { kind: 'legacy-inherit-lead' },
+              requiredCapabilities,
+            ),
+            createdAt: migratedProfile.createdAt,
+            updatedAt: migratedProfile.updatedAt,
+          },
+        )
+        await seeded.close()
+
+        await expect(openDigitalEmployeeStorage(runtime.ctx.storageDomain)).rejects.toMatchObject({
+          name: 'DigitalEmployeeMigrationError',
+          code: 'target-inconsistent',
+        })
       } finally {
         await runtime.close()
       }
@@ -426,9 +511,9 @@ describe('Digital Employee v1 storage generation', () => {
         await v0.close()
 
         const migrated = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
-        expect(migrated.getProfile(legacyProfile.id)).toEqual(legacyProfile)
+        expect(migrated.getProfile(legacyProfile.id)).toEqual(migratedProfile)
         expect([...migrated.bindingEntries()]).toEqual([
-          [digitalEmployeeBindingKey('lead', 'legacy-reviewer'), expect.objectContaining(legacyBinding)],
+          [digitalEmployeeBindingKey('lead', 'legacy-reviewer'), expect.objectContaining(migratedBinding)],
         ])
         await migrated.close()
 
@@ -453,7 +538,7 @@ describe('Digital Employee v1 storage generation', () => {
           updatedAt: 200,
         })
         expect(v1.table('bindings').get(digitalEmployeeBindingKey('lead', 'legacy-reviewer'))).toMatchObject({
-          ...legacyBinding,
+          ...migratedBinding,
           schemaVersion: 1,
           runtimeTarget: { kind: 'legacy-inherit-lead' },
         })
@@ -462,7 +547,7 @@ describe('Digital Employee v1 storage generation', () => {
         const open = vi.spyOn(runtime.ctx.storageDomain, 'open')
         const reopened = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
         expect(open.mock.calls.map(([spec]) => spec.name)).toEqual(['agent_team_ultra_v1'])
-        expect(reopened.getProfile(legacyProfile.id)).toEqual(legacyProfile)
+        expect(reopened.getProfile(legacyProfile.id)).toEqual(migratedProfile)
         await reopened.close()
 
         open.mockRestore()
@@ -580,7 +665,7 @@ describe('Digital Employee v1 storage generation', () => {
           await incomplete.close()
 
           const recovered = await openDigitalEmployeeStorage(runtime.ctx.storageDomain)
-          expect(recovered.getProfile(legacyProfile.id)).toEqual(legacyProfile)
+          expect(recovered.getProfile(legacyProfile.id)).toEqual(migratedProfile)
           expect([...recovered.bindingEntries()]).toHaveLength(1)
           await recovered.close()
 

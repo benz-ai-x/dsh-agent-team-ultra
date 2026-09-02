@@ -54,7 +54,7 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(inserted.find(entry => entry.id === 'agent-team-ultra')).toMatchObject({
       name: '@deepseek-ai/dsh-agent-team-ultra',
       config: {
-        defaultProvider: 'spawn',
+        defaultContinuationProvider: 'spawn',
         maxProfiles: 64,
         maxHooks: 32,
         maxAssignmentBytes: 32768,

@@ -668,6 +668,29 @@
   grid-column: 1 / -1;
 }
 
+.runtimeDetails {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.runtimeDetails strong {
+  color: var(--dsw-alias-label-primary);
+  font-size: 11px;
+}
+
+.runtimeDetails small {
+  font-size: 10px;
+}
+
 .fieldLabel {
   color: var(--dsw-alias-label-secondary);
   font-size: 11px;

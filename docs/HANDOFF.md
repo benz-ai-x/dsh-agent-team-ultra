@@ -6,7 +6,7 @@
 
 ## 1. 接手结论
 
-本项目是依赖 DeepSeek Harness（DSH）的本地 Agent Team 强化插件。当前版本已经可以在 DSH Web 中可视化维护 Agent Profile，并把 Profile 创建为真实、可恢复的 Agent Team 队友。Profile 覆盖命名、provider、上下文模式、persona、mission、工具策略、上下文块、策展记忆和声明式 Hook。
+本项目是依赖 DeepSeek Harness（DSH）的本地 Agent Team 强化插件。当前版本已经可以在 DSH Web 中可视化维护 Agent Profile，并把 Profile 创建为真实、可恢复的 Agent Team 队友。Profile 覆盖命名、精确 Runtime Target、独立 continuationProvider、上下文模式、persona、mission、工具策略、上下文块、策展记忆和声明式 Hook。
 
 接手后先运行：
 
@@ -47,6 +47,8 @@ pnpm verify
 flowchart LR
   WEB[DSH Web\n数字员工工作室] --> REMOTE[生成的 Typert Remote]
   REMOTE --> HOST[DigitalEmployeeService]
+  MODELS[DSH Model Registry] --> HOST
+  LOCAL[Durable Local Runtime Registry] --> HOST
   HOST --> STORE[(agent_team_ultra\nprofiles + bindings)]
   HOST --> TEAM[DSH Agent Team]
   TEAM --> CHILD[Continuable child Agent]
@@ -64,7 +66,7 @@ flowchart LR
 | `packages/profile` | 组合 Ultra 与上游 Agent Team，关闭冲突工具行 | [`cordis.patch.yml`](../packages/profile/cordis.patch.yml) |
 | `scripts` | 上游契约锁定、Typert 生成、本地打包和真实 DSH 启动门禁 | [`verify-dsh-context.mjs`](../scripts/verify-dsh-context.mjs)、[`verify-pack.mjs`](../scripts/verify-pack.mjs) |
 
-Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPrompt` 和 `tools` 六项 DSH 服务。浏览器只维护草稿和显示结果，不拥有权限或持久化真相。
+Host 依赖 `agents`、`agentTeams`、`llm`、`storageDomain`、`subagents`、`systemPrompt` 和 `tools` 七项 DSH 服务。浏览器只维护草稿和显示结果，不拥有权限、运行时目录或持久化真相。
 
 ## 4. 不可破坏的实现约束
 
@@ -78,7 +80,7 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 ### 持久化与恢复
 
 - Profile Head、不可变 Profile Revision 和 Team/member Binding 写入独立的分记录 storage generation `agent_team_ultra_v1`；`agent_team_ultra` v0 仅是只读迁移源。
-- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target 与 SHA-256 指纹；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile 快照和 `pending | active | failed` 状态。
+- `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target、Required Capabilities 与 SHA-256 指纹；`bindings` 保存 Team、成员名、成员 ID、Profile revision、不可变 Profile/目标/能力快照和 `pending | active | failed` 状态。
 - 创建流程必须先持久化 `pending` 绑定，再调用 Agent Team provisioning。否则 child 可能在 Profile 快照存在前启动。
 - 已创建员工始终使用绑定时的快照。后续候选、激活、回滚或归档不会热更新已有员工。
 - 不要向 DSH 的闭集 Session event catalog 添加自定义事件；本插件使用独立 storage domain。
@@ -114,7 +116,7 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 
 | 操作 | 用途 | 可取消 |
 |---|---|---:|
-| `view` | 获取完整可替换 Studio view：Profiles、Lead 可继承工具、当前 Team 实例 | 否 |
+| `view` | 获取完整可替换 Studio view：Profiles、Runtime Catalog、Lead 可继承工具、当前 Team 实例 | 否 |
 | `revision` | 读取一个不可变 Revision 及其相对 active 的有界差异 | 否 |
 | `save` | 按 `expectedHeadRevision` 保存候选 Revision | 否 |
 | `activate` | 显式激活最新候选 Revision | 否 |
@@ -123,7 +125,7 @@ Host 依赖 `agents`、`agentTeams`、`storageDomain`、`subagents`、`systemPro
 | `restore` | 恢复归档的 Profile Head | 否 |
 | `spawn` | 仅使用 active Revision 和可选 assignment 创建真实队友 | 是 |
 
-业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived` 和 `revision-not-found`。
+业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived`、`revision-not-found`、`runtime-target-unavailable`、`runtime-route-invalid` 和 `runtime-capability-mismatch`。
 
 修改 Remote 装饰方法后必须重新运行构建；[`generate-typert.mjs`](../scripts/generate-typert.mjs) 会调用官方 Typert generator 更新 Host 与 Client 产物，不能手写生成文件。
 

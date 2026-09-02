@@ -41,7 +41,7 @@
     - id: agent-team-ultra
       name: '@deepseek-ai/dsh-agent-team-ultra'
       config:
-        defaultProvider: spawn
+        defaultContinuationProvider: spawn
         maxProfiles: 64
         maxProfileBytes: 131072
         maxHooks: 32

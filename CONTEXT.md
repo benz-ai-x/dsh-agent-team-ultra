@@ -9,7 +9,7 @@ A reusable definition of one Digital Employee's identity, behavior, context, mem
 _Avoid_: Template, agent config
 
 **Profile Revision**:
-A complete, normalized, immutable version of a Digital Employee Profile and its Runtime Target, identified by a canonical content fingerprint.
+A complete, normalized, immutable version of a Digital Employee Profile, its Runtime Target, and its Required Capabilities, identified by a canonical content fingerprint.
 _Avoid_: Profile copy, profile snapshot record
 
 **Profile Head**:
@@ -29,8 +29,20 @@ The durable association between an exact Team member identity and the Profile Re
 _Avoid_: Assignment, link
 
 **Runtime Target**:
-The provider and model route proven for a Binding, or an explicit legacy compatibility route when no exact route can be proven.
-_Avoid_: Provider guess, inferred model
+The exact discriminated placement pinned by a Profile Revision: either a DSH provider/model/reasoning route or a durable external-agent provider identity. `legacy-inherit-lead` is migration-only.
+_Avoid_: Provider guess, inferred model, display label
+
+**Runtime Backend**:
+A detached, browser-safe catalog row describing one stable Runtime Target route, current availability, context semantics, and enforceable Profile capabilities.
+_Avoid_: Adapter object, credential-bearing provider config
+
+**Continuation Provider**:
+The DSH continuable-child mechanism that implements `fresh` or `fork` conversation construction for a DSH model target; it is not the model Runtime Target.
+_Avoid_: Runtime provider, model provider
+
+**Required Capabilities**:
+The normalized context-mode and Profile-policy behavior that a Runtime Backend must enforce for one immutable Profile Revision.
+_Avoid_: Best-effort feature list, UI hints
 
 **Storage Generation**:
 An independently named durable data format that can coexist with earlier formats without modifying them.

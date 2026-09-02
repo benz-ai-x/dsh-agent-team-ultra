@@ -11,8 +11,38 @@ import DigitalEmployeeService, {
 import type {
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
+  DigitalEmployeeRuntimeTarget,
   ProfileHook,
 } from '../src/types.ts'
+
+const DEFAULT_RUNTIME_TARGET = Object.freeze({
+  kind: 'dsh-model',
+  provider: 'test-provider',
+  model: 'test-model',
+} as const satisfies DigitalEmployeeRuntimeTarget)
+
+interface FakeLlmRoute {
+  readonly provider: string
+  readonly providerName: string
+  readonly model: string
+  readonly modelName: string
+  readonly reasoning?: {
+    readonly efforts: readonly { readonly id: string; readonly name: string; readonly description?: string }[]
+    readonly defaultEffort?: string
+  }
+  readonly secret?: string
+}
+
+const DEFAULT_LLM_ROUTE: FakeLlmRoute = Object.freeze({
+  provider: DEFAULT_RUNTIME_TARGET.provider,
+  providerName: 'Test Provider',
+  model: DEFAULT_RUNTIME_TARGET.model,
+  modelName: 'Test Model',
+  reasoning: {
+    efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
+    defaultEffort: 'low',
+  },
+})
 
 class MemoryTable<K extends string, V> implements KvTable<K, V> {
   readonly records = new Map<K, V>()
@@ -38,7 +68,7 @@ function draft(overrides: Partial<DigitalEmployeeProfileDraft> = {}): DigitalEmp
     employeeName: 'code-reviewer',
     displayName: 'Code Reviewer',
     description: 'Reviews code and reports actionable findings.',
-    provider: 'spawn',
+    continuationProvider: 'spawn',
     contextMode: 'fresh',
     persona: 'Be precise, skeptical, and evidence-driven.',
     mission: 'Find correctness and maintainability risks before merge.',
@@ -74,11 +104,13 @@ interface Harness {
   readonly foreignRoot: Agent
   readonly agent: (id: string) => Agent | undefined
   readonly disposeAgent: (agent: Agent) => void
+  readonly replaceLlmRoutes: (routes: readonly FakeLlmRoute[]) => void
 }
 
 async function harness(options: {
   readonly spawnGate?: Promise<void>
   readonly serviceConfig?: { readonly maxRevisionHistory?: number; readonly maxDiffEntries?: number }
+  readonly llmRoutes?: readonly FakeLlmRoute[]
 } = {}): Promise<Harness> {
   const ctx = new Context()
   const profiles = new MemoryTable<string, unknown>()
@@ -116,6 +148,7 @@ async function harness(options: {
   const staleLeader = { id: 'lead', session: { header: {} }, ctx } as unknown as Agent
   const foreignRoot = { id: 'foreign', session: { header: {} }, ctx } as unknown as Agent
   const agents = new Map<string, Agent>([['lead', leader], ['teammate', teammate]])
+  let llmRoutes = [...options.llmRoutes ?? [DEFAULT_LLM_ROUTE]]
 
   ctx.provide('agents', {
     get: (id: string) => agents.get(id),
@@ -154,6 +187,59 @@ async function harness(options: {
       { name: 'send_message', description: 'Team message' },
     ],
     get: (name: string) => name === 'read' || name === 'bash' ? { name } : undefined,
+  } as never)
+  ctx.provide('llm', {
+    listProviders: () => [...new Map(llmRoutes.map(route => [route.provider, {
+      id: route.provider,
+      name: route.providerName,
+    }])).values()],
+    listModels: async (provider: string) => llmRoutes
+      .filter(route => route.provider === provider)
+      .map(route => ({
+        provider: route.provider,
+        id: route.model,
+        name: route.modelName,
+        ...(route.secret === undefined ? {} : { apiKey: route.secret, endpoint: `https://${route.secret}` }),
+      })),
+    resolveModelInfo: async (provider: string, model: string) => {
+      const route = llmRoutes.find(candidate => candidate.provider === provider && candidate.model === model)
+      if (route === undefined) throw new Error('unknown fake model route')
+      return {
+        provider,
+        id: model,
+        name: route.modelName,
+        ...(route.reasoning === undefined ? {} : { reasoning: route.reasoning }),
+        ...(route.secret === undefined ? {} : { credential: route.secret, nativePath: `/tmp/${route.secret}` }),
+      }
+    },
+  } as never)
+  const continuationProviders = new Map([
+    ['spawn', {
+      name: 'spawn',
+      inheritsParentContext: false,
+      capabilities: {},
+      prepareContinuable: async () => ({}),
+    }],
+    ['fork', {
+      name: 'fork',
+      inheritsParentContext: true,
+      capabilities: {},
+      prepareContinuable: async () => ({}),
+    }],
+    ['codex', {
+      name: 'codex',
+      inheritsParentContext: false,
+      capabilities: {},
+    }],
+    ['claude-code', {
+      name: 'claude-code',
+      inheritsParentContext: false,
+      capabilities: {},
+    }],
+  ])
+  ctx.provide('subagents', {
+    list: () => [...continuationProviders.keys()],
+    getProvider: (name: string) => continuationProviders.get(name),
   } as never)
 
   const spawn = vi.fn(async (_caller: unknown, request: { name: string; signal?: AbortSignal }) => {
@@ -225,6 +311,10 @@ async function harness(options: {
       if (agents.get(agent.id) === agent) agents.delete(agent.id)
       ctx.emit('agent/disposed', { agent })
     },
+    replaceLlmRoutes: (routes) => {
+      llmRoutes = [...routes]
+      ctx.emit('llm/adapters-updated')
+    },
   }
 }
 
@@ -248,6 +338,7 @@ describe('Digital Employee profile contract', () => {
     const created = await service.saveProfile(runtime.leader, {
       expectedHeadRevision: null,
       profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })
     expect(created).toMatchObject({
       ok: true,
@@ -262,6 +353,7 @@ describe('Digital Employee profile contract', () => {
     const unchanged = await service.saveProfile(runtime.leader, {
       expectedHeadRevision: 1,
       profile: { ...draft(), displayName: '  Code Reviewer  ' },
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })
     expect(unchanged).toMatchObject({
       ok: true,
@@ -276,6 +368,7 @@ describe('Digital Employee profile contract', () => {
     const changed = await service.saveProfile(runtime.leader, {
       expectedHeadRevision: 1,
       profile: draft({ displayName: 'Reviewer Candidate' }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })
     expect(changed).toMatchObject({
       ok: true,
@@ -299,6 +392,7 @@ describe('Digital Employee profile contract', () => {
     await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
       expectedHeadRevision: null,
       profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })).rejects.toThrow('simulated crash before Head publication')
     expect(runtime.profiles.size).toBe(0)
     expect(runtime.revisions.size).toBe(1)
@@ -306,6 +400,7 @@ describe('Digital Employee profile contract', () => {
     await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
       expectedHeadRevision: null,
       profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })).resolves.toMatchObject({
       ok: true,
       value: { head: { latestRevision: 1 }, revision: { revision: 1 } },
@@ -328,6 +423,7 @@ describe('Digital Employee profile contract', () => {
     await expect(service.saveProfile(runtime.leader, {
       expectedHeadRevision: -1,
       profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })).resolves.toMatchObject({ ok: false, error: { code: 'profile-invalid' } })
     expect(runtime.profiles.size).toBe(0)
     expect(runtime.revisions.size).toBe(0)
@@ -354,7 +450,11 @@ describe('Digital Employee profile contract', () => {
       studioView: DigitalEmployeeService['studioView']
     }
 
-    await service.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
     await expect(service.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer' },
@@ -373,6 +473,7 @@ describe('Digital Employee profile contract', () => {
     await service.saveProfile(runtime.leader, {
       expectedHeadRevision: 2,
       profile: draft({ displayName: 'Candidate Reviewer' }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })
     expect(service.studioView(runtime.leader).profiles[0]?.head).toMatchObject({
       headRevision: 3,
@@ -432,7 +533,11 @@ describe('Digital Employee profile contract', () => {
       spawnProfile: DigitalEmployeeService['spawnProfile']
     }
 
-    await service.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
     await service.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
     })
@@ -492,17 +597,23 @@ describe('Digital Employee profile contract', () => {
       studioView: DigitalEmployeeService['studioView']
     }
 
-    await service.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await service.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
     await service.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
     })
     await service.saveProfile(runtime.leader, {
       expectedHeadRevision: 2,
       profile: draft({ displayName: 'Candidate Two', persona: 'Candidate persona two.' }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })
     await service.saveProfile(runtime.leader, {
       expectedHeadRevision: 3,
       profile: draft({ displayName: 'Candidate Three', persona: 'Candidate persona three.' }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
     })
 
     const entry = service.studioView(runtime.leader).profiles[0]
@@ -670,7 +781,7 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     const first = await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
     )
     expect(first).toMatchObject({
       ok: true,
@@ -680,10 +791,12 @@ describe('Digital Employee profile contract', () => {
       runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
         expectedHeadRevision: 1,
         profile: draft({ displayName: 'Reviewer A' }),
+        runtimeTarget: DEFAULT_RUNTIME_TARGET,
       }),
       runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
         expectedHeadRevision: 1,
         profile: draft({ displayName: 'Reviewer B' }),
+        runtimeTarget: DEFAULT_RUNTIME_TARGET,
       }),
     ])
     expect([left, right].filter(result => result.ok)).toHaveLength(1)
@@ -703,7 +816,11 @@ describe('Digital Employee profile contract', () => {
         request: { readonly expectedHeadRevision: null; readonly profile: DigitalEmployeeProfileDraft },
       ) => Promise<unknown>
     }
-    await expect(service.saveProfile(runtime.teammate, { expectedHeadRevision: null, profile: draft() }))
+    await expect(service.saveProfile(runtime.teammate, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    }))
       .resolves.toMatchObject({ ok: false, error: { code: 'team-lead-required' } })
     expect(runtime.profiles.size).toBe(0)
 
@@ -714,7 +831,7 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     const saved = await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
     )
     expect(saved).toMatchObject({ ok: true, value: { head: { headRevision: 1 } } })
 
@@ -766,7 +883,7 @@ describe('Digital Employee profile contract', () => {
       expect(viewFailure).toMatchObject({ code: 'digital-employees/team-rejected' })
       await expect(runtime.ctx.digitalEmployees.saveProfile(
         caller,
-        { expectedHeadRevision: null, profile: draft() },
+        { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
       )).resolves.toMatchObject({ ok: false, error: { code: 'team-rejected' } })
       await expect(runtime.ctx.digitalEmployees.profileRevision(
         caller,
@@ -804,7 +921,7 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
     )
 
     const view = runtime.ctx.digitalEmployees.studioView(runtime.leader)
@@ -837,7 +954,7 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     const saved = await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
     )
     expect(saved.ok).toBe(true)
     await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
@@ -850,8 +967,22 @@ describe('Digital Employee profile contract', () => {
     )
     expect(result).toMatchObject({
       ok: true,
-      value: { memberName: 'code-reviewer', memberId: 'child', profileRevision: 1, phase: 'active' },
+      value: {
+        memberName: 'code-reviewer',
+        memberId: 'child',
+        profileRevision: 1,
+        runtimeTarget: DEFAULT_RUNTIME_TARGET,
+        requiredCapabilities: {
+          contextMode: 'fresh',
+          profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+        },
+        phase: 'active',
+      },
     })
+    if (!result.ok) throw new Error('expected a successful launch')
+    expect(Object.isFrozen(result.value.runtimeTarget)).toBe(true)
+    expect(Object.isFrozen(result.value.requiredCapabilities)).toBe(true)
+    expect(Object.isFrozen(result.value.requiredCapabilities.profileCapabilities)).toBe(true)
     expect(runtime.spawn).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       name: 'code-reviewer',
       context: 'fresh',
@@ -872,6 +1003,11 @@ describe('Digital Employee profile contract', () => {
     expect([...runtime.bindings.records.values()][0]).toMatchObject({
       phase: 'active',
       profile: { revision: 1, displayName: 'Code Reviewer' },
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+      requiredCapabilities: {
+        contextMode: 'fresh',
+        profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      },
     })
     await runtime.fiber.dispose()
     expect(runtime.scopeDisposals).toHaveLength(8)
@@ -883,7 +1019,7 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
     )
     await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
@@ -909,7 +1045,7 @@ describe('Digital Employee profile contract', () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(
       runtime.leader,
-      { expectedHeadRevision: null, profile: draft() },
+      { expectedHeadRevision: null, profile: draft(), runtimeTarget: DEFAULT_RUNTIME_TARGET },
     )
     await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
@@ -939,7 +1075,11 @@ describe('Digital Employee profile contract', () => {
 
   it('rejects an exact teammate at the exported launch seam before provisioning', async () => {
     const runtime = await harness()
-    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.teammate,
       { profileId: 'code-reviewer' },
@@ -952,7 +1092,11 @@ describe('Digital Employee profile contract', () => {
 
   it('rejects an oversized assignment before reserving a Team member name', async () => {
     const runtime = await harness()
-    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
     await expect(runtime.ctx.digitalEmployees.spawnProfile(
       runtime.leader,
       { profileId: 'code-reviewer', assignment: 'x'.repeat(32_769) },
@@ -966,7 +1110,11 @@ describe('Digital Employee profile contract', () => {
   it('closes admission but lets an admitted launch record its terminal edge before storage closes', async () => {
     const gate = Promise.withResolvers<void>()
     const runtime = await harness({ spawnGate: gate.promise })
-    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, { expectedHeadRevision: null, profile: draft() })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
     await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
     })
@@ -985,5 +1133,294 @@ describe('Digital Employee profile contract', () => {
     expect([...runtime.bindings.records.values()][0]).toMatchObject({ phase: 'failed' })
     expect(runtime.close).toHaveBeenCalledOnce()
     gate.resolve()
+  })
+
+  it('publishes a detached capability-aware catalog with stable route ids and safe topology generations', async () => {
+    const secret = 'catalog-secret-that-must-not-cross-remote'
+    const runtime = await harness({
+      llmRoutes: [{
+        ...DEFAULT_LLM_ROUTE,
+        providerName: 'Duplicate Label',
+        modelName: 'Duplicate Label',
+        secret,
+      }, {
+        provider: 'second-provider',
+        providerName: 'Duplicate Label',
+        model: 'second-model',
+        modelName: 'Duplicate Label',
+      }],
+    })
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+
+    const initial = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
+    expect(initial.generation).toBe(1)
+    expect(initial.backends.find(backend => backend.routingId === 'dsh-model/test-provider/test-model'))
+      .toMatchObject({
+          routingId: 'dsh-model/test-provider/test-model',
+          family: 'dsh-model',
+          availability: 'available',
+          provider: 'test-provider',
+          model: 'test-model',
+          providerDisplayName: 'Duplicate Label',
+          displayName: 'Duplicate Label',
+          contextModes: ['fresh', 'fork'],
+          profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+          reasoning: {
+            efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
+            defaultEffort: 'low',
+          },
+      })
+    expect(initial.backends.find(backend => backend.routingId === 'dsh-model/second-provider/second-model'))
+      .toMatchObject({
+        providerDisplayName: 'Duplicate Label',
+        displayName: 'Duplicate Label',
+      })
+    expect(initial.backends.find(backend => backend.routingId === 'external-agent/codex'))
+      .toMatchObject({
+          routingId: 'external-agent/codex',
+          family: 'external-agent',
+          availability: 'unsupported',
+          provider: 'codex',
+      })
+    expect(initial.backends.find(backend => backend.routingId === 'external-agent/claude-code'))
+      .toMatchObject({
+          routingId: 'external-agent/claude-code',
+          family: 'external-agent',
+          availability: 'unsupported',
+          provider: 'claude-code',
+      })
+    expect(Object.isFrozen(initial)).toBe(true)
+    expect(Object.isFrozen(initial.backends)).toBe(true)
+    expect(JSON.stringify(initial)).not.toContain(secret)
+    expect(JSON.stringify(initial)).not.toContain('apiKey')
+    expect(JSON.stringify(initial)).not.toContain('endpoint')
+    expect(JSON.stringify(initial)).not.toContain('nativePath')
+
+    runtime.replaceLlmRoutes([{ ...DEFAULT_LLM_ROUTE, providerName: 'Renamed Provider', modelName: 'Renamed Model' }])
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    const replaced = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
+    expect(replaced.generation).toBeGreaterThan(initial.generation)
+    expect(replaced.backends).toContainEqual(expect.objectContaining({
+      routingId: 'dsh-model/test-provider/test-model',
+      providerDisplayName: 'Renamed Provider',
+      displayName: 'Renamed Model',
+    }))
+
+    await runtime.fiber.dispose()
+  })
+
+  it('atomically replaces durable external metadata and removes it with the contributor Fiber', async () => {
+    const runtime = await harness()
+    let registration: ReturnType<typeof runtime.ctx.digitalEmployees.registerExternalRuntimeProvider> | undefined
+    const contributor = runtime.ctx.plugin({
+      inject: ['digitalEmployees'],
+      apply(pluginCtx: Context) {
+        registration = pluginCtx.digitalEmployees.registerExternalRuntimeProvider({
+          id: 'native-reviewer',
+          displayName: 'Native Reviewer',
+          contextModes: ['fresh'],
+          profileCapabilities: ['persona', 'mission'],
+          apiKey: 'never-copy-this',
+          endpoint: 'https://secret.invalid',
+        } as never)
+      },
+    })
+    await contributor
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+
+    const first = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
+    expect(first.backends).toContainEqual(expect.objectContaining({
+      routingId: 'external-agent/native-reviewer',
+      family: 'external-agent',
+      availability: 'available',
+      provider: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission'],
+    }))
+    expect(JSON.stringify(first)).not.toContain('never-copy-this')
+    expect(JSON.stringify(first)).not.toContain('secret.invalid')
+
+    registration?.replace({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer v2',
+      contextModes: ['fork', 'fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory'],
+    })
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    const replaced = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
+    expect(replaced.generation).toBeGreaterThan(first.generation)
+    expect(replaced.backends).toContainEqual(expect.objectContaining({
+      routingId: 'external-agent/native-reviewer',
+      displayName: 'Native Reviewer v2',
+      contextModes: ['fresh', 'fork'],
+    }))
+
+    await contributor.dispose()
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    const removed = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
+    expect(removed.backends).not.toContainEqual(expect.objectContaining({
+      routingId: 'external-agent/native-reviewer',
+    }))
+    expect(removed.generation).toBeGreaterThan(replaced.generation)
+
+    await runtime.fiber.dispose()
+  })
+
+  it('pins the selected target and normalized required capabilities into immutable Revision content', async () => {
+    const runtime = await harness()
+    const first = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    expect(first).toMatchObject({
+      ok: true,
+      value: {
+        revision: {
+          runtimeTarget: DEFAULT_RUNTIME_TARGET,
+          requiredCapabilities: {
+            contextMode: 'fresh',
+            profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+          },
+        },
+      },
+    })
+
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    const second = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: 2,
+      profile: draft(),
+      runtimeTarget: { ...DEFAULT_RUNTIME_TARGET, reasoningEffort: 'high' },
+    })
+    expect(second).toMatchObject({ ok: true, value: { unchanged: false, revision: { revision: 2 } } })
+    if (!first.ok || !second.ok) throw new Error('expected successful saves')
+    expect(second.value.revision.fingerprint).not.toBe(first.value.revision.fingerprint)
+
+    const detail = await runtime.ctx.digitalEmployees.profileRevision(runtime.leader, {
+      profileId: 'code-reviewer',
+      revision: 2,
+    })
+    expect(detail).toMatchObject({
+      ok: true,
+      value: { diff: expect.arrayContaining([{ path: 'runtimeTarget.reasoningEffort', kind: 'added', after: '"high"' }]) },
+    })
+    await runtime.fiber.dispose()
+  })
+
+  it('rejects legacy selection and live route/capability mismatches without creating a Revision', async () => {
+    const runtime = await harness()
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'legacy-inherit-lead' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-route-invalid' } })
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { ...DEFAULT_RUNTIME_TARGET, reasoningEffort: 'imaginary' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-route-invalid' } })
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft({ continuationProvider: 'spawn', contextMode: 'fork' }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-capability-mismatch' } })
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'dsh-model', provider: 'missing-provider', model: 'missing-model' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
+    expect(runtime.revisions.size).toBe(0)
+    await runtime.fiber.dispose()
+  })
+
+  it('validates external initial-context and Profile policy capabilities without using one-shot fallbacks', async () => {
+    const runtime = await harness()
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider({
+      id: 'native-minimal',
+      displayName: 'Native Minimal',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission'],
+    })
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-minimal' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-capability-mismatch' } })
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft({
+        contextMode: 'fork',
+        toolPolicy: { mode: 'inherit', names: [] },
+        context: [],
+        memory: [],
+        hooks: [],
+      }),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-minimal' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-capability-mismatch' } })
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft({ toolPolicy: { mode: 'inherit', names: [] }, context: [], memory: [], hooks: [] }),
+      runtimeTarget: { kind: 'external-agent', provider: 'codex' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-capability-mismatch' } })
+
+    const saved = await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft({ toolPolicy: { mode: 'inherit', names: [] }, context: [], memory: [], hooks: [] }),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-minimal' },
+    })
+    expect(saved).toMatchObject({ ok: true, value: { revision: { requiredCapabilities: {
+      contextMode: 'fresh', profileCapabilities: ['persona', 'mission'],
+    } } } })
+    await expect(runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })).resolves.toMatchObject({ ok: true })
+
+    registration()
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    await expect(runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 2,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
+
+    await runtime.fiber.dispose()
+  })
+
+  it('keeps a missing historical target visible but blocks activation and launch without fallback', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await expect(runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })).resolves.toMatchObject({ ok: true })
+    runtime.replaceLlmRoutes([])
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+
+    const unavailable = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog.backends
+      .find(backend => backend.routingId === 'dsh-model/test-provider/test-model')
+    expect(unavailable).toMatchObject({
+      family: 'dsh-model',
+      availability: 'unavailable',
+      provider: 'test-provider',
+      model: 'test-model',
+    })
+    await expect(runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 2,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )).resolves.toMatchObject({ ok: false, error: { code: 'runtime-target-unavailable' } })
+    expect(runtime.spawn).not.toHaveBeenCalled()
+
+    await runtime.fiber.dispose()
   })
 })
