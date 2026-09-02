@@ -2,7 +2,7 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-当前实现绑定 DSH `0.1.2-alpha.1` 与提交 `cd5ef8148158c3a752a658978873241fdf8e2bbc`。由于上游 Agent Team 包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-alpha.4` 与提交 `4e84901e6471b79ec0338099867ebb4606d12bb5`。由于上游 Agent Team 包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 能力
 
@@ -13,6 +13,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
 - Hook：安全的声明式 `session-start`、`before-step`、`before-tool`、`after-tool` 行为，不执行任意 JavaScript 或 shell。
 - 生命周期：Profile CAS 版本控制、不可变启动快照、创建前持久化绑定、冷恢复重建和完整 Fiber 清理。
+- 工作台：分区式配置导航，窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
 
 ```mermaid
 flowchart LR
@@ -25,7 +26,7 @@ flowchart LR
   CHILD --> SCOPE[Persona / Context / Memory\nTool Policy / Hooks]
 ```
 
-浏览器只维护编辑草稿。Host 负责校验、权限判断、版本冲突和持久化；Agent Team 继续负责 roster、mailbox、task、Session 恢复与子 Agent 销毁。
+浏览器只维护编辑草稿。Host 负责校验、权限判断、版本冲突和持久化；Agent Team 继续负责 roster、mailbox、task、Session 恢复与子 Agent 销毁。Profile 通过同步 `agent/created` 生命周期安装到精确的 `agent.ctx`，在 `agent/session-start` 和首次提示词组装前生效。
 
 ## 开发与验证
 
@@ -36,7 +37,7 @@ pnpm install
 pnpm verify
 ```
 
-`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；18 项单元、Cordis、Loader、Client 与生命周期测试；六包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
+`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；26 项单元、Cordis、Loader、Client 与生命周期测试；六包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
 
 ## 安装到本地 DSH Web
 
@@ -114,7 +115,7 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md) 和 [架构决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md) 和 [架构决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)。
 
 ## 当前限制
 
@@ -122,4 +123,4 @@ Profile memory 是人工策展的提示词内容，不是自动学习数据库�
 - 不热更新已存在员工的 Profile，不自动写回策展记忆。
 - Hook 不执行用户代码；首版仅提供上下文注入和工具拒绝。
 - 不提供托管 worktree、自动任务所有权、Profile 导入导出或 secret reference。
-- 无凭据测试覆盖完整组合与协议边界，但上线前仍应在目标 DSH 安装中完成一次人工 Web 创建/冷恢复验收。
+- 自动化无凭据测试覆盖完整组合与协议边界；2026-08-30 已在隔离 Profile 完成一次真实模型 Web 创建与冷恢复验收，后续变更仍应在目标 DSH 安装中复验。

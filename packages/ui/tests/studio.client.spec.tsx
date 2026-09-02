@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   DigitalEmployeeProfile,
@@ -59,7 +59,28 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
   } as DigitalEmployeeStudioProps
 }
 
+const originalViewport = {
+  width: window.innerWidth,
+  height: window.innerHeight,
+}
+
+function setViewport(width: number, height: number): void {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
+}
+
+function dispatchPointer(
+  target: Element | Window,
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  init: MouseEventInit & { pointerId: number },
+): void {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, ...init })
+  Object.defineProperty(event, 'pointerId', { value: init.pointerId })
+  fireEvent(target, event)
+}
+
 afterEach(() => {
+  setViewport(originalViewport.width, originalViewport.height)
   document.body.innerHTML = ''
   for (const node of document.querySelectorAll('style')) node.remove()
 })
@@ -149,6 +170,220 @@ describe('Digital Employee Studio', () => {
     rendered.rerender(<DigitalEmployeeStudio {...props({ sessionId: 'session-b' as never, load, spawn })} />)
     await waitFor(() => { expect(launchSignal?.aborted).toBe(true) })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('sectioned navigation', () => {
+  it('starts on the identity section, switches sections from the nav, and keeps edits while switching', async () => {
+    const load = vi.fn(async () => ({ ok: true as const, value: view([profile()]) }))
+    render(<DigitalEmployeeStudio {...props({ load })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    const card = await screen.findByRole('button', { name: /Reviewer One/ })
+    expect(within(card).getByText('R')).toBeDefined()
+    fireEvent.click(card)
+
+    expect(screen.getByLabelText('Display name')).toBeDefined()
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Senior Reviewer' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /^Tools/ }))
+    expect(screen.queryByLabelText('Display name')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Inherit all' })).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Persona/ }))
+    expect(screen.getByLabelText('Persona')).toBeDefined()
+    expect(screen.getByLabelText('Mission')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Identity/ }))
+    expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Senior Reviewer')
+  })
+
+  it('summarizes each section in the nav with counts and the tool mode', async () => {
+    const configured: DigitalEmployeeProfile = {
+      ...profile(),
+      toolPolicy: { mode: 'allow', names: ['read'] },
+      context: [
+        { id: 'c1', title: 'Repo', content: 'Monorepo.', enabled: true },
+        { id: 'c2', title: 'Style', content: 'Tabs.', enabled: false },
+      ],
+      memory: [{ id: 'm1', title: 'Decisions', content: 'ADR-7.', enabled: true }],
+      hooks: [
+        { id: 'h1', point: 'session-start', effect: 'context', text: 'Read README.', enabled: true },
+        { id: 'h2', point: 'before-tool', effect: 'deny', matcher: 'shell*', text: 'No shell.', enabled: false },
+      ],
+    }
+    const load = vi.fn(async () => ({ ok: true as const, value: view([configured]) }))
+    render(<DigitalEmployeeStudio {...props({ load })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+
+    const nav = screen.getByRole('navigation', { name: 'Sections' })
+    expect(within(nav).getByRole('button', { name: /Tools/ }).textContent).toContain('Allow selected')
+    expect(within(nav).getByRole('button', { name: /Context/ }).textContent).toContain('2')
+    expect(within(nav).getByRole('button', { name: /Memory/ }).textContent).toContain('1')
+    expect(within(nav).getByRole('button', { name: /Hooks/ }).textContent).toContain('1 / 2')
+  })
+})
+
+describe('movable and resizable window', () => {
+  it('moves from the title bar and keeps the complete window inside the viewport', async () => {
+    setViewport(1_200, 900)
+    render(<DigitalEmployeeStudio {...props()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    const dialog = await screen.findByRole('dialog')
+    const dragHandle = dialog.querySelector<HTMLElement>('[data-window-drag-handle]')
+    expect(dragHandle).not.toBeNull()
+
+    const initialLeft = Number.parseFloat(dialog.style.left)
+    const initialTop = Number.parseFloat(dialog.style.top)
+    dispatchPointer(dragHandle as HTMLElement, 'pointerdown', {
+      button: 0,
+      pointerId: 7,
+      clientX: 100,
+      clientY: 100,
+    })
+    dispatchPointer(window, 'pointermove', { pointerId: 7, clientX: 140, clientY: 130 })
+    expect(Number.parseFloat(dialog.style.left)).toBe(initialLeft + 40)
+    expect(Number.parseFloat(dialog.style.top)).toBe(initialTop + 30)
+
+    dispatchPointer(window, 'pointermove', { pointerId: 7, clientX: -2_000, clientY: -2_000 })
+    expect(dialog.style.left).toBe('16px')
+    expect(dialog.style.top).toBe('16px')
+    dispatchPointer(window, 'pointerup', { pointerId: 7 })
+  })
+
+  it('resizes from every edge, respects minimums, and fits itself after viewport shrink', async () => {
+    setViewport(1_200, 900)
+    render(<DigitalEmployeeStudio {...props()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.querySelectorAll('[data-resize-edge]')).toHaveLength(8)
+
+    const southeast = dialog.querySelector<HTMLElement>('[data-resize-edge="se"]')
+    expect(southeast).not.toBeNull()
+    const initialWidth = Number.parseFloat(dialog.style.width)
+    const initialHeight = Number.parseFloat(dialog.style.height)
+    dispatchPointer(southeast as HTMLElement, 'pointerdown', {
+      button: 0,
+      pointerId: 9,
+      clientX: 1_000,
+      clientY: 700,
+    })
+    dispatchPointer(window, 'pointermove', { pointerId: 9, clientX: 1_050, clientY: 740 })
+    expect(Number.parseFloat(dialog.style.width)).toBe(initialWidth + 50)
+    expect(Number.parseFloat(dialog.style.height)).toBe(initialHeight + 40)
+    dispatchPointer(window, 'pointermove', { pointerId: 9, clientX: -2_000, clientY: -2_000 })
+    expect(dialog.style.width).toBe('680px')
+    expect(dialog.style.height).toBe('480px')
+    dispatchPointer(window, 'pointerup', { pointerId: 9 })
+
+    setViewport(640, 420)
+    fireEvent(window, new Event('resize'))
+    await waitFor(() => {
+      expect(dialog.style.left).toBe('16px')
+      expect(dialog.style.top).toBe('16px')
+      expect(dialog.style.width).toBe('608px')
+      expect(dialog.style.height).toBe('388px')
+    })
+  })
+})
+
+describe('draft dirty tracking', () => {
+  it('flags unsaved edits and clears the flag after a save refreshes the profile', async () => {
+    const renamed = profile('Senior Reviewer', 2)
+    const load = vi.fn()
+      .mockResolvedValueOnce({ ok: true as const, value: view([profile()]) })
+      .mockResolvedValue({ ok: true as const, value: view([renamed]) })
+    const save = vi.fn(async () => ({ ok: true as const, value: { ok: true as const, value: renamed } }))
+    render(<DigitalEmployeeStudio {...props({ load, save })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    expect(screen.queryByText(/Unsaved changes/)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Senior Reviewer' } })
+    expect(screen.getByText(/Unsaved changes/)).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await waitFor(() => { expect(screen.queryByText(/Unsaved changes/)).toBeNull() })
+  })
+})
+
+describe('text block cards', () => {
+  function withMemory(): DigitalEmployeeProfile {
+    return {
+      ...profile(),
+      memory: [{ id: 'm1', title: 'Conventions', content: 'Use pnpm.', enabled: true }],
+    }
+  }
+
+  it('toggles a memory block from its card header and persists the change on save', async () => {
+    const save = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: true as const, value: { ...withMemory(), revision: 2 } },
+    }))
+    const load = vi.fn(async () => ({ ok: true as const, value: view([withMemory()]) }))
+    render(<DigitalEmployeeStudio {...props({ load, save })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Memory/ }))
+
+    const card = screen.getByDisplayValue('Conventions').closest('article')
+    expect(card).not.toBeNull()
+    expect(within(card as HTMLElement).getByText(/9\s/)).toBeDefined()
+    const toggle = within(card as HTMLElement).getByRole('switch')
+    expect((toggle as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(toggle)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await waitFor(() => { expect(save).toHaveBeenCalled() })
+    const saved = save.mock.calls[0]?.[1].profile
+    expect(saved.memory[0]?.enabled).toBe(false)
+  })
+
+  it('collapses a block card to its header and expands it again', async () => {
+    const load = vi.fn(async () => ({ ok: true as const, value: view([withMemory()]) }))
+    render(<DigitalEmployeeStudio {...props({ load })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Memory/ }))
+
+    const card = screen.getByDisplayValue('Conventions').closest('article') as HTMLElement
+    expect(within(card).getByLabelText('Content')).toBeDefined()
+    fireEvent.click(within(card).getByRole('button', { name: 'Collapse' }))
+    expect(within(card).queryByLabelText('Content')).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: 'Expand' }))
+    expect(within(card).getByLabelText('Content')).toBeDefined()
+  })
+})
+
+describe('hook cards', () => {
+  function withHook(): DigitalEmployeeProfile {
+    return {
+      ...profile(),
+      hooks: [{ id: 'h1', point: 'session-start', effect: 'context', text: 'Read the README first.', enabled: true }],
+    }
+  }
+
+  it('derives the effect badge from the hook point and shows the matcher only for tool hooks', async () => {
+    const load = vi.fn(async () => ({ ok: true as const, value: view([withHook()]) }))
+    render(<DigitalEmployeeStudio {...props({ load })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Hooks/ }))
+
+    expect(screen.getByText('Inject context')).toBeDefined()
+    expect(screen.queryByLabelText(/Tool matcher/)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('Point'), { target: { value: 'before-tool' } })
+    expect(screen.getByText('Deny call')).toBeDefined()
+    expect(screen.getByLabelText(/Tool matcher/)).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText('Point'), { target: { value: 'after-tool' } })
+    expect(screen.getByText('Inject context')).toBeDefined()
+    expect(screen.getByLabelText(/Tool matcher/)).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText('Point'), { target: { value: 'before-step' } })
+    expect(screen.getByText('Inject context')).toBeDefined()
+    expect(screen.queryByLabelText(/Tool matcher/)).toBeNull()
   })
 })
 

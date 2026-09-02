@@ -58,10 +58,10 @@ interface Harness {
   readonly profiles: MemoryTable<string, DigitalEmployeeProfile>
   readonly bindings: MemoryTable<string, unknown>
   readonly close: ReturnType<typeof vi.fn>
-  readonly setup: () => ((childCtx: Context) => () => void)
   readonly restriction: ReturnType<typeof vi.fn>
   readonly sections: ReturnType<typeof vi.fn>
   readonly contexts: ReturnType<typeof vi.fn>
+  readonly scopeDisposals: Array<ReturnType<typeof vi.fn>>
   readonly childEvents: string[]
   readonly spawn: ReturnType<typeof vi.fn>
   readonly setRole: (role: 'lead' | 'teammate') => void
@@ -72,14 +72,19 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
   const profiles = new MemoryTable<string, DigitalEmployeeProfile>()
   const bindings = new MemoryTable<string, unknown>()
   const close = vi.fn(async () => undefined)
-  let setupContribution: ((childCtx: Context) => () => void) | undefined
   let role: 'lead' | 'teammate' = 'lead'
   const roster = [{ id: 'lead', name: 'lead', role: 'lead' }]
-  const sections = vi.fn(() => () => undefined)
-  const contexts = vi.fn(() => () => undefined)
-  const restriction = vi.fn(() => () => undefined)
+  const scopeDisposals: Array<ReturnType<typeof vi.fn>> = []
+  const scopeDisposer = (): ReturnType<typeof vi.fn> => {
+    const dispose = vi.fn()
+    scopeDisposals.push(dispose)
+    return dispose
+  }
+  const sections = vi.fn(scopeDisposer)
+  const contexts = vi.fn(scopeDisposer)
+  const restriction = vi.fn(scopeDisposer)
   const childEvents: string[] = []
-  const leader = { id: 'lead' }
+  const leader = { id: 'lead', session: { header: {} }, ctx }
 
   ctx.provide('agents', {
     get: (id: string) => id === 'lead' ? leader : undefined,
@@ -90,12 +95,6 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
       table: (name: string) => name === 'profiles' ? profiles : bindings,
       close,
     })),
-  } as never)
-  ctx.provide('subagents', {
-    registerContinuableSetup: (contribution: (childCtx: Context) => () => void) => {
-      setupContribution = contribution
-      return () => { setupContribution = undefined }
-    },
   } as never)
   ctx.provide('systemPrompt', {} as never)
   ctx.provide('tools', {
@@ -122,16 +121,20 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
       ])
     }
     roster.push({ id: 'child', name: request.name, role: 'teammate' })
-    const child = {
-      agent: { id: 'child', session: { header: { parentSession: 'lead' } } },
+    const childCtx = {
       systemPrompt: { section: sections, context: contexts },
       tools: { restrict: restriction },
       on: (event: string) => {
         childEvents.push(event)
-        return () => undefined
+        return scopeDisposer()
       },
     } as unknown as Context
-    setupContribution?.(child)
+    const child = {
+      id: 'child',
+      session: { header: { parentSession: 'lead' } },
+      ctx: childCtx,
+    }
+    ctx.emit('agent/created', { agent: child as never })
     return { member: { id: 'child', name: request.name } }
   })
   ctx.provide('agentTeams', {
@@ -148,13 +151,10 @@ async function harness(options: { readonly spawnGate?: Promise<void> } = {}): Pr
     profiles,
     bindings,
     close,
-    setup: () => {
-      if (setupContribution === undefined) throw new Error('setup contribution not registered')
-      return setupContribution
-    },
     restriction,
     sections,
     contexts,
+    scopeDisposals,
     childEvents,
     spawn,
     setRole: value => { role = value },
@@ -240,6 +240,8 @@ describe('Digital Employee profile contract', () => {
       profile: { revision: 1, displayName: 'Code Reviewer' },
     })
     await runtime.fiber.dispose()
+    expect(runtime.scopeDisposals).toHaveLength(8)
+    expect(runtime.scopeDisposals.every(dispose => dispose.mock.calls.length === 1)).toBe(true)
     expect(runtime.close).toHaveBeenCalledOnce()
   })
 

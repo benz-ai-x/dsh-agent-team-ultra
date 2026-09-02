@@ -8,7 +8,6 @@ import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import type {} from '@deepseek-ai/dsh-subagent'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
@@ -213,7 +212,7 @@ function hookMessage(text: string): UserMessage {
 
 /** Concrete Host service; one provider is sufficient for this local overlay. */
 export class DigitalEmployeeService extends TypertRemoteService {
-  static inject = ['agents', 'agentTeams', 'storageDomain', 'subagents', 'systemPrompt', 'tools']
+  static inject = ['agents', 'agentTeams', 'storageDomain', 'systemPrompt', 'tools']
   static Config = Config
 
   private readonly resolved: Required<Config>
@@ -221,6 +220,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   private bindings: KvTable<string, DigitalEmployeeBinding> | undefined
   private mutationTail: Promise<void> = Promise.resolve()
   private readonly launches = new Set<Promise<unknown>>()
+  private readonly childInstallations = new Map<Agent, () => void>()
   private readonly lifecycle = new AbortController()
   private admissionOpen = true
 
@@ -238,22 +238,34 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
   }
 
-  /** Open durable sidecar state, then make child setup observable. */
+  /** Open durable sidecar state, then compose every matching live and future child scope. */
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(digitalEmployeeDomainSpec)
     this.profiles = domain.table('profiles')
     this.bindings = domain.table('bindings')
-    const revokeSetup = this.ctx.subagents.registerContinuableSetup(childCtx => this.installForChild(childCtx))
+    let stopCreated = (): void => undefined
+    let stopDisposed = (): void => undefined
     this.ctx.effect(() => async () => {
       this.admissionOpen = false
       this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
-      revokeSetup()
+      const failures: unknown[] = []
+      try { stopCreated() } catch (error: unknown) { failures.push(error) }
+      try { stopDisposed() } catch (error: unknown) { failures.push(error) }
+      try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
       await this.mutationTail
-      await domain.close()
-      this.profiles = undefined
-      this.bindings = undefined
+      try { await domain.close() } catch (error: unknown) { failures.push(error) }
+      finally {
+        this.profiles = undefined
+        this.bindings = undefined
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Agent Team Ultra disposal failed')
+      }
     }, 'agent-team-ultra.runtime')
+    stopCreated = this.ctx.on('agent/created', ({ agent }) => { this.installBoundAgent(agent) })
+    stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => { this.removeBoundAgent(agent) })
+    for (const agent of this.ctx.agents.list()) this.installBoundAgent(agent)
   }
 
   /** Complete replaceable Studio view for one exact live Team member. */
@@ -492,11 +504,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
   }
 
-  /** Compose a matching immutable binding into one unpublished child Activation. */
-  private installForChild(childCtx: Context): () => void {
-    const agent = childCtx.agent as Agent
+  /** Compose one matching immutable binding during the synchronous `agent/created` publication edge. */
+  private installForChild(agent: Agent): (() => void) | undefined {
     const binding = this.bindingFor(agent)
-    if (binding === undefined) return () => undefined
+    if (binding === undefined) return undefined
+    const childCtx = agent.ctx
     const profile = binding.profile
     const disposers: Array<() => unknown> = []
     const add = (dispose: () => unknown): void => { disposers.push(dispose) }
@@ -526,6 +538,33 @@ export class DigitalEmployeeService extends TypertRemoteService {
         try { void dispose() } catch (error: unknown) { failures.push(error) }
       }
       if (failures.length > 0) throw new AggregateError(failures, 'Digital Employee child-scope disposal failed')
+    }
+  }
+
+  /** Install at most once for an exact Agent object; an id reused later is a distinct lifecycle. */
+  private installBoundAgent(agent: Agent): void {
+    if (!this.admissionOpen || this.childInstallations.has(agent)) return
+    const dispose = this.installForChild(agent)
+    if (dispose !== undefined) this.childInstallations.set(agent, dispose)
+  }
+
+  /** Revoke one exact Agent installation when its published lifecycle ends. */
+  private removeBoundAgent(agent: Agent): void {
+    const dispose = this.childInstallations.get(agent)
+    if (dispose === undefined) return
+    this.childInstallations.delete(agent)
+    dispose()
+  }
+
+  /** Revoke every resident child contribution before the owning service Fiber disappears. */
+  private revokeBoundAgents(): void {
+    const failures: unknown[] = []
+    for (const [agent, dispose] of this.childInstallations) {
+      this.childInstallations.delete(agent)
+      try { dispose() } catch (error: unknown) { failures.push(error) }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Digital Employee child-scope disposal failed')
     }
   }
 

@@ -21,9 +21,9 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(manifest.peerDependencies).toEqual({
       '@deepseek-ai/dsh-agent-team-ultra': '0.1.0',
       '@deepseek-ai/dsh-client-ui-agent-team-ultra': '0.1.0',
-      '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-alpha.1',
-      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.2-alpha.1',
-      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.2-alpha.1',
+      '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-alpha.4',
+      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.2-alpha.4',
+      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.2-alpha.4',
     })
     expect(Object.values(manifest.peerDependenciesMeta ?? {}).every(meta => meta.optional === true)).toBe(true)
 

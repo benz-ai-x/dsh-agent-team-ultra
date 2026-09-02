@@ -16,12 +16,12 @@ surface reflect that exact profile snapshot.
 ## DSH form and topology
 
 - `@deepseek-ai/dsh-agent-team-ultra` is the Host service, storage-domain
-  owner, generated Remote contract, and continuable-child setup contributor.
+  owner, generated Remote contract, and exact-Agent lifecycle composer.
 - `@deepseek-ai/dsh-client-ui-agent-team-ultra` is the browser-only UI adapter
   and React Studio surface.
 - `@deepseek-ai/dsh-agent-team-ultra-profile` is the bundle patch that activates
   the Host and UI rows alongside the experimental Agent Team rows.
-- Required Host services: `agents`, `agentTeams`, `storageDomain`, `subagents`,
+- Required Host services: `agents`, `agentTeams`, `storageDomain`,
   `systemPrompt`, and `tools`.
 
 The packages remain together in one workspace, but Host, Client, and bundle
@@ -59,10 +59,14 @@ contracts.
 
 Caller cancellation owns launch until the upstream Agent Team accepts the
 initial prompt. After acceptance, the Team runtime owns the continuable child.
-Service disposal closes mutation admission, revokes the continuable setup,
-waits for admitted profile/binding commits, and closes its storage domain.
-Child-scope prompt, tool, and hook registrations are disposed with that child
-or immediately when the setup contribution is revoked.
+The Host listens to the synchronous `agent/created` publication edge and
+matches the exact Agent against the already-persisted binding. It installs the
+immutable profile through `agent.ctx` before `agent/session-start` and the
+first prompt assembly; a synchronous installation failure vetoes publication.
+Service disposal closes mutation admission, removes the lifecycle listeners,
+revokes every resident child installation, waits for admitted profile/binding
+commits, and closes its storage domain. Child-scope prompt, tool, and hook
+registrations are also disposed when that exact Agent scope ends.
 
 ## Configuration
 

@@ -11,6 +11,9 @@
 - [x] Add the Digital Employee Studio Client slot.
 - [x] Compose stable Loader rows in the bundle patch.
 - [x] Pass unit, lifecycle, Loader/profile, Client, and packed-artifact checks.
+- [x] Run the credentialed manual Web launch and cold-resume acceptance scenario on the target DSH installation.
+- [x] Upgrade the audited source baseline to DSH `0.1.2-alpha.4` and migrate child composition to the supported Agent lifecycle.
+- [x] Make the Studio window movable, eight-direction resizable, viewport-bounded, and container-responsive.
 
 ## Later
 
@@ -18,4 +21,3 @@
 - [ ] Add profile import/export and secret-reference fields without transporting credentials.
 - [ ] Add migration tooling before changing the storage-domain format version.
 - [ ] Re-evaluate publishability after experimental Agent Team packages are released.
-- [ ] Run the credentialed manual Web launch and cold-resume acceptance scenario on the target DSH installation.

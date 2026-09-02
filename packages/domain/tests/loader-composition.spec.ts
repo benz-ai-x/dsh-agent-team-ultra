@@ -63,9 +63,6 @@ async function loadComposition(): Promise<{ readonly ctx: Context; readonly clos
           close,
         }),
       } as never)
-      ctx.provide('subagents', {
-        registerContinuableSetup: () => () => undefined,
-      } as never)
       ctx.provide('systemPrompt', {} as never)
       ctx.provide('tools', {} as never)
     },
