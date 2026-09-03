@@ -2,6 +2,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { DigitalEmployeeEvalRunId, LaunchRequestId } from '@deepseek-ai/dsh-agent-team-ultra/client'
+import type { RemoteStreamOptions } from '@deepseek-ai/dsh-api-gateway/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/src/client/index.ts'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/src/client/registry.ts'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
@@ -24,6 +25,10 @@ async function bench(registrationFailure = false) {
   class RemoteService extends Service {
     readonly disposeMount = vi.fn(async () => undefined)
     readonly mount = vi.fn(async (_contribution: unknown) => this.disposeMount)
+    readonly createStream = vi.fn()
+    readonly restartStream = vi.fn()
+    readonly disposeStream = vi.fn(async () => undefined)
+    streamOptions: RemoteStreamOptions<unknown> | undefined
 
     constructor(serviceCtx: Context) {
       super(serviceCtx, 'remote')
@@ -31,6 +36,16 @@ async function bench(registrationFailure = false) {
 
     $mount(contribution: unknown): Promise<() => Promise<void>> {
       return this.mount(contribution)
+    }
+
+    $stream<Item>(options: RemoteStreamOptions<Item>): never {
+      this.streamOptions = options as RemoteStreamOptions<unknown>
+      this.createStream(options)
+      return {
+        restart: this.restartStream,
+        dispose: this.disposeStream,
+        [Symbol.asyncIterator]: async function * () {},
+      } as never
     }
   }
 
@@ -92,6 +107,26 @@ describe('Digital Employee Studio mount lifecycle', () => {
 
     const actions = (runtime.entry()!.inject as unknown as () => DigitalEmployeeStudioInjected)()
     await actions.load('lead-session')
+    const sink = {
+      replace: vi.fn(),
+      stale: vi.fn(),
+      failed: vi.fn(),
+    }
+    const watch = actions.watch('lead-session', sink)
+    expect(runtime.remote.createStream).toHaveBeenCalledOnce()
+    expect(runtime.remote.streamOptions).toMatchObject({
+      name: 'Digital Employee Studio snapshot stream',
+      open: expect.any(Function),
+      ended: expect.any(Function),
+      carrierFailed: expect.any(Function),
+    })
+    runtime.remote.streamOptions?.carrierFailed?.(new Error('carrier lost') as never)
+    expect(sink.stale).toHaveBeenCalledOnce()
+    watch.restart()
+    expect(runtime.remote.restartStream).toHaveBeenCalledOnce()
+    watch.start()
+    await watch.dispose()
+    expect(runtime.remote.disposeStream).toHaveBeenCalledOnce()
     await actions.revision('lead-session', 'reviewer', 2)
     await actions.activate('lead-session', 'reviewer', 2, 4)
     await actions.rollback('lead-session', 'reviewer', 1, 5)

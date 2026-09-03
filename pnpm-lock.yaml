@@ -181,6 +181,9 @@ importers:
       '@deepseek-ai/dsh-agent-team-ultra':
         specifier: workspace:*
         version: link:../domain
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: link:../../../deepseek-harness/packages/api/gateway
+        version: link:../../../deepseek-harness/packages/api/gateway
       '@deepseek-ai/dsh-api-remotes':
         specifier: link:../../../deepseek-harness/packages/api/remotes
         version: link:../../../deepseek-harness/packages/api/remotes

@@ -24,6 +24,8 @@
 - [x] Activate the audited package-local durable Claude Code Runtime Backend in the profile and local artifact closure.
 - [x] Index one truthful, repairable Run per accepted DSH or external work turn and inspect bounded redacted canonical evidence in Studio.
 - [x] Add exact-call one-shot approval through stock DSH approval, external capability gating, and truthful waiting/orphan evidence.
+- [x] Gate Profile promotion with versioned exact isolated candidate evaluations.
+- [x] Complete Studio snapshot streaming, lifecycle quiescence, and packed install/uninstall proof.
 
 ## Later
 

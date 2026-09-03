@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { Context, Service } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+import type { DomainChanged } from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import {
   TeamError,
@@ -80,6 +81,7 @@ import type {
   DigitalEmployeeRunIndexRecord,
   DshModelRuntimeTarget,
   DigitalEmployeeStudioView,
+  DigitalEmployeeStudioFrame,
   GetDigitalEmployeeProfileRevisionRequest,
   GetDigitalEmployeeProfileRevisionResult,
   GetDigitalEmployeeRunRequest,
@@ -114,6 +116,7 @@ import type {
   DigitalEmployeePromotionGate,
   SelectableDigitalEmployeeRuntimeTarget,
 } from './types.ts'
+import { StudioSnapshotFeed } from './studio-feed.ts'
 import {
   EVAL_ASSERTION_SCHEMA_VERSION,
   casePassed,
@@ -681,6 +684,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   private readonly childInstallations = new Map<Agent, () => void>()
   private readonly pendingApprovals = new Map<string, Set<string>>()
   private readonly lifecycle = new AbortController()
+  private readonly studioSnapshots = new StudioSnapshotFeed<DigitalEmployeeStudioView>()
   private readonly runtimeBackends: RuntimeBackendRegistry
   private admissionOpen = false
 
@@ -690,7 +694,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
       ctx,
       ctx.llm,
       ctx.subagents,
-      () => { this.scheduleAvailableLeadReconciliation() },
+      () => {
+        this.scheduleAvailableLeadReconciliation()
+        this.studioSnapshots.invalidate()
+      },
     )
     this.resolved = {
       defaultContinuationProvider: (
@@ -735,9 +742,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
     let stopDisposed = (): void => undefined
     let stopSessionStart = (): void => undefined
     let stopSessionEvent = (): void => undefined
+    let stopDomainChanged = (): void => undefined
     this.ctx.effect(() => async () => {
       this.admissionOpen = false
       this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
+      this.studioSnapshots.close()
       for (const evaluation of this.evaluationsById.values()) {
         evaluation.controller.abort(new Error('Agent Team Ultra service disposed'))
       }
@@ -747,6 +756,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       try { stopDisposed() } catch (error: unknown) { failures.push(error) }
       try { stopSessionStart() } catch (error: unknown) { failures.push(error) }
       try { stopSessionEvent() } catch (error: unknown) { failures.push(error) }
+      try { stopDomainChanged() } catch (error: unknown) { failures.push(error) }
       this.pendingApprovals.clear()
       try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
@@ -766,13 +776,16 @@ export class DigitalEmployeeService extends TypertRemoteService {
     stopCreated = this.ctx.on('agent/created', ({ agent }) => {
       this.installBoundAgent(agent)
       this.scheduleLeadReconciliation(agent)
+      this.studioSnapshots.invalidate()
     })
     stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => {
       this.pendingApprovals.delete(agent.id)
       this.removeBoundAgent(agent)
+      this.studioSnapshots.invalidate()
     })
     stopSessionStart = this.ctx.on('agent/session-start', ({ agent }) => {
       this.scheduleLeadReconciliation(agent)
+      this.studioSnapshots.invalidate()
     })
     stopSessionEvent = this.ctx.on('session/event', (session, event) => {
       this.observeApprovalCorrelation(session.id, event)
@@ -784,7 +797,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
         || event.type === 'team/member' || event.type === 'team/message/delivered'
         || String(event.type) === 'approval/asked' || String(event.type) === 'approval/decided') {
         this.scheduleRunRepair(session.id)
+        this.studioSnapshots.invalidate()
       }
+    })
+    stopDomainChanged = this.ctx.on('domain/changed', (change: DomainChanged) => {
+      if (change.domain === 'agent_team_ultra_v1') this.studioSnapshots.invalidate()
     })
     await this.repairInterruptedEvaluations()
     this.admissionOpen = true
@@ -811,6 +828,15 @@ export class DigitalEmployeeService extends TypertRemoteService {
     await this.reconcileTeam(agent)
     await this.repairTeamRuns(agent)
     return this.studioView(agent)
+  }
+
+  /** Follow complete replaceable snapshots across one Remote carrier generation. */
+  @Remote({ mode: 'stream' })
+  async *watch(agent: Agent, signal: AbortSignal): AsyncIterable<DigitalEmployeeStudioFrame> {
+    signal.throwIfAborted()
+    await this.reconcileTeam(agent)
+    await this.repairTeamRuns(agent)
+    yield* this.studioSnapshots.follow(() => this.studioView(agent), signal)
   }
 
   /** Fetch one immutable Revision and its bounded comparison with active. */

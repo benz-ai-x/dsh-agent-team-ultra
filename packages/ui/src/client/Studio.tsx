@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -76,6 +77,10 @@ import css from './Studio.module.css'
 
 export interface DigitalEmployeeStudioInjected {
   load: (sessionId: SessionId) => Promise<RemoteResult<DigitalEmployeeStudioView>>
+  watch: (
+    sessionId: SessionId,
+    sink: DigitalEmployeeStudioWatchSink,
+  ) => DigitalEmployeeStudioWatch
   save: (
     sessionId: SessionId,
     request: SaveDigitalEmployeeProfileRequest,
@@ -137,6 +142,18 @@ export interface DigitalEmployeeStudioInjected {
     sessionId: SessionId,
     request: GetDigitalEmployeeEvalRunRequest,
   ) => Promise<RemoteResult<GetDigitalEmployeeEvalRunResult>>
+}
+
+export interface DigitalEmployeeStudioWatchSink {
+  replace(value: DigitalEmployeeStudioView): void
+  stale(): void
+  failed(error: unknown): void
+}
+
+export interface DigitalEmployeeStudioWatch {
+  start(): void
+  restart(): void
+  dispose(): Promise<void>
 }
 
 export type DigitalEmployeeStudioProps =
@@ -709,6 +726,7 @@ function resizedWindowRect(
 export function DigitalEmployeeStudio({
   sessionId,
   load,
+  watch,
   save,
   revision,
   activate,
@@ -727,6 +745,9 @@ export function DigitalEmployeeStudio({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<DigitalEmployeeStudioView | null>(null)
+  const [streamState, setStreamState] = useState<'idle' | 'connecting' | 'current' | 'stale' | 'disconnected'>('idle')
+  const [streamError, setStreamError] = useState<string | null>(null)
+  const workspaceId = useId().replaceAll(':', '')
   const [draft, setDraft] = useState<DigitalEmployeeProfileDraft | null>(null)
   const [runtimeTarget, setRuntimeTarget] = useState<DigitalEmployeeRuntimeTarget | null>(null)
   const [baseline, setBaseline] = useState<string | null>(null)
@@ -758,6 +779,7 @@ export function DigitalEmployeeStudio({
   const sessionRef = useRef(sessionId)
   const selectedRef = useRef(selectedId)
   const refreshGeneration = useRef(0)
+  const streamSnapshotGeneration = useRef(0)
   const revisionGeneration = useRef(0)
   const runGeneration = useRef(0)
   const evalRunGeneration = useRef(0)
@@ -788,12 +810,15 @@ export function DigitalEmployeeStudio({
 
   useEffect(() => {
     refreshGeneration.current += 1
+    streamSnapshotGeneration.current += 1
     busyRef.current = null
     launchIntentRef.current = null
     windowInteractionRef.current = null
     setOpen(false)
     setLoading(false)
     setView(null)
+    setStreamState('idle')
+    setStreamError(null)
     setDraft(null)
     setRuntimeTarget(null)
     setBaseline(null)
@@ -830,6 +855,42 @@ export function DigitalEmployeeStudio({
       runController?.abort(new Error('Digital Employee Studio session changed'))
     }
   }, [sessionId])
+
+  useEffect(() => {
+    if (!open) return
+    const requestedSession = sessionId
+    setStreamState('connecting')
+    setStreamError(null)
+    let control: DigitalEmployeeStudioWatch | undefined
+    try {
+      control = watch(requestedSession, {
+        replace(next) {
+          if (sessionRef.current !== requestedSession) return
+          streamSnapshotGeneration.current += 1
+          setView(next)
+          setStreamState('current')
+          setStreamError(null)
+          setLoading(false)
+        },
+        stale() {
+          if (sessionRef.current !== requestedSession) return
+          setStreamState('stale')
+        },
+        failed(reason) {
+          if (sessionRef.current !== requestedSession) return
+          setStreamState('disconnected')
+          setStreamError(String(reason))
+        },
+      })
+      control.start()
+    } catch (reason: unknown) {
+      setStreamState('disconnected')
+      setStreamError(String(reason))
+    }
+    return () => {
+      if (control !== undefined) void control.dispose().catch(() => undefined)
+    }
+  }, [open, sessionId, watch])
 
   useEffect(() => {
     if (!open) return
@@ -943,10 +1004,12 @@ export function DigitalEmployeeStudio({
   const refresh = useCallback(async (preferredId?: string): Promise<boolean> => {
     const requestedSession = sessionId
     const generation = ++refreshGeneration.current
+    const openingStreamGeneration = streamSnapshotGeneration.current
     setLoading(true)
     try {
       const result = await load(requestedSession)
       if (sessionRef.current !== requestedSession || refreshGeneration.current !== generation) return false
+      if (streamSnapshotGeneration.current !== openingStreamGeneration) return true
       if (!result.ok) {
         setError(failureText(result.error))
         return false
@@ -1405,6 +1468,28 @@ export function DigitalEmployeeStudio({
   const activationBlockedByGate = selectedEntry?.promotionGate.status === 'pending'
     || selectedEntry?.promotionGate.status === 'invalidated'
 
+  const navigateSection = (item: SectionId): void => {
+    setSelectedRunId(null)
+    setSection(item)
+    if (item === 'evaluations' && selectedEntry !== undefined) {
+      const available = view?.evalSets.filter(candidate =>
+        candidate.head.profileId === selectedEntry.head.profileId) ?? []
+      const current = available.find(candidate => candidate.head.evalSetId === selectedEvalSetId)
+        ?? available[0]
+      if (current !== undefined) selectEvalSet(current)
+      else {
+        const next = emptyEvalSet(selectedEntry.head.profileId)
+        setSelectedEvalSetId(next.id)
+        setEvalDraft(next)
+        setEvalCasesJson(prettyCases(next))
+        setEvalExpectedHeadRevision(null)
+      }
+    }
+    if (item === 'revisions' && selectedEntry !== undefined) {
+      void inspectRevision(selectedEntry.head.profileId, selectedEntry.head.latestRevision)
+    }
+  }
+
   return (
     <div className={css.root} data-digital-employee-studio>
       <button
@@ -1461,11 +1546,23 @@ export function DigitalEmployeeStudio({
 
           {error !== null && <div className={css.error} role="alert">{error}</div>}
           {notice !== null && <div className={css.success} role="status">{notice}</div>}
+          {streamState === 'stale' && <div className={css.notice} role="status">{t('streamStale')}</div>}
+          {streamState === 'disconnected' && (
+            <div className={css.error} role="alert" title={streamError ?? undefined}>{t('streamDisconnected')}</div>
+          )}
           {loading && view === null && <div className={css.notice}>{t('loading')}</div>}
 
           {view !== null && (
             <div className={css.workspace}>
               <aside className={css.sidebar}>
+                <nav className={css.workspaceNav} aria-label={t('workspaceNavigation')}>
+                  <a href={`#${workspaceId}-profiles`} onClick={() => { navigateSection('identity') }}>{t('navProfiles')}</a>
+                  <a href={`#${workspaceId}-runtime`} onClick={() => { navigateSection('identity') }}>{t('navRuntimeBackends')}</a>
+                  <a href={`#${workspaceId}-revisions`} onClick={() => { navigateSection('revisions') }}>{t('navRevisions')}</a>
+                  <a href={`#${workspaceId}-instances`}>{t('navInstances')}</a>
+                  <a href={`#${workspaceId}-runs`}>{t('navRuns')}</a>
+                  <a href={`#${workspaceId}-evaluations`} onClick={() => { navigateSection('evaluations') }}>{t('navEvaluations')}</a>
+                </nav>
                 <button
                   type="button"
                   className={css.newButton}
@@ -1503,7 +1600,7 @@ export function DigitalEmployeeStudio({
                 >
                   <IconPlusOutline16 size={14} /> {t('newProfile')}
                 </button>
-                <div className={css.profileList}>
+                <div className={css.profileList} id={`${workspaceId}-profiles`}>
                   {profiles.length === 0 && <p className={css.muted}>{t('empty')}</p>}
                   {profiles.map(profile => (
                     <button
@@ -1542,26 +1639,7 @@ export function DigitalEmployeeStudio({
                           key={item}
                           className={item === section ? css.navItemActive : css.navItem}
                           aria-current={item === section ? 'true' : undefined}
-                          onClick={() => {
-                            setSection(item)
-                            if (item === 'evaluations' && selectedEntry !== undefined) {
-                              const available = view.evalSets.filter(candidate =>
-                                candidate.head.profileId === selectedEntry.head.profileId)
-                              const current = available.find(candidate => candidate.head.evalSetId === selectedEvalSetId)
-                                ?? available[0]
-                              if (current !== undefined) selectEvalSet(current)
-                              else {
-                                const next = emptyEvalSet(selectedEntry.head.profileId)
-                                setSelectedEvalSetId(next.id)
-                                setEvalDraft(next)
-                                setEvalCasesJson(prettyCases(next))
-                                setEvalExpectedHeadRevision(null)
-                              }
-                            }
-                            if (item === 'revisions' && selectedEntry !== undefined) {
-                              void inspectRevision(selectedEntry.head.profileId, selectedEntry.head.latestRevision)
-                            }
-                          }}
+                          onClick={() => { navigateSection(item) }}
                         >
                           <SectionIcon section={item} />
                           <span>{t(sectionNavKey(item))}</span>
@@ -1573,7 +1651,7 @@ export function DigitalEmployeeStudio({
                 )}
 
                 <h3>{t('instances')}</h3>
-                <div className={css.instances}>
+                <div className={css.instances} id={`${workspaceId}-instances`}>
                   {instances.length === 0 && <p className={css.muted}>{t('noInstances')}</p>}
                   {instances.map(instance => (
                     <div key={`${instance.teamId}/${instance.memberName}`} className={css.instance}>
@@ -1628,7 +1706,7 @@ export function DigitalEmployeeStudio({
                     </select>
                   </label>
                 </div>
-                <div className={css.runList}>
+                <div className={css.runList} id={`${workspaceId}-runs`}>
                   {filteredRuns.length === 0 && <p className={css.muted}>{t('noRuns')}</p>}
                   {filteredRuns.map(candidate => (
                     <button
@@ -1683,6 +1761,7 @@ export function DigitalEmployeeStudio({
                               </Field>
                               <Field label={t('runtimeBackend')} wide>
                                 <select
+                                  id={`${workspaceId}-runtime`}
                                   value={runtimeTargetId(runtimeTarget)}
                                   onChange={(event) => {
                                     const backend = runtimeBackends.find(candidate => candidate.routingId === event.target.value)
@@ -1977,6 +2056,7 @@ export function DigitalEmployeeStudio({
 
                         {section === 'evaluations' && selectedEntry !== undefined && (
                           <SectionPage
+                            id={`${workspaceId}-evaluations`}
                             title={t(sectionTitleKey('evaluations'))}
                             desc={t(sectionDescKey('evaluations'))}
                             action={(
@@ -2244,6 +2324,7 @@ export function DigitalEmployeeStudio({
 
                         {section === 'revisions' && selectedEntry !== undefined && (
                           <SectionPage
+                            id={`${workspaceId}-revisions`}
                             title={t(sectionTitleKey('revisions'))}
                             desc={t(sectionDescKey('revisions'))}
                           >
@@ -2649,18 +2730,20 @@ function resizeEdgeClass(edge: ResizeEdge): string {
 }
 
 function SectionPage({
+  id,
   title,
   desc,
   action,
   children,
 }: {
+  id?: string
   title: string
   desc: string
   action?: ReactNode
   children: ReactNode
 }) {
   return (
-    <section className={css.sectionPage}>
+    <section className={css.sectionPage} id={id}>
       <div className={css.sectionHead}>
         <div className={css.sectionHeadText}>
           <h3>{title}</h3>

@@ -264,6 +264,11 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
   return {
     sessionId: 'session-a' as never,
     load: vi.fn(async () => ({ ok: true, value: view() })),
+    watch: vi.fn(() => ({
+      start: vi.fn(),
+      restart: vi.fn(),
+      dispose: vi.fn(async () => undefined),
+    })),
     save: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-invalid', message: 'invalid' } } })),
     revision: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'revision-not-found', message: 'missing' } } })),
     activate: vi.fn(async () => ({ ok: true, value: { ok: false, error: { code: 'profile-conflict', message: 'stale' } } })),
@@ -344,6 +349,63 @@ afterEach(() => {
 })
 
 describe('Digital Employee Studio', () => {
+  it('distinguishes the opening load from a complete empty snapshot', async () => {
+    let resolveLoad: ((result: { readonly ok: true; readonly value: DigitalEmployeeStudioView }) => void) | undefined
+    const load = vi.fn(() => new Promise(resolve => { resolveLoad = resolve }))
+    render(<DigitalEmployeeStudio {...props({ load })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+    expect(screen.getByText(en.loading)).toBeTruthy()
+    await act(async () => { resolveLoad?.({ ok: true, value: view() }) })
+    expect(await screen.findByText(en.empty)).toBeTruthy()
+    expect(screen.queryByText(en.loading)).toBeNull()
+  })
+
+  it('keeps the last complete snapshot stale across carrier loss and replaces it after reconnect', async () => {
+    let resolveLoad: ((result: { readonly ok: true; readonly value: DigitalEmployeeStudioView }) => void) | undefined
+    let sink: {
+      replace(value: DigitalEmployeeStudioView): void
+      stale(): void
+      failed(error: unknown): void
+    } | undefined
+    const dispose = vi.fn(async () => undefined)
+    const watch = vi.fn((_sessionId, nextSink) => {
+      sink = nextSink
+      return { start: vi.fn(), restart: vi.fn(), dispose }
+    })
+    const { unmount } = render(<DigitalEmployeeStudio {...props({
+      watch: watch as never,
+      load: vi.fn(() => new Promise(resolve => { resolveLoad = resolve })),
+    })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+    await waitFor(() => { expect(watch).toHaveBeenCalledWith('session-a', expect.any(Object)) })
+
+    act(() => { sink!.replace(view([profile()])) })
+    expect(await screen.findByText('Reviewer One')).toBeTruthy()
+
+    act(() => { sink!.stale() })
+    expect(screen.getByText(en.streamStale)).toBeTruthy()
+    expect(screen.getByText('Reviewer One')).toBeTruthy()
+
+    act(() => { sink!.replace(view([profile('Reviewer Two', 2)])) })
+    expect(await screen.findByText('Reviewer Two')).toBeTruthy()
+    expect(screen.queryByText(en.streamStale)).toBeNull()
+
+    await act(async () => {
+      resolveLoad?.({ ok: true, value: view([profile('Late unary snapshot', 1)]) })
+    })
+    expect(screen.queryByText('Late unary snapshot')).toBeNull()
+    expect(screen.getByText('Reviewer Two')).toBeTruthy()
+
+    act(() => { sink!.failed(new Error('socket rejected')) })
+    expect(screen.getByText(en.streamDisconnected)).toBeTruthy()
+    expect(screen.getByText('Reviewer Two')).toBeTruthy()
+
+    unmount()
+    await waitFor(() => { expect(dispose).toHaveBeenCalledOnce() })
+  })
+
   it('filters Runs and lazily shows a redacted timeline for both runtime families', async () => {
     const dshRun = {
       schemaVersion: 1 as const,
@@ -421,7 +483,7 @@ describe('Digital Employee Studio', () => {
       run,
     })} />)
     fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
-    await screen.findByText('Runs')
+    await screen.findByRole('heading', { name: 'Runs' })
     expect(screen.getByRole('button', {
       name: /Evaluation eval-run-4 \/ case-2.*Failed.*DSH Session/i,
     })).toBeTruthy()
@@ -958,6 +1020,23 @@ describe('evaluation workflow', () => {
 })
 
 describe('sectioned navigation', () => {
+  it('exposes all six Studio work areas from one workspace navigation', async () => {
+    const load = vi.fn(async () => ({ ok: true as const, value: view([profile()]) }))
+    render(<DigitalEmployeeStudio {...props({ load })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+
+    const nav = screen.getByRole('navigation', { name: 'Workspace' })
+    for (const name of ['Profiles', 'Runtime backends', 'Revisions', 'Instances', 'Runs', 'Evaluations']) {
+      expect(within(nav).getByRole('link', { name })).toBeDefined()
+    }
+
+    fireEvent.click(within(nav).getByRole('link', { name: 'Runtime backends' }))
+    expect(screen.getByLabelText('Runtime backend')).toBeDefined()
+    fireEvent.click(within(nav).getByRole('link', { name: 'Evaluations' }))
+    expect(screen.getByText('Candidate evaluations')).toBeDefined()
+  })
+
   it('starts on the identity section, switches sections from the nav, and keeps edits while switching', async () => {
     const load = vi.fn(async () => ({ ok: true as const, value: view([profile()]) }))
     render(<DigitalEmployeeStudio {...props({ load })} />)
@@ -1216,6 +1295,7 @@ describe('standalone Client bundle', () => {
       ['react', await import('react')],
       ['react/jsx-runtime', await import('react/jsx-runtime')],
       ['@deepseek-ai/cordis', await import('@deepseek-ai/cordis')],
+      ['@deepseek-ai/dsh-api-gateway/client', await import('@deepseek-ai/dsh-api-gateway/client')],
       ['@deepseek-ai/dsh-client-ui-primitives', await import('@deepseek-ai/dsh-client-ui-primitives')],
     ])
     const exports = handoff?.factory(specifier => {

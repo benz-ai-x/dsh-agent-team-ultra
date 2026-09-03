@@ -282,6 +282,33 @@
   border: 1px dashed var(--dsw-alias-border-l2);
 }
 
+.workspaceNav {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.workspaceNav a {
+  overflow: hidden;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-l1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+  text-align: center;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceNav a:hover,
+.workspaceNav a:focus-visible {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
 .profileList,
 .instances,
 .cards {

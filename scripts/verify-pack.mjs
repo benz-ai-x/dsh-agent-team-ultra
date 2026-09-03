@@ -41,6 +41,23 @@ const privateClosure = [
   join(harness, 'packages', 'experimental', 'tool-agent-team'),
   join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
 ]
+const pinnedHarnessPeers = [
+  join(harness, 'vendor', 'cordis'),
+  join(harness, 'packages', 'core', 'agent'),
+  join(harness, 'packages', 'util', 'brand'),
+  join(harness, 'packages', 'llm', 'llm'),
+  join(harness, 'packages', 'sandbox', 'sandbox-policy'),
+  join(harness, 'packages', 'core', 'session'),
+  join(harness, 'packages', 'storage', 'storage-domain'),
+  join(harness, 'packages', 'subagent', 'subagent'),
+  join(harness, 'packages', 'core', 'system-prompt'),
+  join(harness, 'packages', 'core', 'tools'),
+  join(harness, 'packages', 'typert', 'protocol'),
+  join(harness, 'packages', 'interaction', 'user-approval'),
+  join(harness, 'packages', 'sdk', 'protocol'),
+  join(harness, 'packages', 'subprocess', 'subprocess'),
+  join(harness, 'packages', 'util', 'timeout'),
+]
 const archives = []
 
 function pack(packageRoot) {
@@ -59,7 +76,9 @@ function pack(packageRoot) {
   if (filename === undefined || !existsSync(filename)) {
     throw new Error(`${packageRoot}: pnpm did not create the reported archive`)
   }
-  archives.push(filename)
+  const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+  if (typeof manifest.name !== 'string') throw new Error(`${packageRoot}: package name is missing`)
+  archives.push({ filename, name: manifest.name })
   return packed
 }
 
@@ -92,8 +111,9 @@ try {
     if (leaked.length > 0) throw new Error(`${candidate.directory} leaks development files: ${leaked.join(', ')}`)
     console.log(`PASS ${candidate.directory}: ${files.size} packed file(s)`)
   }
-  const ultraArchives = [...archives]
+  const ultraArchives = archives.map(archive => archive.filename)
   for (const packageRoot of privateClosure) pack(packageRoot)
+  const completeArchiveSet = archives.map(archive => archive.filename)
 
   mkdirSync(consumer, { recursive: true })
   writeFileSync(join(consumer, 'package.json'), `${JSON.stringify({
@@ -105,13 +125,26 @@ try {
     'packages: []',
     'overrides:',
     `  '@deepseek-ai/schemastery': ${JSON.stringify(`link:${join(harness, 'vendor', 'schemastery')}`)}`,
+    `  '@deepseek-ai/dsh-brand': ${JSON.stringify(`link:${join(harness, 'packages', 'util', 'brand')}`)}`,
+    `  'zod': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team', 'node_modules', 'zod')}`)}`,
+    `  'react': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'client-ui-agent-team', 'node_modules', 'react')}`)}`,
+    `  '@openai/codex': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-codex', 'node_modules', '@openai', 'codex')}`)}`,
+    `  '@anthropic-ai/claude-agent-sdk': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-claude-code', 'node_modules', '@anthropic-ai', 'claude-agent-sdk')}`)}`,
+    `  '@anthropic-ai/sdk': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-claude-code', 'node_modules', '@anthropic-ai', 'sdk')}`)}`,
+    `  '@modelcontextprotocol/sdk': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-claude-code', 'node_modules', '@modelcontextprotocol', 'sdk')}`)}`,
     '',
   ].join('\n'))
   checkedRun(
     'pnpm',
-    ['add', '--offline', '--config.auto-install-peers=false', ...ultraArchives],
+    [
+      'add',
+      '--config.offline=true',
+      '--config.auto-install-peers=false',
+      ...completeArchiveSet,
+      ...pinnedHarnessPeers.map(packageRoot => `link:${packageRoot}`),
+    ],
     consumer,
-    'Ultra archive-set install',
+    'complete archive-set install',
   )
   checkedRun(
     process.execPath,
@@ -123,21 +156,33 @@ try {
     consumer,
     'ordinary-resolution public import',
   )
-  console.log(`PASS Ultra archive set: ${ultraArchives.length} archive(s) install and browser-safe imports resolve`)
+  checkedRun(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      "await Promise.all([import('@deepseek-ai/dsh-experimental-agent-team-codex'), import('@deepseek-ai/dsh-experimental-agent-team-claude-code')])",
+    ],
+    consumer,
+    'packed runtime-family public imports',
+  )
+  console.log(`PASS complete archive set: ${completeArchiveSet.length} archive(s), including Codex and Claude Code, install and resolve`)
   console.log(`PASS private archive content: ${archives.length - ultraArchives.length} local-only archive(s) packed`)
 
   const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
-  const sourceRoots = [
-    ...privateClosure,
-    join(root, 'packages', 'domain'),
-    join(root, 'packages', 'ui'),
-    join(root, 'packages', 'profile'),
-  ]
   checkedRun(
     process.execPath,
-    [cli, 'plugin', '--profile', 'web', 'add', ...sourceRoots.map(packageRoot => `link:${packageRoot}`)],
+    [
+      cli,
+      'plugin',
+      '--profile',
+      'web',
+      'add',
+      ...completeArchiveSet.map(filename => `file:${filename}`),
+      ...pinnedHarnessPeers.map(packageRoot => `link:${packageRoot}`),
+    ],
     root,
-    'real source-linked dsh profile install',
+    'real packed-artifact dsh profile install',
     { DSH_HOME: profileHome },
   )
   const installed = join(profileHome, 'profiles', 'web', 'node_modules', '@deepseek-ai')
@@ -155,7 +200,7 @@ try {
       ])}.map(specifier => import(specifier)))`,
     ],
     root,
-    'source-linked Host imports',
+    'packed Host imports',
   )
   const dump = checkedRun(
     process.execPath,
@@ -194,7 +239,50 @@ try {
     'real dsh Web startup',
     { DSH_HOME: profileHome },
   )
-  console.log('PASS real source-linked DSH Web profile resolves Host packages, composes Ultra, and listens')
+  console.log('PASS real packed DSH Web profile resolves Host packages, composes both runtime families, and listens')
+  checkedRun(
+    process.execPath,
+    [
+      cli,
+      'plugin',
+      '--profile',
+      'web',
+      'remove',
+      '--config.offline=true',
+      '--config.auto-install-peers=false',
+      ...archives.map(archive => archive.name),
+    ],
+    root,
+    'real packed-artifact dsh profile uninstall',
+    { DSH_HOME: profileHome },
+  )
+  const removedDump = checkedRun(
+    process.execPath,
+    [cli, '--profile', 'web', '--dump-config'],
+    root,
+    'real dsh profile composition after uninstall',
+    { DSH_HOME: profileHome },
+  ).stdout
+  for (const forbidden of [
+    'agent-team-ultra',
+    'agent-team-codex',
+    'agent-team-claude-code',
+  ]) {
+    if (removedDump.includes(forbidden)) {
+      throw new Error(`real dsh profile dump retained ${JSON.stringify(forbidden)} after uninstall`)
+    }
+  }
+  for (const packageName of [
+    '@deepseek-ai/dsh-agent-team-ultra',
+    '@deepseek-ai/dsh-client-ui-agent-team-ultra',
+    '@deepseek-ai/dsh-agent-team-ultra-profile',
+    '@deepseek-ai/dsh-experimental-agent-team-codex',
+    '@deepseek-ai/dsh-experimental-agent-team-claude-code',
+  ]) {
+    const packageDirectory = join(profileHome, 'profiles', 'web', 'node_modules', ...packageName.split('/'))
+    if (existsSync(packageDirectory)) throw new Error(`${packageName} remained installed after uninstall`)
+  }
+  console.log('PASS uninstall removes every Ultra, Codex, and Claude Code Loader row and package')
   console.log('packed artifact check passed')
 } catch (error) {
   console.error(`packed artifact check failed: ${String(error)}`)

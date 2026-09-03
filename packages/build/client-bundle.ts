@@ -14,6 +14,7 @@ const PLATFORM_EXTERNALS = new Set([
   'react-dom',
   'react-dom/client',
   '@deepseek-ai/cordis',
+  '@deepseek-ai/dsh-api-gateway/client',
   '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-ui-primitives',

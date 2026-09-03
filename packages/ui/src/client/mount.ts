@@ -2,12 +2,18 @@
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-team-ultra/remote'
+import type { DigitalEmployeeStudioFrame } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import { RemoteSnapshotStream, RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
-import { DigitalEmployeeStudio, type DigitalEmployeeStudioInjected } from './Studio.tsx'
+import {
+  DigitalEmployeeStudio,
+  type DigitalEmployeeStudioInjected,
+  type DigitalEmployeeStudioWatchSink,
+} from './Studio.tsx'
 import { en, NS, zh, type UltraKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -23,6 +29,9 @@ function registerStudio(ctx: ClientContext): void {
   const actions: DigitalEmployeeStudioInjected = {
     async load(sessionId) {
       return await ctx.remote.digitalEmployees.view(sessionId)
+    },
+    watch(sessionId, sink) {
+      return createDigitalEmployeeStudioWatch(ctx, sessionId, sink)
     },
     async save(sessionId, request) {
       return await ctx.remote.digitalEmployees.save(sessionId, request)
@@ -75,6 +84,32 @@ function registerStudio(ctx: ClientContext): void {
       inject: () => actions,
     }, DigitalEmployeeStudio),
   )
+}
+
+type DigitalEmployeeStudioBaselineFrame = Extract<DigitalEmployeeStudioFrame, { readonly type: 'baseline' }>
+type DigitalEmployeeStudioReplacementFrame = Exclude<DigitalEmployeeStudioFrame, DigitalEmployeeStudioBaselineFrame>
+
+/** Reconnect one logical Studio stream and accept only complete generation openings. */
+export function createDigitalEmployeeStudioWatch(
+  ctx: ClientContext,
+  sessionId: Parameters<DigitalEmployeeStudioInjected['load']>[0],
+  sink: DigitalEmployeeStudioWatchSink,
+): RemoteSnapshotStream<DigitalEmployeeStudioBaselineFrame, DigitalEmployeeStudioReplacementFrame> {
+  const stream = ctx.remote.$stream<DigitalEmployeeStudioFrame>({
+    name: 'Digital Employee Studio snapshot stream',
+    open: signal => ctx.remote.digitalEmployees.watch(sessionId, signal),
+    ended: accepted => accepted
+      ? new RemoteStreamCarrierError('Digital Employee Studio snapshot stream ended after opening')
+      : new Error('Digital Employee Studio snapshot stream ended before its opening snapshot'),
+    carrierFailed: () => { sink.stale() },
+  })
+  return new RemoteSnapshotStream(stream, {
+    name: 'Digital Employee Studio snapshot stream',
+    isSnapshot: (frame): frame is DigitalEmployeeStudioBaselineFrame => frame.type === 'baseline',
+    replace: frame => { sink.replace(frame.value) },
+    update: frame => { sink.replace(frame.value) },
+    failed: sink.failed,
+  })
 }
 
 /** Mount generated Remote descriptors before exposing the Studio Slot. */

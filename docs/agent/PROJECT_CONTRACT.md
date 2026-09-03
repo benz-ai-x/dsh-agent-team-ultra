@@ -259,6 +259,27 @@ contracts.
   `not-required | pending | passed | invalidated` eligibility without deriving
   authority or success in the browser.
 
+## Studio projection and stream protocol
+
+- The unary `view` operation and generated `watch` stream use the same
+  Host-owned snapshot builder after exact live Lead authorization, roster
+  reconciliation, and Run repair.
+- Every physical stream generation begins with exactly one complete baseline.
+  Later frames are complete replacements, never partial entity patches.
+- Storage-domain, Runtime Backend generation, Agent roster, Team turn, approval,
+  and evaluation changes invalidate the projection. A synchronous burst keeps
+  only its newest revision, so slow Clients cannot create an unbounded queue.
+- The Client uses the stock Gateway generation supervisor and snapshot
+  validator. An update before its opening baseline, or a duplicate baseline,
+  fails the stream instead of publishing an ambiguous model.
+- Carrier loss keeps the last accepted complete snapshot visible as stale.
+  Terminal disconnection, opening load, complete empty data, pending work,
+  conflicts, runtime availability/capability failures, business rejection, and
+  transport failure remain distinct UI states.
+- A streamed generation fences older in-flight unary reads. Navigation exposes
+  Profiles, Runtime Backends, Revisions, Instances, Runs, and Evaluations while
+  retaining the movable, eight-direction resizable, viewport-bounded shell.
+
 ## Cancellation and disposal
 
 Caller cancellation owns launch until the upstream Agent Team or external
@@ -281,9 +302,10 @@ matches the exact Agent against the already-persisted binding. It installs the
 immutable profile through `agent.ctx` before `agent/session-start` and the
 first prompt assembly; a synchronous installation failure vetoes publication.
 Service disposal closes mutation admission, removes the lifecycle listeners,
-revokes every resident child installation and Runtime Backend registration,
-waits for admitted profile/binding commits and Run repairs, and closes its v1
-storage domain.
+closes every Studio follower, aborts evaluation workers, revokes every resident
+child installation and Runtime Backend registration, waits for admitted
+launches, reconciliations, Run repairs, evaluations, catalog refreshes, and
+mutation commits, and only then closes its v1 storage domain.
 Removing an external-provider Fiber immediately closes provider admission,
 removes its catalog row, aborts native cleanup after the Agent Team grace
 period, still awaits actual quiescence, and releases only that generation's
@@ -324,10 +346,12 @@ direct constructor call could bypass Loader validation.
 Delivery is a local-only overlay bound to the audited Harness commit in
 `dsh-reference.lock.json`. The upstream Agent Team packages are private, so
 this workspace is not npm-publishable. `pack:local` creates the three Ultra
-archives and the five pinned private Agent Team archives for artifact
-inspection, then emits an eight-package source-link command. The runnable DSH
-profile uses those exact built source links because the pinned public DSH peer
-versions are not all present in the registry.
+archives and the five pinned private Agent Team archives, then emits a local
+archive installation command whose unpublished peer dependencies resolve from
+the audited Harness checkout. Verification installs all eight archives,
+resolves both Codex and Claude Code runtime families, boots a real DSH Web
+profile, removes the eight overlay packages, and proves no Ultra, Codex, or
+Claude Code Loader row or package remains.
 
 Non-goals for the first increment: nested Teams, cross-process Team delivery,
 filesystem locks/worktrees, profile hot-rebinding of existing employees,
@@ -381,3 +405,10 @@ approval-never confinement, durable normalized evidence before exact-handle
 disposal, cancellation/restart repair that never passes, visible invalidation
 after identity or environment drift, and activation only after the exact
 passed Eval Run while leaving activation as a separate user decision.
+
+For final Studio delivery, acceptance additionally requires one complete
+authorized baseline per carrier generation, coalesced complete replacements,
+last-good stale rendering across reconnect, terminal disconnection without
+discarding that snapshot, full teardown before service replacement, a
+credential-free external-world workflow, packed Codex and Claude Code runtime
+resolution, and a residue-free overlay uninstall.

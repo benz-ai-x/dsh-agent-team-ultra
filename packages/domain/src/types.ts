@@ -591,6 +591,11 @@ export interface DigitalEmployeeStudioView {
   readonly evalRuns: readonly DigitalEmployeeEvalRunSummary[]
 }
 
+/** One physical stream generation opens with a baseline, then replaces whole snapshots. */
+export type DigitalEmployeeStudioFrame =
+  | { readonly type: 'baseline'; readonly revision: number; readonly value: DigitalEmployeeStudioView }
+  | { readonly type: 'replace'; readonly revision: number; readonly value: DigitalEmployeeStudioView }
+
 /** Save request with a compare-and-set precondition. */
 export interface SaveDigitalEmployeeProfileRequest {
   readonly expectedHeadRevision: number | null

@@ -88,6 +88,18 @@ _Avoid_: Agent session, provider loop, tool step
 A bounded, repairable Studio projection containing only Run identity, discriminated Team-member or evaluation-worker ownership, immutable Profile and route identity, normalized terminal/usage facts, timestamps, and evidence completeness. It is not a transcript or the canonical evidence store.
 _Avoid_: Run log, copied conversation, telemetry warehouse
 
+**Studio Snapshot**:
+One complete, browser-safe Host projection of Profiles, Runtime Backends, Instances, Runs, Eval Sets, Eval Runs, and Lead-visible tools. It is atomically replaced rather than patched by Client-authored entity deltas.
+_Avoid_: Client store, partial update, authoritative UI state
+
+**Studio Stream Generation**:
+One physical Remote carrier lifetime that must open with exactly one complete Studio Snapshot before any replacement. Reconnect starts a new generation while the last accepted snapshot remains visible as stale.
+_Avoid_: Domain revision, reconnect attempt counter, incremental event log
+
+**Studio Invalidation**:
+A bounded wake-up caused by domain, runtime, roster, turn, approval, or evaluation change. Bursts coalesce to the newest revision and trigger on-demand construction of one complete replacement.
+_Avoid_: Payload queue, entity delta, streamed token chunk
+
 **Eval Set**:
 A Profile-owned definition of isolated behavior Cases, allowed tools, resource ceilings, assertions, and the rule by which those Cases pass.
 _Avoid_: Test prompt, benchmark file, CI suite

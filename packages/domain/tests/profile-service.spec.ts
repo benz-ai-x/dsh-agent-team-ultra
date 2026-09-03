@@ -1209,6 +1209,21 @@ describe('Digital Employee profile contract', () => {
       details: { operation: 'view' },
     })
 
+    const stream = runtime.ctx.digitalEmployees.watch(
+      runtime.teammate,
+      new AbortController().signal,
+    )[Symbol.asyncIterator]()
+    let streamRejected: unknown
+    try {
+      await stream.next()
+    } catch (error: unknown) {
+      streamRejected = remoteErrorOf(error)
+    }
+    expect(streamRejected).toMatchObject({
+      code: 'digital-employees/team-lead-required',
+      details: { operation: 'view' },
+    })
+
     await runtime.fiber.dispose()
   })
 
@@ -2736,5 +2751,45 @@ describe('Digital Employee profile contract', () => {
     })
 
     await runtime.fiber.dispose()
+  })
+
+  it('streams complete Host snapshots and closes the watch before service storage', async () => {
+    const runtime = await harness()
+    const controller = new AbortController()
+    const iterator = runtime.ctx.digitalEmployees.watch(runtime.leader, controller.signal)
+      [Symbol.asyncIterator]()
+
+    const opening = await iterator.next()
+    expect(opening).toMatchObject({
+      done: false,
+      value: {
+        type: 'baseline',
+        revision: expect.any(Number),
+        value: runtime.ctx.digitalEmployees.studioView(runtime.leader),
+      },
+    })
+
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    runtime.ctx.emit('domain/changed' as never, {
+      domain: 'agent_team_ultra_v1', table: 'profile_heads', operation: 'put', key: 'code-reviewer', value: {},
+    } as never)
+    runtime.ctx.emit('domain/changed' as never, {
+      domain: 'agent_team_ultra_v1', table: 'profile_revisions', operation: 'put', key: 'code-reviewer@1', value: {},
+    } as never)
+
+    const replacement = await iterator.next()
+    expect(replacement.done).toBe(false)
+    expect(replacement.value?.type).toBe('replace')
+    expect(replacement.value?.value.profiles.map(profile => profile.head.profileId))
+      .toEqual(['code-reviewer'])
+
+    const ended = iterator.next()
+    await runtime.fiber.dispose()
+    await expect(ended).resolves.toEqual({ done: true, value: undefined })
+    expect(runtime.close).toHaveBeenCalledOnce()
   })
 })

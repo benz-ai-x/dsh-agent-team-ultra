@@ -19,7 +19,8 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - Run 证据：每个已接受工作轮次确定性映射为一个有界、可重建 Run；列表仅保存身份、路由、终态、provider 报告的用量和完整性，详情按需从 DSH Session 或外部原生 turn 脱敏折叠。
 - 候选评测：每个 Profile 可拥有独立版本化 Eval Set；每个 Case 在全新、只读、无审批的非 roster 运行时执行，精确记录 Profile/Eval Set/运行时世代/环境指纹，取消、崩溃和缺失证据绝不推断为通过。
 - 发布门禁：Profile Head 可要求一个精确 Eval Set Revision；只有仍匹配当前候选、能力世代、断言 schema 和隔离环境的 passed Eval Run 才允许激活，评测本身不会自动发布。
-- 工作台：分区式配置导航、Eval Set 编辑、评测启动/取消/证据检查/对比，以及有界版本历史/结构化差异；窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
+- 工作台：Profiles、Runtime Backends、Revisions、Instances、Runs、Evaluations 六个入口，以及 Eval Set 编辑、评测证据和有界版本差异；窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
+- 实时投影：每个连接世代先接收完整 Host baseline，再按合并后的 domain/runtime/roster/turn/eval 失效信号整体替换；断线保留最后完整快照并标为 stale，终止连接单独显示 disconnected，迟到的一次性读取不能覆盖新世代。
 
 ```mermaid
 flowchart LR
@@ -49,7 +50,7 @@ pnpm install
 pnpm verify
 ```
 
-`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；八包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
+`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；八包本地归档的干净安装及两类原生运行时解析；真实 DSH Web profile 的组合/启动；最后卸载并检查 Loader 与包残留。
 
 ## 安装到本地 DSH Web
 
@@ -59,18 +60,10 @@ pnpm verify
 pnpm run pack:local
 ```
 
-该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成三个 Ultra 包与五个上游 private Agent Team 包。归档用于内容验收；固定版本的 DSH 公共 peers 尚未全部发布到 registry，因此可运行安装必须使用命令最后打印的八个源码 `link:`，让每个包从已审计 checkout 解析准确依赖。其形式如下：
+该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成三个 Ultra 包与五个上游 private Agent Team 包。固定版本的部分 DSH peers 尚未发布到 registry，因此命令会打印完整的本地安装指令：八个产品包使用 `file:` 归档，未发布 peers 使用锁定 Harness checkout 的 `link:`。直接复制该输出执行即可；核心形式如下：
 
-```sh
-dsh plugin --profile web add \
-  "link:/absolute/path/to/deepseek-harness/packages/experimental/agent-team" \
-  "link:/absolute/path/to/deepseek-harness/packages/experimental/agent-team-codex" \
-  "link:/absolute/path/to/deepseek-harness/packages/experimental/agent-team-claude-code" \
-  "link:/absolute/path/to/deepseek-harness/packages/experimental/tool-agent-team" \
-  "link:/absolute/path/to/deepseek-harness/packages/experimental/client-ui-agent-team" \
-  "link:/absolute/path/to/dsh-agent-team-ultra/packages/domain" \
-  "link:/absolute/path/to/dsh-agent-team-ultra/packages/ui" \
-  "link:/absolute/path/to/dsh-agent-team-ultra/packages/profile"
+```text
+dsh plugin --profile web add <八个 file: 归档参数> <锁定 Harness 的 link: peer 参数>
 ```
 
 随后先检查最终配置，再启动 Web：
@@ -81,6 +74,8 @@ dsh web
 ```
 
 配置结果中应出现 `agent-team`、`agent-team-codex`、`agent-team-claude-code`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team` 和 `ui-agent-team-ultra` 七个稳定行，同时三个冲突的全局 continuable 控制工具保持禁用。
+
+`pack:local` 同时打印卸载命令。执行后，最终配置和 profile `node_modules` 中不得残留 Ultra、Codex 或 Claude Code overlay 行/包。
 
 ## 使用
 
@@ -151,7 +146,7 @@ DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、miss
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md)、[包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md)、[可信 Run 证据决策](docs/adr/0009-index-runs-and-fold-canonical-evidence-lazily.md)、[库存审批决策](docs/adr/0010-reuse-stock-exact-call-approval.md) 和 [精确隔离评测门禁决策](docs/adr/0011-gate-promotion-with-exact-isolated-evaluations.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md)、[包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md)、[可信 Run 证据决策](docs/adr/0009-index-runs-and-fold-canonical-evidence-lazily.md)、[库存审批决策](docs/adr/0010-reuse-stock-exact-call-approval.md)、[精确隔离评测门禁决策](docs/adr/0011-gate-promotion-with-exact-isolated-evaluations.md) 和 [完整 Studio 快照流决策](docs/adr/0012-stream-complete-studio-snapshots.md)。
 
 ## 当前限制
 

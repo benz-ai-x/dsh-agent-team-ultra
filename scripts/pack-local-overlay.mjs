@@ -26,6 +26,28 @@ const packageRoots = [
   join(root, 'packages', 'ui'),
   join(root, 'packages', 'profile'),
 ]
+const pinnedPeerRoots = [
+  join(harness, 'vendor', 'cordis'),
+  join(harness, 'packages', 'core', 'agent'),
+  join(harness, 'packages', 'util', 'brand'),
+  join(harness, 'packages', 'llm', 'llm'),
+  join(harness, 'packages', 'sandbox', 'sandbox-policy'),
+  join(harness, 'packages', 'core', 'session'),
+  join(harness, 'packages', 'storage', 'storage-domain'),
+  join(harness, 'packages', 'subagent', 'subagent'),
+  join(harness, 'packages', 'core', 'system-prompt'),
+  join(harness, 'packages', 'core', 'tools'),
+  join(harness, 'packages', 'typert', 'protocol'),
+  join(harness, 'packages', 'interaction', 'user-approval'),
+  join(harness, 'packages', 'sdk', 'protocol'),
+  join(harness, 'packages', 'subprocess', 'subprocess'),
+  join(harness, 'packages', 'util', 'timeout'),
+]
+const packageNames = packageRoots.map(packageRoot => {
+  const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+  if (typeof manifest.name !== 'string') throw new Error(`${packageRoot}: package name is missing`)
+  return manifest.name
+})
 const archives = []
 
 for (const packageRoot of packageRoots) {
@@ -47,9 +69,15 @@ for (const packageRoot of packageRoots) {
 }
 
 console.log(`Packed ${archives.length} local-only archives against Harness ${lock.upstream.version}.`)
-console.log(`Archives are available in ${output} for inspection; exact public peers remain source-linked.`)
-console.log(`Install the ${archives.length} built source packages into a DSH Web profile with:`)
+console.log(`Archives are available in ${output}; exact unpublished peers resolve from the pinned Harness checkout.`)
+console.log(`Install the ${archives.length} archives into a DSH Web profile with:`)
 console.log([
   'dsh plugin --profile web add',
-  ...packageRoots.map(packageRoot => `  ${JSON.stringify(`link:${packageRoot}`)}`),
+  ...archives.map(archive => `  ${JSON.stringify(`file:${archive}`)}`),
+  ...pinnedPeerRoots.map(packageRoot => `  ${JSON.stringify(`link:${packageRoot}`)}`),
+].join(' \\\n'))
+console.log('Remove every overlay package and Loader row with:')
+console.log([
+  'dsh plugin --profile web remove --config.offline=true --config.auto-install-peers=false',
+  ...packageNames.map(packageName => `  ${JSON.stringify(packageName)}`),
 ].join(' \\\n'))
