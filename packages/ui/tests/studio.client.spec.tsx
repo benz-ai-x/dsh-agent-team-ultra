@@ -5,8 +5,11 @@ import { resolve } from 'node:path'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
+  DigitalEmployeeEvalRunSummary,
+  DigitalEmployeeEvalSetCatalogEntry,
   DigitalEmployeeProfile,
   DigitalEmployeeProfileCatalogEntry,
+  DigitalEmployeePromotionGate,
   DigitalEmployeeProfileRevision,
   DigitalEmployeeRuntimeCatalog,
   DigitalEmployeeRuntimeTarget,
@@ -63,6 +66,7 @@ function catalog(
     readonly archivedAt?: number
     readonly history?: readonly DigitalEmployeeProfile[]
     readonly runtimeTarget?: DigitalEmployeeRuntimeTarget
+    readonly promotionGate?: DigitalEmployeePromotionGate
   } = {},
 ): DigitalEmployeeProfileCatalogEntry {
   const latest = immutableRevision(latestProfile, options.runtimeTarget)
@@ -88,6 +92,7 @@ function catalog(
       updatedAt: revision.updatedAt,
     })),
     historyTruncated: false,
+    promotionGate: options.promotionGate ?? { status: 'not-required' },
   }
 }
 
@@ -156,6 +161,8 @@ function view(profiles: readonly DigitalEmployeeProfile[] = []): DigitalEmployee
     tools: [{ name: 'read', description: 'Read files' }],
     instances: [],
     runs: [],
+    evalSets: [],
+    evalRuns: [],
   }
 }
 
@@ -166,12 +173,91 @@ function catalogView(profiles: readonly DigitalEmployeeProfileCatalogEntry[]): D
     tools: [{ name: 'read', description: 'Read files' }],
     instances: [],
     runs: [],
+    evalSets: [],
+    evalRuns: [],
   }
 }
 
 function saved(profile: DigitalEmployeeProfile, headRevision = profile.revision) {
   const entry = catalog(profile, { headRevision })
   return { unchanged: false, head: entry.head, revision: entry.latest }
+}
+
+function evalSetCatalog(): DigitalEmployeeEvalSetCatalogEntry {
+  const evalSet = {
+    id: 'reviewer-smoke',
+    profileId: 'reviewer' as never,
+    displayName: 'Reviewer smoke',
+    toolAllowlist: ['read'],
+    resourceCeilings: { maxSteps: 3, maxOutputTokens: 512, maxElapsedMs: 10_000 },
+    passPolicy: { kind: 'all' as const },
+    cases: [{
+      id: 'summarize',
+      title: 'Summarize fixture',
+      input: 'Summarize the fixture.',
+      fixtures: [{ id: 'readme', content: 'A bounded fixture.' }],
+      assertions: {
+        acceptedTerminals: ['completed' as const],
+        requiredTools: ['read'],
+        forbiddenTools: [],
+        requiredOutputSubstrings: ['summary'],
+        forbiddenOutputSubstrings: ['secret'],
+      },
+    }],
+  }
+  return {
+    head: {
+      schemaVersion: 1,
+      evalSetId: evalSet.id,
+      profileId: evalSet.profileId,
+      headRevision: 1,
+      latestRevision: 1,
+      createdAt: 10,
+      updatedAt: 10,
+    },
+    latest: {
+      schemaVersion: 1,
+      evalSetId: evalSet.id,
+      profileId: evalSet.profileId,
+      revision: 1,
+      evalSet,
+      fingerprint: 'e'.repeat(64),
+      createdAt: 10,
+      updatedAt: 10,
+    },
+    history: [{ revision: 1, fingerprint: 'e'.repeat(64), createdAt: 10, updatedAt: 10 }],
+    historyTruncated: false,
+  }
+}
+
+function evalRun(
+  evalRunId: string,
+  status: DigitalEmployeeEvalRunSummary['status'],
+  passedCases: number,
+): DigitalEmployeeEvalRunSummary {
+  return {
+    schemaVersion: 1,
+    evalRunId: evalRunId as never,
+    requestFingerprint: evalRunId.padEnd(64, 'a').slice(0, 64),
+    teamId: 'session-a',
+    profileId: 'reviewer' as never,
+    profileRevision: 2,
+    profileFingerprint: 'p'.repeat(64),
+    runtimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'test-model' },
+    capabilityGeneration: 1,
+    evalSetId: 'reviewer-smoke',
+    evalSetRevision: 1,
+    evalSetFingerprint: 'e'.repeat(64),
+    assertionSchemaVersion: 1,
+    environmentFingerprint: 'v'.repeat(64),
+    effectiveToolAllowlist: ['read'],
+    status,
+    passedCases,
+    totalCases: 1,
+    startedAt: 100,
+    updatedAt: 110,
+    ...(status === 'running' ? {} : { endedAt: 110 }),
+  }
 }
 
 function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmployeeStudioProps {
@@ -205,6 +291,26 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
     run: vi.fn(async () => ({
       ok: true,
       value: { ok: false, error: { code: 'run-not-found', message: 'missing' } },
+    })),
+    saveEvalSet: vi.fn(async () => ({
+      ok: true,
+      value: { ok: false, error: { code: 'eval-invalid', message: 'invalid' } },
+    })),
+    setEvalGate: vi.fn(async () => ({
+      ok: true,
+      value: { ok: false, error: { code: 'profile-conflict', message: 'stale' } },
+    })),
+    startEvalRun: vi.fn(async () => ({
+      ok: true,
+      value: { ok: false, error: { code: 'eval-environment-unavailable', message: 'unavailable' } },
+    })),
+    cancelEvalRun: vi.fn(async () => ({
+      ok: true,
+      value: { ok: false, error: { code: 'eval-not-found', message: 'missing' } },
+    })),
+    evalRun: vi.fn(async () => ({
+      ok: true,
+      value: { ok: false, error: { code: 'eval-not-found', message: 'missing' } },
     })),
     t: ((key: UltraKey) => en[key]) as DigitalEmployeeStudioProps['t'],
     ...overrides,
@@ -708,6 +814,146 @@ describe('Digital Employee Studio', () => {
     await waitFor(() => {
       expect(restore).toHaveBeenCalledWith('session-a', 'reviewer', 2)
     })
+  })
+})
+
+describe('evaluation workflow', () => {
+  it('versions Eval Sets, manages the gate, runs and cancels candidates, and compares inspectable evidence', async () => {
+    const running = evalRun('33333333-3333-4333-8333-333333333333', 'running', 0)
+    const failed = evalRun('44444444-4444-4444-8444-444444444444', 'failed', 0)
+    const passed = evalRun('55555555-5555-4555-8555-555555555555', 'passed', 1)
+    const set = evalSetCatalog()
+    const entry = catalog(profile('Reviewer Candidate', 2), {
+      headRevision: 7,
+      activeRevision: 1,
+      promotionGate: {
+        status: 'invalidated',
+        requiredEvalSet: { evalSetId: set.head.evalSetId, revision: 1 },
+        diagnostic: 'The passing evidence belongs to another exact candidate.',
+      },
+    })
+    const evaluationView: DigitalEmployeeStudioView = {
+      ...catalogView([entry]),
+      evalSets: [set],
+      evalRuns: [running, failed, passed],
+    }
+    const load = vi.fn(async () => ({ ok: true as const, value: evaluationView }))
+    const saveEvalSet = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        ok: true as const,
+        value: { unchanged: false, head: set.head, revision: set.latest },
+      },
+    }))
+    const setEvalGate = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: true as const, value: { head: entry.head } },
+    }))
+    const startEvalRun = vi.fn(async (_sessionId, request) => ({
+      ok: true as const,
+      value: {
+        ok: true as const,
+        value: { replayed: false, run: { ...running, evalRunId: request.evalRunId } },
+      },
+    }))
+    const cancelled = { ...running, status: 'cancelled' as const, endedAt: 120, updatedAt: 120 }
+    const cancelEvalRun = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: true as const, value: { run: cancelled } },
+    }))
+    const evalRunDetail = (summary: DigitalEmployeeEvalRunSummary) => {
+      const { passedCases: _passedCases, totalCases: _totalCases, ...record } = summary
+      return {
+        run: {
+          ...record,
+          cases: [{
+            caseId: 'summarize',
+            status: summary.status === 'passed' ? 'passed' as const : summary.status === 'running' ? 'running' as const : 'failed' as const,
+            assertions: summary.status === 'running' ? [] : [{
+              kind: 'required-output' as const,
+              subject: 'summary',
+              passed: summary.status === 'passed',
+              diagnostic: summary.status === 'passed' ? 'substring observed' : 'substring missing',
+            }],
+          }],
+        },
+        evalSet: set.latest,
+      }
+    }
+    const getEvalRun = vi.fn(async (_sessionId, request) => {
+      const summary = [running, failed, passed].find(candidate => candidate.evalRunId === request.evalRunId)!
+      return {
+        ok: true as const,
+        value: { ok: true as const, value: evalRunDetail(summary) },
+      }
+    })
+
+    render(<DigitalEmployeeStudio {...props({
+      load,
+      saveEvalSet,
+      setEvalGate,
+      startEvalRun,
+      cancelEvalRun,
+      evalRun: getEvalRun,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer Candidate/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Evaluations/ }))
+
+    expect(screen.getByText(/Invalidated/)).toBeDefined()
+    expect(screen.getByText('The passing evidence belongs to another exact candidate.')).toBeDefined()
+    expect(screen.getByText('Reviewer smoke')).toBeDefined()
+
+    const cases = screen.getByLabelText('Cases JSON') as HTMLTextAreaElement
+    const editedCases = JSON.parse(cases.value)
+    editedCases[0].input = 'Summarize this exact fixture.'
+    fireEvent.change(cases, { target: { value: JSON.stringify(editedCases, null, 2) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Eval Set' }))
+    await waitFor(() => {
+      expect(saveEvalSet).toHaveBeenCalledWith('session-a', expect.objectContaining({
+        expectedHeadRevision: 1,
+        evalSet: expect.objectContaining({
+          id: 'reviewer-smoke',
+          cases: [expect.objectContaining({ input: 'Summarize this exact fixture.' })],
+        }),
+      }))
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Require latest revision' }))
+    await waitFor(() => {
+      expect(setEvalGate).toHaveBeenCalledWith('session-a', {
+        profileId: 'reviewer',
+        expectedHeadRevision: 7,
+        requiredEvalSet: { evalSetId: 'reviewer-smoke', revision: 1 },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run candidate' }))
+    await waitFor(() => {
+      expect(startEvalRun).toHaveBeenCalledWith('session-a', expect.objectContaining({
+        profileId: 'reviewer',
+        profileRevision: 2,
+        evalSetId: 'reviewer-smoke',
+        evalSetRevision: 1,
+      }))
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Evaluation run 33333333/ }))
+    await waitFor(() => {
+      expect(getEvalRun).toHaveBeenCalledWith('session-a', { evalRunId: running.evalRunId })
+    })
+    expect(screen.getByText('summarize')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel evaluation' }))
+    await waitFor(() => {
+      expect(cancelEvalRun).toHaveBeenCalledWith('session-a', { evalRunId: running.evalRunId })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Evaluation run 44444444/ }))
+    await waitFor(() => { expect(screen.getByText('substring missing')).toBeDefined() })
+    fireEvent.change(screen.getByLabelText('Compare evaluation run'), {
+      target: { value: passed.evalRunId },
+    })
+    expect(screen.getByText('failed → passed')).toBeDefined()
   })
 })
 

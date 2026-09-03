@@ -79,6 +79,12 @@ describe('Agent Team Ultra profile overlay', () => {
         maxAssignmentBytes: 32768,
         maxRevisionHistory: 32,
         maxDiffEntries: 512,
+        maxRuns: 512,
+        maxRunEvidenceItems: 512,
+        maxEvalSets: 64,
+        maxEvalSetBytes: 262144,
+        maxEvalCases: 64,
+        maxEvalRuns: 256,
       },
     })
   })

@@ -88,6 +88,26 @@ _Avoid_: Agent session, provider loop, tool step
 A bounded, repairable Studio projection containing only Run identity, discriminated Team-member or evaluation-worker ownership, immutable Profile and route identity, normalized terminal/usage facts, timestamps, and evidence completeness. It is not a transcript or the canonical evidence store.
 _Avoid_: Run log, copied conversation, telemetry warehouse
 
+**Eval Set**:
+A Profile-owned definition of isolated behavior Cases, allowed tools, resource ceilings, assertions, and the rule by which those Cases pass.
+_Avoid_: Test prompt, benchmark file, CI suite
+
+**Eval Set Revision**:
+A complete immutable version of an Eval Set, identified independently from Profile Revisions by its own canonical fingerprint and history.
+_Avoid_: Profile Revision, mutable test configuration
+
+**Eval Run**:
+The durable result of applying one exact Eval Set Revision to one exact Candidate Revision under one captured runtime capability generation and evaluation environment.
+_Avoid_: Run, test session, latest evaluation
+
+**Evaluation Worker**:
+A fresh isolated runtime that executes exactly one Eval Case without becoming a Team member or production Digital Employee.
+_Avoid_: Temporary teammate, hidden roster member
+
+**Promotion Gate**:
+A Profile Head requirement that permits activation only when a passed Eval Run still matches the exact Candidate Revision, required Eval Set Revision, runtime capability generation, assertion schema, and evaluation environment.
+_Avoid_: Approval, latest pass, mutable release flag
+
 **Canonical Evidence Source**:
 The authoritative history from which Run detail is folded on demand: the exact DSH child Session turn or the exact provider-native runtime and turn.
 _Avoid_: Run Index, Studio timeline, debug log

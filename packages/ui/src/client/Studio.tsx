@@ -8,7 +8,18 @@ import {
 } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
+  CancelDigitalEmployeeEvalRunRequest,
+  CancelDigitalEmployeeEvalRunResult,
+  DigitalEmployeeEvalCaseResult,
+  DigitalEmployeeEvalRunDetail,
+  DigitalEmployeeEvalRunId,
+  DigitalEmployeeEvalRunStatus,
+  DigitalEmployeeEvalRunSummary,
+  DigitalEmployeeEvalSetCatalogEntry,
+  DigitalEmployeeEvalSetDraft,
   GetDigitalEmployeeProfileRevisionResult,
+  GetDigitalEmployeeEvalRunRequest,
+  GetDigitalEmployeeEvalRunResult,
   LaunchRequestId,
   MutateDigitalEmployeeProfileHeadResult,
   DigitalEmployeeProfileCatalogEntry,
@@ -33,9 +44,14 @@ import type {
   ProfileTextBlock,
   SaveDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileResult,
+  SaveDigitalEmployeeEvalSetRequest,
+  SaveDigitalEmployeeEvalSetResult,
   SelectableDigitalEmployeeRuntimeTarget,
+  SetDigitalEmployeeEvalGateRequest,
   SpawnDigitalEmployeeRequest,
   SpawnDigitalEmployeeResult,
+  StartDigitalEmployeeEvalRunRequest,
+  StartDigitalEmployeeEvalRunResult,
 } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
@@ -101,6 +117,26 @@ export interface DigitalEmployeeStudioInjected {
     runId: DigitalEmployeeRunId,
     signal?: AbortSignal,
   ) => Promise<RemoteResult<GetDigitalEmployeeRunResult>>
+  saveEvalSet: (
+    sessionId: SessionId,
+    request: SaveDigitalEmployeeEvalSetRequest,
+  ) => Promise<RemoteResult<SaveDigitalEmployeeEvalSetResult>>
+  setEvalGate: (
+    sessionId: SessionId,
+    request: SetDigitalEmployeeEvalGateRequest,
+  ) => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>
+  startEvalRun: (
+    sessionId: SessionId,
+    request: StartDigitalEmployeeEvalRunRequest,
+  ) => Promise<RemoteResult<StartDigitalEmployeeEvalRunResult>>
+  cancelEvalRun: (
+    sessionId: SessionId,
+    request: CancelDigitalEmployeeEvalRunRequest,
+  ) => Promise<RemoteResult<CancelDigitalEmployeeEvalRunResult>>
+  evalRun: (
+    sessionId: SessionId,
+    request: GetDigitalEmployeeEvalRunRequest,
+  ) => Promise<RemoteResult<GetDigitalEmployeeEvalRunResult>>
 }
 
 export type DigitalEmployeeStudioProps =
@@ -109,8 +145,19 @@ export type DigitalEmployeeStudioProps =
   & PropsLocale<typeof NS>
 
 type Translate = DigitalEmployeeStudioProps['t']
-type BusyOperation = 'save' | 'activate' | 'rollback' | 'archive' | 'restore' | 'spawn'
-type SectionId = 'identity' | 'persona' | 'tools' | 'context' | 'memory' | 'hooks' | 'revisions'
+type BusyOperation =
+  | 'save'
+  | 'activate'
+  | 'rollback'
+  | 'archive'
+  | 'restore'
+  | 'spawn'
+  | 'save-eval'
+  | 'gate-eval'
+  | 'start-eval'
+  | 'cancel-eval'
+type HeadOperation = 'activate' | 'rollback' | 'archive' | 'restore'
+type SectionId = 'identity' | 'persona' | 'tools' | 'context' | 'memory' | 'hooks' | 'evaluations' | 'revisions'
 type ResizeEdge = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw'
 
 interface StudioWindowRect {
@@ -144,7 +191,16 @@ interface LaunchIntent {
   readonly request: SpawnDigitalEmployeeRequest
 }
 
-const SECTION_ORDER: readonly SectionId[] = ['identity', 'persona', 'tools', 'context', 'memory', 'hooks', 'revisions']
+const SECTION_ORDER: readonly SectionId[] = [
+  'identity',
+  'persona',
+  'tools',
+  'context',
+  'memory',
+  'hooks',
+  'evaluations',
+  'revisions',
+]
 const RESIZE_EDGES: readonly ResizeEdge[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']
 const WINDOW_MARGIN = 16
 const WINDOW_MIN_WIDTH = 680
@@ -182,6 +238,55 @@ function emptyProfile(): DigitalEmployeeProfileDraft {
     memory: [],
     hooks: [],
   }
+}
+
+function emptyEvalSet(profileId: DigitalEmployeeProfileDraft['id']): DigitalEmployeeEvalSetDraft {
+  return {
+    id: freshIdentity(`${profileId}-eval`),
+    profileId,
+    displayName: 'Candidate evaluation',
+    toolAllowlist: [],
+    resourceCeilings: { maxSteps: 8, maxOutputTokens: 2_048, maxElapsedMs: 60_000 },
+    passPolicy: { kind: 'all' },
+    cases: [{
+      id: 'case-1',
+      title: 'Candidate behavior',
+      input: 'Complete the requested task.',
+      fixtures: [],
+      assertions: {
+        acceptedTerminals: ['completed'],
+        requiredTools: [],
+        forbiddenTools: [],
+        requiredOutputSubstrings: [],
+        forbiddenOutputSubstrings: [],
+      },
+    }],
+  }
+}
+
+function cloneEvalSet(evalSet: DigitalEmployeeEvalSetDraft): DigitalEmployeeEvalSetDraft {
+  return {
+    ...evalSet,
+    toolAllowlist: [...evalSet.toolAllowlist],
+    resourceCeilings: { ...evalSet.resourceCeilings },
+    passPolicy: { ...evalSet.passPolicy },
+    cases: evalSet.cases.map(testCase => ({
+      ...testCase,
+      fixtures: testCase.fixtures.map(fixture => ({ ...fixture })),
+      assertions: {
+        ...testCase.assertions,
+        acceptedTerminals: [...testCase.assertions.acceptedTerminals],
+        requiredTools: [...testCase.assertions.requiredTools],
+        forbiddenTools: [...testCase.assertions.forbiddenTools],
+        requiredOutputSubstrings: [...testCase.assertions.requiredOutputSubstrings],
+        forbiddenOutputSubstrings: [...testCase.assertions.forbiddenOutputSubstrings],
+      },
+    })),
+  }
+}
+
+function prettyCases(evalSet: DigitalEmployeeEvalSetDraft): string {
+  return JSON.stringify(evalSet.cases, null, 2)
 }
 
 function cloneProfile(profile: DigitalEmployeeProfileDraft): DigitalEmployeeProfileDraft {
@@ -405,6 +510,7 @@ function sectionNavKey(section: SectionId): UltraKey {
     case 'context': return 'navContext'
     case 'memory': return 'navMemory'
     case 'hooks': return 'navHooks'
+    case 'evaluations': return 'navEvaluations'
     case 'revisions': return 'navRevisions'
   }
 }
@@ -417,6 +523,7 @@ function sectionTitleKey(section: SectionId): UltraKey {
     case 'context': return 'context'
     case 'memory': return 'memory'
     case 'hooks': return 'hooks'
+    case 'evaluations': return 'evaluations'
     case 'revisions': return 'revisions'
   }
 }
@@ -429,6 +536,7 @@ function sectionDescKey(section: SectionId): UltraKey {
     case 'context': return 'contextDesc'
     case 'memory': return 'memoryDesc'
     case 'hooks': return 'hooksDesc'
+    case 'evaluations': return 'evaluationsDesc'
     case 'revisions': return 'revisionsDesc'
   }
 }
@@ -441,6 +549,7 @@ function SectionIcon({ section }: { section: SectionId }) {
     case 'context': return <IconContextInjectionOutline16 size={13} />
     case 'memory': return <IconGoalOutline16 size={13} />
     case 'hooks': return <IconSettingsOutline16 size={13} />
+    case 'evaluations': return <IconGoalOutline16 size={13} />
     case 'revisions': return <IconRefreshOutline14 />
   }
 }
@@ -456,7 +565,35 @@ function sectionSummary(draft: DigitalEmployeeProfileDraft, section: SectionId, 
       return `${enabled} / ${draft.hooks.length}`
     }
     case 'revisions': return null
+    case 'evaluations': return null
     default: return null
+  }
+}
+
+function evalRunStatusLabel(status: DigitalEmployeeEvalRunStatus, t: Translate): string {
+  switch (status) {
+    case 'running': return t('evalStatusRunning')
+    case 'passed': return t('evalStatusPassed')
+    case 'failed': return t('evalStatusFailed')
+    case 'cancelled': return t('evalStatusCancelled')
+    case 'interrupted': return t('evalStatusInterrupted')
+    case 'environment-unavailable': return t('evalStatusUnavailable')
+  }
+}
+
+function evalCaseStatusLabel(status: DigitalEmployeeEvalCaseResult['status'], t: Translate): string {
+  return status === 'pending' ? t('evalStatusPending') : evalRunStatusLabel(status, t)
+}
+
+function promotionGateLabel(
+  status: DigitalEmployeeProfileCatalogEntry['promotionGate']['status'],
+  t: Translate,
+): string {
+  switch (status) {
+    case 'not-required': return t('evalGateNotRequired')
+    case 'pending': return t('evalGatePending')
+    case 'passed': return t('evalGatePassed')
+    case 'invalidated': return t('evalGateInvalidated')
   }
 }
 
@@ -580,6 +717,11 @@ export function DigitalEmployeeStudio({
   restore,
   spawn,
   run,
+  saveEvalSet,
+  setEvalGate,
+  startEvalRun,
+  cancelEvalRun,
+  evalRun,
   t,
 }: DigitalEmployeeStudioProps) {
   const [open, setOpen] = useState(false)
@@ -598,6 +740,14 @@ export function DigitalEmployeeStudio({
   const [runLoading, setRunLoading] = useState(false)
   const [runSourceFilter, setRunSourceFilter] = useState<'all' | DigitalEmployeeRunSource>('all')
   const [runTerminalFilter, setRunTerminalFilter] = useState<'all' | DigitalEmployeeRunTerminal>('all')
+  const [selectedEvalSetId, setSelectedEvalSetId] = useState<string | null>(null)
+  const [evalDraft, setEvalDraft] = useState<DigitalEmployeeEvalSetDraft | null>(null)
+  const [evalCasesJson, setEvalCasesJson] = useState('[]')
+  const [evalExpectedHeadRevision, setEvalExpectedHeadRevision] = useState<number | null>(null)
+  const [selectedEvalRunId, setSelectedEvalRunId] = useState<DigitalEmployeeEvalRunId | null>(null)
+  const [evalRunDetail, setEvalRunDetail] = useState<DigitalEmployeeEvalRunDetail | null>(null)
+  const [evalRunLoading, setEvalRunLoading] = useState(false)
+  const [compareEvalRunId, setCompareEvalRunId] = useState<DigitalEmployeeEvalRunId | null>(null)
   const [assignment, setAssignment] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
@@ -610,6 +760,7 @@ export function DigitalEmployeeStudio({
   const refreshGeneration = useRef(0)
   const revisionGeneration = useRef(0)
   const runGeneration = useRef(0)
+  const evalRunGeneration = useRef(0)
   const runAbortRef = useRef<AbortController | null>(null)
   const busyRef = useRef<BusyOperation | null>(null)
   const launchAbortRef = useRef<AbortController | null>(null)
@@ -656,6 +807,14 @@ export function DigitalEmployeeStudio({
     setRunLoading(false)
     setRunSourceFilter('all')
     setRunTerminalFilter('all')
+    setSelectedEvalSetId(null)
+    setEvalDraft(null)
+    setEvalCasesJson('[]')
+    setEvalExpectedHeadRevision(null)
+    setSelectedEvalRunId(null)
+    setEvalRunDetail(null)
+    setEvalRunLoading(false)
+    setCompareEvalRunId(null)
     setAssignment('')
     setCollapsed(new Set())
     setError(null)
@@ -736,6 +895,7 @@ export function DigitalEmployeeStudio({
   }
 
   const select = useCallback((entry: DigitalEmployeeProfileCatalogEntry, resetFeedback = true): void => {
+    const profileChanged = selectedRef.current !== entry.head.profileId
     const next = cloneProfile(entry.latest.profile)
     const nextTarget = cloneRuntimeTarget(entry.latest.runtimeTarget)
     revisionGeneration.current += 1
@@ -753,10 +913,31 @@ export function DigitalEmployeeStudio({
     setRuntimeTarget(nextTarget)
     setBaseline(draftBaseline(next, nextTarget))
     setAssignment('')
+    if (profileChanged) {
+      evalRunGeneration.current += 1
+      setSelectedEvalSetId(null)
+      setEvalDraft(null)
+      setEvalCasesJson('[]')
+      setEvalExpectedHeadRevision(null)
+      setSelectedEvalRunId(null)
+      setEvalRunDetail(null)
+      setEvalRunLoading(false)
+      setCompareEvalRunId(null)
+    }
     if (resetFeedback) {
       setError(null)
       setNotice(null)
     }
+  }, [])
+
+  const selectEvalSet = useCallback((entry: DigitalEmployeeEvalSetCatalogEntry): void => {
+    const next = cloneEvalSet(entry.latest.evalSet)
+    setSelectedEvalSetId(entry.head.evalSetId)
+    setEvalDraft(next)
+    setEvalCasesJson(prettyCases(next))
+    setEvalExpectedHeadRevision(entry.head.headRevision)
+    setError(null)
+    setNotice(null)
   }, [])
 
   const refresh = useCallback(async (preferredId?: string): Promise<boolean> => {
@@ -783,6 +964,15 @@ export function DigitalEmployeeStudio({
         setExpectedHeadRevision(null)
         setRevisionDetail(null)
         setRevisionLoading(false)
+        evalRunGeneration.current += 1
+        setSelectedEvalSetId(null)
+        setEvalDraft(null)
+        setEvalCasesJson('[]')
+        setEvalExpectedHeadRevision(null)
+        setSelectedEvalRunId(null)
+        setEvalRunDetail(null)
+        setEvalRunLoading(false)
+        setCompareEvalRunId(null)
       }
       setError(null)
       return true
@@ -900,8 +1090,167 @@ export function DigitalEmployeeStudio({
     }
   }, [run, sessionId, t])
 
+  const inspectEvalRun = useCallback(async (selected: DigitalEmployeeEvalRunSummary): Promise<void> => {
+    const requestedSession = sessionId
+    const generation = ++evalRunGeneration.current
+    setSelectedEvalRunId(selected.evalRunId)
+    setEvalRunDetail(null)
+    setEvalRunLoading(true)
+    setError(null)
+    try {
+      const result = await evalRun(requestedSession, { evalRunId: selected.evalRunId })
+      if (sessionRef.current !== requestedSession || evalRunGeneration.current !== generation) return
+      if (!result.ok) setError(failureText(result.error))
+      else if (!result.value.ok) setError(failureText(result.value.error))
+      else setEvalRunDetail(result.value.value)
+    } catch (reason: unknown) {
+      if (sessionRef.current === requestedSession && evalRunGeneration.current === generation) {
+        setError(`${t('transportFailure')} ${String(reason)}`)
+      }
+    } finally {
+      if (sessionRef.current === requestedSession && evalRunGeneration.current === generation) {
+        setEvalRunLoading(false)
+      }
+    }
+  }, [evalRun, sessionId, t])
+
+  const saveEvaluationSet = async (): Promise<void> => {
+    if (evalDraft === null || !begin('save-eval')) return
+    const requestedSession = sessionId
+    try {
+      let cases: DigitalEmployeeEvalSetDraft['cases']
+      try {
+        const parsed = JSON.parse(evalCasesJson) as unknown
+        if (!Array.isArray(parsed)) throw new Error(t('evalCasesMustBeArray'))
+        cases = parsed as DigitalEmployeeEvalSetDraft['cases']
+      } catch (reason: unknown) {
+        setError(`${t('evalInvalidCasesJson')} ${String(reason)}`)
+        return
+      }
+      const request: SaveDigitalEmployeeEvalSetRequest = {
+        expectedHeadRevision: evalExpectedHeadRevision,
+        evalSet: { ...evalDraft, cases },
+      }
+      const result = await saveEvalSet(requestedSession, request)
+      if (sessionRef.current !== requestedSession) return
+      if (!result.ok) setError(failureText(result.error))
+      else if (!result.value.ok) {
+        const failure = failureText(result.value.error)
+        setError(failure)
+        if (result.value.error.code === 'eval-conflict') await refresh(evalDraft.profileId)
+        if (sessionRef.current === requestedSession) setError(failure)
+      } else {
+        const next = cloneEvalSet(result.value.value.revision.evalSet)
+        setSelectedEvalSetId(result.value.value.head.evalSetId)
+        setEvalDraft(next)
+        setEvalCasesJson(prettyCases(next))
+        setEvalExpectedHeadRevision(result.value.value.head.headRevision)
+        if (await refresh(next.profileId) && sessionRef.current === requestedSession) {
+          setNotice(t(result.value.value.unchanged ? 'evalSetUnchanged' : 'evalSetSaved'))
+        }
+      }
+    } catch (reason: unknown) {
+      if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
+    } finally {
+      finish(requestedSession)
+    }
+  }
+
+  const changeEvalGate = async (required: boolean): Promise<void> => {
+    if (selectedEntry === undefined || !begin('gate-eval')) return
+    if (required && evalDraft === null) {
+      finish(sessionId)
+      return
+    }
+    const requestedSession = sessionId
+    try {
+      const request: SetDigitalEmployeeEvalGateRequest = {
+        profileId: selectedEntry.head.profileId,
+        expectedHeadRevision: selectedEntry.head.headRevision,
+        ...(required
+          ? {
+              requiredEvalSet: {
+                evalSetId: evalDraft!.id,
+                revision: view?.evalSets.find(candidate => candidate.head.evalSetId === evalDraft!.id)
+                  ?.head.latestRevision ?? 1,
+              },
+            }
+          : {}),
+      }
+      const result = await setEvalGate(requestedSession, request)
+      if (sessionRef.current !== requestedSession) return
+      if (!result.ok) setError(failureText(result.error))
+      else if (!result.value.ok) setError(failureText(result.value.error))
+      else if (await refresh(selectedEntry.head.profileId)) {
+        setNotice(t(required ? 'evalGateRequired' : 'evalGateCleared'))
+      }
+    } catch (reason: unknown) {
+      if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
+    } finally {
+      finish(requestedSession)
+    }
+  }
+
+  const startEvaluation = async (): Promise<void> => {
+    if (selectedEntry === undefined || evalDraft === null || !begin('start-eval')) return
+    const evalSetEntry = view?.evalSets.find(candidate => candidate.head.evalSetId === evalDraft.id)
+    if (evalSetEntry === undefined) {
+      setError(t('evalSaveBeforeRun'))
+      finish(sessionId)
+      return
+    }
+    const requestedSession = sessionId
+    try {
+      const request: StartDigitalEmployeeEvalRunRequest = {
+        evalRunId: globalThis.crypto.randomUUID() as DigitalEmployeeEvalRunId,
+        profileId: selectedEntry.head.profileId,
+        profileRevision: selectedEntry.head.latestRevision,
+        evalSetId: evalSetEntry.head.evalSetId,
+        evalSetRevision: evalSetEntry.head.latestRevision,
+      }
+      const result = await startEvalRun(requestedSession, request)
+      if (sessionRef.current !== requestedSession) return
+      if (!result.ok) setError(failureText(result.error))
+      else if (!result.value.ok) setError(failureText(result.value.error))
+      else {
+        setSelectedEvalRunId(result.value.value.run.evalRunId)
+        setEvalRunDetail(null)
+        setCompareEvalRunId(null)
+        await refresh(selectedEntry.head.profileId)
+        if (sessionRef.current === requestedSession) setNotice(t('evalRunStarted'))
+      }
+    } catch (reason: unknown) {
+      if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
+    } finally {
+      finish(requestedSession)
+    }
+  }
+
+  const cancelEvaluation = async (): Promise<void> => {
+    if (selectedEvalRunId === null || !begin('cancel-eval')) return
+    const requestedSession = sessionId
+    try {
+      const result = await cancelEvalRun(requestedSession, { evalRunId: selectedEvalRunId })
+      if (sessionRef.current !== requestedSession) return
+      if (!result.ok) setError(failureText(result.error))
+      else if (!result.value.ok) setError(failureText(result.value.error))
+      else {
+        const cancelledRun = result.value.value.run
+        setEvalRunDetail(current => current === null
+          ? null
+          : { ...current, run: { ...current.run, ...cancelledRun, cases: current.run.cases } })
+        await refresh(selectedEntry?.head.profileId)
+        if (sessionRef.current === requestedSession) setNotice(t('evalRunCancelled'))
+      }
+    } catch (reason: unknown) {
+      if (sessionRef.current === requestedSession) setError(`${t('transportFailure')} ${String(reason)}`)
+    } finally {
+      finish(requestedSession)
+    }
+  }
+
   const mutateHead = async (
-    operation: Exclude<BusyOperation, 'save' | 'spawn'>,
+    operation: HeadOperation,
     profileId: string,
     invoke: () => Promise<RemoteResult<MutateDigitalEmployeeProfileHeadResult>>,
     successKey: UltraKey,
@@ -1022,12 +1371,23 @@ export function DigitalEmployeeStudio({
   const profiles = view?.profiles ?? []
   const instances = view?.instances ?? []
   const runs = view?.runs ?? []
+  const evalSets = view?.evalSets ?? []
+  const evalRuns = view?.evalRuns ?? []
   const filteredRuns = runs.filter(candidate =>
     (runSourceFilter === 'all' || candidate.source === runSourceFilter)
     && (runTerminalFilter === 'all' || candidate.terminal === runTerminalFilter))
   const selectedRun = runs.find(candidate => candidate.runId === selectedRunId)
   const runtimeBackends = view?.runtimeCatalog.backends ?? []
   const selectedEntry = profiles.find(profile => profile.head.profileId === selectedId)
+  const profileEvalSets = selectedEntry === undefined
+    ? []
+    : evalSets.filter(candidate => candidate.head.profileId === selectedEntry.head.profileId)
+  const selectedEvalSetEntry = profileEvalSets.find(candidate => candidate.head.evalSetId === selectedEvalSetId)
+  const profileEvalRuns = selectedEntry === undefined
+    ? []
+    : evalRuns.filter(candidate => candidate.profileId === selectedEntry.head.profileId)
+  const selectedEvalRun = profileEvalRuns.find(candidate => candidate.evalRunId === selectedEvalRunId)
+  const comparedEvalRun = profileEvalRuns.find(candidate => candidate.evalRunId === compareEvalRunId)
   const selectedRuntimeBackend = runtimeBackends.find(backend => backend.routingId === runtimeTargetId(runtimeTarget))
   const retainsLatestRuntimeTarget = runtimeTarget !== null
     && selectedEntry !== undefined
@@ -1042,6 +1402,8 @@ export function DigitalEmployeeStudio({
     && runtimeTarget.kind !== 'legacy-inherit-lead'
     && (selectedRuntimeBackend?.availability === 'available'
       || (selectedRuntimeBackend?.availability === 'unavailable' && retainsLatestRuntimeTarget))
+  const activationBlockedByGate = selectedEntry?.promotionGate.status === 'pending'
+    || selectedEntry?.promotionGate.status === 'invalidated'
 
   return (
     <div className={css.root} data-digital-employee-studio>
@@ -1125,6 +1487,15 @@ export function DigitalEmployeeStudio({
                     setSelectedRunId(null)
                     setRunDetail(null)
                     setRunLoading(false)
+                    evalRunGeneration.current += 1
+                    setSelectedEvalSetId(null)
+                    setEvalDraft(null)
+                    setEvalCasesJson('[]')
+                    setEvalExpectedHeadRevision(null)
+                    setSelectedEvalRunId(null)
+                    setEvalRunDetail(null)
+                    setEvalRunLoading(false)
+                    setCompareEvalRunId(null)
                     setAssignment('')
                     setError(null)
                     setNotice(null)
@@ -1173,6 +1544,20 @@ export function DigitalEmployeeStudio({
                           aria-current={item === section ? 'true' : undefined}
                           onClick={() => {
                             setSection(item)
+                            if (item === 'evaluations' && selectedEntry !== undefined) {
+                              const available = view.evalSets.filter(candidate =>
+                                candidate.head.profileId === selectedEntry.head.profileId)
+                              const current = available.find(candidate => candidate.head.evalSetId === selectedEvalSetId)
+                                ?? available[0]
+                              if (current !== undefined) selectEvalSet(current)
+                              else {
+                                const next = emptyEvalSet(selectedEntry.head.profileId)
+                                setSelectedEvalSetId(next.id)
+                                setEvalDraft(next)
+                                setEvalCasesJson(prettyCases(next))
+                                setEvalExpectedHeadRevision(null)
+                              }
+                            }
                             if (item === 'revisions' && selectedEntry !== undefined) {
                               void inspectRevision(selectedEntry.head.profileId, selectedEntry.head.latestRevision)
                             }
@@ -1590,6 +1975,273 @@ export function DigitalEmployeeStudio({
                           </SectionPage>
                         )}
 
+                        {section === 'evaluations' && selectedEntry !== undefined && (
+                          <SectionPage
+                            title={t(sectionTitleKey('evaluations'))}
+                            desc={t(sectionDescKey('evaluations'))}
+                            action={(
+                              <button
+                                type="button"
+                                className={css.smallButton}
+                                disabled={busy !== null}
+                                onClick={() => {
+                                  const next = emptyEvalSet(selectedEntry.head.profileId)
+                                  setSelectedEvalSetId(next.id)
+                                  setEvalDraft(next)
+                                  setEvalCasesJson(prettyCases(next))
+                                  setEvalExpectedHeadRevision(null)
+                                  setSelectedEvalRunId(null)
+                                  setEvalRunDetail(null)
+                                  setCompareEvalRunId(null)
+                                  setError(null)
+                                  setNotice(null)
+                                }}
+                              >
+                                <IconPlusOutline16 size={13} /> {t('newEvalSet')}
+                              </button>
+                            )}
+                          >
+                            <div className={css.releaseSummary}>
+                              <span>{t('evalPromotionGate')}: {promotionGateLabel(selectedEntry.promotionGate.status, t)}</span>
+                              {selectedEntry.promotionGate.requiredEvalSet !== undefined && (
+                                <span>
+                                  {selectedEntry.promotionGate.requiredEvalSet.evalSetId}
+                                  @r{selectedEntry.promotionGate.requiredEvalSet.revision}
+                                </span>
+                              )}
+                              {selectedEntry.promotionGate.satisfiedByEvalRunId !== undefined && (
+                                <span>{t('evalSatisfiedBy')}: {selectedEntry.promotionGate.satisfiedByEvalRunId}</span>
+                              )}
+                            </div>
+                            {selectedEntry.promotionGate.diagnostic !== undefined && (
+                              <p className={css.diagnostic}>{selectedEntry.promotionGate.diagnostic}</p>
+                            )}
+
+                            <div className={css.evalWorkspace}>
+                              <div className={css.revisionList}>
+                                {profileEvalSets.length === 0 && <p className={css.muted}>{t('noEvalSets')}</p>}
+                                {profileEvalSets.map(candidate => (
+                                  <button
+                                    type="button"
+                                    key={candidate.head.evalSetId}
+                                    className={candidate.head.evalSetId === selectedEvalSetId
+                                      ? css.revisionSelected
+                                      : css.revisionItem}
+                                    disabled={busy !== null}
+                                    onClick={() => { selectEvalSet(candidate) }}
+                                  >
+                                    <strong>{candidate.latest.evalSet.displayName}</strong>
+                                    <span>r{candidate.head.latestRevision}</span>
+                                    <code>{candidate.head.evalSetId}</code>
+                                  </button>
+                                ))}
+                              </div>
+
+                              <div className={css.evalEditor}>
+                                {evalDraft === null
+                                  ? <p className={css.muted}>{t('selectEvalSet')}</p>
+                                  : (
+                                    <>
+                                      <div className={css.grid}>
+                                        <Field label={t('evalSetId')}>
+                                          <input
+                                            value={evalDraft.id}
+                                            disabled={evalExpectedHeadRevision !== null}
+                                            onChange={event => {
+                                              setSelectedEvalSetId(event.target.value)
+                                              setEvalDraft(current => current === null
+                                                ? null
+                                                : { ...current, id: event.target.value })
+                                            }}
+                                          />
+                                        </Field>
+                                        <Field label={t('evalDisplayName')}>
+                                          <input
+                                            value={evalDraft.displayName}
+                                            onChange={event => {
+                                              setEvalDraft(current => current === null
+                                                ? null
+                                                : { ...current, displayName: event.target.value })
+                                            }}
+                                          />
+                                        </Field>
+                                        <Field label={t('evalToolAllowlist')} wide>
+                                          <input
+                                            value={evalDraft.toolAllowlist.join(', ')}
+                                            onChange={event => {
+                                              const toolAllowlist = event.target.value.split(',')
+                                                .map(name => name.trim()).filter(Boolean)
+                                              setEvalDraft(current => current === null
+                                                ? null
+                                                : { ...current, toolAllowlist })
+                                            }}
+                                          />
+                                        </Field>
+                                        <Field label={t('evalMaxSteps')}>
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            value={evalDraft.resourceCeilings.maxSteps}
+                                            onChange={event => {
+                                              const maxSteps = Number(event.target.value)
+                                              setEvalDraft(current => current === null ? null : {
+                                                ...current,
+                                                resourceCeilings: { ...current.resourceCeilings, maxSteps },
+                                              })
+                                            }}
+                                          />
+                                        </Field>
+                                        <Field label={t('evalMaxOutputTokens')}>
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            value={evalDraft.resourceCeilings.maxOutputTokens}
+                                            onChange={event => {
+                                              const maxOutputTokens = Number(event.target.value)
+                                              setEvalDraft(current => current === null ? null : {
+                                                ...current,
+                                                resourceCeilings: { ...current.resourceCeilings, maxOutputTokens },
+                                              })
+                                            }}
+                                          />
+                                        </Field>
+                                        <Field label={t('evalMaxElapsedMs')}>
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            value={evalDraft.resourceCeilings.maxElapsedMs}
+                                            onChange={event => {
+                                              const maxElapsedMs = Number(event.target.value)
+                                              setEvalDraft(current => current === null ? null : {
+                                                ...current,
+                                                resourceCeilings: { ...current.resourceCeilings, maxElapsedMs },
+                                              })
+                                            }}
+                                          />
+                                        </Field>
+                                        <Field label={t('evalPassPolicy')}>
+                                          <select
+                                            value={evalDraft.passPolicy.kind}
+                                            onChange={event => {
+                                              const passPolicy = event.target.value === 'all'
+                                                ? { kind: 'all' as const }
+                                                : { kind: 'minimum' as const, minimumPassed: 1 }
+                                              setEvalDraft(current => current === null ? null : { ...current, passPolicy })
+                                            }}
+                                          >
+                                            <option value="all">{t('evalPassAll')}</option>
+                                            <option value="minimum">{t('evalPassMinimum')}</option>
+                                          </select>
+                                        </Field>
+                                        {evalDraft.passPolicy.kind === 'minimum' && (
+                                          <Field label={t('evalMinimumPassed')}>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              value={evalDraft.passPolicy.minimumPassed}
+                                              onChange={event => {
+                                                const minimumPassed = Number(event.target.value)
+                                                setEvalDraft(current => current === null ? null : {
+                                                  ...current,
+                                                  passPolicy: { kind: 'minimum', minimumPassed },
+                                                })
+                                              }}
+                                            />
+                                          </Field>
+                                        )}
+                                      </div>
+                                      <PromptField
+                                        label={t('evalCasesJson')}
+                                        value={evalCasesJson}
+                                        max={131_072}
+                                        onChange={setEvalCasesJson}
+                                      />
+                                      <div className={css.evalActions}>
+                                        <button
+                                          type="button"
+                                          className={css.secondaryButton}
+                                          disabled={busy !== null}
+                                          onClick={() => { void saveEvaluationSet() }}
+                                        >
+                                          {busy === 'save-eval' ? t('saving') : t('saveEvalSet')}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={css.secondaryButton}
+                                          disabled={busy !== null || selectedEvalSetEntry === undefined}
+                                          onClick={() => { void changeEvalGate(true) }}
+                                        >
+                                          {t('requireLatestEval')}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={css.secondaryButton}
+                                          disabled={busy !== null || selectedEntry.promotionGate.requiredEvalSet === undefined}
+                                          onClick={() => { void changeEvalGate(false) }}
+                                        >
+                                          {t('clearEvalGate')}
+                                        </button>
+                                        <span className={css.spacer} />
+                                        <button
+                                          type="button"
+                                          className={css.primaryButton}
+                                          disabled={busy !== null || selectedEvalSetEntry === undefined}
+                                          onClick={() => { void startEvaluation() }}
+                                        >
+                                          <IconPlayOutline16 size={14} /> {t('runCandidate')}
+                                        </button>
+                                      </div>
+                                      {selectedEvalSetEntry !== undefined && (
+                                        <div className={css.evalHistory}>
+                                          <strong>{t('evalSetHistory')}</strong>
+                                          {selectedEvalSetEntry.history.map(item => (
+                                            <code key={item.revision}>r{item.revision} · {item.fingerprint.slice(0, 12)}</code>
+                                          ))}
+                                          {selectedEvalSetEntry.historyTruncated && <span>{t('historyTruncated')}</span>}
+                                        </div>
+                                      )}
+                                    </>
+                                    )}
+                              </div>
+                            </div>
+
+                            <div className={css.evalRunHeading}>
+                              <strong>{t('evalRuns')}</strong>
+                              <span>{profileEvalRuns.length}</span>
+                            </div>
+                            <div className={css.evalRunWorkspace}>
+                              <div className={css.runList}>
+                                {profileEvalRuns.length === 0 && <p className={css.muted}>{t('noEvalRuns')}</p>}
+                                {profileEvalRuns.map(candidate => (
+                                  <button
+                                    type="button"
+                                    key={candidate.evalRunId}
+                                    aria-label={`${t('evalRunAria')} ${candidate.evalRunId}`}
+                                    className={candidate.evalRunId === selectedEvalRunId ? css.runSelected : css.run}
+                                    onClick={() => { void inspectEvalRun(candidate) }}
+                                  >
+                                    <strong>{candidate.evalRunId.slice(0, 8)}</strong>
+                                    <span>{evalRunStatusLabel(candidate.status, t)} · {candidate.passedCases}/{candidate.totalCases}</span>
+                                    <small>Profile r{candidate.profileRevision} · Eval r{candidate.evalSetRevision}</small>
+                                  </button>
+                                ))}
+                              </div>
+                              <EvalRunInspector
+                                summary={selectedEvalRun}
+                                detail={evalRunDetail}
+                                loading={evalRunLoading}
+                                candidates={profileEvalRuns}
+                                compareId={compareEvalRunId}
+                                compared={comparedEvalRun}
+                                busy={busy}
+                                onCompare={setCompareEvalRunId}
+                                onCancel={() => { void cancelEvaluation() }}
+                                t={t}
+                              />
+                            </div>
+                          </SectionPage>
+                        )}
+
                         {section === 'revisions' && selectedEntry !== undefined && (
                           <SectionPage
                             title={t(sectionTitleKey('revisions'))}
@@ -1603,8 +2255,14 @@ export function DigitalEmployeeStudio({
                                   : `${t('activeLabel')} r${selectedEntry.head.activeRevision}`}
                               </span>
                               <span>{t('headRevision')} {selectedEntry.head.headRevision}</span>
+                              <span>
+                                {t('evalPromotionGate')}: {promotionGateLabel(selectedEntry.promotionGate.status, t)}
+                              </span>
                               {selectedEntry.head.archivedAt !== undefined && <span>{t('archived')}</span>}
                             </div>
+                            {selectedEntry.promotionGate.diagnostic !== undefined && (
+                              <p className={css.diagnostic}>{selectedEntry.promotionGate.diagnostic}</p>
+                            )}
                             <div className={css.revisionWorkspace}>
                               <div className={css.revisionList}>
                                 {selectedEntry.history.map(item => (
@@ -1653,7 +2311,8 @@ export function DigitalEmployeeStudio({
                                         <button
                                           type="button"
                                           className={css.primaryButton}
-                                          disabled={busy !== null}
+                                          disabled={busy !== null || activationBlockedByGate}
+                                          title={activationBlockedByGate ? selectedEntry.promotionGate.diagnostic : undefined}
                                           onClick={() => {
                                             void mutateHead(
                                               'activate',
@@ -1766,6 +2425,112 @@ export function DigitalEmployeeStudio({
             </div>
           )}
           <ResizeHandles onPointerDown={(event, edge) => { beginWindowInteraction(event, 'resize', edge) }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EvalRunInspector({
+  summary,
+  detail,
+  loading,
+  candidates,
+  compareId,
+  compared,
+  busy,
+  onCompare,
+  onCancel,
+  t,
+}: {
+  summary: DigitalEmployeeEvalRunSummary | undefined
+  detail: DigitalEmployeeEvalRunDetail | null
+  loading: boolean
+  candidates: readonly DigitalEmployeeEvalRunSummary[]
+  compareId: DigitalEmployeeEvalRunId | null
+  compared: DigitalEmployeeEvalRunSummary | undefined
+  busy: BusyOperation | null
+  onCompare: (id: DigitalEmployeeEvalRunId | null) => void
+  onCancel: () => void
+  t: Translate
+}) {
+  if (summary === undefined) return <div className={css.revisionDetail}><p className={css.muted}>{t('selectEvalRun')}</p></div>
+  const status = detail?.run.status ?? summary.status
+  return (
+    <div className={css.evalRunInspector}>
+      <div className={css.revisionDetailHead}>
+        <div>
+          <strong>{t('evalRunDetail')}</strong>
+          <code title={summary.evalRunId}>{summary.evalRunId}</code>
+        </div>
+        <span className={css.spacer} />
+        {status === 'running' && (
+          <button
+            type="button"
+            className={css.dangerButton}
+            disabled={busy !== null}
+            onClick={onCancel}
+          >
+            {t('cancelEvaluation')}
+          </button>
+        )}
+      </div>
+      <div className={css.releaseSummary}>
+        <span>{evalRunStatusLabel(status, t)}</span>
+        <span>{summary.passedCases}/{summary.totalCases} {t('evalCasesPassed')}</span>
+        <span>Profile r{summary.profileRevision}</span>
+        <span>Eval r{summary.evalSetRevision}</span>
+      </div>
+      <label className={css.evalCompare}>
+        <span>{t('compareEvalRun')}</span>
+        <select
+          aria-label={t('compareEvalRun')}
+          value={compareId ?? ''}
+          onChange={event => {
+            onCompare(event.target.value === '' ? null : event.target.value as DigitalEmployeeEvalRunId)
+          }}
+        >
+          <option value="">{t('noEvalComparison')}</option>
+          {candidates.filter(candidate => candidate.evalRunId !== summary.evalRunId).map(candidate => (
+            <option key={candidate.evalRunId} value={candidate.evalRunId}>
+              {candidate.evalRunId.slice(0, 8)} · {evalRunStatusLabel(candidate.status, t)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {compared !== undefined && (
+        <div className={css.evalComparison}>
+          <code>{summary.status} → {compared.status}</code>
+          <span>
+            {t('evalCasesPassed')}: {summary.passedCases}/{summary.totalCases}
+            {' → '}{compared.passedCases}/{compared.totalCases}
+          </span>
+          <span>
+            {t('evalEnvironment')}: {summary.environmentFingerprint === compared.environmentFingerprint
+              ? t('same')
+              : t('different')}
+          </span>
+        </div>
+      )}
+      {loading && <p className={css.muted}>{t('loadingEvalRun')}</p>}
+      {!loading && detail !== null && (
+        <div className={css.evalCases}>
+          {detail.run.cases.map(testCase => (
+            <article key={testCase.caseId} className={css.evalCase}>
+              <div>
+                <strong>{testCase.caseId}</strong>
+                <span>{evalCaseStatusLabel(testCase.status, t)}</span>
+              </div>
+              {testCase.diagnostic !== undefined && <p className={css.diagnostic}>{testCase.diagnostic}</p>}
+              {testCase.assertions.map((assertion, index) => (
+                <div className={css.evalAssertion} key={`${assertion.kind}/${assertion.subject ?? ''}/${index}`}>
+                  <span>{assertion.passed ? '✓' : '×'} {assertion.kind}</span>
+                  {assertion.subject !== undefined && <code>{assertion.subject}</code>}
+                  <small>{assertion.diagnostic}</small>
+                </div>
+              ))}
+            </article>
+          ))}
         </div>
       )}
     </div>

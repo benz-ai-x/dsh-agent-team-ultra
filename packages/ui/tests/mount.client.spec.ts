@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { LaunchRequestId } from '@deepseek-ai/dsh-agent-team-ultra/client'
+import type { DigitalEmployeeEvalRunId, LaunchRequestId } from '@deepseek-ai/dsh-agent-team-ultra/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/src/client/index.ts'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/src/client/registry.ts'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
@@ -15,6 +15,7 @@ const REMOTE: TypertRemoteContribution = {
 }
 
 const LAUNCH_REQUEST_ID = '11111111-1111-4111-8111-111111111111' as LaunchRequestId
+const EVAL_RUN_ID = '22222222-2222-4222-8222-222222222222' as DigitalEmployeeEvalRunId
 
 async function bench(registrationFailure = false) {
   const ctx = new Context()
@@ -47,6 +48,12 @@ async function bench(registrationFailure = false) {
     archive: answer('archive', { ok: true, value: {} }),
     restore: answer('restore', { ok: true, value: {} }),
     spawn: answer('spawn', { ok: true, value: {} }),
+    run: answer('run', { ok: true, value: {} }),
+    saveEvalSet: answer('saveEvalSet', { ok: true, value: {} }),
+    setEvalGate: answer('setEvalGate', { ok: true, value: {} }),
+    startEvalRun: answer('startEvalRun', { ok: true, value: {} }),
+    cancelEvalRun: answer('cancelEvalRun', { ok: true, value: {} }),
+    evalRun: answer('evalRun', { ok: true, value: {} }),
   } as never)
   ctx.provide('conversation', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
@@ -95,6 +102,45 @@ describe('Digital Employee Studio mount lifecycle', () => {
       profileId: 'reviewer',
       assignment: 'Review this change.',
     }, new AbortController().signal)
+    await actions.run('lead-session', 'run-1' as never)
+    await actions.saveEvalSet('lead-session', {
+      expectedHeadRevision: null,
+      evalSet: {
+        id: 'reviewer-smoke',
+        profileId: 'reviewer',
+        displayName: 'Reviewer smoke',
+        toolAllowlist: ['read'],
+        resourceCeilings: { maxSteps: 3, maxOutputTokens: 512, maxElapsedMs: 10_000 },
+        passPolicy: { kind: 'all' },
+        cases: [{
+          id: 'summarize',
+          title: 'Summarize',
+          input: 'Summarize README.',
+          fixtures: [],
+          assertions: {
+            acceptedTerminals: ['completed'],
+            requiredTools: ['read'],
+            forbiddenTools: [],
+            requiredOutputSubstrings: ['summary'],
+            forbiddenOutputSubstrings: [],
+          },
+        }],
+      },
+    })
+    await actions.setEvalGate('lead-session', {
+      profileId: 'reviewer',
+      expectedHeadRevision: 8,
+      requiredEvalSet: { evalSetId: 'reviewer-smoke', revision: 2 },
+    })
+    await actions.startEvalRun('lead-session', {
+      evalRunId: EVAL_RUN_ID,
+      profileId: 'reviewer',
+      profileRevision: 3,
+      evalSetId: 'reviewer-smoke',
+      evalSetRevision: 2,
+    })
+    await actions.cancelEvalRun('lead-session', { evalRunId: EVAL_RUN_ID })
+    await actions.evalRun('lead-session', { evalRunId: EVAL_RUN_ID })
     expect(runtime.calls).toEqual([
       { method: 'view', args: ['lead-session'] },
       { method: 'revision', args: ['lead-session', { profileId: 'reviewer', revision: 2 }] },
@@ -120,6 +166,31 @@ describe('Digital Employee Studio mount lifecycle', () => {
           expect.any(AbortSignal),
         ],
       },
+      { method: 'run', args: ['lead-session', { runId: 'run-1' }, undefined] },
+      {
+        method: 'saveEvalSet',
+        args: ['lead-session', expect.objectContaining({ expectedHeadRevision: null })],
+      },
+      {
+        method: 'setEvalGate',
+        args: ['lead-session', {
+          profileId: 'reviewer',
+          expectedHeadRevision: 8,
+          requiredEvalSet: { evalSetId: 'reviewer-smoke', revision: 2 },
+        }],
+      },
+      {
+        method: 'startEvalRun',
+        args: ['lead-session', {
+          evalRunId: EVAL_RUN_ID,
+          profileId: 'reviewer',
+          profileRevision: 3,
+          evalSetId: 'reviewer-smoke',
+          evalSetRevision: 2,
+        }],
+      },
+      { method: 'cancelEvalRun', args: ['lead-session', { evalRunId: EVAL_RUN_ID }] },
+      { method: 'evalRun', args: ['lead-session', { evalRunId: EVAL_RUN_ID }] },
     ])
 
     await runtime.fiber.dispose()

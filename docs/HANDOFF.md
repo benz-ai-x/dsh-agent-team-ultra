@@ -22,8 +22,8 @@ pnpm verify
 |---|---|
 | DSH 版本 | `0.1.2-alpha.4` |
 | Harness source fork | `https://github.com/benz-ai-x/deepseek-harness.git` |
-| Harness commit | `41399c0647aff7e18a43b9663adef706f2945570` |
-| Harness docs digest | `41b031abc2a2cb436eca200e42233cf62d3a3e77a137974fccc193387372a9e1` |
+| Harness commit | `13d301be906ddf60a6e2a09ea86465726cc42edf` |
+| Harness docs digest | `37732ed5e550a6d201b6dc48001fde0c8e0c8d163e920cd69853d872b5b0bae4` |
 | Node.js | `^22.19.0 || >=24.0.0` |
 | pnpm | `11.7.0` |
 | 交付方式 | local-only、八个源码 `link:` |
@@ -77,14 +77,15 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 
 - Remote 只接收 Session ID；Host 必须通过 `ctx.agents.get()` 解析为当前精确的 live `Agent`。
 - Team、角色和 member 身份必须由 Agent Team 服务推导，不能相信 Client 声明。
-- 只有当前 Team 的精确 live Lead 能创建数字员工。
-- 查看、保存、激活、回滚、归档、恢复和启动都要求精确 live Team Lead。
+- 只有当前 Team 的精确 live Lead 能创建数字员工或运行候选评测。
+- 查看、保存、Eval Set/Gate/Run 操作、激活、回滚、归档、恢复和启动都要求精确 live Team Lead。
 
 ### 持久化与恢复
 
 - Profile Head、不可变 Profile Revision 和 Team/member Binding 写入独立的分记录 storage generation `agent_team_ultra_v1`；`agent_team_ultra` v0 仅是只读迁移源。
 - `profile_heads` 保存 CAS、latest/active 指针和归档状态；`profile_revisions` 保存完整规范化内容、Runtime Target、Required Capabilities 与 SHA-256 指纹；`bindings` 还保存 Team-scoped Launch Request ID、请求/Profile/assignment 指纹、能力世代、保留成员名、成员 ID、不可变 Revision/Profile/能力快照、所选 Runtime Target、独立的 Preflight Runtime Target 和 `pending | active | failed` Provisioning Phase。Resolved Runtime Target 只在 DSH child descriptor 或外部 provider 的稳定 native handle 完成证明后出现。
 - `run_index` 只保存有界、可重建的 Run 身份、Team-member 或 evaluation-worker 判别身份、不可变 Profile/路由关联、终态、provider 报告的 usage、时间戳与 evidence completeness。DSH child Session 或外部 provider-native turn 才是规范证据；prompt/reply、tool 参数/结果、文件、环境值、凭据和原始 payload 不进入索引或规范时间线。
+- `eval_sets` 以独立 Head CAS 管理 Profile-owned Eval Set 的不可变版本；`eval_runs` 在执行前固定 Team、Profile/Eval Set Revision 与指纹、Runtime Target、能力世代、断言 schema、有效工具白名单和环境指纹，并持久化逐 Case 规范结果。运行中记录不受终态保留清理影响，重启一律修复为 interrupted。
 - 创建流程必须先持久化完整 `pending` Binding，再调用 Agent Team provisioning。assignment 正文只用于初始工作，不进入 Binding。
 - Client 每个 Launch Intent 只生成一个 UUID；传输失败和 `pending` 重试复用它。Host 以 Team + Launch Request ID 去重，相同输入返回当前 Binding，改变输入返回 `launch-request-conflict`。
 - 启动、实时 Team 事件、Runtime Backend 世代和 Studio 读取均会以权威 roster 修复矛盾 Binding，但不会创建替代员工。Provisioning Phase 持久；Runtime Availability 与 Runtime Presence 分别由当前目录和精确 live Agent 派生。
@@ -113,10 +114,11 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 ### 并发与生命周期
 
 - Profile 保存及 Head 发布操作使用 `expectedHeadRevision` compare-and-set；过期编辑必须返回当前 Head 和 `profile-conflict`，不能覆盖新版本。
+- Eval Set 使用独立 `expectedHeadRevision` CAS；Profile Head 的 Gate 也复用 Profile CAS。激活只接受与最新 Candidate、所需 Eval Set Revision、能力世代、断言 schema 和环境仍精确匹配的 passed Eval Run。
 - 读改写通过 Host mutation queue 串行化；Profile 对外和绑定内均使用深拷贝冻结快照。
 - spawn 接受调用方取消信号；调用方只在 Agent Team 持久接受初始工作前拥有取消权，之后所有权转移给 Team runtime。
 - 外部 provider registration 与贡献 Fiber 同生共死；移除会立即关闭准入，在 cleanup 宽限期后发出中止信号但继续等待实际静止，并只清理该 generation 挂载的 runtime/evaluation handle。
-- 服务 dispose 时先关闭 admission，再撤销 child setup，等待已接纳 launch 和 mutation queue 收敛，最后关闭 storage domain。
+- 服务 dispose 时先关闭 admission，取消并等待已接纳 Eval Run 收敛，再撤销 child setup，等待已接纳 launch 和 mutation queue 收敛，最后关闭 storage domain。
 - dispose 可取消尚未持久接受的 provisioning，但不会停止无关 child 或已归 Team 所有的 child。
 - child-scope 能力必须逐项安装并按逆序释放；会话历史可见性不等于工具、权限或服务继承。
 
@@ -124,7 +126,7 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 
 ## 5. Remote 与错误语义
 
-生成的 `digitalEmployees` Remote 提供九个操作：
+生成的 `digitalEmployees` Remote 提供十四个操作：
 
 | 操作 | 用途 | 可取消 |
 |---|---|---:|
@@ -132,13 +134,18 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 | `revision` | 读取一个不可变 Revision 及其相对 active 的有界差异 | 否 |
 | `run` | 按需折叠一个 Run 的有界规范时间线，并显式返回完整、截断或不可用状态 | 是 |
 | `save` | 按 `expectedHeadRevision` 保存候选 Revision | 否 |
+| `saveEvalSet` | 按独立 Head CAS 保存不可变 Eval Set Revision | 否 |
+| `setEvalGate` | 设置或清除 Profile Head 的精确 Eval Set 门禁 | 否 |
 | `activate` | 显式激活最新候选 Revision | 否 |
 | `rollback` | 将 active 指针回滚到已有更早 Revision | 否 |
 | `archive` | 保留历史并阻止激活和启动 | 否 |
 | `restore` | 恢复归档的 Profile Head | 否 |
 | `spawn` | 使用 Client 提供的 Launch Request ID、active Revision 和可选 assignment 幂等创建队友 | 是 |
+| `startEvalRun` | 以 Client UUID 启动精确候选评测；返回后由 Host 继续拥有运行 | 否 |
+| `cancelEvalRun` | 取消并等待一个当前 Team 的运行中 Eval Run 收敛 | 否 |
+| `evalRun` | 读取一个 Eval Run 的逐 Case 规范结果与 Eval Set 身份 | 否 |
 
-业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived`、`revision-not-found`、`run-not-found`、`evidence-unavailable`、`runtime-target-unavailable`、`runtime-route-invalid`、`runtime-capability-mismatch` 和 `launch-request-conflict`。
+业务拒绝通过成功 transport 内的 `{ ok: false, error }` 返回，transport 故障保持为异常。稳定业务码还包括 `profile-not-active`、`profile-archived`、`revision-not-found`、`run-not-found`、`evidence-unavailable`、`promotion-gate-failed`、`eval-invalid`、`eval-conflict`、`eval-environment-unavailable`、`eval-in-progress`、`eval-not-found`、`runtime-target-unavailable`、`runtime-route-invalid`、`runtime-capability-mismatch` 和 `launch-request-conflict`。
 
 修改 Remote 装饰方法后必须重新运行构建；[`generate-typert.mjs`](../scripts/generate-typert.mjs) 会调用官方 Typert generator 更新 Host 与 Client 产物，不能手写生成文件。
 
@@ -165,15 +172,16 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 - `packages/domain/tests/profile-service.spec.ts`：schema、不可变 Revision、Head CAS、先绑定后 provisioning、Team-scoped 幂等、roster 对账、DSH/外部 Run 修复与详情、Lead 权限和 dispose 边界。
 - `packages/domain/tests/run-evidence.spec.ts`：确定性 Run 身份、Team-member/evaluation-worker 判别身份、终态/usage 归一、索引/时间线限制和默认脱敏。
 - `packages/domain/tests/pinned-route.integration.spec.ts`：真实 Agent Loop、Agent Team、JSONL 持久化、不可变 Profile scope、精确 route descriptor、外部 provider Run 重建与冷恢复端到端。
-- `packages/domain/tests/generated-remote.spec.ts`：九个生成 Remote 操作及 Client namespace。
+- `packages/domain/tests/evaluation.spec.ts`：Eval Set/环境/请求指纹、工具三方交集、确定性断言、通过策略和深冻结快照。
+- `packages/domain/tests/generated-remote.spec.ts`：十四个生成 Remote 操作及 Client namespace。
 - `packages/domain/tests/loader-composition.spec.ts`：真实 Loader 和部署限制。
 - `packages/profile/tests/profile.spec.ts`：private bundle 与稳定、无冲突 Loader rows。
-- `packages/ui/tests/studio.client.spec.tsx`：重复操作围栏、Launch Request ID 重试、三维实例状态、Session 切换、错误分层、launch 取消和独立 Client bundle。
+- `packages/ui/tests/studio.client.spec.tsx`：重复操作围栏、Launch Request ID 重试、三维实例状态、Session 切换、错误分层、launch 取消、Eval Set/Gate/Run/证据对比和独立 Client bundle。
 - `packages/ui/tests/mount.client.spec.ts`：Remote/Slot 安装与失败回滚。
 
 ### 本次复验状态
 
-2026-09-03 `pnpm verify` 在锁定 Harness 干净工作区上全绿：266 项严格上下文检查、Host/Client 构建、Typert 生成、135 项 Vitest、八包归档安装、browser-safe import、真实源码链接 DSH Web composition 与监听门禁全部通过。
+2026-09-03 `pnpm verify` 在锁定 Harness 干净工作区上全绿：278 项严格上下文检查、Host/Client 构建、Typert 生成、151 项 Vitest、八包归档安装、browser-safe import、真实源码链接 DSH Web composition 与监听门禁全部通过。
 
 ## 7. 真实模型与冷恢复验收证据
 

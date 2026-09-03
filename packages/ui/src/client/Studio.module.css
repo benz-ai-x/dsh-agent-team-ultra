@@ -1066,6 +1066,149 @@
   width: min(230px, 26vw);
 }
 
+.evalWorkspace,
+.evalRunWorkspace {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.evalEditor,
+.evalRunInspector {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.evalEditor .promptField {
+  margin-top: 12px;
+}
+
+.evalEditor .largeText {
+  min-height: 210px;
+  font-family: var(--dsw-font-family-code, monospace);
+  font-size: 10px;
+}
+
+.evalActions,
+.evalRunHeading,
+.evalCase > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.evalActions {
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.evalHistory {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 9px;
+}
+
+.evalHistory strong {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+}
+
+.evalRunHeading {
+  margin-top: 18px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 11px;
+}
+
+.evalRunHeading span {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.evalRunWorkspace .runList {
+  max-height: 360px;
+  margin-top: 6px;
+}
+
+.evalRunInspector {
+  min-height: 180px;
+}
+
+.evalRunInspector .releaseSummary {
+  margin-top: 10px;
+}
+
+.evalCompare {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+}
+
+.evalCompare select {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.evalComparison {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px;
+  border-radius: 7px;
+  background: var(--dsw-alias-fill-l1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+}
+
+.evalCases {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.evalCase {
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+}
+
+.evalCase > div:first-child {
+  justify-content: space-between;
+  color: var(--dsw-alias-label-primary);
+  font-size: 10px;
+}
+
+.evalAssertion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 7px;
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-l1);
+  font-size: 9px;
+}
+
+.evalAssertion small {
+  grid-column: 1 / -1;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .runFilters {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1228,7 +1371,9 @@
 
   .grid,
   .toolGrid,
-  .revisionWorkspace {
+  .revisionWorkspace,
+  .evalWorkspace,
+  .evalRunWorkspace {
     grid-template-columns: 1fr;
   }
 

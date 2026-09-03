@@ -26,7 +26,8 @@ describe('generated Digital Employee Remote contract', () => {
   it('publishes the immutable release workflow without a hard-delete operation', () => {
     expect(remote.package).toBe('@deepseek-ai/dsh-agent-team-ultra')
     expect(remote.descriptors.map(method => method.method)).toEqual([
-      'activate', 'archive', 'restore', 'revision', 'rollback', 'run', 'save', 'spawn', 'view',
+      'activate', 'archive', 'cancelEvalRun', 'evalRun', 'restore', 'revision', 'rollback', 'run',
+      'save', 'saveEvalSet', 'setEvalGate', 'spawn', 'startEvalRun', 'view',
     ])
     const spawn = remote.descriptors.find(method => method.method === 'spawn')
     expect(spawn).toMatchObject({
@@ -69,7 +70,7 @@ describe('generated Digital Employee Remote contract', () => {
       cancellation: { parameter: 'signal' },
     })
     expect(remote.descriptors.map(method => method.parameters[0])).toEqual(
-      Array.from({ length: 9 }, () => expect.objectContaining({
+      Array.from({ length: 14 }, () => expect.objectContaining({
         name: 'agent',
         wire: 'agentId',
         source: 'lookup',
@@ -80,12 +81,17 @@ describe('generated Digital Employee Remote contract', () => {
     expect(host.invocations.map(invocation => invocation.id)).toEqual([
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/activate',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/archive',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/cancelEvalRun',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/evalRun',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/restore',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/revision',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/rollback',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/run',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/save',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/saveEvalSet',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/setEvalGate',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/spawn',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/startEvalRun',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/view',
     ])
   })
@@ -97,9 +103,14 @@ describe('generated Digital Employee Remote contract', () => {
     expect(declaration).toContain("'digitalEmployees':")
     expect(declaration).toContain('spawn: (agentId: SessionId, request: SpawnDigitalEmployeeRequest, signal?: AbortSignal)')
     expect(declaration).toContain('run: (agentId: SessionId, request: GetDigitalEmployeeRunRequest, signal?: AbortSignal)')
+    expect(declaration).toContain('saveEvalSet: (agentId: SessionId, request: SaveDigitalEmployeeEvalSetRequest)')
+    expect(declaration).toContain('startEvalRun: (agentId: SessionId, request: StartDigitalEmployeeEvalRunRequest)')
+    expect(declaration).toContain('cancelEvalRun: (agentId: SessionId, request: CancelDigitalEmployeeEvalRunRequest)')
+    expect(declaration).toContain('evalRun: (agentId: SessionId, request: GetDigitalEmployeeEvalRunRequest)')
     expect(declaration).toContain("'agent:digitalEmployees/view': () => Promise<RemoteResult<DigitalEmployeeStudioView>>")
     expect(types).toContain("export type LaunchRequestId = Branded<'LaunchRequestId'>")
     expect(types).toMatch(/readonly launchRequestId: LaunchRequestId/u)
+    expect(types).toContain("export type DigitalEmployeeEvalRunId = Branded<'DigitalEmployeeEvalRunId'>")
   })
 
   it('rejects an unknown Session through the real Gateway before business dispatch', async () => {

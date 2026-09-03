@@ -48,6 +48,21 @@ function registerStudio(ctx: ClientContext): void {
     async run(sessionId, runId, signal) {
       return await ctx.remote.digitalEmployees.run(sessionId, { runId }, signal)
     },
+    async saveEvalSet(sessionId, request) {
+      return await ctx.remote.digitalEmployees.saveEvalSet(sessionId, request)
+    },
+    async setEvalGate(sessionId, request) {
+      return await ctx.remote.digitalEmployees.setEvalGate(sessionId, request)
+    },
+    async startEvalRun(sessionId, request) {
+      return await ctx.remote.digitalEmployees.startEvalRun(sessionId, request)
+    },
+    async cancelEvalRun(sessionId, request) {
+      return await ctx.remote.digitalEmployees.cancelEvalRun(sessionId, request)
+    },
+    async evalRun(sessionId, request) {
+      return await ctx.remote.digitalEmployees.evalRun(sessionId, request)
+    },
   }
 
   ctx.slots.inject(

@@ -93,6 +93,9 @@ importers:
       '@deepseek-ai/dsh-llm':
         specifier: link:../../../deepseek-harness/packages/llm/llm
         version: link:../../../deepseek-harness/packages/llm/llm
+      '@deepseek-ai/dsh-sandbox-policy':
+        specifier: link:../../../deepseek-harness/packages/sandbox/sandbox-policy
+        version: link:../../../deepseek-harness/packages/sandbox/sandbox-policy
       '@deepseek-ai/dsh-session':
         specifier: link:../../../deepseek-harness/packages/core/session
         version: link:../../../deepseek-harness/packages/core/session

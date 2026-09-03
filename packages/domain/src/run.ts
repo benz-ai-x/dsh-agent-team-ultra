@@ -40,15 +40,17 @@ export interface ExternalRunFoldBinding extends DshRunFoldBinding {
 
 interface ExternalEvidenceLike {
   readonly id: string
-  readonly kind: 'turn' | 'tool' | 'approval' | 'usage' | 'diagnostic'
+  readonly kind: 'turn' | 'step' | 'tool' | 'approval' | 'usage' | 'diagnostic'
   readonly timestamp: number
   readonly turnId?: string
+  readonly step?: number
   readonly name?: string
   readonly outcome?:
     | 'completed'
     | 'cancelled'
     | 'blocked'
     | 'failed'
+    | 'max-tokens'
     | 'interrupted'
     | 'unknown'
     | 'asked'
@@ -114,6 +116,7 @@ function externalTerminal(
     case 'cancelled': return 'cancelled'
     case 'blocked': return 'blocked'
     case 'failed': return 'failed'
+    case 'max-tokens': return 'max-tokens'
     case 'interrupted': return 'interrupted'
     case 'asked':
     case 'allowed-once':
@@ -559,6 +562,7 @@ export function foldExternalRunEvidence(
     timeline.push(Object.freeze({
       kind: item.kind,
       timestamp: item.timestamp,
+      ...(item.step === undefined ? {} : { step: item.step }),
       ...(item.name === undefined ? {} : { name: item.name }),
       ...(item.callId === undefined ? {} : { callId: item.callId }),
       ...(item.outcome === undefined ? {} : { outcome: externalTerminal(item.outcome) }),

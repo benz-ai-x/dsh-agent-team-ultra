@@ -167,7 +167,9 @@ contracts.
   evaluation, evidence, and usage capability before provider work. A mismatch
   fails closed without a DSH or one-shot fallback.
 - A tool policy filters capabilities inherited from the parent preset. Team
-  tools installed in the teammate's own scope remain available.
+  tools installed in a production teammate's own scope remain available.
+  Evaluation Workers instead intersect Profile policy, provider-enforceable
+  inventory, and the Eval Set allowlist, and always exclude Team tools.
 - Context and curated memory are bounded Profile sections. A DSH employee's
   durable child Session provides episodic conversation memory; an external
   employee's native session and history remain provider-owned.
@@ -221,6 +223,42 @@ contracts.
   repaired as non-actionable `orphaned` evidence and is never resumed by
   inference.
 
+## Exact isolated candidate evaluation
+
+- An Eval Set belongs to exactly one Profile but has its own CAS Head and
+  immutable Revision history. Its bounded content includes Cases, text
+  fixtures, explicit tool allowlist, hard step/output-token/elapsed ceilings,
+  deterministic assertions, and an `all | minimum` pass policy.
+- An Eval Run is reserved before provider work and immutably records Team,
+  Profile Revision/fingerprint, selected Runtime Target, capability generation,
+  Eval Set Revision/fingerprint, assertion schema version, effective tool
+  allowlist, and evaluation environment fingerprint. Reusing its Client-minted
+  UUID with any different exact input is a conflict.
+- Every Case uses a fresh Evaluation Worker. A DSH worker is a parentless,
+  unpublished Agent configured by the same immutable Profile installer; an
+  external worker is a distinct provider-native evaluation handle. Neither is
+  a Team roster member, production Binding, or production workspace identity.
+- Every worker fixes sandbox mode to `read-only` and approval policy to
+  `never`. The Host preflights these guarantees, fresh isolation, evidence,
+  usage, resource enforcement, and the external provider's bounded tool
+  inventory; missing proof returns `eval-environment-unavailable` before work.
+- Cases execute sequentially. Each result is committed only after its canonical
+  source is flushed/folded and its bounded assertions and terminal are known,
+  but before the exact DSH/native handle is disposed in `finally`. Output is
+  transient assertion input and never becomes a sidecar transcript.
+- Cancellation marks unfinished Cases and the Eval Run cancelled. Host restart
+  repairs every persisted running evaluation to interrupted. Unknown errors,
+  missing checkpoints, provider identity conflicts, incomplete evidence, and
+  capability drift fail closed and can never produce a passed gate.
+- A Profile Head may point to one required Eval Set Revision. Activation is a
+  separate CAS mutation and accepts only a passed Eval Run whose complete
+  identity tuple still matches the latest candidate and current environment;
+  prior successes remain visible as `invalidated` after any relevant change.
+- Studio can create/version Eval Sets, attach/clear the gate, start/cancel and
+  inspect Eval Runs, compare their status and fingerprints, and show
+  `not-required | pending | passed | invalidated` eligibility without deriving
+  authority or success in the browser.
+
 ## Cancellation and disposal
 
 Caller cancellation owns launch until the upstream Agent Team or external
@@ -268,6 +306,11 @@ replacement service can reconstruct one layer for every resident bound Agent.
 - `maxRuns`: newest durable Run Index rows retained across Teams.
 - `maxRunEvidenceItems`: normalized timeline/evidence items returned by one
   lazy detail read.
+- `maxEvalSets`: durable Eval Set Head count limit.
+- `maxEvalSetBytes`: UTF-8 size limit for one normalized Eval Set Revision.
+- `maxEvalCases`: Case count limit per Eval Set.
+- `maxEvalRuns`: newest terminal Eval Runs retained; in-flight runs are not
+  removed by retention.
 - `maxRevisionHistory`: maximum Revision summaries returned per Profile in a
   Studio baseline.
 - `maxDiffEntries`: maximum structured field differences returned by a Revision
@@ -331,3 +374,10 @@ Hook ordering, stock DSH approval and Conversation UI routing, one-call-only
 authorization, independent monotonic sandbox enforcement, capability-gated
 external native correlation, truthful waiting/orphan repair, and exact
 Ultra-owned listener and pending-state disposal.
+
+For a gated candidate, acceptance additionally requires a versioned Eval Set,
+a fresh non-roster DSH or provider-native worker for every Case, read-only and
+approval-never confinement, durable normalized evidence before exact-handle
+disposal, cancellation/restart repair that never passes, visible invalidation
+after identity or environment drift, and activation only after the exact
+passed Eval Run while leaving activation as a separate user decision.

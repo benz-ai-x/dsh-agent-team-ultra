@@ -8,6 +8,7 @@ import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain, DomainFacility, KvTable } from '@deepseek-ai/dsh-storage-domain'
 import {
   digitalEmployeeDomainSpec,
+  digitalEmployeeEvalSetDraftSchema,
   type DigitalEmployeeBinding,
   digitalEmployeeProfileDraftSchema,
   digitalEmployeeProfileSchema,
@@ -20,7 +21,13 @@ import {
   type LegacyDigitalEmployeeProfileDraft,
 } from './spec.ts'
 import { requiredCapabilitiesForProfile } from './runtime.ts'
+import { evalSetContentFingerprint } from './evaluation.ts'
 import type {
+  DigitalEmployeeEvalCaseResult,
+  DigitalEmployeeEvalRunId,
+  DigitalEmployeeEvalRunRecord,
+  DigitalEmployeeEvalSetHead,
+  DigitalEmployeeEvalSetRevision,
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeProfileHead,
@@ -336,9 +343,120 @@ export const digitalEmployeeRunIndexRecordSchema = z.object({
 const evalSetRecordSchema = z.object({
   schemaVersion: z.literal(1),
   evalSetId: boundedId,
+  profileId: z.string().min(1).max(64),
+  headRevision: positiveInteger,
+  latestRevision: positiveInteger,
+  createdAt: safeInteger,
+  updatedAt: safeInteger,
+}).strict().refine(record => record.updatedAt >= record.createdAt, {
+  path: ['updatedAt'],
+  message: 'Eval Set updatedAt precedes createdAt',
+}) as z.ZodType<DigitalEmployeeEvalSetHead>
+
+const evalSetRevisionRecordSchema = z.object({
+  schemaVersion: z.literal(1),
+  evalSetId: boundedId,
+  profileId: z.string().min(1).max(64),
   revision: positiveInteger,
+  evalSet: digitalEmployeeEvalSetDraftSchema,
+  fingerprint: fingerprintSchema,
+  createdAt: safeInteger,
+  updatedAt: safeInteger,
+}).strict().superRefine((record, ctx) => {
+  if (record.evalSet.id !== record.evalSetId || record.evalSet.profileId !== record.profileId) {
+    ctx.addIssue({ code: 'custom', message: 'Eval Set Revision identity is inconsistent' })
+  }
+  if (record.updatedAt < record.createdAt) {
+    ctx.addIssue({ code: 'custom', path: ['updatedAt'], message: 'updatedAt precedes createdAt' })
+  }
+}) as z.ZodType<DigitalEmployeeEvalSetRevision>
+
+const evalAssertionResultSchema = z.object({
+  kind: z.enum([
+    'terminal',
+    'required-tool',
+    'forbidden-tool',
+    'required-output',
+    'forbidden-output',
+    'max-steps',
+    'max-reported-tokens',
+    'max-elapsed-ms',
+  ]),
+  subject: z.string().max(1024).optional(),
+  passed: z.boolean(),
+  diagnostic: z.string().max(2048),
 }).strict()
-const evalRunRecordSchema = z.object({ schemaVersion: z.literal(1), evalRunId: boundedId }).strict()
+
+const runTimelineItemSchema = z.object({
+  kind: z.enum(['turn', 'step', 'tool', 'approval', 'usage', 'diagnostic']),
+  timestamp: safeInteger,
+  step: positiveInteger.optional(),
+  name: z.string().max(256).optional(),
+  callId: z.string().max(256).optional(),
+  approvalId: z.string().max(256).optional(),
+  policyId: z.string().max(256).optional(),
+  policy: z.string().max(4096).optional(),
+  outcome: z.enum([
+    'started', 'asked', 'waiting-approval', 'orphaned', 'allowed-once', 'rejected', 'unavailable',
+    'completed', 'cancelled', 'blocked', 'failed', 'max-tokens', 'interrupted', 'unknown-terminal',
+  ]).optional(),
+  usage: runUsageSchema.optional(),
+}).strict()
+
+const runDetailSchema = z.object({
+  run: digitalEmployeeRunIndexRecordSchema,
+  timeline: z.array(runTimelineItemSchema),
+  timelineTruncated: z.boolean(),
+}).strict()
+
+const evalCaseResultSchema = z.object({
+  caseId: boundedId,
+  status: z.enum([
+    'pending', 'running', 'passed', 'failed', 'cancelled', 'interrupted', 'environment-unavailable',
+  ]),
+  assertions: z.array(evalAssertionResultSchema),
+  run: runDetailSchema.optional(),
+  diagnostic: z.string().max(2048).optional(),
+  startedAt: safeInteger.optional(),
+  endedAt: safeInteger.optional(),
+}).strict().refine(result => result.startedAt === undefined
+  || result.endedAt === undefined
+  || result.endedAt >= result.startedAt, {
+  path: ['endedAt'],
+  message: 'Eval Case endedAt precedes startedAt',
+}) as z.ZodType<DigitalEmployeeEvalCaseResult>
+
+const evalRunRecordSchema = z.object({
+  schemaVersion: z.literal(1),
+  evalRunId: boundedId.transform(value => brandString<DigitalEmployeeEvalRunId>(value)),
+  requestFingerprint: fingerprintSchema,
+  teamId: nonEmptyText,
+  profileId: z.string().min(1).max(64),
+  profileRevision: positiveInteger,
+  profileFingerprint: fingerprintSchema,
+  runtimeTarget: resolvedRuntimeTargetSchema,
+  capabilityGeneration: safeInteger,
+  evalSetId: boundedId,
+  evalSetRevision: positiveInteger,
+  evalSetFingerprint: fingerprintSchema,
+  assertionSchemaVersion: z.literal(1),
+  environmentFingerprint: fingerprintSchema,
+  effectiveToolAllowlist: z.array(z.string().min(1).max(128)).max(256),
+  status: z.enum(['running', 'passed', 'failed', 'cancelled', 'interrupted', 'environment-unavailable']),
+  cases: z.array(evalCaseResultSchema).max(64),
+  startedAt: safeInteger,
+  updatedAt: safeInteger,
+  endedAt: safeInteger.optional(),
+}).strict().superRefine((record, ctx) => {
+  if (record.updatedAt < record.startedAt
+    || (record.endedAt !== undefined && record.endedAt < record.startedAt)) {
+    ctx.addIssue({ code: 'custom', message: 'Eval Run timestamps are inconsistent' })
+  }
+  const caseIds = record.cases.map(testCase => testCase.caseId)
+  if (new Set(caseIds).size !== caseIds.length) {
+    ctx.addIssue({ code: 'custom', path: ['cases'], message: 'Eval Run Case ids must be unique' })
+  }
+}) as z.ZodType<DigitalEmployeeEvalRunRecord>
 
 /** New, independently versioned per-record generation; v0 remains untouched. */
 export const digitalEmployeeV1DomainSpec = defineDomain({
@@ -354,8 +472,10 @@ export const digitalEmployeeV1DomainSpec = defineDomain({
     profile_revisions: domainTable<string, StoredDigitalEmployeeProfileRevisionV1>(digitalEmployeeProfileRevisionV1Schema),
     bindings: domainTable<string, DigitalEmployeeBindingV1>(digitalEmployeeBindingV1Schema),
     run_index: domainTable<string, DigitalEmployeeRunIndexRecord>(digitalEmployeeRunIndexRecordSchema),
-    eval_sets: domainTable<string, z.infer<typeof evalSetRecordSchema>>(evalSetRecordSchema),
-    eval_runs: domainTable<string, z.infer<typeof evalRunRecordSchema>>(evalRunRecordSchema),
+    eval_sets: domainTable<string, DigitalEmployeeEvalSetHead | DigitalEmployeeEvalSetRevision>(
+      z.union([evalSetRecordSchema, evalSetRevisionRecordSchema]),
+    ),
+    eval_runs: domainTable<string, DigitalEmployeeEvalRunRecord>(evalRunRecordSchema),
   },
 })
 
@@ -394,13 +514,26 @@ export function profileRevisionKey(profileId: string, revision: number): string 
   return durableIdentityKey('profile', [profileId, revision])
 }
 
+/** Path-safe mutable Eval Set Head key. */
+export function evalSetHeadKey(evalSetId: string): string {
+  return durableIdentityKey('eval-set-head', [evalSetId])
+}
+
+/** Deterministic immutable Eval Set Revision key. */
+export function evalSetRevisionKey(evalSetId: string, revision: number): string {
+  return durableIdentityKey('eval-set-revision', [evalSetId, revision])
+}
+
 /** Path-safe v1 Binding key; identity fields remain visible inside the record. */
 export function digitalEmployeeBindingKey(teamId: string, memberName: string): string {
   return durableIdentityKey('binding', [teamId, memberName])
 }
 
 /** Fixed-length key suitable for JSON per-record paths even when a valid v0 identity is long. */
-function durableIdentityKey(prefix: 'profile' | 'binding', identity: readonly unknown[]): string {
+function durableIdentityKey(
+  prefix: 'profile' | 'binding' | 'eval-set-head' | 'eval-set-revision',
+  identity: readonly unknown[],
+): string {
   const digest = createHash('sha256').update(JSON.stringify(identity), 'utf8').digest('base64url')
   return `${prefix}_${digest}`
 }
@@ -843,6 +976,63 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       )
     }
   }
+  const evalSets = v1.table('eval_sets')
+  for (const [key, record] of evalSets.entries()) {
+    if ('headRevision' in record) {
+      if (key !== evalSetHeadKey(record.evalSetId)) {
+        throw new DigitalEmployeeMigrationError(
+          `Eval Set Head key ${JSON.stringify(key)} does not match its identity`,
+          'target-inconsistent',
+        )
+      }
+      const latest = evalSets.get(evalSetRevisionKey(record.evalSetId, record.latestRevision))
+      if (latest === undefined || !('revision' in latest)
+        || latest.profileId !== record.profileId) {
+        throw new DigitalEmployeeMigrationError(
+          `Eval Set Head ${JSON.stringify(record.evalSetId)} points to a missing Revision`,
+          'target-inconsistent',
+        )
+      }
+    } else if (key !== evalSetRevisionKey(record.evalSetId, record.revision)
+      || record.fingerprint !== evalSetContentFingerprint(record.evalSet)) {
+      throw new DigitalEmployeeMigrationError(
+        `Eval Set Revision ${JSON.stringify(key)} has inconsistent identity or fingerprint`,
+        'target-inconsistent',
+      )
+    }
+  }
+  for (const [, head] of v1.table('profile_heads').entries()) {
+    if (head.requiredEvalSet === undefined) continue
+    const required = evalSets.get(evalSetRevisionKey(
+      head.requiredEvalSet.evalSetId,
+      head.requiredEvalSet.revision,
+    ))
+    if (required === undefined || !('revision' in required) || required.profileId !== head.profileId) {
+      throw new DigitalEmployeeMigrationError(
+        `Profile Head ${JSON.stringify(head.profileId)} points to an invalid required Eval Set`,
+        'target-inconsistent',
+      )
+    }
+  }
+  for (const [key, run] of v1.table('eval_runs').entries()) {
+    if (key !== run.evalRunId) {
+      throw new DigitalEmployeeMigrationError(
+        `Eval Run key ${JSON.stringify(key)} does not match Eval Run identity ${JSON.stringify(run.evalRunId)}`,
+        'target-inconsistent',
+      )
+    }
+    const evalSet = evalSets.get(evalSetRevisionKey(run.evalSetId, run.evalSetRevision))
+    const profile = revisions.get(profileRevisionKey(run.profileId, run.profileRevision))
+    if (evalSet === undefined || !('revision' in evalSet)
+      || evalSet.fingerprint !== run.evalSetFingerprint
+      || profile === undefined || profile.fingerprint !== run.profileFingerprint
+      || !isDeepStrictEqual(run.runtimeTarget, profile.runtimeTarget)) {
+      throw new DigitalEmployeeMigrationError(
+        `Eval Run ${JSON.stringify(key)} points to inconsistent immutable inputs`,
+        'target-inconsistent',
+      )
+    }
+  }
 }
 
 async function closeAfterFailure(
@@ -866,6 +1056,10 @@ export class DigitalEmployeeStorage {
   private bindingWriteTail: Promise<void> = Promise.resolve()
   /** Serializes bounded Run upserts and retention trimming. */
   private runWriteTail: Promise<void> = Promise.resolve()
+  /** Serializes immutable Eval Set history publication. */
+  private evalSetWriteTail: Promise<void> = Promise.resolve()
+  /** Serializes Eval Run state transitions and bounded retention. */
+  private evalRunWriteTail: Promise<void> = Promise.resolve()
 
   constructor(private readonly domain: DigitalEmployeeV1Domain) {}
 
@@ -944,6 +1138,62 @@ export class DigitalEmployeeStorage {
     return this.domain.table('profile_heads').put(head.profileId, head)
   }
 
+  getEvalSetHead(evalSetId: string): DigitalEmployeeEvalSetHead | undefined {
+    const record = this.domain.table('eval_sets').get(evalSetHeadKey(evalSetId))
+    return record !== undefined && 'headRevision' in record ? record : undefined
+  }
+
+  evalSetHeadEntries(): IterableIterator<[string, DigitalEmployeeEvalSetHead]> {
+    return [...this.domain.table('eval_sets').entries()]
+      .filter((entry): entry is [string, DigitalEmployeeEvalSetHead] => 'headRevision' in entry[1])
+      [Symbol.iterator]()
+  }
+
+  getEvalSetRevision(evalSetId: string, revision: number): DigitalEmployeeEvalSetRevision | undefined {
+    const record = this.domain.table('eval_sets').get(evalSetRevisionKey(evalSetId, revision))
+    return record !== undefined && 'revision' in record ? record : undefined
+  }
+
+  evalSetRevisionEntries(evalSetId: string): IterableIterator<[string, DigitalEmployeeEvalSetRevision]> {
+    return [...this.domain.table('eval_sets').entries()]
+      .filter((entry): entry is [string, DigitalEmployeeEvalSetRevision] => (
+        'revision' in entry[1] && entry[1].evalSetId === evalSetId
+      ))
+      [Symbol.iterator]()
+  }
+
+  get evalSetCount(): number {
+    return [...this.evalSetHeadEntries()].length
+  }
+
+  putEvalSetRevision(revision: DigitalEmployeeEvalSetRevision): Promise<void> {
+    const operation = this.evalSetWriteTail.then(async () => {
+      const table = this.domain.table('eval_sets')
+      const key = evalSetRevisionKey(revision.evalSetId, revision.revision)
+      const current = table.get(key)
+      if (current !== undefined) {
+        if (!isDeepStrictEqual(current, revision)) {
+          throw new DigitalEmployeeMigrationError(
+            `Eval Set Revision ${JSON.stringify(key)} cannot be rewritten`,
+            'target-diverged',
+          )
+        }
+        return
+      }
+      await table.put(key, revision)
+    })
+    this.evalSetWriteTail = operation.catch(() => undefined)
+    return operation
+  }
+
+  putEvalSetHead(head: DigitalEmployeeEvalSetHead): Promise<void> {
+    const operation = this.evalSetWriteTail.then(async () => {
+      await this.domain.table('eval_sets').put(evalSetHeadKey(head.evalSetId), head)
+    })
+    this.evalSetWriteTail = operation.catch(() => undefined)
+    return operation
+  }
+
   getBinding(key: string): DigitalEmployeeBindingV1 | undefined {
     return this.domain.table('bindings').get(key)
   }
@@ -1018,8 +1268,61 @@ export class DigitalEmployeeStorage {
     return operation
   }
 
+  getEvalRun(evalRunId: DigitalEmployeeEvalRunId): DigitalEmployeeEvalRunRecord | undefined {
+    return this.domain.table('eval_runs').get(evalRunId)
+  }
+
+  evalRunEntries(): IterableIterator<[string, DigitalEmployeeEvalRunRecord]> {
+    return this.domain.table('eval_runs').entries()
+  }
+
+  putEvalRun(record: DigitalEmployeeEvalRunRecord, maxEntries: number): Promise<void> {
+    if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
+      return Promise.reject(new TypeError('Eval Run retention limit must be a positive safe integer'))
+    }
+    const detached = deepFreeze(record)
+    const operation = this.evalRunWriteTail.then(async () => {
+      const runs = this.domain.table('eval_runs')
+      const current = runs.get(detached.evalRunId)
+      if (current !== undefined) {
+        const immutable = [
+          'requestFingerprint', 'teamId', 'profileId', 'profileRevision', 'profileFingerprint',
+          'runtimeTarget', 'capabilityGeneration', 'evalSetId', 'evalSetRevision',
+          'evalSetFingerprint', 'assertionSchemaVersion', 'environmentFingerprint',
+          'effectiveToolAllowlist', 'startedAt',
+        ] as const
+        if (immutable.some(field => !isDeepStrictEqual(current[field], detached[field]))) {
+          throw new DigitalEmployeeMigrationError(
+            `Eval Run ${JSON.stringify(detached.evalRunId)} changed immutable identity`,
+            'target-diverged',
+          )
+        }
+        if (current.status !== 'running' && !isDeepStrictEqual(current, detached)) {
+          throw new DigitalEmployeeMigrationError(
+            `terminal Eval Run ${JSON.stringify(detached.evalRunId)} cannot transition`,
+            'target-diverged',
+          )
+        }
+      }
+      await runs.put(detached.evalRunId, detached)
+      const overflow = [...runs.entries()]
+        .filter(([, candidate]) => candidate.status !== 'running')
+        .sort(([, left], [, right]) => right.startedAt - left.startedAt
+          || right.evalRunId.localeCompare(left.evalRunId))
+        .slice(maxEntries)
+      for (const [key] of overflow) await runs.delete(key)
+    })
+    this.evalRunWriteTail = operation.catch(() => undefined)
+    return operation
+  }
+
   async close(): Promise<void> {
-    await Promise.all([this.bindingWriteTail, this.runWriteTail])
+    await Promise.all([
+      this.bindingWriteTail,
+      this.runWriteTail,
+      this.evalSetWriteTail,
+      this.evalRunWriteTail,
+    ])
     await this.domain.close()
   }
 }

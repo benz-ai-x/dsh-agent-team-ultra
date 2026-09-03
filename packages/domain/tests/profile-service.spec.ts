@@ -55,7 +55,27 @@ function catalogExternalProvider(
       items: [],
       complete: true,
     }),
-    createEvaluationHandle: async () => ({ evaluationHandle: TeammateEvaluationHandle('catalog-evaluation') }),
+    ...(metadata.runtimeCapabilities.includes('evaluation' as never)
+      ? {
+          evaluationTools: ['read'],
+          createEvaluationHandle: async () => ({
+            evaluationHandle: TeammateEvaluationHandle('catalog-evaluation'),
+            turnId: TeammateRuntimeTurnId('catalog-evaluation-turn'),
+            terminal: 'completed' as const,
+            output: [{ type: 'text' as const, text: 'complete' }],
+            evidence: [{
+              id: 'catalog-evaluation-evidence' as never,
+              kind: 'turn' as const,
+              timestamp: 2,
+              turnId: TeammateRuntimeTurnId('catalog-evaluation-turn'),
+              outcome: 'completed' as const,
+            }],
+            complete: true,
+            startedAt: 1,
+            endedAt: 2,
+          }),
+        }
+      : {}),
     dispose: async () => undefined,
   }
 }
@@ -467,6 +487,9 @@ async function harness(options: {
     runtimeCapabilities: Object.freeze([
       'exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage',
     ].filter(value => provider.runtimeCapabilities.includes(value as never))) as never,
+    ...(provider.evaluationTools === undefined
+      ? {}
+      : { evaluationTools: Object.freeze([...provider.evaluationTools]) }),
   })
   const registerTeammateRuntimeProvider = (provider: TeammateRuntimeProvider): TeammateRuntimeRegistration => {
     let available = true
@@ -2299,7 +2322,7 @@ describe('Digital Employee profile contract', () => {
           displayName: 'Duplicate Label',
           contextModes: ['fresh', 'fork'],
           profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
-          runtimeCapabilities: ['exact-call-approval'],
+          runtimeCapabilities: ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage'],
           reasoning: {
             efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
             defaultEffort: 'low',

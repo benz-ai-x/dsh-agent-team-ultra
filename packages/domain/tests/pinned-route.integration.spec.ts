@@ -25,6 +25,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
+import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import SubagentService, { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
@@ -37,14 +38,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import DigitalEmployeeService, { launchRequestIdSchema } from '../lib/index.js'
-import type { DigitalEmployeeProfileDraft } from '../src/types.ts'
+import DigitalEmployeeService, { evalRunIdSchema, launchRequestIdSchema } from '../lib/index.js'
+import type { DigitalEmployeeEvalSetDraft, DigitalEmployeeProfileDraft } from '../src/types.ts'
 
 const SIGNAL = new AbortController().signal
 const SELECTED_PROVIDER = 'employee-provider'
 const SELECTED_MODEL = 'employee-model'
 const SELECTED_EFFORT = ReasoningEffortId('high')
 const LAUNCH_REQUEST_ID = launchRequestIdSchema.parse('22222222-2222-4222-8222-222222222222')
+const DSH_EVAL_RUN_ID = evalRunIdSchema.parse('33333333-3333-4333-8333-333333333333')
+const EXTERNAL_EVAL_RUN_ID = evalRunIdSchema.parse('44444444-4444-4444-8444-444444444444')
+const CANCELLED_EVAL_RUN_ID = evalRunIdSchema.parse('55555555-5555-4555-8555-555555555555')
 
 class MemoryTable<K extends string, V> implements KvTable<K, V> {
   readonly records = new Map<K, V>()
@@ -131,6 +135,27 @@ class LeadAdapter extends LlmAdapter {
   }
 }
 
+class EvaluationAdapter extends LlmAdapter {
+  readonly requests: GenerateOptions[] = []
+
+  override providerInfo(provider: string) {
+    return { id: provider, name: 'Evaluation Provider' }
+  }
+
+  override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+    return Promise.resolve([{ provider, id: SELECTED_MODEL, name: 'Evaluation Model' }])
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: 'Evaluation Model' })
+  }
+
+  override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    for (const chunk of completedResponse('evaluation finding PRIVATE_OUTPUT')) yield chunk
+  }
+}
+
 interface MemoryStorageDomainState {
   readonly v0Profiles: MemoryTable<string, unknown>
   readonly v0Bindings: MemoryTable<string, unknown>
@@ -213,6 +238,7 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'] as const
   readonly runtimeCapabilities: TeammateRuntimeProvider['runtimeCapabilities']
+  readonly evaluationTools = ['read'] as const
   readonly apiKey = 'never-cross-the-host-boundary'
   readonly sandboxMode = 'read-only'
   readonly attached = new Set<ReturnType<typeof TeammateRuntimeHandle>>()
@@ -330,7 +356,50 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
       handle = TeammateEvaluationHandle(`fake-eval-${this.store.nextEvaluation++}`)
       this.store.evaluations.set(request.evaluationId, handle)
     }
-    return { evaluationHandle: handle }
+    const turnId = TeammateRuntimeTurnId(`${handle}-turn`)
+    return {
+      evaluationHandle: handle,
+      turnId,
+      terminal: 'completed',
+      output: [{ type: 'text', text: 'finding' }],
+      evidence: [
+        {
+          id: TeammateRuntimeEvidenceId(`${handle}-step`),
+          kind: 'step',
+          timestamp: 2,
+          turnId,
+          step: 1,
+          outcome: 'completed',
+        },
+        {
+          id: TeammateRuntimeEvidenceId(`${handle}-tool`),
+          kind: 'tool',
+          timestamp: 3,
+          turnId,
+          step: 1,
+          name: 'read',
+          callId: TeammateRuntimeToolCallId(`${handle}-call`),
+          outcome: 'completed',
+        },
+        {
+          id: TeammateRuntimeEvidenceId(`${handle}-usage`),
+          kind: 'usage',
+          timestamp: 4,
+          turnId,
+          usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+        },
+        {
+          id: TeammateRuntimeEvidenceId(`${handle}-terminal`),
+          kind: 'turn',
+          timestamp: 5,
+          turnId,
+          outcome: 'completed',
+        },
+      ],
+      complete: true,
+      startedAt: 1,
+      endedAt: 5,
+    }
   })
   readonly dispose = vi.fn<TeammateRuntimeProvider['dispose']>(async (request: TeammateRuntimeDisposeRequest) => {
     if (request.kind === 'runtime') this.attached.delete(request.nativeHandle)
@@ -374,6 +443,34 @@ function profile(overrides: Partial<DigitalEmployeeProfileDraft> = {}): DigitalE
       { id: 'start-v1', point: 'session-start', effect: 'context', text: 'START HOOK V1', enabled: true },
       { id: 'step-v1', point: 'before-step', effect: 'context', text: 'STEP HOOK V1', enabled: true },
     ],
+    ...overrides,
+  }
+}
+
+function evalSet(profileId: string, overrides: Partial<DigitalEmployeeEvalSetDraft> = {}): DigitalEmployeeEvalSetDraft {
+  return {
+    id: 'release-gate',
+    profileId,
+    displayName: 'Release gate',
+    toolAllowlist: ['read'],
+    resourceCeilings: { maxSteps: 2, maxOutputTokens: 256, maxElapsedMs: 5_000 },
+    passPolicy: { kind: 'all' },
+    cases: [{
+      id: 'find-risk',
+      title: 'Find one risk',
+      input: 'Review the immutable fixture.',
+      fixtures: [{ id: 'source', content: 'export const value = 1' }],
+      assertions: {
+        acceptedTerminals: ['completed'],
+        requiredTools: [],
+        forbiddenTools: ['write_file'],
+        requiredOutputSubstrings: ['finding'],
+        forbiddenOutputSubstrings: ['unsafe-marker'],
+        maxSteps: 2,
+        maxReportedTokens: 1_000,
+        maxElapsedMs: 5_000,
+      },
+    }],
     ...overrides,
   }
 }
@@ -1037,6 +1134,244 @@ describe('durable external-agent route integration', () => {
     await replacement.dispose()
     await leadHandle.dispose()
     await resumedCtx.fiber.dispose()
+    activeContext = undefined
+  }, 20_000)
+})
+
+describe('isolated candidate evaluation integration', () => {
+  it('evaluates a DSH candidate in a fresh parentless Agent and gates activation on the exact pass', async () => {
+    const ctx = new Context()
+    activeContext = ctx
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
+    const sessionRoot = mkdtempSync(join(tmpdir(), 'dsh-ultra-eval-dsh-'))
+    temporaryRoots.push(sessionRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: sessionRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(ApprovalService)
+    await ctx.plugin(SandboxPolicyService)
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+    await ctx.plugin(TeamService)
+    const storage = installMemoryStorageDomain(ctx)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'read',
+      description: 'Read immutable evidence',
+      parameters: {},
+      async execute() { return [] },
+    }))
+    const adapter = new EvaluationAdapter()
+    ctx.llm.registerAdapter([SELECTED_PROVIDER], adapter)
+    const lead = ctx.agentLoop.create(SessionId('dsh-evaluation-lead'), {})
+    const ultraFiber = ctx.plugin(DigitalEmployeeService)
+    await ultraFiber
+    const saved = await ctx.digitalEmployees.saveProfile(lead, {
+      expectedHeadRevision: null,
+      profile: profile(),
+      runtimeTarget: { kind: 'dsh-model', provider: SELECTED_PROVIDER, model: SELECTED_MODEL },
+    })
+    if (!saved.ok) throw new Error(saved.error.message)
+    const set = await ctx.digitalEmployees.saveEvalSet(lead, {
+      expectedHeadRevision: null,
+      evalSet: evalSet(saved.value.head.profileId),
+    })
+    if (!set.ok) throw new Error(set.error.message)
+    const gated = await ctx.digitalEmployees.setEvalGate(lead, {
+      profileId: saved.value.head.profileId,
+      expectedHeadRevision: saved.value.head.headRevision,
+      requiredEvalSet: { evalSetId: set.value.head.evalSetId, revision: set.value.revision.revision },
+    })
+    if (!gated.ok) throw new Error(gated.error.message)
+    await expect(ctx.digitalEmployees.activateProfile(lead, {
+      profileId: saved.value.head.profileId,
+      revision: saved.value.revision.revision,
+      expectedHeadRevision: gated.value.head.headRevision,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'promotion-gate-failed' } })
+
+    const evalRows = storage.v1Tables.get('eval_runs')!
+    let evaluatorDisposedAfterCommit = false
+    ctx.on('agent/disposed', ({ agent }) => {
+      if (!String(agent.id).startsWith('eval_')) return
+      const record = [...evalRows.records.values()][0] as {
+        readonly status?: string
+        readonly cases?: readonly { readonly status?: string }[]
+      } | undefined
+      evaluatorDisposedAfterCommit = record?.status === 'running' && record.cases?.[0]?.status === 'passed'
+    })
+    const started = await ctx.digitalEmployees.startEvalRun(lead, {
+      evalRunId: DSH_EVAL_RUN_ID,
+      profileId: saved.value.head.profileId,
+      profileRevision: saved.value.revision.revision,
+      evalSetId: set.value.head.evalSetId,
+      evalSetRevision: set.value.revision.revision,
+    })
+    expect(started).toMatchObject({ ok: true, value: { replayed: false, run: { status: 'running' } } })
+    await vi.waitFor(() => {
+      expect(ctx.digitalEmployees.studioView(lead).evalRuns[0]?.status).toBe('passed')
+    }, { timeout: 5_000 })
+    const inspected = await ctx.digitalEmployees.evalRun(lead, { evalRunId: DSH_EVAL_RUN_ID })
+    expect(inspected).toMatchObject({
+      ok: true,
+      value: {
+        run: {
+          status: 'passed',
+          cases: [{
+            status: 'passed',
+            run: { run: { terminal: 'completed', completeness: { status: 'complete' } } },
+          }],
+        },
+      },
+    })
+    expect(JSON.stringify(inspected)).not.toContain('PRIVATE_OUTPUT')
+    expect(evaluatorDisposedAfterCommit).toBe(true)
+    expect(ctx.agents.list()).toEqual([lead])
+    expect(ctx.agentTeams.listMembers(lead).map(member => member.name)).toEqual(['lead'])
+    expect(adapter.requests[0]).toMatchObject({
+      provider: SELECTED_PROVIDER,
+      model: SELECTED_MODEL,
+      maxTokens: 256,
+    })
+    expect(adapter.requests[0]?.tools?.map(tool => tool.name)).toEqual(['read'])
+    expect(JSON.stringify(adapter.requests[0])).toContain('read-only')
+    expect(JSON.stringify(adapter.requests[0])).toContain('Approval prompts are disabled')
+    expect(ctx.digitalEmployees.studioView(lead).profiles[0]?.promotionGate).toMatchObject({
+      status: 'passed',
+      satisfiedByEvalRunId: DSH_EVAL_RUN_ID,
+    })
+    await expect(ctx.digitalEmployees.activateProfile(lead, {
+      profileId: saved.value.head.profileId,
+      revision: saved.value.revision.revision,
+      expectedHeadRevision: gated.value.head.headRevision,
+    })).resolves.toMatchObject({ ok: true, value: { head: { activeRevision: 1 } } })
+    await ultraFiber.dispose()
+    await ctx.fiber.dispose()
+    activeContext = undefined
+  }, 20_000)
+
+  it('evaluates and cancels fake external handles without publishing Team identity', async () => {
+    const ctx = new Context()
+    activeContext = ctx
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
+    const sessionRoot = mkdtempSync(join(tmpdir(), 'dsh-ultra-eval-external-'))
+    temporaryRoots.push(sessionRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: sessionRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(TeamService)
+    const storage = installMemoryStorageDomain(ctx)
+    const lead = ctx.agentLoop.create(SessionId('external-evaluation-lead'), {})
+    const ultraFiber = ctx.plugin(DigitalEmployeeService)
+    await ultraFiber
+    const provider = new FakeNativeProvider(fakeNativeStore(), { exactCallApproval: true })
+    const evalRows = storage.v1Tables.get('eval_runs')!
+    provider.dispose.mockImplementation(async (request) => {
+      if (request.kind !== 'evaluation') return
+      const stored = [...evalRows.records.values()].find(value => (
+        value as { evalRunId?: string }
+      ).evalRunId === EXTERNAL_EVAL_RUN_ID) as {
+        readonly status?: string
+        readonly cases?: readonly { readonly status?: string }[]
+      } | undefined
+      expect(stored?.status, JSON.stringify(stored)).toBe('running')
+      expect(stored?.cases?.[0]?.status, JSON.stringify(stored)).toBe('passed')
+    })
+    const providerFiber = ctx.plugin({
+      inject: ['digitalEmployees'],
+      apply(pluginCtx: Context) {
+        pluginCtx.digitalEmployees.registerExternalRuntimeProvider(provider)
+      },
+    })
+    await providerFiber
+    await ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    const saved = await ctx.digitalEmployees.saveProfile(lead, {
+      expectedHeadRevision: null,
+      profile: profile({ hooks: [] }),
+      runtimeTarget: { kind: 'external-agent', provider: provider.id },
+    })
+    if (!saved.ok) throw new Error(saved.error.message)
+    const set = await ctx.digitalEmployees.saveEvalSet(lead, {
+      expectedHeadRevision: null,
+      evalSet: evalSet(saved.value.head.profileId, {
+        cases: [{
+          ...evalSet(saved.value.head.profileId).cases[0]!,
+          assertions: {
+            ...evalSet(saved.value.head.profileId).cases[0]!.assertions,
+            requiredTools: ['read'],
+          },
+        }],
+      }),
+    })
+    if (!set.ok) throw new Error(set.error.message)
+    const gated = await ctx.digitalEmployees.setEvalGate(lead, {
+      profileId: saved.value.head.profileId,
+      expectedHeadRevision: saved.value.head.headRevision,
+      requiredEvalSet: { evalSetId: set.value.head.evalSetId, revision: set.value.revision.revision },
+    })
+    if (!gated.ok) throw new Error(gated.error.message)
+    const started = await ctx.digitalEmployees.startEvalRun(lead, {
+      evalRunId: EXTERNAL_EVAL_RUN_ID,
+      profileId: saved.value.head.profileId,
+      profileRevision: saved.value.revision.revision,
+      evalSetId: set.value.head.evalSetId,
+      evalSetRevision: set.value.revision.revision,
+    })
+    expect(started).toMatchObject({ ok: true, value: { run: { status: 'running' } } })
+    await vi.waitFor(() => {
+      expect(ctx.digitalEmployees.studioView(lead).evalRuns[0]?.status).not.toBe('running')
+    }, { timeout: 5_000 })
+    const externalRun = await ctx.digitalEmployees.evalRun(lead, { evalRunId: EXTERNAL_EVAL_RUN_ID })
+    expect(
+      externalRun.ok ? externalRun.value.run.status : externalRun.error.code,
+      JSON.stringify(externalRun),
+    ).toBe('passed')
+    expect(provider.createEvaluationHandle).toHaveBeenCalledWith(expect.objectContaining({
+      environment: {
+        sandbox: 'read-only',
+        approval: 'never',
+        toolAllowlist: ['read'],
+        fixtures: [{ id: 'source', content: 'export const value = 1' }],
+        maxSteps: 2,
+        maxOutputTokens: 256,
+        maxElapsedMs: 5_000,
+      },
+    }))
+    expect(provider.dispose).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'evaluation',
+      evaluationHandle: 'fake-eval-1',
+    }))
+    expect(ctx.agentTeams.listMembers(lead).map(member => member.name)).toEqual(['lead'])
+
+    const entered = Promise.withResolvers<void>()
+    provider.createEvaluationHandle.mockImplementationOnce(async (request) => {
+      entered.resolve()
+      return await new Promise<never>((_resolve, reject) => {
+        const abort = (): void => { reject(request.signal.reason) }
+        if (request.signal.aborted) abort()
+        else request.signal.addEventListener('abort', abort, { once: true })
+      })
+    })
+    const cancelling = await ctx.digitalEmployees.startEvalRun(lead, {
+      evalRunId: CANCELLED_EVAL_RUN_ID,
+      profileId: saved.value.head.profileId,
+      profileRevision: saved.value.revision.revision,
+      evalSetId: set.value.head.evalSetId,
+      evalSetRevision: set.value.revision.revision,
+    })
+    expect(cancelling.ok).toBe(true)
+    await entered.promise
+    const cancelled = await ctx.digitalEmployees.cancelEvalRun(lead, { evalRunId: CANCELLED_EVAL_RUN_ID })
+    expect(cancelled).toMatchObject({ ok: true, value: { run: { status: 'cancelled' } } })
+    expect(ctx.digitalEmployees.studioView(lead).evalRuns.find(run => (
+      run.evalRunId === CANCELLED_EVAL_RUN_ID
+    ))?.status).toBe('cancelled')
+    expect(ctx.digitalEmployees.studioView(lead).profiles[0]?.promotionGate.status).toBe('passed')
+
+    await providerFiber.dispose()
+    await ultraFiber.dispose()
+    await ctx.fiber.dispose()
     activeContext = undefined
   }, 20_000)
 })

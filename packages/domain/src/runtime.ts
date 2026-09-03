@@ -164,6 +164,9 @@ function freezeBackend<T extends DigitalEmployeeRuntimeBackend>(backend: T): T {
     contextModes: Object.freeze([...backend.contextModes]),
     profileCapabilities: Object.freeze([...backend.profileCapabilities]),
     runtimeCapabilities: Object.freeze([...backend.runtimeCapabilities]),
+    ...(backend.evaluationTools === undefined
+      ? {}
+      : { evaluationTools: Object.freeze([...backend.evaluationTools]) }),
   }) as unknown as T
 }
 
@@ -177,6 +180,7 @@ function externalBackend(metadata: ExternalRuntimeMetadata): DigitalEmployeeRunt
     contextModes: metadata.contextModes,
     profileCapabilities: metadata.profileCapabilities,
     runtimeCapabilities: metadata.runtimeCapabilities,
+    ...(metadata.evaluationTools === undefined ? {} : { evaluationTools: metadata.evaluationTools }),
   })
 }
 
@@ -541,6 +545,55 @@ export class RuntimeBackendRegistry {
     return undefined
   }
 
+  /** Require every fixed guarantee needed by an unattended isolated evaluation. */
+  validateEvaluation(
+    profile: DigitalEmployeeProfileDraft,
+    target: DigitalEmployeeRuntimeTarget,
+    required: DigitalEmployeeRequiredCapabilities,
+  ): RuntimeTargetProblem | undefined {
+    const base = this.validate(profile, target, required, 'evaluate')
+    if (base !== undefined) return base
+    const backend = this.liveBackends.find(candidate => candidate.routingId === runtimeTargetRoutingId(target))
+    if (backend === undefined || backend.availability !== 'available') {
+      return Object.freeze({
+        code: 'runtime-target-unavailable',
+        message: `runtime "${runtimeTargetRoutingId(target)}" is not available for evaluation`,
+      })
+    }
+    if (!backend.contextModes.includes('fresh')) {
+      return Object.freeze({
+        code: 'runtime-capability-mismatch',
+        message: `runtime "${backend.routingId}" cannot create a fresh isolated evaluator`,
+      })
+    }
+    const requiredRuntime: readonly DigitalEmployeeRuntimeCapability[] = [
+      'sandbox', 'evaluation', 'evidence', 'usage',
+    ]
+    const missing = requiredRuntime.filter(capability => !backend.runtimeCapabilities.includes(capability))
+    if (missing.length > 0) {
+      return Object.freeze({
+        code: 'runtime-capability-mismatch',
+        message: `runtime "${backend.routingId}" cannot prove evaluation guarantees: ${missing.join(', ')}`,
+      })
+    }
+    if (target.kind === 'external-agent' && backend.evaluationTools === undefined) {
+      return Object.freeze({
+        code: 'runtime-capability-mismatch',
+        message: `runtime "${backend.routingId}" does not publish an enforceable evaluation tool inventory`,
+      })
+    }
+    return undefined
+  }
+
+  /** Detached provider-enforceable tool inventory for one external evaluator. */
+  externalEvaluationTools(providerId: string): readonly string[] | undefined {
+    const external = this.external.get(providerId)
+    if (external === undefined || !external.registration.available()) return undefined
+    return external.metadata.evaluationTools === undefined
+      ? undefined
+      : Object.freeze([...external.metadata.evaluationTools])
+  }
+
   private scheduleRefresh(initial = false): Promise<void> {
     if (this.disposed) return Promise.resolve()
     const request = ++this.refreshRequest
@@ -608,7 +661,9 @@ export class RuntimeBackendRegistry {
           displayName: model.name,
           contextModes: resolved === undefined ? [] : dshContextModes,
           profileCapabilities: resolved === undefined ? [] : ALL_PROFILE_CAPABILITIES,
-          runtimeCapabilities: resolved === undefined ? [] : ['exact-call-approval'],
+          runtimeCapabilities: resolved === undefined
+            ? []
+            : ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage'],
           ...(reasoning === undefined ? {} : { reasoning }),
           ...(resolved === undefined ? { diagnostic: INVALID_DSH_DIAGNOSTIC } : {}),
         }))

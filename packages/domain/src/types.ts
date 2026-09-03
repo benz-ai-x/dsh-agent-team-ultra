@@ -120,6 +120,9 @@ export type DigitalEmployeeRunId = Branded<'DigitalEmployeeRunId'>
 /** Opaque provider-owned evidence handle shared by teammate and evaluation runtimes. */
 export type DigitalEmployeeRunNativeHandle = Branded<'DigitalEmployeeRunNativeHandle'>
 
+/** Team Lead-minted idempotency identity of one candidate evaluation. */
+export type DigitalEmployeeEvalRunId = Branded<'DigitalEmployeeEvalRunId'>
+
 /** Profile behavior a runtime must be able to enforce, not merely advertise. */
 export type DigitalEmployeeProfileCapability =
   | 'persona'
@@ -190,6 +193,15 @@ export interface DigitalEmployeeProfileCatalogEntry {
   readonly latest: DigitalEmployeeProfileRevision
   readonly history: readonly DigitalEmployeeProfileRevisionSummary[]
   readonly historyTruncated: boolean
+  readonly promotionGate: DigitalEmployeePromotionGate
+}
+
+/** Current evidence-backed activation eligibility for one Profile candidate. */
+export interface DigitalEmployeePromotionGate {
+  readonly status: 'not-required' | 'pending' | 'passed' | 'invalidated'
+  readonly requiredEvalSet?: RequiredEvalSetReference
+  readonly satisfiedByEvalRunId?: DigitalEmployeeEvalRunId
+  readonly diagnostic?: string
 }
 
 /** One deterministic field-level difference against the active Revision. */
@@ -237,6 +249,7 @@ export interface DigitalEmployeeRuntimeBackendBase {
   readonly contextModes: readonly DigitalEmployeeContextMode[]
   readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
   readonly runtimeCapabilities: readonly DigitalEmployeeRuntimeCapability[]
+  readonly evaluationTools?: readonly string[]
   readonly diagnostic?: string
 }
 
@@ -399,6 +412,174 @@ export interface DigitalEmployeeRunDetail {
   readonly timelineTruncated: boolean
 }
 
+/** One declared immutable text fixture available only to an evaluation Case. */
+export interface DigitalEmployeeEvalFixture {
+  readonly id: string
+  readonly content: string
+}
+
+/** Hard per-Case ceilings enforced by the selected evaluation runtime. */
+export interface DigitalEmployeeEvalResourceCeilings {
+  readonly maxSteps: number
+  readonly maxOutputTokens: number
+  readonly maxElapsedMs: number
+}
+
+/** Deterministic assertions computed from normalized evidence and transient output. */
+export interface DigitalEmployeeEvalAssertions {
+  readonly acceptedTerminals: readonly DigitalEmployeeRunTerminal[]
+  readonly requiredTools: readonly string[]
+  readonly forbiddenTools: readonly string[]
+  readonly requiredOutputSubstrings: readonly string[]
+  readonly forbiddenOutputSubstrings: readonly string[]
+  readonly maxSteps?: number
+  readonly maxReportedTokens?: number
+  readonly maxElapsedMs?: number
+}
+
+/** One stable Case inside an immutable Eval Set Revision. */
+export interface DigitalEmployeeEvalCase {
+  readonly id: string
+  readonly title: string
+  readonly input: string
+  readonly fixtures: readonly DigitalEmployeeEvalFixture[]
+  readonly assertions: DigitalEmployeeEvalAssertions
+}
+
+/** Set-level rule deciding whether the completed Cases pass. */
+export type DigitalEmployeeEvalPassPolicy =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'minimum'; readonly minimumPassed: number }
+
+/** User-authored content versioned independently from Profile Revisions. */
+export interface DigitalEmployeeEvalSetDraft {
+  readonly id: string
+  readonly profileId: DigitalEmployeeProfileId
+  readonly displayName: string
+  readonly toolAllowlist: readonly string[]
+  readonly resourceCeilings: DigitalEmployeeEvalResourceCeilings
+  readonly passPolicy: DigitalEmployeeEvalPassPolicy
+  readonly cases: readonly DigitalEmployeeEvalCase[]
+}
+
+/** Mutable CAS pointer for one Eval Set's immutable history. */
+export interface DigitalEmployeeEvalSetHead {
+  readonly schemaVersion: 1
+  readonly evalSetId: string
+  readonly profileId: DigitalEmployeeProfileId
+  readonly headRevision: number
+  readonly latestRevision: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** Complete immutable normalized Eval Set content. */
+export interface DigitalEmployeeEvalSetRevision {
+  readonly schemaVersion: 1
+  readonly evalSetId: string
+  readonly profileId: DigitalEmployeeProfileId
+  readonly revision: number
+  readonly evalSet: DigitalEmployeeEvalSetDraft
+  readonly fingerprint: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export interface DigitalEmployeeEvalSetRevisionSummary {
+  readonly revision: number
+  readonly fingerprint: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** Bounded Studio row for one versioned Eval Set. */
+export interface DigitalEmployeeEvalSetCatalogEntry {
+  readonly head: DigitalEmployeeEvalSetHead
+  readonly latest: DigitalEmployeeEvalSetRevision
+  readonly history: readonly DigitalEmployeeEvalSetRevisionSummary[]
+  readonly historyTruncated: boolean
+}
+
+export type DigitalEmployeeEvalAssertionKind =
+  | 'terminal'
+  | 'required-tool'
+  | 'forbidden-tool'
+  | 'required-output'
+  | 'forbidden-output'
+  | 'max-steps'
+  | 'max-reported-tokens'
+  | 'max-elapsed-ms'
+
+/** Safe assertion result; output and raw tool payloads are never retained. */
+export interface DigitalEmployeeEvalAssertionResult {
+  readonly kind: DigitalEmployeeEvalAssertionKind
+  readonly subject?: string
+  readonly passed: boolean
+  readonly diagnostic: string
+}
+
+export type DigitalEmployeeEvalCaseStatus =
+  | 'pending'
+  | 'running'
+  | 'passed'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted'
+  | 'environment-unavailable'
+
+/** Durable bounded result and evidence projection for one isolated Case. */
+export interface DigitalEmployeeEvalCaseResult {
+  readonly caseId: string
+  readonly status: DigitalEmployeeEvalCaseStatus
+  readonly assertions: readonly DigitalEmployeeEvalAssertionResult[]
+  readonly run?: DigitalEmployeeRunDetail
+  readonly diagnostic?: string
+  readonly startedAt?: number
+  readonly endedAt?: number
+}
+
+export type DigitalEmployeeEvalRunStatus =
+  | 'running'
+  | 'passed'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted'
+  | 'environment-unavailable'
+
+/** Exact immutable identities reserved before any evaluator is published. */
+export interface DigitalEmployeeEvalRunRecord {
+  readonly schemaVersion: 1
+  readonly evalRunId: DigitalEmployeeEvalRunId
+  readonly requestFingerprint: string
+  readonly teamId: string
+  readonly profileId: DigitalEmployeeProfileId
+  readonly profileRevision: number
+  readonly profileFingerprint: string
+  readonly runtimeTarget: SelectableDigitalEmployeeRuntimeTarget
+  readonly capabilityGeneration: number
+  readonly evalSetId: string
+  readonly evalSetRevision: number
+  readonly evalSetFingerprint: string
+  readonly assertionSchemaVersion: 1
+  readonly environmentFingerprint: string
+  readonly effectiveToolAllowlist: readonly string[]
+  readonly status: DigitalEmployeeEvalRunStatus
+  readonly cases: readonly DigitalEmployeeEvalCaseResult[]
+  readonly startedAt: number
+  readonly updatedAt: number
+  readonly endedAt?: number
+}
+
+export type DigitalEmployeeEvalRunSummary = Omit<DigitalEmployeeEvalRunRecord, 'cases'> & {
+  readonly passedCases: number
+  readonly totalCases: number
+}
+
+export interface DigitalEmployeeEvalRunDetail {
+  readonly run: DigitalEmployeeEvalRunRecord
+  readonly evalSet: DigitalEmployeeEvalSetRevision
+}
+
 /** Complete replaceable Studio baseline. */
 export interface DigitalEmployeeStudioView {
   readonly profiles: readonly DigitalEmployeeProfileCatalogEntry[]
@@ -406,6 +587,8 @@ export interface DigitalEmployeeStudioView {
   readonly tools: readonly ProfileToolOption[]
   readonly instances: readonly DigitalEmployeeInstanceView[]
   readonly runs: readonly DigitalEmployeeRunIndexRecord[]
+  readonly evalSets: readonly DigitalEmployeeEvalSetCatalogEntry[]
+  readonly evalRuns: readonly DigitalEmployeeEvalRunSummary[]
 }
 
 /** Save request with a compare-and-set precondition. */
@@ -452,6 +635,36 @@ export interface GetDigitalEmployeeRunRequest {
   readonly runId: DigitalEmployeeRunId
 }
 
+/** Version one Eval Set through its independent CAS head. */
+export interface SaveDigitalEmployeeEvalSetRequest {
+  readonly expectedHeadRevision: number | null
+  readonly evalSet: DigitalEmployeeEvalSetDraft
+}
+
+/** Attach or clear the exact Eval Set Revision required for activation. */
+export interface SetDigitalEmployeeEvalGateRequest {
+  readonly profileId: DigitalEmployeeProfileId
+  readonly expectedHeadRevision: number
+  readonly requiredEvalSet?: RequiredEvalSetReference
+}
+
+/** Start one idempotent exact candidate evaluation. */
+export interface StartDigitalEmployeeEvalRunRequest {
+  readonly evalRunId: DigitalEmployeeEvalRunId
+  readonly profileId: DigitalEmployeeProfileId
+  readonly profileRevision: number
+  readonly evalSetId: string
+  readonly evalSetRevision: number
+}
+
+export interface CancelDigitalEmployeeEvalRunRequest {
+  readonly evalRunId: DigitalEmployeeEvalRunId
+}
+
+export interface GetDigitalEmployeeEvalRunRequest {
+  readonly evalRunId: DigitalEmployeeEvalRunId
+}
+
 /** Launch one profile with an optional assignment specific to this Team. */
 export interface SpawnDigitalEmployeeRequest {
   readonly launchRequestId: LaunchRequestId
@@ -472,6 +685,12 @@ export interface DigitalEmployeeFailure {
     | 'revision-not-found'
     | 'run-not-found'
     | 'evidence-unavailable'
+    | 'promotion-gate-failed'
+    | 'eval-invalid'
+    | 'eval-conflict'
+    | 'eval-environment-unavailable'
+    | 'eval-in-progress'
+    | 'eval-not-found'
     | 'runtime-target-unavailable'
     | 'runtime-route-invalid'
     | 'runtime-capability-mismatch'
@@ -510,6 +729,32 @@ export type GetDigitalEmployeeProfileRevisionResult =
 /** Lazy Run evidence result used by the Studio inspector. */
 export type GetDigitalEmployeeRunResult =
   | { readonly ok: true; readonly value: DigitalEmployeeRunDetail }
+  | { readonly ok: false; readonly error: DigitalEmployeeFailure }
+
+export type SaveDigitalEmployeeEvalSetResult =
+  | {
+    readonly ok: true
+    readonly value: {
+      readonly unchanged: boolean
+      readonly head: DigitalEmployeeEvalSetHead
+      readonly revision: DigitalEmployeeEvalSetRevision
+    }
+  }
+  | { readonly ok: false; readonly error: DigitalEmployeeFailure }
+
+export type StartDigitalEmployeeEvalRunResult =
+  | {
+    readonly ok: true
+    readonly value: { readonly replayed: boolean; readonly run: DigitalEmployeeEvalRunSummary }
+  }
+  | { readonly ok: false; readonly error: DigitalEmployeeFailure }
+
+export type CancelDigitalEmployeeEvalRunResult =
+  | { readonly ok: true; readonly value: { readonly run: DigitalEmployeeEvalRunSummary } }
+  | { readonly ok: false; readonly error: DigitalEmployeeFailure }
+
+export type GetDigitalEmployeeEvalRunResult =
+  | { readonly ok: true; readonly value: DigitalEmployeeEvalRunDetail }
   | { readonly ok: false; readonly error: DigitalEmployeeFailure }
 
 /** Launch result after the Team roster and Ultra binding both reach a terminal edge. */
