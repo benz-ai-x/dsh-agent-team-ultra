@@ -68,6 +68,10 @@ _Avoid_: Adapter object, credential-bearing provider config
 A Fiber-scoped Host implementation of the Agent Team teammate-runtime contract that owns provider-native sessions, turns, evidence, evaluation handles, and exact resource disposal.
 _Avoid_: One-shot subagent, catalog metadata object
 
+**Codex Runtime Backend**:
+The durable external provider backed only by the audited package-local `@openai/codex` native payload, with one stable app-server thread per accepted teammate and no `PATH` fallback.
+_Avoid_: Codex CLI invocation, one-shot Codex task
+
 **Native Runtime Handle**:
 The stable opaque provider-native identity returned after initial work is durably accepted and retained before an external Binding becomes active.
 _Avoid_: Member ID, Launch Request ID, provider process object

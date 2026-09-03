@@ -36,6 +36,7 @@ const packages = [
 ]
 const privateClosure = [
   join(harness, 'packages', 'experimental', 'agent-team'),
+  join(harness, 'packages', 'experimental', 'agent-team-codex'),
   join(harness, 'packages', 'experimental', 'tool-agent-team'),
   join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
 ]
@@ -147,6 +148,7 @@ try {
       `await Promise.all(${JSON.stringify([
         pathToFileURL(join(installed, 'dsh-agent-team-ultra', 'lib', 'index.js')).href,
         pathToFileURL(join(installed, 'dsh-experimental-agent-team', 'lib', 'index.js')).href,
+        pathToFileURL(join(installed, 'dsh-experimental-agent-team-codex', 'lib', 'index.js')).href,
         pathToFileURL(join(installed, 'dsh-experimental-tool-agent-team', 'lib', 'index.js')).href,
       ])}.map(specifier => import(specifier)))`,
     ],
@@ -162,6 +164,8 @@ try {
   ).stdout
   for (const expected of [
     '# == @deepseek-ai/dsh-agent-team-ultra-profile',
+    'id: agent-team-codex',
+    "name: '@deepseek-ai/dsh-experimental-agent-team-codex'",
     'id: agent-team-ultra',
     "name: '@deepseek-ai/dsh-agent-team-ultra'",
     'id: ui-agent-team-ultra',

@@ -18,6 +18,7 @@ mkdirSync(output, { recursive: true })
 
 const packageRoots = [
   join(harness, 'packages', 'experimental', 'agent-team'),
+  join(harness, 'packages', 'experimental', 'agent-team-codex'),
   join(harness, 'packages', 'experimental', 'tool-agent-team'),
   join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
   join(root, 'packages', 'domain'),
@@ -46,7 +47,7 @@ for (const packageRoot of packageRoots) {
 
 console.log(`Packed ${archives.length} local-only archives against Harness ${lock.upstream.version}.`)
 console.log(`Archives are available in ${output} for inspection; exact public peers remain source-linked.`)
-console.log('Install the six built source packages into a DSH Web profile with:')
+console.log(`Install the ${archives.length} built source packages into a DSH Web profile with:`)
 console.log([
   'dsh plugin --profile web add',
   ...packageRoots.map(packageRoot => `  ${JSON.stringify(`link:${packageRoot}`)}`),

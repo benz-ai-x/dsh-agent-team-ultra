@@ -32,6 +32,11 @@
         maxMessageBytes: 65536
         disposalTimeoutMs: 5000
 
+    - id: agent-team-codex
+      name: '@deepseek-ai/dsh-experimental-agent-team-codex'
+      config:
+        sandbox: read-only
+
     - id: tool-agent-team
       name: '@deepseek-ai/dsh-experimental-tool-agent-team'
       config:
