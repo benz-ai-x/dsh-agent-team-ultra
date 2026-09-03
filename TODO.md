@@ -22,6 +22,7 @@
 - [x] Make Launch Intents Team-idempotent and restart-reconcilable with separate provisioning, availability, and presence state.
 - [x] Activate the audited package-local durable Codex Runtime Backend in the profile and local artifact closure.
 - [x] Activate the audited package-local durable Claude Code Runtime Backend in the profile and local artifact closure.
+- [x] Index one truthful, repairable Run per accepted DSH or external work turn and inspect bounded redacted canonical evidence in Studio.
 
 ## Later
 

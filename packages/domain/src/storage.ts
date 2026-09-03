@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { z } from 'zod'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain, DomainFacility, KvTable } from '@deepseek-ai/dsh-storage-domain'
 import {
@@ -25,6 +26,9 @@ import type {
   DigitalEmployeeProfileHead,
   DigitalEmployeeProvisioningPhase,
   DigitalEmployeeProfileRevision,
+  DigitalEmployeeRunId,
+  DigitalEmployeeRunIndexRecord,
+  DigitalEmployeeRunNativeHandle,
   DigitalEmployeeRequiredCapabilities,
   DigitalEmployeeRuntimeTarget,
   LaunchRequestId,
@@ -254,7 +258,81 @@ const digitalEmployeeBindingV1InputSchema = z.object({
 
 export const digitalEmployeeBindingV1Schema = digitalEmployeeBindingV1InputSchema as z.ZodType<DigitalEmployeeBindingV1>
 
-const runIndexRecordSchema = z.object({ schemaVersion: z.literal(1), runId: boundedId }).strict()
+const runTerminalSchema = z.enum([
+  'completed',
+  'cancelled',
+  'blocked',
+  'failed',
+  'max-tokens',
+  'interrupted',
+  'unknown-terminal',
+])
+const runUsageSchema = z.object({
+  inputTokens: safeInteger,
+  outputTokens: safeInteger,
+  totalTokens: safeInteger.optional(),
+  cacheReadTokens: safeInteger.optional(),
+  cacheWriteTokens: safeInteger.optional(),
+  reasoningTokens: safeInteger.optional(),
+}).strict()
+const runCompletenessSchema = z.object({
+  status: z.enum(['complete', 'incomplete', 'unavailable']),
+  diagnostic: z.string().max(2048).optional(),
+  redactions: z.array(z.enum(['content', 'tool-arguments', 'tool-results', 'raw-payloads'])).length(4),
+}).strict()
+const runOwnerSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('team-member'),
+    memberId: nonEmptyText,
+    memberName: z.string().min(1).max(64),
+  }).strict(),
+  z.object({
+    kind: z.literal('evaluation-worker'),
+    evalRunId: boundedId,
+    caseId: boundedId,
+  }).strict(),
+])
+const runCanonicalSourceSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('dsh-session'),
+    sessionId: nonEmptyText,
+    turn: safeInteger,
+  }).strict(),
+  z.object({
+    kind: z.literal('external-native'),
+    provider: z.string().min(1).max(200),
+    nativeHandle: nativeRuntimeHandleSchema
+      .transform(value => brandString<DigitalEmployeeRunNativeHandle>(value)),
+    nativeTurnId: z.string().min(1).max(256).optional(),
+  }).strict(),
+])
+export const digitalEmployeeRunIndexRecordSchema = z.object({
+  schemaVersion: z.literal(1),
+  runId: boundedId.transform(value => brandString<DigitalEmployeeRunId>(value)),
+  source: z.enum(['dsh-session', 'external-native']),
+  canonicalTurnId: z.string().min(1).max(512),
+  canonicalSource: runCanonicalSourceSchema,
+  teamId: nonEmptyText,
+  owner: runOwnerSchema,
+  profileId: z.string().min(1).max(64),
+  profileRevision: positiveInteger,
+  profileFingerprint: fingerprintSchema,
+  selectedRuntimeTarget: migratedRuntimeTargetSchema,
+  actualRuntimeTarget: resolvedRuntimeTargetSchema.optional(),
+  capabilityGeneration: safeInteger,
+  terminal: runTerminalSchema,
+  usage: runUsageSchema.optional(),
+  startedAt: safeInteger,
+  endedAt: safeInteger.optional(),
+  completeness: runCompletenessSchema,
+}).strict().superRefine((record, ctx) => {
+  if ((record.source === 'dsh-session') !== (record.canonicalSource.kind === 'dsh-session')) {
+    ctx.addIssue({ code: 'custom', path: ['canonicalSource'], message: 'Run source and canonical source differ' })
+  }
+  if (record.endedAt !== undefined && record.endedAt < record.startedAt) {
+    ctx.addIssue({ code: 'custom', path: ['endedAt'], message: 'Run endedAt precedes startedAt' })
+  }
+}) as z.ZodType<DigitalEmployeeRunIndexRecord>
 const evalSetRecordSchema = z.object({
   schemaVersion: z.literal(1),
   evalSetId: boundedId,
@@ -275,7 +353,7 @@ export const digitalEmployeeV1DomainSpec = defineDomain({
     profile_heads: domainTable<string, DigitalEmployeeProfileHead>(digitalEmployeeProfileHeadV1Schema),
     profile_revisions: domainTable<string, StoredDigitalEmployeeProfileRevisionV1>(digitalEmployeeProfileRevisionV1Schema),
     bindings: domainTable<string, DigitalEmployeeBindingV1>(digitalEmployeeBindingV1Schema),
-    run_index: domainTable<string, z.infer<typeof runIndexRecordSchema>>(runIndexRecordSchema),
+    run_index: domainTable<string, DigitalEmployeeRunIndexRecord>(digitalEmployeeRunIndexRecordSchema),
     eval_sets: domainTable<string, z.infer<typeof evalSetRecordSchema>>(evalSetRecordSchema),
     eval_runs: domainTable<string, z.infer<typeof evalRunRecordSchema>>(evalRunRecordSchema),
   },
@@ -757,6 +835,14 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       }
     }
   }
+  for (const [key, run] of v1.table('run_index').entries()) {
+    if (key !== run.runId) {
+      throw new DigitalEmployeeMigrationError(
+        `Run index key ${JSON.stringify(key)} does not match Run identity ${JSON.stringify(run.runId)}`,
+        'target-inconsistent',
+      )
+    }
+  }
 }
 
 async function closeAfterFailure(
@@ -778,6 +864,8 @@ async function closeAfterFailure(
 export class DigitalEmployeeStorage {
   /** Serializes cross-record Binding invariants before the domain write chain. */
   private bindingWriteTail: Promise<void> = Promise.resolve()
+  /** Serializes bounded Run upserts and retention trimming. */
+  private runWriteTail: Promise<void> = Promise.resolve()
 
   constructor(private readonly domain: DigitalEmployeeV1Domain) {}
 
@@ -903,8 +991,35 @@ export class DigitalEmployeeStorage {
     return operation
   }
 
+  getRun(runId: DigitalEmployeeRunId): DigitalEmployeeRunIndexRecord | undefined {
+    return this.domain.table('run_index').get(runId)
+  }
+
+  runEntries(): IterableIterator<[string, DigitalEmployeeRunIndexRecord]> {
+    return this.domain.table('run_index').entries()
+  }
+
+  /** Upsert one deterministic Run and retain only the newest bounded index rows. */
+  putRun(record: DigitalEmployeeRunIndexRecord, maxEntries: number): Promise<void> {
+    if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
+      return Promise.reject(new TypeError('Run index limit must be a positive safe integer'))
+    }
+    const detached = deepFreeze(record)
+    const operation = this.runWriteTail.then(async () => {
+      const runs = this.domain.table('run_index')
+      await runs.put(detached.runId, detached)
+      const overflow = [...runs.entries()]
+        .sort(([, left], [, right]) => right.startedAt - left.startedAt
+          || right.runId.localeCompare(left.runId))
+        .slice(maxEntries)
+      for (const [key] of overflow) await runs.delete(key)
+    })
+    this.runWriteTail = operation.catch(() => undefined)
+    return operation
+  }
+
   async close(): Promise<void> {
-    await this.bindingWriteTail
+    await Promise.all([this.bindingWriteTail, this.runWriteTail])
     await this.domain.close()
   }
 }

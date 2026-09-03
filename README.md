@@ -2,7 +2,7 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `f9349a98d0577a7dc80db3b052d0fe8615be6237`。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、固定包内 Codex/Claude Code Runtime Backend 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `41399c0647aff7e18a43b9663adef706f2945570`。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、固定包内 Codex/Claude Code Runtime Backend 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 能力
 
@@ -16,6 +16,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - Hook：安全的声明式 `session-start`、`before-step`、`before-tool`、`after-tool` 行为，不执行任意 JavaScript 或 shell。
 - 生命周期：不可变 Profile Revision、内容指纹、Head CAS、显式激活/回滚、归档/恢复、不可变启动快照和完整 Fiber 清理。
 - 启动可靠性：Client 为一次启动意图生成 UUID，Host 按 Team 幂等处理并从权威 roster 恢复中断的 Binding；外部 provider 在 active 前返回稳定 native handle，重启与 provider 回归只恢复该 handle，不重复创建员工。
+- Run 证据：每个已接受工作轮次确定性映射为一个有界、可重建 Run；列表仅保存身份、路由、终态、provider 报告的用量和完整性，详情按需从 DSH Session 或外部原生 turn 脱敏折叠。
 - 工作台：分区式配置导航及有界版本历史/结构化差异，窗口支持拖动、八方向缩放，并随可用视口自动收敛布局。
 
 ```mermaid
@@ -26,7 +27,7 @@ flowchart LR
   CODEX[Package-local Codex Runtime] --> TEAM
   CLAUDE[Package-local Claude Code Runtime] --> TEAM
   LOCAL[Durable Local Runtime Registry] --> HOST
-  HOST --> STORE[(storageDomain\nHead + Revision + Binding)]
+  HOST --> STORE[(storageDomain\nHead + Revision + Binding + Run Index)]
   HOST --> TEAM[DSH Agent Team]
   TEAM --> CHILD[DSH Continuable Teammate]
   TEAM --> NATIVE[Durable External Provider\nNative Handle]
@@ -90,6 +91,7 @@ dsh web
 5. 在“版本”页检查指纹及相对已激活版本的结构化差异，再显式激活最新候选（也可回滚到更早的不可变版本）。
 6. 可选填写本次任务，点击“创建数字员工”；只有未归档 Profile 的 `activeRevision` 可以启动。
 7. 左侧实例列表分别显示持久的创建阶段、当前运行时可用性和进程驻留状态，以及该员工绑定的 Profile revision、所选运行目标与实际解析目标；外部员工还保留不透明 native handle。
+8. 在 Run 列表按证据来源或终态筛选；打开详情时才读取有界规范时间线，并明确显示脱敏项、截断和证据不完整/不可用状态。
 
 修改 Profile 或改变 Lead/部署默认路由只影响后续创建。已经创建或冷恢复的员工始终使用其绑定的不可变快照与 continuation descriptor 固定路由。编辑时可以原样保留最新但暂时离线的历史目标；新选离线目标、激活和启动仍会稳定失败且绝不回退。
 
@@ -104,6 +106,8 @@ dsh web
 | `maxAssignmentBytes` | `32768` | 单次创建任务说明的 UTF-8 字节上限 |
 | `maxRevisionHistory` | `32` | Studio 每个 Profile 返回的版本摘要上限 |
 | `maxDiffEntries` | `512` | 单次版本结构化差异返回项上限 |
+| `maxRuns` | `512` | 持久 Run 索引保留的最新记录上限 |
+| `maxRunEvidenceItems` | `512` | 单次 Run 详情最多折叠的规范 evidence 条目数 |
 
 部署值位于 [cordis.patch.yml](packages/profile/cordis.patch.yml)。DSH patch 会替换目标行的完整配置；覆盖时应重述需要保留的全部字段。
 
@@ -128,6 +132,7 @@ DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、miss
 - Codex adapter 只在固定包内原生载荷及其版本通过资格校验时注册；它保留稳定 thread identity，幂等处理启动与 mailbox turn，并在 interrupt、崩溃修复或 Fiber disposal 时只清理精确 handle。
 - Claude Code adapter 只在固定 SDK/native 载荷通过资格校验时注册；它以确定性 Session id 幂等启动，逐条串行处理 mailbox turn，冷恢复先核验 transcript 身份，并在 interrupt 或 Fiber disposal 时只终止精确 Query/process tree。
 - 外部 mailbox、interrupt 与 evidence 始终使用精确 provider/native handle；隔离 evaluation 使用自己的 evaluation id/handle。两者都不会回退到一次性 Codex/Claude subagent。
+- Run Index 不复制 prompt、reply、tool argument/result、文件、环境值、credential 或原始 provider payload；详情只从规范来源按需折叠，缺失、截断和未知终态必须显式可见。
 - Profile 不包含凭据字段，也不会把 API key 或其他 secret 传给 Client。
 
 ## 代码结构
@@ -138,7 +143,7 @@ DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、miss
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md) 和 [包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md)、[包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md) 和 [可信 Run 证据决策](docs/adr/0009-index-runs-and-fold-canonical-evidence-lazily.md)。
 
 ## 当前限制
 

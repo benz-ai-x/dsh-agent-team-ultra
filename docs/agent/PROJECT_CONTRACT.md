@@ -178,6 +178,32 @@ contracts.
   target Agent scope, and detached profile snapshot, then owns all persona,
   context, memory, tool-policy, and hook registrations as one lifecycle layer.
 
+## Truthful Run evidence
+
+- Exactly one Run exists for each accepted employee work turn. A DSH Run is
+  keyed by the exact child Session and turn; an external Run is keyed by the
+  selected provider, roster-owned Native Runtime Handle, and stable native
+  turn. Provider loops, steps, tools, retries, and streaming updates remain
+  evidence within that Run.
+- Run IDs are deterministic over those canonical identities. Every Run Index
+  row retains its Team/member identity, immutable Profile Revision and
+  fingerprint, selected and actual Runtime Targets, capability generation,
+  normalized terminal class, provider-reported usage, timestamps, and explicit
+  evidence completeness.
+- `run_index` is a bounded, repairable Studio projection, not a transcript.
+  The DSH child Session and provider-native history remain canonical. Startup,
+  Studio reads, and relevant Session events rebuild missing or stale rows from
+  those exact correlations without accepting Client-authored identity.
+- Prompt/reply content, tool arguments/results, files, environment values,
+  credentials, and raw provider payloads cannot enter the Run Index or
+  normalized timeline. Detail reads are lazy and bounded; pagination,
+  truncation, missing terminals, absent providers, and missing correlations
+  remain visibly incomplete or unavailable.
+- Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
+  `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
+  only when reported by the canonical runtime and is never inferred from text
+  or multiplied across cumulative provider snapshots.
+
 ## Cancellation and disposal
 
 Caller cancellation owns launch until the upstream Agent Team or external
@@ -198,7 +224,8 @@ immutable profile through `agent.ctx` before `agent/session-start` and the
 first prompt assembly; a synchronous installation failure vetoes publication.
 Service disposal closes mutation admission, removes the lifecycle listeners,
 revokes every resident child installation and Runtime Backend registration,
-waits for admitted profile/binding commits, and closes its v1 storage domain.
+waits for admitted profile/binding commits and Run repairs, and closes its v1
+storage domain.
 Removing an external-provider Fiber immediately closes provider admission,
 removes its catalog row, aborts native cleanup after the Agent Team grace
 period, still awaits actual quiescence, and releases only that generation's
@@ -218,6 +245,9 @@ replacement service can reconstruct one layer for every resident bound Agent.
 - `maxProfileBytes`: UTF-8 size limit for one normalized profile snapshot.
 - `maxHooks`: hook count limit per profile.
 - `maxAssignmentBytes`: UTF-8 size limit for one launch-specific assignment.
+- `maxRuns`: newest durable Run Index rows retained across Teams.
+- `maxRunEvidenceItems`: normalized timeline/evidence items returned by one
+  lazy detail read.
 - `maxRevisionHistory`: maximum Revision summaries returned per Profile in a
   Studio baseline.
 - `maxDiffEntries`: maximum structured field differences returned by a Revision
@@ -267,3 +297,11 @@ For the Claude Code route, qualification must prove the exact package-local
 SDK/native product, cold resume must verify the same deterministic native
 Session, and evidence must not expose prompts, payloads, credentials, native
 paths, configuration, or login state.
+
+For Run evidence, acceptance additionally requires one deterministic row per
+accepted DSH or external turn, startup reconstruction after deleting the
+derived index, correct selected/actual route and immutable Revision identity,
+normalized terminal/usage facts, source and terminal filters, lazy bounded
+detail for both source families, explicit incomplete/unavailable states, and
+the absence of raw model, tool, file, environment, credential, or provider
+payload content from storage and Studio.

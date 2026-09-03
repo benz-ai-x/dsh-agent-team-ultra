@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { Context, Service } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import {
   TeamError,
   TeammateLaunchRequestId,
@@ -12,7 +13,7 @@ import {
 } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { TeamMemberRouteSnapshot } from '@deepseek-ai/dsh-experimental-agent-team'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent, type UserMessage } from '@deepseek-ai/dsh-session'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -48,6 +49,13 @@ import {
   bindingRuntimePresence,
   reconcileBindingFromRoster,
 } from './launch.ts'
+import {
+  createExternalRunIndex,
+  foldDshRunEvidence,
+  foldExternalRunEvidence,
+  type DshRunFoldBinding,
+  type ExternalRunFoldBinding,
+} from './run.ts'
 import type {
   ActivateDigitalEmployeeProfileRequest,
   ArchiveDigitalEmployeeProfileRequest,
@@ -62,10 +70,13 @@ import type {
   DigitalEmployeeProfileDiffEntry,
   DigitalEmployeeProfileRevisionSummary,
   DigitalEmployeeRuntimeTarget,
+  DigitalEmployeeRunIndexRecord,
   DshModelRuntimeTarget,
   DigitalEmployeeStudioView,
   GetDigitalEmployeeProfileRevisionRequest,
   GetDigitalEmployeeProfileRevisionResult,
+  GetDigitalEmployeeRunRequest,
+  GetDigitalEmployeeRunResult,
   LaunchRequestId,
   MutateDigitalEmployeeProfileHeadResult,
   ProfileHook,
@@ -116,6 +127,8 @@ export interface Config {
   readonly maxAssignmentBytes?: number
   readonly maxRevisionHistory?: number
   readonly maxDiffEntries?: number
+  readonly maxRuns?: number
+  readonly maxRunEvidenceItems?: number
 }
 
 interface ResolvedConfig {
@@ -126,6 +139,8 @@ interface ResolvedConfig {
   readonly maxAssignmentBytes: number
   readonly maxRevisionHistory: number
   readonly maxDiffEntries: number
+  readonly maxRuns: number
+  readonly maxRunEvidenceItems: number
 }
 
 interface NormalizedLaunchRequest {
@@ -148,6 +163,8 @@ const DEFAULT_MAX_HOOKS = 32
 const DEFAULT_MAX_ASSIGNMENT_BYTES = 32_768
 const DEFAULT_MAX_REVISION_HISTORY = 32
 const DEFAULT_MAX_DIFF_ENTRIES = 512
+const DEFAULT_MAX_RUNS = 512
+const DEFAULT_MAX_RUN_EVIDENCE_ITEMS = 512
 
 const TEAM_OWN_TOOL_NAMES = new Set([
   'spawn_teammate',
@@ -175,6 +192,8 @@ export const Config: s<Config> = s.object({
   maxAssignmentBytes: s.number().step(1).min(1).default(DEFAULT_MAX_ASSIGNMENT_BYTES),
   maxRevisionHistory: s.number().step(1).min(1).default(DEFAULT_MAX_REVISION_HISTORY),
   maxDiffEntries: s.number().step(1).min(1).default(DEFAULT_MAX_DIFF_ENTRIES),
+  maxRuns: s.number().step(1).min(1).default(DEFAULT_MAX_RUNS),
+  maxRunEvidenceItems: s.number().step(1).min(1).default(DEFAULT_MAX_RUN_EVIDENCE_ITEMS),
 })
 
 /** Validate a direct-constructor integer that Loader normally checks. */
@@ -277,6 +296,25 @@ function snapshotProfileRevision(revision: DigitalEmployeeProfileRevision): Digi
   })
 }
 
+function snapshotRunIndex(run: DigitalEmployeeRunIndexRecord): DigitalEmployeeRunIndexRecord {
+  return Object.freeze({
+    ...run,
+    canonicalSource: Object.freeze({ ...run.canonicalSource }),
+    owner: Object.freeze({ ...run.owner }),
+    selectedRuntimeTarget: run.selectedRuntimeTarget.kind === 'legacy-inherit-lead'
+      ? legacyInheritLeadRuntimeTarget
+      : Object.freeze({ ...run.selectedRuntimeTarget }),
+    ...(run.actualRuntimeTarget === undefined
+      ? {}
+      : { actualRuntimeTarget: Object.freeze({ ...run.actualRuntimeTarget }) }),
+    ...(run.usage === undefined ? {} : { usage: Object.freeze({ ...run.usage }) }),
+    completeness: Object.freeze({
+      ...run.completeness,
+      redactions: Object.freeze([...run.completeness.redactions]),
+    }),
+  })
+}
+
 function failure(code: DigitalEmployeeFailure['code'], message: string, currentHead?: DigitalEmployeeProfileHead): DigitalEmployeeFailure {
   return Object.freeze({
     code,
@@ -336,6 +374,10 @@ function headMutationRejected(error: DigitalEmployeeFailure): MutateDigitalEmplo
 }
 
 function revisionRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeProfileRevisionResult {
+  return Object.freeze({ ok: false, error })
+}
+
+function runRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeRunResult {
   return Object.freeze({ ok: false, error })
 }
 
@@ -455,7 +497,16 @@ function profileRevisionDiff(
 
 /** Concrete Host service; one provider is sufficient for this local overlay. */
 export class DigitalEmployeeService extends TypertRemoteService {
-  static inject = ['agents', 'agentTeams', 'llm', 'storageDomain', 'subagents', 'systemPrompt', 'tools']
+  static inject = [
+    'agents',
+    'agentTeams',
+    'llm',
+    'sessionPersistence',
+    'storageDomain',
+    'subagents',
+    'systemPrompt',
+    'tools',
+  ]
   static Config = Config
 
   private readonly resolved: ResolvedConfig
@@ -464,6 +515,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   private readonly launches = new Set<Promise<unknown>>()
   private readonly launchesByRequest = new Map<string, InFlightLaunch>()
   private readonly reconciliations = new Set<Promise<void>>()
+  private readonly runRepairs = new Set<Promise<void>>()
   private readonly childInstallations = new Map<Agent, () => void>()
   private readonly lifecycle = new AbortController()
   private readonly runtimeBackends: RuntimeBackendRegistry
@@ -490,6 +542,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
         config.maxRevisionHistory ?? DEFAULT_MAX_REVISION_HISTORY,
       ),
       maxDiffEntries: positiveInteger('maxDiffEntries', config.maxDiffEntries ?? DEFAULT_MAX_DIFF_ENTRIES),
+      maxRuns: positiveInteger('maxRuns', config.maxRuns ?? DEFAULT_MAX_RUNS),
+      maxRunEvidenceItems: positiveInteger(
+        'maxRunEvidenceItems',
+        config.maxRunEvidenceItems ?? DEFAULT_MAX_RUN_EVIDENCE_ITEMS,
+      ),
     }
     if (this.resolved.defaultContinuationProvider === '') {
       throw new TypeError('agent-team-ultra: defaultContinuationProvider must not be blank')
@@ -519,6 +576,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
       await Promise.allSettled([...this.reconciliations])
+      await Promise.allSettled([...this.runRepairs])
       await this.mutationTail
       try { await runtimeBackendDisposal } catch (error: unknown) { failures.push(error) }
       try { await storage.close() } catch (error: unknown) { failures.push(error) }
@@ -542,10 +600,15 @@ export class DigitalEmployeeService extends TypertRemoteService {
         const lead = this.ctx.agents.get(session.id)
         if (lead !== undefined) this.scheduleLeadReconciliation(lead)
       }
+      if (event.type === 'turn/start' || event.type === 'turn/end' || event.type === 'assistant/message'
+        || event.type === 'team/member' || event.type === 'team/message/delivered') {
+        this.scheduleRunRepair(session.id)
+      }
     })
     this.admissionOpen = true
     for (const agent of this.ctx.agents.list()) this.installBoundAgent(agent)
     await this.reconcileAvailableLeads()
+    await this.repairAvailableTeamRuns()
   }
 
   /** Register one durable local-agent runtime; the provider object remains Host-only. */
@@ -564,6 +627,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   @Remote('view')
   async remoteView(agent: Agent): Promise<DigitalEmployeeStudioView> {
     await this.reconcileTeam(agent)
+    await this.repairTeamRuns(agent)
     return this.studioView(agent)
   }
 
@@ -574,6 +638,16 @@ export class DigitalEmployeeService extends TypertRemoteService {
     request: GetDigitalEmployeeProfileRevisionRequest,
   ): Promise<GetDigitalEmployeeProfileRevisionResult> {
     return this.profileRevision(agent, request)
+  }
+
+  /** Lazily fold bounded canonical evidence for one deterministic Run. */
+  @Remote('run')
+  remoteRun(
+    agent: Agent,
+    request: GetDigitalEmployeeRunRequest,
+    signal: AbortSignal,
+  ): Promise<GetDigitalEmployeeRunResult> {
+    return this.runEvidence(agent, request, signal)
   }
 
   /** Build the complete replaceable Studio view for one exact live Team Lead. */
@@ -594,6 +668,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
       .filter(binding => binding.teamId === membership.id)
       .map(binding => this.instanceView(caller, binding))
       .sort((left, right) => left.memberName.localeCompare(right.memberName))
+    const runs = [...this.requireStorage().runEntries()]
+      .map(([, run]) => run)
+      .filter(run => run.teamId === membership.id)
+      .sort((left, right) => right.startedAt - left.startedAt || right.runId.localeCompare(left.runId))
+      .map(snapshotRunIndex)
     const historicalTargets = profiles.flatMap(entry =>
       [...this.requireStorage().profileRevisionEntries(entry.head.profileId)]
         .map(([, revision]) => revision.runtimeTarget))
@@ -605,6 +684,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       runtimeCatalog: this.runtimeBackends.snapshot(historicalTargets),
       tools: Object.freeze(tools),
       instances: Object.freeze(instances),
+      runs: Object.freeze(runs),
     })
   }
 
@@ -652,6 +732,69 @@ export class DigitalEmployeeService extends TypertRemoteService {
         diffTruncated: comparison.truncated,
       }),
     }))
+  }
+
+  /** Public Host Run inspector guarded by exact live Lead authority. */
+  async runEvidence(
+    caller: Agent,
+    request: GetDigitalEmployeeRunRequest,
+    signal: AbortSignal,
+  ): Promise<GetDigitalEmployeeRunResult> {
+    if (!this.admissionOpen) return runRejected(failure('service-disposed', 'Digital Employee service is disposing'))
+    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (authorityFailure !== undefined) return runRejected(authorityFailure)
+    signal.throwIfAborted()
+    const membership = this.ctx.agentTeams.membership(caller)
+    const stored = this.requireStorage().getRun(request.runId)
+    if (stored === undefined || stored.teamId !== membership.id) {
+      return runRejected(failure('run-not-found', `Run "${request.runId}" not found`))
+    }
+    if (stored.source === 'dsh-session') {
+      try {
+        if (stored.canonicalSource.kind !== 'dsh-session') {
+          return runRejected(failure('evidence-unavailable', 'Run canonical DSH correlation is invalid'))
+        }
+        const events = await this.loadOwnSessionEvents(stored.canonicalSource.sessionId, signal)
+        const folded = foldDshRunEvidence(
+          this.dshRunBindingFromIndex(stored),
+          SessionId(stored.canonicalSource.sessionId),
+          events,
+          this.resolved.maxRunEvidenceItems,
+          this.resolved.maxRuns,
+        ).find(candidate => candidate.index.runId === stored.runId)
+        if (folded === undefined) {
+          return runRejected(failure('evidence-unavailable', 'canonical DSH turn is no longer inspectable'))
+        }
+        await this.requireStorage().putRun(folded.index, this.resolved.maxRuns)
+        return Object.freeze({ ok: true as const, value: folded.detail })
+      } catch (error: unknown) {
+        if (signal.aborted) throw error
+        return runRejected(failure('evidence-unavailable', `DSH Session evidence unavailable: ${errorText(error)}`))
+      }
+    }
+    if (stored.owner.kind !== 'team-member') {
+      return runRejected(failure(
+        'evidence-unavailable',
+        'evaluation-native evidence is owned by the evaluation runner',
+      ))
+    }
+    try {
+      const page = await this.ctx.agentTeams.readTeammateRuntimeEvidence(caller, stored.owner.memberName, {
+        limit: this.resolved.maxRunEvidenceItems,
+        signal,
+      })
+      const folded = foldExternalRunEvidence(
+        stored,
+        page.items,
+        page.complete,
+        this.resolved.maxRunEvidenceItems,
+      )
+      await this.requireStorage().putRun(folded.index, this.resolved.maxRuns)
+      return Object.freeze({ ok: true as const, value: folded.detail })
+    } catch (error: unknown) {
+      if (signal.aborted) throw error
+      return runRejected(failure('evidence-unavailable', `external runtime evidence unavailable: ${errorText(error)}`))
+    }
   }
 
   /** Save one normalized profile with an exact CAS precondition. */
@@ -1598,6 +1741,185 @@ export class DigitalEmployeeService extends TypertRemoteService {
       seen.add(membership.id)
       await this.reconcileTeam(agent)
     }
+  }
+
+  /** Translate one durable Binding into the narrow Run fold interface. */
+  private dshRunBinding(binding: DigitalEmployeeBindingV1): DshRunFoldBinding {
+    if (binding.memberId === undefined) throw new Error('Run Binding has no member identity')
+    const { revision: _revision, createdAt: _createdAt, updatedAt: _updatedAt, ...profile } = binding.profile
+    return Object.freeze({
+      teamId: binding.teamId,
+      owner: Object.freeze({
+        kind: 'team-member' as const,
+        memberId: binding.memberId,
+        memberName: binding.memberName,
+      }),
+      profileId: binding.profileId,
+      profileRevision: binding.profileRevision,
+      profileFingerprint: binding.profileFingerprint
+        ?? profileContentFingerprint(profile, binding.runtimeTarget, binding.requiredCapabilities),
+      selectedRuntimeTarget: binding.runtimeTarget,
+      ...(binding.resolvedRuntimeTarget === undefined
+        ? {}
+        : { actualRuntimeTarget: binding.resolvedRuntimeTarget }),
+      capabilityGeneration: binding.capabilityGeneration ?? 0,
+    })
+  }
+
+  private externalRunBinding(binding: DigitalEmployeeBindingV1): ExternalRunFoldBinding {
+    if (binding.runtimeTarget.kind !== 'external-agent'
+      || binding.memberId === undefined
+      || binding.nativeRuntimeHandle === undefined) {
+      throw new Error('external Run Binding lacks its exact runtime identity')
+    }
+    const { actualRuntimeTarget: _actualRuntimeTarget, ...common } = this.dshRunBinding(binding)
+    return Object.freeze({
+      ...common,
+      selectedRuntimeTarget: binding.runtimeTarget,
+      ...(binding.resolvedRuntimeTarget?.kind === 'external-agent'
+        ? { actualRuntimeTarget: binding.resolvedRuntimeTarget }
+        : {}),
+      nativeHandle: binding.nativeRuntimeHandle,
+    })
+  }
+
+  /** Reuse the immutable index identity when lazily refolding a retained DSH Run. */
+  private dshRunBindingFromIndex(run: DigitalEmployeeRunIndexRecord): DshRunFoldBinding {
+    return Object.freeze({
+      teamId: run.teamId,
+      owner: Object.freeze({ ...run.owner }),
+      profileId: run.profileId,
+      profileRevision: run.profileRevision,
+      profileFingerprint: run.profileFingerprint,
+      selectedRuntimeTarget: run.selectedRuntimeTarget,
+      ...(run.actualRuntimeTarget === undefined ? {} : { actualRuntimeTarget: run.actualRuntimeTarget }),
+      capabilityGeneration: run.capabilityGeneration,
+    })
+  }
+
+  /** Load only one Session's owned suffix, never a fork-inherited prefix. */
+  private async loadOwnSessionEvents(sessionId: string, signal: AbortSignal): Promise<readonly SessionEvent[]> {
+    signal.throwIfAborted()
+    const live = this.ctx.agents.get(SessionId(sessionId))
+    if (live !== undefined) return live.session.ownEvents()
+    const inspected = await this.ctx.sessionPersistence.inspect(SessionId(sessionId), signal)
+    return inspected.events.slice(inspected.inheritedEventCount)
+  }
+
+  /** Rebuild every DSH Run row from its canonical child Session. */
+  private async repairDshBindingRuns(binding: DigitalEmployeeBindingV1, signal: AbortSignal): Promise<void> {
+    if (binding.provisioningPhase !== 'active'
+      || binding.runtimeTarget.kind !== 'dsh-model'
+      || binding.memberId === undefined) return
+    const events = await this.loadOwnSessionEvents(binding.memberId, signal)
+    const runs = foldDshRunEvidence(
+      this.dshRunBinding(binding),
+      SessionId(binding.memberId),
+      events,
+      this.resolved.maxRunEvidenceItems,
+      this.resolved.maxRuns,
+    )
+    for (const run of runs) {
+      signal.throwIfAborted()
+      await this.requireStorage().putRun(run.index, this.resolved.maxRuns)
+    }
+  }
+
+  /** Rebuild external launch and delivery Runs from the canonical Team Lead log. */
+  private async repairExternalBindingRuns(binding: DigitalEmployeeBindingV1, signal: AbortSignal): Promise<void> {
+    if (binding.provisioningPhase !== 'active'
+      || binding.runtimeTarget.kind !== 'external-agent'
+      || binding.memberId === undefined
+      || binding.nativeRuntimeHandle === undefined) return
+    const events = await this.loadOwnSessionEvents(binding.teamId, signal)
+    const foldBinding = this.externalRunBinding(binding)
+    const active = events.findLast((event) => {
+      if (event.type !== 'team/member') return false
+      const data = event.data as SessionEvent<'team/member'>['data']
+      return data.member.id === binding.memberId
+        && data.member.phase === 'active'
+        && data.member.externalRuntime?.nativeHandle === binding.nativeRuntimeHandle
+    }) as SessionEvent<'team/member'> | undefined
+    if (active !== undefined) {
+      const nativeTurnId = active.data.member.externalRuntime?.initialTurnId
+      const launchIdentity = nativeTurnId ?? (binding.launchRequestId === undefined
+        ? undefined
+        : `launch:${binding.launchRequestId}`)
+      if (launchIdentity !== undefined) {
+        await this.requireStorage().putRun(createExternalRunIndex(
+          foldBinding,
+          launchIdentity,
+          nativeTurnId,
+          active.time,
+        ), this.resolved.maxRuns)
+      }
+    }
+    for (const event of events) {
+      if (event.type !== 'team/message/delivered' || event.data.targetId !== binding.memberId) continue
+      const canonicalTurnId = event.data.nativeTurnId ?? `message:${event.data.messageId}`
+      await this.requireStorage().putRun(createExternalRunIndex(
+        foldBinding,
+        canonicalTurnId,
+        event.data.nativeTurnId,
+        event.time,
+      ), this.resolved.maxRuns)
+    }
+  }
+
+  /** Repair all Run rows owned by one exact live Team Lead. */
+  private async repairTeamRuns(caller: Agent): Promise<void> {
+    if (this.storage === undefined || this.lifecycle.signal.aborted || this.ctx.agents.get(caller.id) !== caller) return
+    const membership = this.ctx.agentTeams.tryMembership(caller)
+    if (membership?.role !== 'lead') return
+    const bindings = [...this.requireStorage().bindingEntries()]
+      .map(([, binding]) => binding)
+      .filter(binding => binding.teamId === membership.id)
+    for (const binding of bindings) {
+      try {
+        if (binding.runtimeTarget.kind === 'external-agent') {
+          await this.repairExternalBindingRuns(binding, this.lifecycle.signal)
+        } else {
+          await this.repairDshBindingRuns(binding, this.lifecycle.signal)
+        }
+      } catch (error: unknown) {
+        if (this.lifecycle.signal.aborted) return
+        this.ctx.logger.warn(`agent-team-ultra: Run repair failed for ${binding.memberName}: ${errorText(error)}`)
+      }
+    }
+  }
+
+  /** Repair every live Team once after startup. */
+  private async repairAvailableTeamRuns(): Promise<void> {
+    const seen = new Set<string>()
+    for (const agent of this.ctx.agents.list()) {
+      const membership = this.ctx.agentTeams.tryMembership(agent)
+      if (membership?.role !== 'lead' || seen.has(membership.id)) continue
+      seen.add(membership.id)
+      await this.repairTeamRuns(agent)
+    }
+  }
+
+  /** Track event-driven Run repair as disposal-visible work. */
+  private scheduleRunRepair(sessionId: SessionId): void {
+    if (this.storage === undefined || this.lifecycle.signal.aborted) return
+    const operation = (async () => {
+      const lead = this.ctx.agents.get(sessionId)
+      const membership = lead === undefined ? undefined : this.ctx.agentTeams.tryMembership(lead)
+      if (lead !== undefined && membership?.role === 'lead') {
+        await this.repairTeamRuns(lead)
+        return
+      }
+      const bindings = [...this.requireStorage().bindingEntries()]
+        .map(([, binding]) => binding)
+        .filter(binding => binding.memberId === sessionId && binding.runtimeTarget.kind === 'dsh-model')
+      for (const binding of bindings) await this.repairDshBindingRuns(binding, this.lifecycle.signal)
+    })()
+    this.runRepairs.add(operation)
+    void operation.catch((error: unknown) => {
+      if (!this.lifecycle.signal.aborted) {
+        this.ctx.logger.warn(`agent-team-ultra: event-driven Run repair failed: ${errorText(error)}`)
+      }
+    }).finally(() => { this.runRepairs.delete(operation) })
   }
 
   /** Track one event-driven reconciliation so disposal reaches quiescence. */

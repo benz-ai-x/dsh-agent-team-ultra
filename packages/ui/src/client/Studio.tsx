@@ -20,7 +20,13 @@ import type {
   DigitalEmployeeRuntimeAvailability,
   DigitalEmployeeRuntimePresence,
   DigitalEmployeeRuntimeTarget,
+  DigitalEmployeeRunDetail,
+  DigitalEmployeeRunId,
+  DigitalEmployeeRunIndexRecord,
+  DigitalEmployeeRunSource,
+  DigitalEmployeeRunTerminal,
   DigitalEmployeeStudioView,
+  GetDigitalEmployeeRunResult,
   ProfileHook,
   ProfileHookPoint,
   ProfileTextBlock,
@@ -89,6 +95,11 @@ export interface DigitalEmployeeStudioInjected {
     request: SpawnDigitalEmployeeRequest,
     signal?: AbortSignal,
   ) => Promise<RemoteResult<SpawnDigitalEmployeeResult>>
+  run: (
+    sessionId: SessionId,
+    runId: DigitalEmployeeRunId,
+    signal?: AbortSignal,
+  ) => Promise<RemoteResult<GetDigitalEmployeeRunResult>>
 }
 
 export type DigitalEmployeeStudioProps =
@@ -260,6 +271,36 @@ function runtimePresenceKey(presence: DigitalEmployeeRuntimePresence): UltraKey 
     case 'idle': return 'runtimeIdle'
     case 'inactive': return 'runtimeInactive'
   }
+}
+
+function runSourceLabel(source: DigitalEmployeeRunSource, t: Translate): string {
+  return source === 'dsh-session' ? t('runSourceDsh') : t('runSourceExternal')
+}
+
+function runTerminalLabel(terminal: DigitalEmployeeRunTerminal, t: Translate): string {
+  switch (terminal) {
+    case 'completed': return t('runCompleted')
+    case 'cancelled': return t('runCancelled')
+    case 'blocked': return t('runBlocked')
+    case 'failed': return t('runFailed')
+    case 'max-tokens': return t('runMaxTokens')
+    case 'interrupted': return t('runInterrupted')
+    case 'unknown-terminal': return t('runUnknownTerminal')
+  }
+}
+
+function runOwnerLabel(run: DigitalEmployeeRunIndexRecord, t: Translate): string {
+  return run.owner.kind === 'team-member'
+    ? run.owner.memberName
+    : `${t('runEvaluation')} ${run.owner.evalRunId} / ${run.owner.caseId}`
+}
+
+function canonicalSourceHref(run: DigitalEmployeeRunIndexRecord): string {
+  if (run.canonicalSource.kind === 'dsh-session') {
+    return `/sessions/${encodeURIComponent(run.canonicalSource.sessionId)}?turn=${run.canonicalSource.turn}`
+  }
+  const turn = run.canonicalSource.nativeTurnId ?? run.canonicalTurnId
+  return `#run-source/${encodeURIComponent(run.canonicalSource.provider)}/${encodeURIComponent(turn)}`
 }
 
 function runtimeAvailabilityLabel(
@@ -515,6 +556,7 @@ export function DigitalEmployeeStudio({
   archive,
   restore,
   spawn,
+  run,
   t,
 }: DigitalEmployeeStudioProps) {
   const [open, setOpen] = useState(false)
@@ -528,6 +570,11 @@ export function DigitalEmployeeStudio({
   const [expectedHeadRevision, setExpectedHeadRevision] = useState<number | null>(null)
   const [revisionDetail, setRevisionDetail] = useState<DigitalEmployeeProfileRevisionDetail | null>(null)
   const [revisionLoading, setRevisionLoading] = useState(false)
+  const [selectedRunId, setSelectedRunId] = useState<DigitalEmployeeRunId | null>(null)
+  const [runDetail, setRunDetail] = useState<DigitalEmployeeRunDetail | null>(null)
+  const [runLoading, setRunLoading] = useState(false)
+  const [runSourceFilter, setRunSourceFilter] = useState<'all' | DigitalEmployeeRunSource>('all')
+  const [runTerminalFilter, setRunTerminalFilter] = useState<'all' | DigitalEmployeeRunTerminal>('all')
   const [assignment, setAssignment] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
@@ -539,6 +586,8 @@ export function DigitalEmployeeStudio({
   const selectedRef = useRef(selectedId)
   const refreshGeneration = useRef(0)
   const revisionGeneration = useRef(0)
+  const runGeneration = useRef(0)
+  const runAbortRef = useRef<AbortController | null>(null)
   const busyRef = useRef<BusyOperation | null>(null)
   const launchAbortRef = useRef<AbortController | null>(null)
   const launchIntentRef = useRef<LaunchIntent | null>(null)
@@ -579,6 +628,11 @@ export function DigitalEmployeeStudio({
     setExpectedHeadRevision(null)
     setRevisionDetail(null)
     setRevisionLoading(false)
+    setSelectedRunId(null)
+    setRunDetail(null)
+    setRunLoading(false)
+    setRunSourceFilter('all')
+    setRunTerminalFilter('all')
     setAssignment('')
     setCollapsed(new Set())
     setError(null)
@@ -589,6 +643,9 @@ export function DigitalEmployeeStudio({
       const controller = launchAbortRef.current
       launchAbortRef.current = null
       controller?.abort(new Error('Digital Employee Studio session changed'))
+      const runController = runAbortRef.current
+      runAbortRef.current = null
+      runController?.abort(new Error('Digital Employee Studio session changed'))
     }
   }, [sessionId])
 
@@ -663,6 +720,12 @@ export function DigitalEmployeeStudio({
     setExpectedHeadRevision(entry.head.headRevision)
     setRevisionDetail(null)
     setRevisionLoading(false)
+    runGeneration.current += 1
+    runAbortRef.current?.abort(new Error('Digital Employee Studio selected a Profile'))
+    runAbortRef.current = null
+    setSelectedRunId(null)
+    setRunDetail(null)
+    setRunLoading(false)
     setDraft(next)
     setRuntimeTarget(nextTarget)
     setBaseline(draftBaseline(next, nextTarget))
@@ -786,6 +849,34 @@ export function DigitalEmployeeStudio({
     }
   }, [revision, sessionId, t])
 
+  const inspectRun = useCallback(async (selected: DigitalEmployeeRunIndexRecord): Promise<void> => {
+    const requestedSession = sessionId
+    const generation = ++runGeneration.current
+    runAbortRef.current?.abort(new Error('Digital Employee Studio selected another Run'))
+    const controller = new AbortController()
+    runAbortRef.current = controller
+    setSelectedRunId(selected.runId)
+    setRunDetail(null)
+    setRunLoading(true)
+    setError(null)
+    try {
+      const result = await run(requestedSession, selected.runId, controller.signal)
+      if (sessionRef.current !== requestedSession || runGeneration.current !== generation) return
+      if (!result.ok) setError(failureText(result.error))
+      else if (!result.value.ok) setError(failureText(result.value.error))
+      else setRunDetail(result.value.value)
+    } catch (reason: unknown) {
+      if (!controller.signal.aborted
+        && sessionRef.current === requestedSession
+        && runGeneration.current === generation) {
+        setError(`${t('transportFailure')} ${String(reason)}`)
+      }
+    } finally {
+      if (runAbortRef.current === controller) runAbortRef.current = null
+      if (sessionRef.current === requestedSession && runGeneration.current === generation) setRunLoading(false)
+    }
+  }, [run, sessionId, t])
+
   const mutateHead = async (
     operation: Exclude<BusyOperation, 'save' | 'spawn'>,
     profileId: string,
@@ -907,6 +998,11 @@ export function DigitalEmployeeStudio({
 
   const profiles = view?.profiles ?? []
   const instances = view?.instances ?? []
+  const runs = view?.runs ?? []
+  const filteredRuns = runs.filter(candidate =>
+    (runSourceFilter === 'all' || candidate.source === runSourceFilter)
+    && (runTerminalFilter === 'all' || candidate.terminal === runTerminalFilter))
+  const selectedRun = runs.find(candidate => candidate.runId === selectedRunId)
   const runtimeBackends = view?.runtimeCatalog.backends ?? []
   const selectedEntry = profiles.find(profile => profile.head.profileId === selectedId)
   const selectedRuntimeBackend = runtimeBackends.find(backend => backend.routingId === runtimeTargetId(runtimeTarget))
@@ -1000,6 +1096,12 @@ export function DigitalEmployeeStudio({
                     setExpectedHeadRevision(null)
                     setRevisionDetail(null)
                     setRevisionLoading(false)
+                    runGeneration.current += 1
+                    runAbortRef.current?.abort(new Error('Digital Employee Studio created a Profile'))
+                    runAbortRef.current = null
+                    setSelectedRunId(null)
+                    setRunDetail(null)
+                    setRunLoading(false)
                     setAssignment('')
                     setError(null)
                     setNotice(null)
@@ -1085,10 +1187,67 @@ export function DigitalEmployeeStudio({
                     </div>
                   ))}
                 </div>
+
+                <h3>{t('runs')}</h3>
+                <div className={css.runFilters}>
+                  <label>
+                    <span>{t('runSource')}</span>
+                    <select
+                      aria-label={t('runSource')}
+                      value={runSourceFilter}
+                      onChange={event => { setRunSourceFilter(event.target.value as 'all' | DigitalEmployeeRunSource) }}
+                    >
+                      <option value="all">{t('allRuns')}</option>
+                      <option value="dsh-session">{t('runSourceDsh')}</option>
+                      <option value="external-native">{t('runSourceExternal')}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t('runTerminal')}</span>
+                    <select
+                      aria-label={t('runTerminal')}
+                      value={runTerminalFilter}
+                      onChange={event => { setRunTerminalFilter(event.target.value as 'all' | DigitalEmployeeRunTerminal) }}
+                    >
+                      <option value="all">{t('allRuns')}</option>
+                      <option value="completed">{t('runCompleted')}</option>
+                      <option value="cancelled">{t('runCancelled')}</option>
+                      <option value="blocked">{t('runBlocked')}</option>
+                      <option value="failed">{t('runFailed')}</option>
+                      <option value="max-tokens">{t('runMaxTokens')}</option>
+                      <option value="interrupted">{t('runInterrupted')}</option>
+                      <option value="unknown-terminal">{t('runUnknownTerminal')}</option>
+                    </select>
+                  </label>
+                </div>
+                <div className={css.runList}>
+                  {filteredRuns.length === 0 && <p className={css.muted}>{t('noRuns')}</p>}
+                  {filteredRuns.map(candidate => (
+                    <button
+                      type="button"
+                      key={candidate.runId}
+                      className={candidate.runId === selectedRunId ? css.runSelected : css.run}
+                      onClick={() => { void inspectRun(candidate) }}
+                    >
+                      <strong>{runOwnerLabel(candidate, t)}</strong>
+                      <span>{runTerminalLabel(candidate.terminal, t)} · {runSourceLabel(candidate.source, t)}</span>
+                      <small>{new Date(candidate.startedAt).toLocaleString()} · {candidate.completeness.status}</small>
+                    </button>
+                  ))}
+                </div>
               </aside>
 
               <main className={css.editor}>
-                {draft === null
+                {selectedRunId !== null
+                  ? selectedRun === undefined
+                    ? <div className={css.placeholder}>{t('runNotFound')}</div>
+                    : <RunInspector
+                        run={runDetail?.run ?? selectedRun}
+                        detail={runDetail}
+                        loading={runLoading}
+                        t={t}
+                      />
+                  : draft === null
                   ? <div className={css.placeholder}>{t('selectProfile')}</div>
                   : (
                     <>
@@ -1571,6 +1730,80 @@ export function DigitalEmployeeStudio({
             </div>
           )}
           <ResizeHandles onPointerDown={(event, edge) => { beginWindowInteraction(event, 'resize', edge) }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RunInspector({
+  run,
+  detail,
+  loading,
+  t,
+}: {
+  run: DigitalEmployeeRunIndexRecord
+  detail: DigitalEmployeeRunDetail | null
+  loading: boolean
+  t: Translate
+}) {
+  return (
+    <div className={css.runInspector}>
+      <div className={css.runHeader}>
+        <div>
+          <h2>{t('runDetail')}</h2>
+          <p>{runOwnerLabel(run, t)} · {run.profileId}@{run.profileRevision}</p>
+        </div>
+        <span className={css.runTerminal}>{runTerminalLabel(run.terminal, t)}</span>
+      </div>
+      <div className={css.runFacts}>
+        <span><strong>{t('runSource')}:</strong> {runSourceLabel(run.source, t)}</span>
+        <span><strong>{t('selectedRoute')}:</strong> {runtimeTargetLabel(run.selectedRuntimeTarget)}</span>
+        <span>
+          <strong>{t('actualRoute')}:</strong>{' '}
+          {run.actualRuntimeTarget === undefined ? t('runUnavailable') : runtimeTargetLabel(run.actualRuntimeTarget)}
+        </span>
+        <span><strong>{t('runTerminal')}:</strong> {runTerminalLabel(run.terminal, t)}</span>
+        <span><strong>{t('runCompleteness')}:</strong> {run.completeness.status}</span>
+        <span><strong>{t('runRevisionFingerprint')}:</strong> <code>{run.profileFingerprint}</code></span>
+        <span><strong>{t('runCapabilityGeneration')}:</strong> {run.capabilityGeneration}</span>
+        {run.usage !== undefined && (
+          <span>
+            <strong>{t('runUsage')}:</strong>{' '}
+            {run.usage.inputTokens} / {run.usage.outputTokens}
+            {run.usage.totalTokens === undefined ? '' : ` / ${run.usage.totalTokens}`}
+          </span>
+        )}
+      </div>
+      <a
+        className={css.canonicalLink}
+        href={canonicalSourceHref(run)}
+        aria-label={t('canonicalSource')}
+      >
+        {t('canonicalSource')}: {run.canonicalTurnId}
+      </a>
+      <p className={css.redactions}>{t('runRedactions')}: {run.completeness.redactions.join(', ')}</p>
+      {run.completeness.diagnostic !== undefined && (
+        <p className={css.diagnostic}>{run.completeness.diagnostic}</p>
+      )}
+      <h3>{t('runTimeline')}</h3>
+      {loading && <p className={css.muted}>{t('loadingRun')}</p>}
+      {!loading && detail !== null && (
+        <div className={css.timeline}>
+          {detail.timeline.map((item, index) => (
+            <div className={css.timelineItem} key={`${item.timestamp}/${item.kind}/${index}`}>
+              <time>{new Date(item.timestamp).toLocaleString()}</time>
+              <strong>{item.kind}{item.name === undefined ? '' : ` · ${item.name}`}</strong>
+              {item.outcome !== undefined && (
+                <span>{item.outcome === 'started' ? t('runStarted') : runTerminalLabel(item.outcome, t)}</span>
+              )}
+              {item.usage !== undefined && (
+                <span>{t('runUsage')}: {item.usage.inputTokens} / {item.usage.outputTokens}</span>
+              )}
+            </div>
+          ))}
+          {detail.timeline.length === 0 && <p className={css.muted}>{t('noRunEvidence')}</p>}
+          {detail.timelineTruncated && <p className={css.muted}>{t('runTimelineTruncated')}</p>}
         </div>
       )}
     </div>

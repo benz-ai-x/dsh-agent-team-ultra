@@ -26,7 +26,7 @@ describe('generated Digital Employee Remote contract', () => {
   it('publishes the immutable release workflow without a hard-delete operation', () => {
     expect(remote.package).toBe('@deepseek-ai/dsh-agent-team-ultra')
     expect(remote.descriptors.map(method => method.method)).toEqual([
-      'activate', 'archive', 'restore', 'revision', 'rollback', 'save', 'spawn', 'view',
+      'activate', 'archive', 'restore', 'revision', 'rollback', 'run', 'save', 'spawn', 'view',
     ])
     const spawn = remote.descriptors.find(method => method.method === 'spawn')
     expect(spawn).toMatchObject({
@@ -63,10 +63,13 @@ describe('generated Digital Employee Remote contract', () => {
       ...active,
       value: { ...active.value, provisioningPhase: undefined, phase: 'active' },
     }).success).toBe(false)
-    expect(remote.descriptors.filter(method => method.method !== 'spawn')
+    expect(remote.descriptors.filter(method => method.method !== 'spawn' && method.method !== 'run')
       .every(method => method.cancellation === undefined)).toBe(true)
+    expect(remote.descriptors.find(method => method.method === 'run')).toMatchObject({
+      cancellation: { parameter: 'signal' },
+    })
     expect(remote.descriptors.map(method => method.parameters[0])).toEqual(
-      Array.from({ length: 8 }, () => expect.objectContaining({
+      Array.from({ length: 9 }, () => expect.objectContaining({
         name: 'agent',
         wire: 'agentId',
         source: 'lookup',
@@ -80,6 +83,7 @@ describe('generated Digital Employee Remote contract', () => {
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/restore',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/revision',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/rollback',
+      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/run',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/save',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/spawn',
       '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/view',
@@ -92,6 +96,7 @@ describe('generated Digital Employee Remote contract', () => {
     expect(declaration).toContain("interface TypertRemoteNamespaceMap")
     expect(declaration).toContain("'digitalEmployees':")
     expect(declaration).toContain('spawn: (agentId: SessionId, request: SpawnDigitalEmployeeRequest, signal?: AbortSignal)')
+    expect(declaration).toContain('run: (agentId: SessionId, request: GetDigitalEmployeeRunRequest, signal?: AbortSignal)')
     expect(declaration).toContain("'agent:digitalEmployees/view': () => Promise<RemoteResult<DigitalEmployeeStudioView>>")
     expect(types).toContain("export type LaunchRequestId = Branded<'LaunchRequestId'>")
     expect(types).toMatch(/readonly launchRequestId: LaunchRequestId/u)

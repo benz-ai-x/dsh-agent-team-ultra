@@ -263,6 +263,9 @@ function installAgentRuntime(
       },
     ],
   } as never)
+  ctx.provide('sessionPersistence', {
+    inspect: async () => ({ events: [], inheritedEventCount: 0 }),
+  } as never)
   ctx.provide('systemPrompt', {} as never)
   ctx.provide('tools', {
     schemas: () => [],

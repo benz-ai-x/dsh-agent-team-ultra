@@ -80,6 +80,22 @@ _Avoid_: Claude Code CLI invocation, one-shot Claude subagent
 The stable opaque provider-native identity returned after initial work is durably accepted and retained before an external Binding becomes active.
 _Avoid_: Member ID, Launch Request ID, provider process object
 
+**Run**:
+The deterministic, runtime-neutral record of exactly one accepted Digital Employee work turn, owned by either an exact Team member or an isolated evaluation worker and correlated to its immutable Profile Revision and canonical evidence source.
+_Avoid_: Agent session, provider loop, tool step
+
+**Run Index**:
+A bounded, repairable Studio projection containing only Run identity, discriminated Team-member or evaluation-worker ownership, immutable Profile and route identity, normalized terminal/usage facts, timestamps, and evidence completeness. It is not a transcript or the canonical evidence store.
+_Avoid_: Run log, copied conversation, telemetry warehouse
+
+**Canonical Evidence Source**:
+The authoritative history from which Run detail is folded on demand: the exact DSH child Session turn or the exact provider-native runtime and turn.
+_Avoid_: Run Index, Studio timeline, debug log
+
+**Evidence Completeness**:
+The explicit `complete | incomplete | unavailable` state of a Run's bounded evidence, including its default redaction classes and a safe diagnostic when evidence cannot be proven complete.
+_Avoid_: Success status, runtime availability
+
 **Runtime Capability**:
 An operational guarantee a provider can enforce, such as exact-call approval, sandboxing, evaluation isolation, evidence, or usage accounting.
 _Avoid_: Advertised feature hint, secret provider configuration

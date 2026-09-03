@@ -155,11 +155,18 @@ function view(profiles: readonly DigitalEmployeeProfile[] = []): DigitalEmployee
     runtimeCatalog: runtimeCatalog(),
     tools: [{ name: 'read', description: 'Read files' }],
     instances: [],
+    runs: [],
   }
 }
 
 function catalogView(profiles: readonly DigitalEmployeeProfileCatalogEntry[]): DigitalEmployeeStudioView {
-  return { profiles, runtimeCatalog: runtimeCatalog(), tools: [{ name: 'read', description: 'Read files' }], instances: [] }
+  return {
+    profiles,
+    runtimeCatalog: runtimeCatalog(),
+    tools: [{ name: 'read', description: 'Read files' }],
+    instances: [],
+    runs: [],
+  }
 }
 
 function saved(profile: DigitalEmployeeProfile, headRevision = profile.revision) {
@@ -195,6 +202,10 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
         },
       },
     })),
+    run: vi.fn(async () => ({
+      ok: true,
+      value: { ok: false, error: { code: 'run-not-found', message: 'missing' } },
+    })),
     t: ((key: UltraKey) => en[key]) as DigitalEmployeeStudioProps['t'],
     ...overrides,
   } as DigitalEmployeeStudioProps
@@ -227,6 +238,95 @@ afterEach(() => {
 })
 
 describe('Digital Employee Studio', () => {
+  it('filters Runs and lazily shows a redacted timeline for both runtime families', async () => {
+    const dshRun = {
+      schemaVersion: 1 as const,
+      runId: 'run-dsh' as never,
+      source: 'dsh-session' as const,
+      canonicalTurnId: 'child:1',
+      canonicalSource: { kind: 'dsh-session' as const, sessionId: 'child', turn: 1 },
+      teamId: 'session-a',
+      owner: { kind: 'team-member' as const, memberId: 'child', memberName: 'reviewer' },
+      profileId: 'reviewer',
+      profileRevision: 1,
+      profileFingerprint: 'a'.repeat(64),
+      selectedRuntimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+      actualRuntimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+      capabilityGeneration: 1,
+      terminal: 'failed' as const,
+      startedAt: 100,
+      endedAt: 110,
+      completeness: {
+        status: 'complete' as const,
+        redactions: ['content', 'tool-arguments', 'tool-results', 'raw-payloads'] as const,
+      },
+    }
+    const externalRun = {
+      ...dshRun,
+      runId: 'run-external' as never,
+      source: 'external-native' as const,
+      canonicalTurnId: 'native-turn-7',
+      canonicalSource: {
+        kind: 'external-native' as const,
+        provider: 'native-reviewer',
+        nativeHandle: 'native-session' as never,
+        nativeTurnId: 'native-turn-7',
+      },
+      selectedRuntimeTarget: { kind: 'external-agent' as const, provider: 'native-reviewer' },
+      actualRuntimeTarget: { kind: 'external-agent' as const, provider: 'native-reviewer' },
+      terminal: 'completed' as const,
+      usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+      startedAt: 200,
+      endedAt: 220,
+    }
+    const evaluationRun = {
+      ...dshRun,
+      runId: 'run-evaluation' as never,
+      canonicalTurnId: 'evaluation-child:1',
+      canonicalSource: { kind: 'dsh-session' as const, sessionId: 'evaluation-child', turn: 1 },
+      owner: { kind: 'evaluation-worker' as const, evalRunId: 'eval-run-4', caseId: 'case-2' },
+    }
+    const loaded = { ...view([profile()]), runs: [externalRun, evaluationRun, dshRun] }
+    const run = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        ok: true as const,
+        value: {
+          run: externalRun,
+          timeline: [
+            { kind: 'tool' as const, timestamp: 210, name: 'read', outcome: 'completed' as const },
+            { kind: 'turn' as const, timestamp: 220, outcome: 'completed' as const },
+          ],
+          timelineTruncated: false,
+        },
+      },
+    }))
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: loaded })),
+      run,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    await screen.findByText('Runs')
+    expect(screen.getByRole('button', {
+      name: /Evaluation eval-run-4 \/ case-2.*Failed.*DSH Session/i,
+    })).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Run source'), { target: { value: 'external-native' } })
+    expect(screen.queryByRole('button', { name: /failed.*DSH Session/i })).toBeNull()
+    const externalButton = screen.getByRole('button', { name: /reviewer.*Completed.*External native session/i })
+    fireEvent.click(externalButton)
+
+    await waitFor(() => { expect(run).toHaveBeenCalledOnce() })
+    expect(run.mock.calls[0]?.[0]).toBe('session-a')
+    expect(run.mock.calls[0]?.[1]).toBe('run-external')
+    expect(await screen.findByRole('heading', { name: 'Run evidence' })).toBeTruthy()
+    expect(screen.getByText(/Selected route:/).parentElement?.textContent).toContain('native-reviewer')
+    expect(screen.getByText(/content, tool-arguments, tool-results, raw-payloads/)).toBeTruthy()
+    expect(screen.getByText(/tool · read/)).toBeTruthy()
+    const source = screen.getByRole('link', { name: 'Canonical source' }) as HTMLAnchorElement
+    expect(source.getAttribute('href')).toContain('native-reviewer/native-turn-7')
+  })
+
   it('groups stable Runtime Backends, exposes capabilities, and saves the selected target separately', async () => {
     const save = vi.fn(async () => ({
       ok: true as const,

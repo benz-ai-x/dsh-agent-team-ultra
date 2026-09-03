@@ -114,6 +114,12 @@ export type DigitalEmployeeRuntimePresence = 'running' | 'idle' | 'inactive'
 /** Stable opaque native identity returned by a durable external provider. */
 export type NativeRuntimeHandle = Branded<'NativeRuntimeHandle'>
 
+/** Deterministic identity of one accepted Digital Employee work turn. */
+export type DigitalEmployeeRunId = Branded<'DigitalEmployeeRunId'>
+
+/** Opaque provider-owned evidence handle shared by teammate and evaluation runtimes. */
+export type DigitalEmployeeRunNativeHandle = Branded<'DigitalEmployeeRunNativeHandle'>
+
 /** Profile behavior a runtime must be able to enforce, not merely advertise. */
 export type DigitalEmployeeProfileCapability =
   | 'persona'
@@ -289,12 +295,105 @@ export interface DigitalEmployeeInstanceView {
   readonly error?: string
 }
 
+/** Runtime family whose canonical evidence owns one Run. */
+export type DigitalEmployeeRunSource = 'dsh-session' | 'external-native'
+
+/** Exact production member or isolated evaluation Case that accepted the work turn. */
+export type DigitalEmployeeRunOwner =
+  | {
+    readonly kind: 'team-member'
+    readonly memberId: string
+    readonly memberName: string
+  }
+  | {
+    readonly kind: 'evaluation-worker'
+    readonly evalRunId: string
+    readonly caseId: string
+  }
+
+/** Normalized terminal class shared by DSH and provider-native turns. */
+export type DigitalEmployeeRunTerminal =
+  | 'completed'
+  | 'cancelled'
+  | 'blocked'
+  | 'failed'
+  | 'max-tokens'
+  | 'interrupted'
+  | 'unknown-terminal'
+
+/** Latest provider-reported cumulative accounting only; missing counters are never inferred. */
+export interface DigitalEmployeeRunUsage {
+  readonly inputTokens: number
+  readonly outputTokens: number
+  readonly totalTokens?: number
+  readonly cacheReadTokens?: number
+  readonly cacheWriteTokens?: number
+  readonly reasoningTokens?: number
+}
+
+/** Explicit evidence health and default redaction policy for one Run. */
+export interface DigitalEmployeeRunCompleteness {
+  readonly status: 'complete' | 'incomplete' | 'unavailable'
+  readonly diagnostic?: string
+  readonly redactions: readonly ('content' | 'tool-arguments' | 'tool-results' | 'raw-payloads')[]
+}
+
+/** Safe pointer back to the canonical evidence owner; never a file-system path. */
+export type DigitalEmployeeRunCanonicalSource =
+  | { readonly kind: 'dsh-session'; readonly sessionId: string; readonly turn: number }
+  | {
+    readonly kind: 'external-native'
+    readonly provider: string
+    readonly nativeHandle: DigitalEmployeeRunNativeHandle
+    readonly nativeTurnId?: string
+  }
+
+/** Durable bounded Run index row used by Studio lists and startup repair. */
+export interface DigitalEmployeeRunIndexRecord {
+  readonly schemaVersion: 1
+  readonly runId: DigitalEmployeeRunId
+  readonly source: DigitalEmployeeRunSource
+  readonly canonicalTurnId: string
+  readonly canonicalSource: DigitalEmployeeRunCanonicalSource
+  readonly teamId: string
+  readonly owner: DigitalEmployeeRunOwner
+  readonly profileId: DigitalEmployeeProfileId
+  readonly profileRevision: number
+  readonly profileFingerprint: string
+  readonly selectedRuntimeTarget: DigitalEmployeeRuntimeTarget
+  readonly actualRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  readonly capabilityGeneration: number
+  readonly terminal: DigitalEmployeeRunTerminal
+  readonly usage?: DigitalEmployeeRunUsage
+  readonly startedAt: number
+  readonly endedAt?: number
+  readonly completeness: DigitalEmployeeRunCompleteness
+}
+
+/** One normalized evidence edge; raw model and tool payloads cannot be represented. */
+export interface DigitalEmployeeRunTimelineItem {
+  readonly kind: 'turn' | 'step' | 'tool' | 'usage' | 'diagnostic'
+  readonly timestamp: number
+  readonly step?: number
+  readonly name?: string
+  readonly outcome?: 'started' | DigitalEmployeeRunTerminal
+  readonly usage?: DigitalEmployeeRunUsage
+}
+
+/** Lazily folded bounded detail for one Run. */
+export interface DigitalEmployeeRunDetail {
+  readonly run: DigitalEmployeeRunIndexRecord
+  readonly timeline: readonly DigitalEmployeeRunTimelineItem[]
+  readonly timelineTruncated: boolean
+}
+
 /** Complete replaceable Studio baseline. */
 export interface DigitalEmployeeStudioView {
   readonly profiles: readonly DigitalEmployeeProfileCatalogEntry[]
   readonly runtimeCatalog: DigitalEmployeeRuntimeCatalog
   readonly tools: readonly ProfileToolOption[]
   readonly instances: readonly DigitalEmployeeInstanceView[]
+  readonly runs: readonly DigitalEmployeeRunIndexRecord[]
 }
 
 /** Save request with a compare-and-set precondition. */
@@ -336,6 +435,11 @@ export interface GetDigitalEmployeeProfileRevisionRequest {
   readonly revision: number
 }
 
+/** Fetch one Run through its deterministic opaque identity. */
+export interface GetDigitalEmployeeRunRequest {
+  readonly runId: DigitalEmployeeRunId
+}
+
 /** Launch one profile with an optional assignment specific to this Team. */
 export interface SpawnDigitalEmployeeRequest {
   readonly launchRequestId: LaunchRequestId
@@ -354,6 +458,8 @@ export interface DigitalEmployeeFailure {
     | 'profile-not-active'
     | 'profile-archived'
     | 'revision-not-found'
+    | 'run-not-found'
+    | 'evidence-unavailable'
     | 'runtime-target-unavailable'
     | 'runtime-route-invalid'
     | 'runtime-capability-mismatch'
@@ -387,6 +493,11 @@ export type MutateDigitalEmployeeProfileHeadResult =
 /** Lazy Revision detail result used by the Studio history inspector. */
 export type GetDigitalEmployeeProfileRevisionResult =
   | { readonly ok: true; readonly value: DigitalEmployeeProfileRevisionDetail }
+  | { readonly ok: false; readonly error: DigitalEmployeeFailure }
+
+/** Lazy Run evidence result used by the Studio inspector. */
+export type GetDigitalEmployeeRunResult =
+  | { readonly ok: true; readonly value: DigitalEmployeeRunDetail }
   | { readonly ok: false; readonly error: DigitalEmployeeFailure }
 
 /** Launch result after the Team roster and Ultra binding both reach a terminal edge. */

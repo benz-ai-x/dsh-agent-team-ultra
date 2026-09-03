@@ -45,6 +45,9 @@ function registerStudio(ctx: ClientContext): void {
     async spawn(sessionId, request, signal) {
       return await ctx.remote.digitalEmployees.spawn(sessionId, request, signal)
     },
+    async run(sessionId, runId, signal) {
+      return await ctx.remote.digitalEmployees.run(sessionId, { runId }, signal)
+    },
   }
 
   ctx.slots.inject(

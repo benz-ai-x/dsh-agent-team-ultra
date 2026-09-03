@@ -177,6 +177,7 @@ interface FakeNativeSession {
   readonly launchRequestId: string
   readonly memberId: SessionId
   readonly nativeHandle: ReturnType<typeof TeammateRuntimeHandle>
+  readonly initialTurnId: ReturnType<typeof TeammateRuntimeTurnId>
   readonly turns: Map<string, ReturnType<typeof TeammateRuntimeTurnId>>
   status: 'running' | 'idle'
 }
@@ -204,7 +205,7 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
   readonly displayName = 'Fake Native'
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'] as const
-  readonly runtimeCapabilities = ['evaluation', 'evidence'] as const
+  readonly runtimeCapabilities = ['evaluation', 'evidence', 'usage'] as const
   readonly apiKey = 'never-cross-the-host-boundary'
   readonly attached = new Set<ReturnType<typeof TeammateRuntimeHandle>>()
   readonly create = vi.fn<TeammateRuntimeProvider['create']>(async (request) => {
@@ -216,13 +217,14 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
         launchRequestId: request.launchRequestId,
         memberId: request.memberId,
         nativeHandle: TeammateRuntimeHandle(`fake-session-${this.store.nextSession++}`),
+        initialTurnId: TeammateRuntimeTurnId(`fake-initial-${this.store.nextSession - 1}`),
         turns: new Map(),
         status: 'idle',
       }
       this.store.sessions.set(key, session)
     }
     this.attached.add(session.nativeHandle)
-    return { nativeHandle: session.nativeHandle, presence: session.status }
+    return { nativeHandle: session.nativeHandle, turnId: session.initialTurnId, presence: session.status }
   })
   readonly resume = vi.fn<TeammateRuntimeProvider['resume']>(async (request) => {
     request.signal.throwIfAborted()
@@ -232,7 +234,7 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
       && (request.nativeHandle === undefined || candidate.nativeHandle === request.nativeHandle))
     if (session === undefined) return undefined
     this.attached.add(session.nativeHandle)
-    return { nativeHandle: session.nativeHandle, presence: session.status }
+    return { nativeHandle: session.nativeHandle, turnId: session.initialTurnId, presence: session.status }
   })
   readonly deliver = vi.fn<TeammateRuntimeProvider['deliver']>(async (request) => {
     request.signal.throwIfAborted()
@@ -251,17 +253,30 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
     session.status = 'idle'
     return { previousStatus }
   })
-  readonly evidence = vi.fn<TeammateRuntimeProvider['evidence']>(async (request) => ({
-    nativeHandle: request.nativeHandle,
-    items: [...this.session(request.nativeHandle).turns.values()].map((turnId, index) => ({
-      id: TeammateRuntimeEvidenceId(`fake-evidence-${index + 1}`),
-      kind: 'turn' as const,
-      timestamp: index + 1,
-      turnId,
-      outcome: 'completed' as const,
-    })),
-    complete: true,
-  }))
+  readonly evidence = vi.fn<TeammateRuntimeProvider['evidence']>(async (request) => {
+    const session = this.session(request.nativeHandle)
+    const turns = [session.initialTurnId, ...session.turns.values()]
+    return {
+      nativeHandle: request.nativeHandle,
+      items: turns.flatMap((turnId, index) => ([
+        {
+          id: TeammateRuntimeEvidenceId(`fake-usage-${index + 1}`),
+          kind: 'usage' as const,
+          timestamp: index * 10 + 1,
+          turnId,
+          usage: { inputTokens: 10 + index, outputTokens: 2, totalTokens: 12 + index },
+        },
+        {
+          id: TeammateRuntimeEvidenceId(`fake-evidence-${index + 1}`),
+          kind: 'turn' as const,
+          timestamp: index * 10 + 2,
+          turnId,
+          outcome: 'completed' as const,
+        },
+      ])),
+      complete: true,
+    }
+  })
   readonly createEvaluationHandle = vi.fn<TeammateRuntimeProvider['createEvaluationHandle']>(async (request) => {
     let handle = this.store.evaluations.get(request.evaluationId)
     if (handle === undefined) {
@@ -542,7 +557,7 @@ describe('durable external-agent route integration', () => {
       routingId: 'external-agent/fake-native',
       availability: 'available',
       profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
-      runtimeCapabilities: ['evaluation', 'evidence'],
+      runtimeCapabilities: ['evaluation', 'evidence', 'usage'],
     }))
     expect(JSON.stringify(initialStudio)).not.toContain('never-cross-the-host-boundary')
 
@@ -613,6 +628,11 @@ describe('durable external-agent route integration', () => {
       delivery: 'wakeup',
       signal: SIGNAL,
     })).resolves.toMatchObject({ status: 'accepted' })
+    const beforeRestartRuns = (await ctx.digitalEmployees.remoteView(lead)).runs
+    expect(beforeRestartRuns.map(run => run.canonicalTurnId).sort()).toEqual([
+      'fake-initial-1',
+      'fake-turn-1',
+    ])
     expect(ctx.agentTeams.interrupt(lead, 'route-reviewer')).toEqual({ previousStatus: 'idle' })
     expect(firstProvider.interrupt).toHaveBeenCalledWith({ nativeHandle: 'fake-session-1' })
 
@@ -628,6 +648,8 @@ describe('durable external-agent route integration', () => {
 
     await ctx.fiber.dispose()
     activeContext = undefined
+    storageState.v1Tables.get('run_index')!.records.clear()
+    expect(storageState.v1Tables.get('run_index')!.size).toBe(0)
 
     const resumedCtx = new Context()
     activeContext = resumedCtx
@@ -687,8 +709,29 @@ describe('durable external-agent route integration', () => {
     })
     expect(remote.runtimeCatalog.backends).toContainEqual(expect.objectContaining({
       routingId: 'external-agent/fake-native',
-      runtimeCapabilities: ['evaluation', 'evidence'],
+      runtimeCapabilities: ['evaluation', 'evidence', 'usage'],
     }))
+    expect(remote.runs.map(run => run.canonicalTurnId).sort()).toEqual([
+      'fake-initial-1',
+      'fake-turn-1',
+      'fake-turn-2',
+    ])
+    const latestRun = remote.runs.find(run => run.canonicalTurnId === 'fake-turn-2')
+    if (latestRun === undefined) throw new Error('restarted delivery Run is missing')
+    await expect(resumedCtx.digitalEmployees.runEvidence(
+      leadHandle.agent,
+      { runId: latestRun.runId },
+      SIGNAL,
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        run: {
+          terminal: 'completed',
+          usage: { inputTokens: 12, outputTokens: 2, totalTokens: 14 },
+          completeness: { status: 'complete' },
+        },
+      },
+    })
     expect(JSON.stringify(remote)).not.toContain('never-cross-the-host-boundary')
     expect(oneShot).not.toHaveBeenCalled()
     expect(secondOneShot).not.toHaveBeenCalled()

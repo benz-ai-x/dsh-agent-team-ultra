@@ -11,6 +11,7 @@ import {
   type TeammateRuntimeRegistration,
 } from '@deepseek-ai/dsh-experimental-agent-team'
 import { describe, expect, it, vi } from 'vitest'
+import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import DigitalEmployeeService, {
@@ -131,6 +132,7 @@ interface Harness {
   readonly profiles: MemoryTable<string, unknown>
   readonly revisions: MemoryTable<string, unknown>
   readonly bindings: MemoryTable<string, unknown>
+  readonly runs: MemoryTable<string, unknown>
   readonly close: ReturnType<typeof vi.fn>
   readonly restriction: ReturnType<typeof vi.fn>
   readonly sections: ReturnType<typeof vi.fn>
@@ -149,6 +151,13 @@ interface Harness {
   readonly replaceLlmRoutes: (routes: readonly FakeLlmRoute[]) => void
   readonly gateNextLlmRefresh: () => { readonly entered: Promise<void>; release(): void }
   readonly setTeammateRuntimeAvailable: (providerId: string, available: boolean) => void
+  readonly readTeammateRuntimeEvidence: ReturnType<typeof vi.fn>
+  readonly appendSessionEvent: (
+    sessionId: string,
+    type: SessionEvent['type'],
+    data: unknown,
+    time: number,
+  ) => void
 }
 
 async function harness(options: {
@@ -164,10 +173,11 @@ async function harness(options: {
   const profiles = new MemoryTable<string, unknown>()
   const revisions = new MemoryTable<string, unknown>()
   const bindings = new MemoryTable<string, unknown>()
+  const runs = new MemoryTable<string, unknown>()
   const v0Profiles = new MemoryTable<string, unknown>()
   const v0Bindings = new MemoryTable<string, unknown>()
   const emptyV1Tables = new Map([
-    ['run_index', new MemoryTable<string, unknown>()],
+    ['run_index', runs],
     ['eval_sets', new MemoryTable<string, unknown>()],
     ['eval_runs', new MemoryTable<string, unknown>()],
   ])
@@ -187,14 +197,22 @@ async function harness(options: {
   const contexts = vi.fn(scopeDisposer)
   const restriction = vi.fn(scopeDisposer)
   const childEvents: string[] = []
-  const leader = { id: 'lead', session: { header: {} }, ctx } as unknown as Agent
+  const sessionEvents = new Map<string, SessionEvent[]>([
+    ['lead', []],
+    ['teammate', []],
+  ])
+  const session = (id: string, header: Record<string, unknown>) => ({
+    header,
+    ownEvents: () => [...sessionEvents.get(id) ?? []],
+  })
+  const leader = { id: 'lead', session: session('lead', {}), ctx } as unknown as Agent
   const teammate = {
     id: 'teammate',
-    session: { header: { parentSession: 'lead' } },
+    session: session('teammate', { parentSession: 'lead' }),
     ctx,
   } as unknown as Agent
-  const staleLeader = { id: 'lead', session: { header: {} }, ctx } as unknown as Agent
-  const foreignRoot = { id: 'foreign', session: { header: {} }, ctx } as unknown as Agent
+  const staleLeader = { id: 'lead', session: session('lead', {}), ctx } as unknown as Agent
+  const foreignRoot = { id: 'foreign', session: session('foreign', {}), ctx } as unknown as Agent
   const agents = new Map<string, Agent>([['lead', leader], ['teammate', teammate]])
   let llmRoutes = [...options.llmRoutes ?? [DEFAULT_LLM_ROUTE]]
   let nextLlmRefreshGate: {
@@ -218,6 +236,13 @@ async function harness(options: {
   ctx.provide('agents', {
     get: (id: string) => agents.get(id),
     list: () => [...agents.values()],
+  } as never)
+  ctx.provide('sessionPersistence', {
+    inspect: async (id: string) => ({
+      header: { id },
+      events: [...sessionEvents.get(id) ?? []],
+      inheritedEventCount: 0,
+    }),
   } as never)
   ctx.provide('storageDomain', {
     open: vi.fn(async (spec: { readonly name: string }) => {
@@ -374,7 +399,10 @@ async function harness(options: {
     rosterMember.status = 'idle'
     rosterMember.resolvedRoute = resolvedRoute
     if (externalRuntime !== undefined) {
-      Object.assign(externalRuntime, { nativeHandle: TeammateRuntimeHandle('catalog-runtime') })
+      Object.assign(externalRuntime, {
+        nativeHandle: TeammateRuntimeHandle('catalog-runtime'),
+        initialTurnId: TeammateRuntimeTurnId('catalog-initial-turn'),
+      })
     }
     const childCtx = {
       systemPrompt: { section: sections, context: contexts },
@@ -387,7 +415,7 @@ async function harness(options: {
     const child = {
       id: 'child',
       status: 'idle',
-      session: { header: { parentSession: 'lead' } },
+      session: session('child', { parentSession: 'lead' }),
       options: resolvedRoute,
       ctx: childCtx,
     } as unknown as Agent
@@ -421,6 +449,12 @@ async function harness(options: {
     return { id: agent.id, root: agent, role: 'lead', name: 'lead' } as const
   }
   const listMembers = vi.fn(() => roster)
+  const readTeammateRuntimeEvidence = vi.fn(async (_caller, _targetName, request) => ({
+    nativeHandle: TeammateRuntimeHandle('catalog-runtime'),
+    items: [],
+    complete: true,
+    limit: request.limit,
+  }))
   const teammateRegistrations = new Map<string, { setAvailable(available: boolean): void }>()
   const teammateMetadata = (provider: TeammateRuntimeProvider): TeammateRuntimeMetadata => Object.freeze({
     id: provider.id,
@@ -472,6 +506,7 @@ async function harness(options: {
     listMembers,
     spawnTeammate: spawn,
     registerTeammateRuntimeProvider,
+    readTeammateRuntimeEvidence,
   } as never)
 
   const fiber = ctx.plugin(DigitalEmployeeService, options.serviceConfig)
@@ -482,6 +517,7 @@ async function harness(options: {
     profiles,
     revisions,
     bindings,
+    runs,
     close,
     restriction,
     sections,
@@ -510,7 +546,20 @@ async function harness(options: {
       if (registration === undefined) throw new Error(`missing teammate runtime ${providerId}`)
       registration.setAvailable(available)
     },
+    readTeammateRuntimeEvidence,
+    appendSessionEvent: (sessionId, type, data, time) => {
+      const events = sessionEvents.get(sessionId) ?? []
+      sessionEvents.set(sessionId, events)
+      const next = { type, seq: SessionSeq(events.length), time, data } as SessionEvent
+      events.push(next)
+      const owner = agents.get(sessionId)
+      if (owner !== undefined) runtimeEmitSessionEvent(ctx, owner, next)
+    },
   }
+}
+
+function runtimeEmitSessionEvent(ctx: Context, agent: Agent, event: SessionEvent): void {
+  ctx.emit('session/event', agent.session, event)
 }
 
 describe('Digital Employee profile contract', () => {
@@ -1256,6 +1305,179 @@ describe('Digital Employee profile contract', () => {
     )).resolves.toMatchObject({ ok: false, error: { code: 'profile-invalid' } })
     expect(runtime.bindings.size).toBe(0)
     expect(runtime.spawn).not.toHaveBeenCalled()
+    await runtime.fiber.dispose()
+  })
+
+  it('repairs and serves one safe Run from each accepted DSH child turn', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )
+    runtime.appendSessionEvent('child', 'turn/start', { turn: 1 }, 100)
+    runtime.appendSessionEvent('child', 'assistant/message', {
+      turn: 1,
+      step: 0,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'SECRET_RUN_REPLY' }] },
+      usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+    }, 101)
+    runtime.appendSessionEvent('child', 'turn/end', { turn: 1, reason: { kind: 'completed' } }, 102)
+
+    const view = await runtime.ctx.digitalEmployees.remoteView(runtime.leader)
+    expect(view.runs).toHaveLength(1)
+    expect(view.runs[0]).toMatchObject({
+      source: 'dsh-session',
+      canonicalTurnId: 'child:1',
+      terminal: 'completed',
+      usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+      completeness: { status: 'complete' },
+    })
+    const runId = view.runs[0]!.runId
+    await expect(runtime.ctx.digitalEmployees.runEvidence(
+      runtime.leader,
+      { runId },
+      new AbortController().signal,
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        run: { runId },
+        timeline: [
+          { kind: 'turn', outcome: 'started' },
+          { kind: 'usage', usage: { totalTokens: 6 } },
+          { kind: 'turn', outcome: 'completed' },
+        ],
+      },
+    })
+    expect(JSON.stringify([...runtime.runs.records.values()])).not.toContain('SECRET_RUN_REPLY')
+    await runtime.fiber.dispose()
+  })
+
+  it('repairs external launch and delivery Runs and lazily folds exact native evidence', async () => {
+    const runtime = await harness()
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: ['evidence', 'usage'],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )
+    const externalRuntime = runtime.roster.find(member => member.id === 'child')?.externalRuntime
+    runtime.appendSessionEvent('lead', 'team/member', {
+      version: 1,
+      teamId: 'lead',
+      member: {
+        id: 'child',
+        name: 'code-reviewer',
+        phase: 'active',
+        externalRuntime,
+      },
+    }, 200)
+    runtime.appendSessionEvent('lead', 'team/message/delivered', {
+      version: 1,
+      teamId: 'lead',
+      messageId: 'message-1',
+      targetId: 'child',
+      nativeTurnId: 'catalog-delivery-turn',
+    }, 210)
+
+    const view = await runtime.ctx.digitalEmployees.remoteView(runtime.leader)
+    expect(view.runs).toHaveLength(2)
+    expect(view.runs.map(run => run.canonicalTurnId).sort()).toEqual([
+      'catalog-delivery-turn',
+      'catalog-initial-turn',
+    ])
+    const delivery = view.runs.find(run => run.canonicalTurnId === 'catalog-delivery-turn')!
+    runtime.readTeammateRuntimeEvidence.mockResolvedValueOnce({
+      nativeHandle: TeammateRuntimeHandle('catalog-runtime'),
+      complete: true,
+      items: [
+        {
+          id: 'usage-1',
+          kind: 'usage',
+          timestamp: 211,
+          turnId: TeammateRuntimeTurnId('catalog-delivery-turn'),
+          usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+          privatePayload: 'SECRET_NATIVE_PAYLOAD',
+        },
+        {
+          id: 'turn-1',
+          kind: 'turn',
+          timestamp: 212,
+          turnId: TeammateRuntimeTurnId('catalog-delivery-turn'),
+          outcome: 'completed',
+        },
+      ],
+    })
+    const detail = await runtime.ctx.digitalEmployees.runEvidence(
+      runtime.leader,
+      { runId: delivery.runId },
+      new AbortController().signal,
+    )
+    expect(detail).toMatchObject({
+      ok: true,
+      value: {
+        run: {
+          terminal: 'completed',
+          usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+          completeness: { status: 'complete' },
+        },
+      },
+    })
+    expect(JSON.stringify(detail)).not.toContain('SECRET_NATIVE_PAYLOAD')
+    await registration()
+    await runtime.fiber.dispose()
+  })
+
+  it('retains only the configured newest Run index rows', async () => {
+    const runtime = await harness({ serviceConfig: { maxRuns: 1 } })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )
+    runtime.appendSessionEvent('child', 'turn/start', { turn: 1 }, 100)
+    runtime.appendSessionEvent('child', 'turn/end', { turn: 1, reason: { kind: 'completed' } }, 101)
+    runtime.appendSessionEvent('child', 'turn/start', { turn: 2 }, 200)
+    runtime.appendSessionEvent('child', 'turn/end', {
+      turn: 2,
+      reason: { kind: 'error', error: { message: 'bounded failure', code: 'TEST' } },
+    }, 201)
+
+    const view = await runtime.ctx.digitalEmployees.remoteView(runtime.leader)
+    expect(view.runs).toHaveLength(1)
+    expect(view.runs[0]).toMatchObject({ canonicalTurnId: 'child:2', terminal: 'failed' })
+    expect(runtime.runs.size).toBe(1)
     await runtime.fiber.dispose()
   })
 
