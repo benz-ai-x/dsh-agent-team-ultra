@@ -40,12 +40,31 @@ export interface ExternalRunFoldBinding extends DshRunFoldBinding {
 
 interface ExternalEvidenceLike {
   readonly id: string
-  readonly kind: 'turn' | 'tool' | 'usage' | 'diagnostic'
+  readonly kind: 'turn' | 'tool' | 'approval' | 'usage' | 'diagnostic'
   readonly timestamp: number
   readonly turnId?: string
   readonly name?: string
-  readonly outcome?: 'completed' | 'cancelled' | 'blocked' | 'failed' | 'interrupted' | 'unknown'
+  readonly outcome?:
+    | 'completed'
+    | 'cancelled'
+    | 'blocked'
+    | 'failed'
+    | 'interrupted'
+    | 'unknown'
+    | 'asked'
+    | 'allowed-once'
+    | 'rejected'
+    | 'unavailable'
+  readonly approvalId?: string
+  readonly callId?: string
+  readonly policyId?: string
   readonly usage?: unknown
+}
+
+interface PendingApprovalLike {
+  readonly turnId: string
+  readonly approvalId: string
+  readonly callId: string
 }
 
 const REDACTIONS = Object.freeze([
@@ -96,6 +115,10 @@ function externalTerminal(
     case 'blocked': return 'blocked'
     case 'failed': return 'failed'
     case 'interrupted': return 'interrupted'
+    case 'asked':
+    case 'allowed-once':
+    case 'rejected':
+    case 'unavailable':
     case 'unknown':
     case undefined:
       return 'unknown-terminal'
@@ -144,6 +167,56 @@ function eventTurn(event: SessionEvent): number | undefined {
   return undefined
 }
 
+type ApprovalAuditEvent =
+  | {
+    readonly type: 'approval/asked'
+    readonly time: number
+    readonly data: {
+      readonly id: string
+      readonly toolName: string
+      readonly callId?: string
+      readonly reason?: string
+    }
+  }
+  | {
+    readonly type: 'approval/decided'
+    readonly time: number
+    readonly data: {
+      readonly id: string
+      readonly outcome: 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'
+    }
+  }
+
+function approvalAuditEvent(event: SessionEvent): ApprovalAuditEvent | undefined {
+  const candidate = event as unknown as { readonly type: string; readonly time: number; readonly data: unknown }
+  if (candidate.type !== 'approval/asked' && candidate.type !== 'approval/decided') return undefined
+  if (candidate.data === null || typeof candidate.data !== 'object') return undefined
+  const data = candidate.data as Record<string, unknown>
+  if (typeof data.id !== 'string' || data.id.length === 0) return undefined
+  if (candidate.type === 'approval/asked') {
+    if (typeof data.toolName !== 'string' || data.toolName.length === 0) return undefined
+    return {
+      type: candidate.type,
+      time: candidate.time,
+      data: {
+        id: data.id,
+        toolName: data.toolName,
+        ...(typeof data.callId === 'string' ? { callId: data.callId } : {}),
+        ...(typeof data.reason === 'string' ? { reason: data.reason } : {}),
+      },
+    }
+  }
+  if (!['allowed-once', 'rejected', 'cancelled', 'unavailable'].includes(String(data.outcome))) return undefined
+  return {
+    type: candidate.type,
+    time: candidate.time,
+    data: {
+      id: data.id,
+      outcome: data.outcome as 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable',
+    },
+  }
+}
+
 /**
  * Fold DSH canonical events into one safe Run per accepted turn.
  * User/assistant content, tool arguments/results, headers, chunks, and opaque payloads are ignored by construction.
@@ -154,6 +227,7 @@ export function foldDshRunEvidence(
   events: readonly SessionEvent[],
   maxTimelineItems: number,
   maxRuns: number,
+  liveApprovalIds: ReadonlySet<string> = new Set(),
 ): readonly FoldedDshRun[] {
   if (!Number.isSafeInteger(maxTimelineItems) || maxTimelineItems < 1) {
     throw new TypeError('maxTimelineItems must be a positive safe integer')
@@ -163,13 +237,16 @@ export function foldDshRunEvidence(
   }
   const eventsByTurn = new Map<number, SessionEvent[]>()
   const starts: SessionEvent<'turn/start'>[] = []
+  let openTurn: number | undefined
   for (const current of events) {
-    const turn = eventTurn(current)
+    if (current.type === 'turn/start') openTurn = current.data.turn
+    const turn = eventTurn(current) ?? (approvalAuditEvent(current) === undefined ? undefined : openTurn)
     if (turn === undefined) continue
     const grouped = eventsByTurn.get(turn) ?? []
     grouped.push(current)
     eventsByTurn.set(turn, grouped)
     if (current.type === 'turn/start') starts.push(current)
+    if (current.type === 'turn/end') openTurn = undefined
   }
   const retainedStarts = starts.slice(-maxRuns)
   return Object.freeze(retainedStarts.map((start) => {
@@ -181,9 +258,56 @@ export function foldDshRunEvidence(
       outcome: 'started',
     })]
     const toolNames = new Map<string, string>()
+    const approvals = new Map<string, {
+      readonly timelineIndex: number
+      readonly name: string
+      readonly callId: string
+      readonly policy?: string
+      decided: boolean
+    }>()
     let reportedUsage: DigitalEmployeeRunUsage | undefined
     let end: SessionEvent<'turn/end'> | undefined
     for (const current of selected) {
+      const approval = approvalAuditEvent(current)
+      if (approval?.type === 'approval/asked') {
+        const callId = approval.data.callId
+        if (callId === undefined || toolNames.get(callId) !== approval.data.toolName || approvals.has(approval.data.id)) {
+          continue
+        }
+        const item = {
+          kind: 'approval' as const,
+          timestamp: approval.time,
+          name: approval.data.toolName,
+          callId,
+          approvalId: approval.data.id,
+          ...(approval.data.reason === undefined ? {} : { policy: approval.data.reason }),
+          outcome: 'asked' as const,
+        }
+        approvals.set(approval.data.id, {
+          timelineIndex: timeline.length,
+          name: approval.data.toolName,
+          callId,
+          ...(approval.data.reason === undefined ? {} : { policy: approval.data.reason }),
+          decided: false,
+        })
+        timeline.push(Object.freeze(item))
+        continue
+      }
+      if (approval?.type === 'approval/decided') {
+        const pending = approvals.get(approval.data.id)
+        if (pending === undefined || pending.decided) continue
+        pending.decided = true
+        timeline.push(Object.freeze({
+          kind: 'approval',
+          timestamp: approval.time,
+          name: pending.name,
+          callId: pending.callId,
+          approvalId: approval.data.id,
+          ...(pending.policy === undefined ? {} : { policy: pending.policy }),
+          outcome: approval.data.outcome,
+        }))
+        continue
+      }
       switch (current.type) {
         case 'turn/start': break
         case 'step/start':
@@ -196,6 +320,7 @@ export function foldDshRunEvidence(
             timestamp: current.time,
             step: current.data.step,
             name: current.data.name,
+            callId: current.data.callId,
             outcome: 'started',
           }))
           break
@@ -207,6 +332,7 @@ export function foldDshRunEvidence(
             timestamp: current.time,
             step: current.data.step,
             ...(name === undefined ? {} : { name }),
+            callId: result.toolCallId,
             outcome: current.data.error === undefined && result.isError !== true ? 'completed' : 'failed',
           }))
           break
@@ -232,6 +358,13 @@ export function foldDshRunEvidence(
           timeline.push(Object.freeze({ kind: 'turn', timestamp: current.time, outcome: terminal(current.data.reason) }))
           break
       }
+    }
+    for (const [approvalId, pending] of approvals) {
+      if (pending.decided) continue
+      timeline[pending.timelineIndex] = Object.freeze({
+        ...timeline[pending.timelineIndex]!,
+        outcome: liveApprovalIds.has(approvalId) ? 'waiting-approval' : 'orphaned',
+      })
     }
     const terminalClass = end === undefined ? 'unknown-terminal' : terminal(end.data.reason)
     const completeness = Object.freeze(end === undefined
@@ -327,6 +460,7 @@ export function foldExternalRunEvidence(
   evidence: readonly ExternalEvidenceLike[],
   providerComplete: boolean,
   maxTimelineItems: number,
+  pendingApprovals: readonly PendingApprovalLike[] = [],
 ): FoldedDshRun {
   if (record.canonicalSource.kind !== 'external-native') {
     throw new TypeError('external evidence requires an external-native Run')
@@ -344,9 +478,72 @@ export function foldExternalRunEvidence(
     .map(item => structuredClone(item))
     .sort((left, right) => left.timestamp - right.timestamp || left.id.localeCompare(right.id))
   const timeline: DigitalEmployeeRunTimelineItem[] = []
+  const proposedCalls = new Map<string, string | undefined>()
+  for (const item of matching) {
+    if (item.kind !== 'tool' || item.callId === undefined || item.name === undefined) continue
+    const known = proposedCalls.get(item.callId)
+    if (!proposedCalls.has(item.callId)) proposedCalls.set(item.callId, item.name)
+    else if (known !== item.name) proposedCalls.set(item.callId, undefined)
+  }
+  const pendingKeys = new Set(pendingApprovals.map(pending => JSON.stringify([
+    pending.turnId,
+    pending.approvalId,
+    pending.callId,
+  ])))
+  const approvals = new Map<string, {
+    readonly timelineIndex: number
+    readonly turnId: string
+    readonly name: string
+    readonly callId: string
+    readonly policyId: string
+    decided: boolean
+  }>()
   let reportedUsage: DigitalEmployeeRunUsage | undefined
   let terminalItem: ExternalEvidenceLike | undefined
   for (const item of matching) {
+    if (item.kind === 'approval') {
+      if (item.approvalId === undefined || item.callId === undefined || item.policyId === undefined
+        || item.name === undefined) continue
+      if (item.outcome === 'asked') {
+        if (approvals.has(item.approvalId) || proposedCalls.get(item.callId) !== item.name) continue
+        approvals.set(item.approvalId, {
+          timelineIndex: timeline.length,
+          turnId: item.turnId!,
+          name: item.name,
+          callId: item.callId,
+          policyId: item.policyId,
+          decided: false,
+        })
+        timeline.push(Object.freeze({
+          kind: 'approval',
+          timestamp: item.timestamp,
+          name: item.name,
+          callId: item.callId,
+          approvalId: item.approvalId,
+          policyId: item.policyId,
+          outcome: 'asked',
+        }))
+        continue
+      }
+      const pending = approvals.get(item.approvalId)
+      if (pending === undefined || pending.decided
+        || pending.turnId !== item.turnId
+        || pending.name !== item.name
+        || pending.callId !== item.callId
+        || pending.policyId !== item.policyId
+        || !['allowed-once', 'rejected', 'cancelled', 'unavailable'].includes(String(item.outcome))) continue
+      pending.decided = true
+      timeline.push(Object.freeze({
+        kind: 'approval',
+        timestamp: item.timestamp,
+        name: item.name,
+        callId: item.callId,
+        approvalId: item.approvalId,
+        policyId: item.policyId,
+        outcome: item.outcome as 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable',
+      }))
+      continue
+    }
     if (item.kind === 'usage') {
       const usage = usageOf(item.usage)
       if (usage !== undefined) {
@@ -363,8 +560,18 @@ export function foldExternalRunEvidence(
       kind: item.kind,
       timestamp: item.timestamp,
       ...(item.name === undefined ? {} : { name: item.name }),
+      ...(item.callId === undefined ? {} : { callId: item.callId }),
       ...(item.outcome === undefined ? {} : { outcome: externalTerminal(item.outcome) }),
     }))
+  }
+  for (const [approvalId, pending] of approvals) {
+    if (pending.decided) continue
+    const live = terminalItem === undefined
+      && pendingKeys.has(JSON.stringify([pending.turnId, approvalId, pending.callId]))
+    timeline[pending.timelineIndex] = Object.freeze({
+      ...timeline[pending.timelineIndex]!,
+      outcome: live ? 'waiting-approval' : 'orphaned',
+    })
   }
   const terminalClass = terminalItem === undefined
     ? 'unknown-terminal'

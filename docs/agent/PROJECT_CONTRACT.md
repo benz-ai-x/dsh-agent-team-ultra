@@ -172,8 +172,20 @@ contracts.
   durable child Session provides episodic conversation memory; an external
   employee's native session and history remain provider-owned.
 - Hooks are safe declarative adapters for `session-start`, `before-step`,
-  `before-tool`, and `after-tool`. Arbitrary shell/JavaScript hooks are not in
-  the first increment.
+  `before-tool`, and `after-tool`. A `before-tool` Hook may deny or request
+  exact-call approval; the first enabled matcher in Profile order decides.
+  Other Hook point/effect combinations remain context-only, and arbitrary
+  shell/JavaScript hooks are excluded.
+- DSH approval uses the stock Tool runtime, Host approval service, generated
+  audit events, and Conversation UI. Only `allowed-once` authorizes that exact
+  proposed call. Missing, malformed, throwing, rejected, cancelled, or
+  unavailable decisions deny, and a later monotonic guard may still deny.
+  Approval never changes or weakens sandbox mode or enforcement.
+- An external provider may advertise `exact-call-approval` only together with
+  enforceable Hooks and evidence whose immutable native call, decision, and
+  audit identities correlate exactly. Otherwise save, activation, or launch
+  fails with `runtime-capability-mismatch`. The pinned Codex and Claude Code
+  providers do not advertise this capability.
 - The reusable Host capability installer accepts an exact Lead caller, exact
   target Agent scope, and detached profile snapshot, then owns all persona,
   context, memory, tool-policy, and hook registrations as one lifecycle layer.
@@ -203,6 +215,11 @@ contracts.
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text
   or multiplied across cumulative provider snapshots.
+- Approval timeline items contain only source-proven call, request, policy,
+  and decision identities. `waiting-approval` requires a live unresolved
+  same-process or provider-native correlation; a persisted unmatched ask is
+  repaired as non-actionable `orphaned` evidence and is never resumed by
+  inference.
 
 ## Cancellation and disposal
 
@@ -211,6 +228,9 @@ provider durably accepts the initial work. After acceptance, the Team runtime
 owns terminal settlement of the continuable child or native handle.
 Service disposal may cancel validation or unaccepted provisioning, but never
 stops an unrelated child or one whose initial work is durably Team-owned.
+Ultra disposal also removes every Profile Hook listener and in-process pending
+approval correlation while leaving the stock approval service and unrelated
+provider generations intact.
 Startup, live Lead/roster events, and Runtime Backend generations reconcile
 Bindings against the authoritative permanent roster without provisioning a
 replacement. Provisioning Phase is durable; Runtime Availability and Runtime
@@ -305,3 +325,9 @@ normalized terminal/usage facts, source and terminal filters, lazy bounded
 detail for both source families, explicit incomplete/unavailable states, and
 the absence of raw model, tool, file, environment, credential, or provider
 payload content from storage and Studio.
+
+For exact-call approval, acceptance additionally requires first-match Profile
+Hook ordering, stock DSH approval and Conversation UI routing, one-call-only
+authorization, independent monotonic sandbox enforcement, capability-gated
+external native correlation, truthful waiting/orphan repair, and exact
+Ultra-owned listener and pending-state disposal.

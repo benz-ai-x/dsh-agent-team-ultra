@@ -82,6 +82,7 @@
     "@deepseek-ai/dsh-system-prompt": "link:../../../deepseek-harness/packages/core/system-prompt",
     "@deepseek-ai/dsh-tools": "link:../../../deepseek-harness/packages/core/tools",
     "@deepseek-ai/dsh-typert-protocol": "link:../../../deepseek-harness/packages/typert/protocol",
-    "@deepseek-ai/dsh-typert-registry": "link:../../../deepseek-harness/packages/typert/registry"
+    "@deepseek-ai/dsh-typert-registry": "link:../../../deepseek-harness/packages/typert/registry",
+    "@deepseek-ai/dsh-user-approval": "link:../../../deepseek-harness/packages/interaction/user-approval"
   }
 }

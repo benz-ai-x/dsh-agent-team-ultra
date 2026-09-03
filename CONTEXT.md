@@ -100,6 +100,18 @@ _Avoid_: Success status, runtime availability
 An operational guarantee a provider can enforce, such as exact-call approval, sandboxing, evaluation isolation, evidence, or usage accounting.
 _Avoid_: Advertised feature hint, secret provider configuration
 
+**Exact-call Approval**:
+A human decision scoped to one immutable proposed tool call; only a one-shot grant authorizes that call and it never changes sandbox policy.
+_Avoid_: Session permission, standing approval, sandbox escalation
+
+**Pending Approval Correlation**:
+The live identity link between an unresolved Exact-call Approval and its proposed call; it is the sole basis for presenting the approval as waiting.
+_Avoid_: Unmatched ask, resumable approval
+
+**Orphaned Approval Evidence**:
+A source-proven approval request with no matching decision and no live Pending Approval Correlation, retained only as non-actionable history.
+_Avoid_: Pending approval, waiting approval
+
 **Continuation Provider**:
 The DSH continuable-child mechanism that implements `fresh` or `fork` conversation construction for a DSH model target; it is not the model Runtime Target.
 _Avoid_: Runtime provider, model provider

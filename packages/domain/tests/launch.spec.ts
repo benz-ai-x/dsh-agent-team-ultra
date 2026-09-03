@@ -11,7 +11,7 @@ const baseBinding = {
   memberId: 'original-member',
   profileId: 'reviewer',
   profileRevision: 1,
-  profile: {},
+  profile: { hooks: [] },
   requiredCapabilities: {
     contextMode: 'fresh',
     profileCapabilities: ['persona', 'mission'],

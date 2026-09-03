@@ -105,7 +105,7 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 
   - `session-start`：注入上下文。
   - `before-step`：在步骤前注入上下文。
-  - `before-tool`：按支持 `*` 的工具 matcher 拒绝调用。
+  - `before-tool`：按支持 `*` 的工具 matcher 拒绝调用，或通过 DSH 库存审批请求一次性精确调用授权；首个启用匹配项生效。
   - `after-tool`：按 matcher 追加上下文。
 
 - Hook 不执行任意 JavaScript、shell 或用户代码。
@@ -249,7 +249,7 @@ pnpm run pack:local
 - 只支持同一进程内的现有 Agent Team；不支持嵌套 Team 或跨进程 Team 消息。
 - 已创建员工不热更新 Profile，策展记忆也不会自动写回。
 - 不提供托管 worktree、自动任务所有权、Profile 导入导出或 secret-reference 字段。
-- Hook 首版只支持上下文注入与工具拒绝。
+- Hook 只支持上下文注入、工具拒绝与复用 DSH 库存审批的精确调用授权，不执行用户代码。
 
 [`TODO.md`](../TODO.md) 中剩余工作按优先级建议为：
 

@@ -97,8 +97,8 @@ describe('truthful Run evidence fold', () => {
     expect(folded[0]?.detail.timeline).toEqual([
       { kind: 'turn', timestamp: 100, outcome: 'started' },
       { kind: 'step', timestamp: 102, step: 0, outcome: 'started' },
-      { kind: 'tool', timestamp: 103, step: 0, name: 'read', outcome: 'started' },
-      { kind: 'tool', timestamp: 104, step: 0, name: 'read', outcome: 'completed' },
+      { kind: 'tool', timestamp: 103, step: 0, name: 'read', callId: 'call-1', outcome: 'started' },
+      { kind: 'tool', timestamp: 104, step: 0, name: 'read', callId: 'call-1', outcome: 'completed' },
       { kind: 'usage', timestamp: 105, step: 0, usage: { inputTokens: 11, outputTokens: 7, totalTokens: 18, cacheReadTokens: 3 } },
       { kind: 'step', timestamp: 106, step: 0, outcome: 'completed' },
       { kind: 'turn', timestamp: 107, outcome: 'completed' },
@@ -127,6 +127,80 @@ describe('truthful Run evidence fold', () => {
       status: 'incomplete',
       diagnostic: 'accepted DSH turn has no terminal event',
     })
+  })
+
+  it('projects exact DSH approval audit pairs and orphans unresolved crash tails', () => {
+    const events = [
+      event('turn/start', 0, 10, { turn: 1 }),
+      event('tool/call', 1, 11, {
+        turn: 1,
+        step: 0,
+        callId: 'call-1',
+        name: 'write_file',
+        arguments: '{"path":"SECRET_PATH"}',
+      }),
+      event('approval/asked' as SessionEvent['type'], 2, 12, {
+        id: 'approval-1',
+        toolName: 'write_file',
+        callId: 'call-1',
+        reason: 'Confirm this exact write call.',
+      }),
+    ]
+
+    const live = foldDshRunEvidence(
+      binding,
+      SessionId('employee-session'),
+      events,
+      10,
+      10,
+      new Set(['approval-1']),
+    )
+    expect(live[0]?.detail.timeline).toContainEqual({
+      kind: 'approval',
+      timestamp: 12,
+      name: 'write_file',
+      callId: 'call-1',
+      approvalId: 'approval-1',
+      policy: 'Confirm this exact write call.',
+      outcome: 'waiting-approval',
+    })
+
+    const repaired = foldDshRunEvidence(binding, SessionId('employee-session'), events, 10, 10)
+    expect(repaired[0]?.detail.timeline).toContainEqual(expect.objectContaining({
+      kind: 'approval',
+      approvalId: 'approval-1',
+      outcome: 'orphaned',
+    }))
+    expect(JSON.stringify(repaired)).not.toContain('SECRET_PATH')
+
+    const decided = foldDshRunEvidence(binding, SessionId('employee-session'), [
+      ...events,
+      event('approval/decided' as SessionEvent['type'], 3, 13, {
+        id: 'approval-1',
+        outcome: 'allowed-once',
+      }),
+      event('turn/end', 4, 14, { turn: 1, reason: { kind: 'completed' } }),
+    ], 10, 10)
+    expect(decided[0]?.detail.timeline.filter(item => item.kind === 'approval')).toEqual([
+      {
+        kind: 'approval',
+        timestamp: 12,
+        name: 'write_file',
+        callId: 'call-1',
+        approvalId: 'approval-1',
+        policy: 'Confirm this exact write call.',
+        outcome: 'asked',
+      },
+      {
+        kind: 'approval',
+        timestamp: 13,
+        name: 'write_file',
+        callId: 'call-1',
+        approvalId: 'approval-1',
+        policy: 'Confirm this exact write call.',
+        outcome: 'allowed-once',
+      },
+    ])
   })
 
   it('folds only the newest bounded DSH Runs during index repair', () => {
@@ -278,5 +352,114 @@ describe('truthful Run evidence fold', () => {
 
     expect(folded.index.usage).toEqual({ inputTokens: 8, outputTokens: 3, totalTokens: 11 })
     expect(folded.detail.timeline.filter(item => item.kind === 'usage')).toHaveLength(2)
+  })
+
+  it('projects only correlated native approval decisions and requires a live pending identity for waiting', () => {
+    const externalBinding = Object.freeze({
+      ...binding,
+      selectedRuntimeTarget: { kind: 'external-agent', provider: 'capable-native' },
+      actualRuntimeTarget: { kind: 'external-agent', provider: 'capable-native' },
+      nativeHandle: 'native-session-9',
+    } as const satisfies ExternalRunFoldBinding)
+    const index = createExternalRunIndex(externalBinding, 'native-turn-9', 'native-turn-9', 400)
+    const evidence = [
+      {
+        id: 'tool-1',
+        kind: 'tool' as const,
+        timestamp: 400,
+        turnId: 'native-turn-9',
+        name: 'write_file',
+        callId: 'native-call-1',
+        outcome: 'blocked' as const,
+      },
+      {
+        id: 'approval-asked-1',
+        kind: 'approval' as const,
+        timestamp: 401,
+        turnId: 'native-turn-9',
+        name: 'write_file',
+        outcome: 'asked' as const,
+        approvalId: 'native-approval-1',
+        callId: 'native-call-1',
+        policyId: 'confirm-write',
+      },
+      {
+        id: 'tool-2',
+        kind: 'tool' as const,
+        timestamp: 402,
+        turnId: 'native-turn-9',
+        name: 'write_file',
+        callId: 'native-call-2',
+        outcome: 'blocked' as const,
+      },
+      {
+        id: 'approval-decided-1',
+        kind: 'approval' as const,
+        timestamp: 402,
+        turnId: 'native-turn-9',
+        name: 'write_file',
+        outcome: 'rejected' as const,
+        approvalId: 'native-approval-1',
+        callId: 'native-call-1',
+        policyId: 'confirm-write',
+      },
+      {
+        id: 'approval-unbacked',
+        kind: 'approval' as const,
+        timestamp: 404,
+        turnId: 'native-turn-9',
+        name: 'write_file',
+        outcome: 'asked' as const,
+        approvalId: 'native-approval-unbacked',
+        callId: 'native-call-unbacked',
+        policyId: 'confirm-write',
+      },
+      {
+        id: 'approval-asked-2',
+        kind: 'approval' as const,
+        timestamp: 403,
+        turnId: 'native-turn-9',
+        name: 'write_file',
+        outcome: 'asked' as const,
+        approvalId: 'native-approval-2',
+        callId: 'native-call-2',
+        policyId: 'confirm-write',
+      },
+    ]
+    const pending = [{
+      turnId: 'native-turn-9',
+      approvalId: 'native-approval-2',
+      callId: 'native-call-2',
+    }]
+
+    const live = foldExternalRunEvidence(index, evidence, false, 10, pending)
+    expect(live.detail.timeline.filter(item => item.kind === 'approval')).toEqual([
+      expect.objectContaining({ approvalId: 'native-approval-1', outcome: 'asked' }),
+      expect.objectContaining({ approvalId: 'native-approval-1', outcome: 'rejected' }),
+      expect.objectContaining({ approvalId: 'native-approval-2', outcome: 'waiting-approval' }),
+    ])
+    expect(live.detail.timeline).not.toContainEqual(expect.objectContaining({
+      approvalId: 'native-approval-unbacked',
+    }))
+    const repaired = foldExternalRunEvidence(index, evidence, false, 10)
+    expect(repaired.detail.timeline).toContainEqual(expect.objectContaining({
+      approvalId: 'native-approval-2',
+      outcome: 'orphaned',
+    }))
+
+    const terminal = foldExternalRunEvidence(index, [
+      ...evidence,
+      {
+        id: 'turn-complete',
+        kind: 'turn' as const,
+        timestamp: 405,
+        turnId: 'native-turn-9',
+        outcome: 'completed' as const,
+      },
+    ], true, 20, pending)
+    expect(terminal.detail.timeline).toContainEqual(expect.objectContaining({
+      approvalId: 'native-approval-2',
+      outcome: 'orphaned',
+    }))
   })
 })

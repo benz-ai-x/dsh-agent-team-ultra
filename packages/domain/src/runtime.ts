@@ -93,6 +93,15 @@ export function requiredCapabilitiesForProfile(
   })
 }
 
+/** Derive operational guarantees required only by an external native runtime. */
+export function requiredRuntimeCapabilitiesForProfile(
+  profile: DigitalEmployeeProfileDraft,
+): readonly DigitalEmployeeRuntimeCapability[] {
+  return Object.freeze(profile.hooks.some(hook => hook.enabled && hook.effect === 'ask')
+    ? ['exact-call-approval']
+    : [])
+}
+
 /**
  * Translate one immutable Ultra Profile into the allowlisted external-provider policy seam.
  * @param profile - Immutable Profile content selected for one launch.
@@ -116,6 +125,7 @@ export function externalRuntimeProfileSnapshot(
     hooks: Object.freeze(profile.hooks
       .filter(hook => hook.enabled)
       .map(hook => Object.freeze({
+        id: hook.id,
         point: hook.point,
         effect: hook.effect,
         ...(hook.matcher === undefined ? {} : { matcher: hook.matcher }),
@@ -491,6 +501,16 @@ export class RuntimeBackendRegistry {
         message: `runtime "${routingId}" cannot enforce required Profile capabilities: ${missing.join(', ')}`,
       })
     }
+    if (target.kind === 'external-agent') {
+      const missingRuntime = requiredRuntimeCapabilitiesForProfile(profile).filter(capability =>
+        !backend.runtimeCapabilities.includes(capability))
+      if (missingRuntime.length > 0) {
+        return Object.freeze({
+          code: 'runtime-capability-mismatch',
+          message: `runtime "${routingId}" cannot enforce required Runtime capabilities: ${missingRuntime.join(', ')}`,
+        })
+      }
+    }
     return undefined
   }
 
@@ -588,7 +608,7 @@ export class RuntimeBackendRegistry {
           displayName: model.name,
           contextModes: resolved === undefined ? [] : dshContextModes,
           profileCapabilities: resolved === undefined ? [] : ALL_PROFILE_CAPABILITIES,
-          runtimeCapabilities: [],
+          runtimeCapabilities: resolved === undefined ? [] : ['exact-call-approval'],
           ...(reasoning === undefined ? {} : { reasoning }),
           ...(resolved === undefined ? { diagnostic: INVALID_DSH_DIAGNOSTIC } : {}),
         }))

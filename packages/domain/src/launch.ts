@@ -3,6 +3,7 @@
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { TeamMemberRouteSnapshot, TeamMemberView } from '@deepseek-ai/dsh-experimental-agent-team'
 import { nativeRuntimeHandleFromTeammate } from './spec.ts'
+import { requiredRuntimeCapabilitiesForProfile } from './runtime.ts'
 import { launchRequestFingerprint, type DigitalEmployeeBindingV1 } from './storage.ts'
 import type {
   DigitalEmployeeRuntimePresence,
@@ -82,8 +83,11 @@ export function reconcileBindingFromRoster(
   if (binding.runtimeTarget.kind === 'external-agent') {
     const external = member.externalRuntime
     const expectedCapabilities = binding.requiredCapabilities.profileCapabilities
+    const expectedRuntimeCapabilities = requiredRuntimeCapabilitiesForProfile(binding.profile)
     const requirementsMatch = external?.requirements.contextMode === binding.requiredCapabilities.contextMode
-      && external.requirements.runtimeCapabilities.length === 0
+      && external.requirements.runtimeCapabilities.length === expectedRuntimeCapabilities.length
+      && expectedRuntimeCapabilities.every((capability, index) =>
+        external.requirements.runtimeCapabilities[index] === capability)
       && external.requirements.profileCapabilities.length === expectedCapabilities.length
       && expectedCapabilities.every((capability, index) =>
         external.requirements.profileCapabilities[index] === capability)

@@ -65,7 +65,7 @@ export const profileHookSchema = z.object({
     z.literal('before-tool'),
     z.literal('after-tool'),
   ]),
-  effect: z.union([z.literal('context'), z.literal('deny')]),
+  effect: z.union([z.literal('context'), z.literal('deny'), z.literal('ask')]),
   matcher: z.string().trim().min(1).max(128).optional(),
   text: z.string().trim().min(1).max(4096),
   enabled: z.boolean(),
@@ -74,8 +74,8 @@ export const profileHookSchema = z.object({
     && (hook.effect !== 'context' || hook.matcher !== undefined)) {
     ctx.addIssue({ code: 'custom', message: `${hook.point} hooks require context effect without matcher` })
   }
-  if (hook.point === 'before-tool' && hook.effect !== 'deny') {
-    ctx.addIssue({ code: 'custom', path: ['effect'], message: 'before-tool hooks support only deny' })
+  if (hook.point === 'before-tool' && hook.effect !== 'deny' && hook.effect !== 'ask') {
+    ctx.addIssue({ code: 'custom', path: ['effect'], message: 'before-tool hooks support only deny or ask' })
   }
   if (hook.point === 'after-tool' && hook.effect !== 'context') {
     ctx.addIssue({ code: 'custom', path: ['effect'], message: 'after-tool hooks support only context' })

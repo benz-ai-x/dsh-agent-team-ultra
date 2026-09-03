@@ -27,6 +27,7 @@ import {
 import {
   externalRuntimeProfileSnapshot,
   requiredCapabilitiesForProfile,
+  requiredRuntimeCapabilitiesForProfile,
   RuntimeBackendRegistry,
   snapshotRequiredCapabilities,
   type DigitalEmployeeExternalRuntimeProvider,
@@ -108,7 +109,11 @@ export {
   profileToolPolicySchema,
   selectableDigitalEmployeeRuntimeTargetSchema,
 } from './spec.ts'
-export { requiredCapabilitiesForProfile, runtimeTargetRoutingId } from './runtime.ts'
+export {
+  requiredCapabilitiesForProfile,
+  requiredRuntimeCapabilitiesForProfile,
+  runtimeTargetRoutingId,
+} from './runtime.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -517,6 +522,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   private readonly reconciliations = new Set<Promise<void>>()
   private readonly runRepairs = new Set<Promise<void>>()
   private readonly childInstallations = new Map<Agent, () => void>()
+  private readonly pendingApprovals = new Map<string, Set<string>>()
   private readonly lifecycle = new AbortController()
   private readonly runtimeBackends: RuntimeBackendRegistry
   private admissionOpen = false
@@ -573,6 +579,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       try { stopDisposed() } catch (error: unknown) { failures.push(error) }
       try { stopSessionStart() } catch (error: unknown) { failures.push(error) }
       try { stopSessionEvent() } catch (error: unknown) { failures.push(error) }
+      this.pendingApprovals.clear()
       try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
       await Promise.allSettled([...this.reconciliations])
@@ -591,17 +598,22 @@ export class DigitalEmployeeService extends TypertRemoteService {
       this.installBoundAgent(agent)
       this.scheduleLeadReconciliation(agent)
     })
-    stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => { this.removeBoundAgent(agent) })
+    stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => {
+      this.pendingApprovals.delete(agent.id)
+      this.removeBoundAgent(agent)
+    })
     stopSessionStart = this.ctx.on('agent/session-start', ({ agent }) => {
       this.scheduleLeadReconciliation(agent)
     })
     stopSessionEvent = this.ctx.on('session/event', (session, event) => {
+      this.observeApprovalCorrelation(session.id, event)
       if (event.type === 'team/member') {
         const lead = this.ctx.agents.get(session.id)
         if (lead !== undefined) this.scheduleLeadReconciliation(lead)
       }
       if (event.type === 'turn/start' || event.type === 'turn/end' || event.type === 'assistant/message'
-        || event.type === 'team/member' || event.type === 'team/message/delivered') {
+        || event.type === 'team/member' || event.type === 'team/message/delivered'
+        || String(event.type) === 'approval/asked' || String(event.type) === 'approval/decided') {
         this.scheduleRunRepair(session.id)
       }
     })
@@ -761,6 +773,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
           events,
           this.resolved.maxRunEvidenceItems,
           this.resolved.maxRuns,
+          this.pendingApprovals.get(stored.canonicalSource.sessionId),
         ).find(candidate => candidate.index.runId === stored.runId)
         if (folded === undefined) {
           return runRejected(failure('evidence-unavailable', 'canonical DSH turn is no longer inspectable'))
@@ -788,6 +801,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         page.items,
         page.complete,
         this.resolved.maxRunEvidenceItems,
+        page.pendingApprovals,
       )
       await this.requireStorage().putRun(folded.index, this.resolved.maxRuns)
       return Object.freeze({ ok: true as const, value: folded.detail })
@@ -1267,7 +1281,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
             requirements: {
               contextMode: reservation.requiredCapabilities.contextMode,
               profileCapabilities: reservation.requiredCapabilities.profileCapabilities,
-              runtimeCapabilities: [],
+              runtimeCapabilities: requiredRuntimeCapabilitiesForProfile(profile),
             },
           },
           signal,
@@ -1472,8 +1486,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
     const beforeTool = enabled.filter(hook => hook.point === 'before-tool')
     if (beforeTool.length > 0) {
       add(childCtx.on('tools/pre-execute', async (exec, next): Promise<PreToolDecision> => {
-        const denied = beforeTool.find(hook => matchesTool(hook.matcher ?? '', exec.name))
-        if (denied !== undefined) return { kind: 'deny', reason: denied.text }
+        const matched = beforeTool.find(hook => matchesTool(hook.matcher ?? '', exec.name))
+        if (matched?.effect === 'ask') return { kind: 'ask', reason: matched.text }
+        if (matched?.effect === 'deny') return { kind: 'deny', reason: matched.text }
         return await next()
       }))
     }
@@ -1818,6 +1833,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       events,
       this.resolved.maxRunEvidenceItems,
       this.resolved.maxRuns,
+      this.pendingApprovals.get(binding.memberId),
     )
     for (const run of runs) {
       signal.throwIfAborted()
@@ -1897,6 +1913,34 @@ export class DigitalEmployeeService extends TypertRemoteService {
       seen.add(membership.id)
       await this.repairTeamRuns(agent)
     }
+  }
+
+  /** Retain only same-process unresolved audit ids; persisted asks are intentionally non-resumable. */
+  private observeApprovalCorrelation(sessionId: SessionId, event: SessionEvent): void {
+    const type = String(event.type)
+    if (type === 'turn/end') {
+      this.pendingApprovals.delete(sessionId)
+      return
+    }
+    if (type !== 'approval/asked' && type !== 'approval/decided') return
+    const data = event.data as unknown as Record<string, unknown>
+    if (typeof data.id !== 'string' || data.id.length === 0) return
+    if (type === 'approval/decided') {
+      const pending = this.pendingApprovals.get(sessionId)
+      pending?.delete(data.id)
+      if (pending?.size === 0) this.pendingApprovals.delete(sessionId)
+      return
+    }
+    if (typeof data.callId !== 'string' || data.callId.length === 0) return
+    const binding = [...this.requireStorage().bindingEntries()]
+      .map(([, current]) => current)
+      .find(current => current.memberId === sessionId
+        && current.provisioningPhase === 'active'
+        && current.runtimeTarget.kind === 'dsh-model')
+    if (binding === undefined || this.ctx.agents.get(sessionId) === undefined) return
+    const pending = this.pendingApprovals.get(sessionId) ?? new Set<string>()
+    pending.add(data.id)
+    this.pendingApprovals.set(sessionId, pending)
   }
 
   /** Track event-driven Run repair as disposal-visible work. */

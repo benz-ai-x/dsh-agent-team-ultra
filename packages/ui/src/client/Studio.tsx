@@ -25,6 +25,7 @@ import type {
   DigitalEmployeeRunIndexRecord,
   DigitalEmployeeRunSource,
   DigitalEmployeeRunTerminal,
+  DigitalEmployeeRunTimelineItem,
   DigitalEmployeeStudioView,
   GetDigitalEmployeeRunResult,
   ProfileHook,
@@ -289,6 +290,22 @@ function runTerminalLabel(terminal: DigitalEmployeeRunTerminal, t: Translate): s
   }
 }
 
+function runTimelineOutcomeLabel(
+  outcome: NonNullable<DigitalEmployeeRunTimelineItem['outcome']>,
+  t: Translate,
+): string {
+  switch (outcome) {
+    case 'started': return t('runStarted')
+    case 'asked': return t('runApprovalAsked')
+    case 'waiting-approval': return t('runApprovalWaiting')
+    case 'orphaned': return t('runApprovalOrphaned')
+    case 'allowed-once': return t('runApprovalAllowedOnce')
+    case 'rejected': return t('runApprovalRejected')
+    case 'unavailable': return t('runApprovalUnavailable')
+    default: return runTerminalLabel(outcome, t)
+  }
+}
+
 function runOwnerLabel(run: DigitalEmployeeRunIndexRecord, t: Translate): string {
   return run.owner.kind === 'team-member'
     ? run.owner.memberName
@@ -353,10 +370,6 @@ function hookPointLabel(point: ProfileHookPoint, t: Translate): string {
   }
 }
 
-function hookEffectOf(point: ProfileHookPoint): 'context' | 'deny' {
-  return point === 'before-tool' ? 'deny' : 'context'
-}
-
 function isToolPoint(point: ProfileHookPoint): boolean {
   return point === 'before-tool' || point === 'after-tool'
 }
@@ -366,10 +379,20 @@ function pointAdjusted(hook: ProfileHook, point: ProfileHookPoint): ProfileHook 
     const { matcher: _matcher, ...rest } = hook
     return { ...rest, point, effect: 'context' }
   }
+  if (point === 'before-tool') {
+    return {
+      ...hook,
+      point,
+      effect: hook.point === 'before-tool' && (hook.effect === 'deny' || hook.effect === 'ask')
+        ? hook.effect
+        : 'deny',
+      matcher: hook.matcher?.trim() || '*',
+    }
+  }
   return {
     ...hook,
     point,
-    effect: hookEffectOf(point),
+    effect: 'context',
     matcher: hook.matcher?.trim() || '*',
   }
 }
@@ -1525,9 +1548,22 @@ export function DigitalEmployeeStudio({
                                         <option key={point} value={point}>{hookPointLabel(point, t)}</option>
                                       ))}
                                     </select>
-                                    <span className={hook.effect === 'deny' ? css.badgeDeny : css.badgeInject}>
-                                      {t(hook.effect === 'deny' ? 'denyEffect' : 'contextEffect')}
-                                    </span>
+                                    {hook.point === 'before-tool'
+                                      ? (
+                                        <select
+                                          aria-label={t('hookEffect')}
+                                          value={hook.effect}
+                                          onChange={event => {
+                                            updateHook(hook.id, { effect: event.target.value as 'deny' | 'ask' })
+                                          }}
+                                        >
+                                          <option value="deny">{t('denyEffect')}</option>
+                                          <option value="ask">{t('askEffect')}</option>
+                                        </select>
+                                        )
+                                      : (
+                                        <span className={css.badgeInject}>{t('contextEffect')}</span>
+                                        )}
                                     {isToolPoint(hook.point) && (
                                       <input
                                         className={css.matcher}
@@ -1795,8 +1831,12 @@ function RunInspector({
               <time>{new Date(item.timestamp).toLocaleString()}</time>
               <strong>{item.kind}{item.name === undefined ? '' : ` · ${item.name}`}</strong>
               {item.outcome !== undefined && (
-                <span>{item.outcome === 'started' ? t('runStarted') : runTerminalLabel(item.outcome, t)}</span>
+                <span>{runTimelineOutcomeLabel(item.outcome, t)}</span>
               )}
+              {item.callId !== undefined && <span>{t('runCallId')}: {item.callId}</span>}
+              {item.approvalId !== undefined && <span>{t('runApprovalId')}: {item.approvalId}</span>}
+              {item.policyId !== undefined && <span>{t('runPolicyId')}: {item.policyId}</span>}
+              {item.policy !== undefined && <span>{t('runApprovalPolicy')}: {item.policy}</span>}
               {item.usage !== undefined && (
                 <span>{t('runUsage')}: {item.usage.inputTokens} / {item.usage.outputTokens}</span>
               )}

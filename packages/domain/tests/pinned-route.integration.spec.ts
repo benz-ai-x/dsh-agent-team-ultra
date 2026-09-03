@@ -4,8 +4,10 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import TeamService, {
   TeammateEvaluationHandle,
+  TeammateRuntimeApprovalId,
   TeammateRuntimeHandle,
   TeammateRuntimeEvidenceId,
+  TeammateRuntimeToolCallId,
   TeammateRuntimeTurnId,
   type TeammateRuntimeDisposeRequest,
   type TeammateRuntimeProvider,
@@ -13,6 +15,7 @@ import TeamService, {
 import {
   LlmAdapter,
   ReasoningEffortId,
+  ToolCallId,
   type GenerateOptions,
   type LlmModelInfo,
   type LlmResolvedModelInfo,
@@ -26,6 +29,10 @@ import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import SubagentService, { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ApprovalService, {
+  type ApprovalOutcome,
+  type ApprovalRequest,
+} from '@deepseek-ai/dsh-user-approval'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -201,12 +208,13 @@ function fakeNativeStore(): FakeNativeStore {
 }
 
 class FakeNativeProvider implements TeammateRuntimeProvider {
-  readonly id = 'fake-native'
-  readonly displayName = 'Fake Native'
+  readonly id: string
+  readonly displayName: string
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'] as const
-  readonly runtimeCapabilities = ['evaluation', 'evidence', 'usage'] as const
+  readonly runtimeCapabilities: TeammateRuntimeProvider['runtimeCapabilities']
   readonly apiKey = 'never-cross-the-host-boundary'
+  readonly sandboxMode = 'read-only'
   readonly attached = new Set<ReturnType<typeof TeammateRuntimeHandle>>()
   readonly create = vi.fn<TeammateRuntimeProvider['create']>(async (request) => {
     request.signal.throwIfAborted()
@@ -258,22 +266,61 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
     const turns = [session.initialTurnId, ...session.turns.values()]
     return {
       nativeHandle: request.nativeHandle,
-      items: turns.flatMap((turnId, index) => ([
-        {
-          id: TeammateRuntimeEvidenceId(`fake-usage-${index + 1}`),
+      items: turns.flatMap((turnId, index) => {
+        const suffix = index + 1
+        const usage = {
+          id: TeammateRuntimeEvidenceId(`fake-usage-${suffix}`),
           kind: 'usage' as const,
-          timestamp: index * 10 + 1,
+          timestamp: index * 10 + 4,
           turnId,
           usage: { inputTokens: 10 + index, outputTokens: 2, totalTokens: 12 + index },
-        },
-        {
-          id: TeammateRuntimeEvidenceId(`fake-evidence-${index + 1}`),
+        }
+        const terminal = {
+          id: TeammateRuntimeEvidenceId(`fake-evidence-${suffix}`),
           kind: 'turn' as const,
-          timestamp: index * 10 + 2,
+          timestamp: index * 10 + 5,
           turnId,
           outcome: 'completed' as const,
-        },
-      ])),
+        }
+        if (!this.exactCallApproval) return [usage, terminal]
+        const approvalId = TeammateRuntimeApprovalId(`fake-approval-${suffix}`)
+        const callId = TeammateRuntimeToolCallId(`fake-call-${suffix}`)
+        return [
+          {
+            id: TeammateRuntimeEvidenceId(`fake-approval-asked-${suffix}`),
+            kind: 'approval' as const,
+            timestamp: index * 10 + 1,
+            turnId,
+            name: 'write_file',
+            outcome: 'asked' as const,
+            approvalId,
+            callId,
+            policyId: 'confirm-write',
+          },
+          {
+            id: TeammateRuntimeEvidenceId(`fake-approval-decided-${suffix}`),
+            kind: 'approval' as const,
+            timestamp: index * 10 + 2,
+            turnId,
+            name: 'write_file',
+            outcome: 'allowed-once' as const,
+            approvalId,
+            callId,
+            policyId: 'confirm-write',
+          },
+          {
+            id: TeammateRuntimeEvidenceId(`fake-tool-${suffix}`),
+            kind: 'tool' as const,
+            timestamp: index * 10 + 3,
+            turnId,
+            name: 'write_file',
+            outcome: 'blocked' as const,
+            callId,
+          },
+          usage,
+          terminal,
+        ]
+      }),
       complete: true,
     }
   })
@@ -289,7 +336,19 @@ class FakeNativeProvider implements TeammateRuntimeProvider {
     if (request.kind === 'runtime') this.attached.delete(request.nativeHandle)
   })
 
-  constructor(private readonly store: FakeNativeStore) {}
+  constructor(
+    private readonly store: FakeNativeStore,
+    options: { readonly id?: string; readonly exactCallApproval?: boolean } = {},
+  ) {
+    this.id = options.id ?? 'fake-native'
+    this.displayName = this.id === 'fake-native' ? 'Fake Native' : `Fake Native ${this.id}`
+    this.exactCallApproval = options.exactCallApproval === true
+    this.runtimeCapabilities = this.exactCallApproval
+      ? ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage']
+      : ['evaluation', 'evidence', 'usage']
+  }
+
+  private readonly exactCallApproval: boolean
 
   private session(handle: ReturnType<typeof TeammateRuntimeHandle>): FakeNativeSession {
     const session = [...this.store.sessions.values()].find(candidate => candidate.nativeHandle === handle)
@@ -333,6 +392,129 @@ async function waitForMissingAgent(ctx: Context, id: SessionId): Promise<void> {
 }
 
 describe('pinned dsh-model route integration', () => {
+  it('routes Profile ask through the stock Tool runtime and approval service, then removes only Ultra state', async () => {
+    const ctx = new Context()
+    activeContext = ctx
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
+    const sessionRoot = mkdtempSync(join(tmpdir(), 'dsh-ultra-stock-approval-'))
+    temporaryRoots.push(sessionRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: sessionRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(ApprovalService)
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(TeamService)
+    installMemoryStorageDomain(ctx)
+    const leadHandle = await ctx.agents.create({ sessionId: SessionId('approval-lead') })
+    const employeeHandle = await ctx.agents.create({ sessionId: SessionId('approval-employee') })
+    const lead = leadHandle.agent
+    const employee = employeeHandle.agent
+    const ultraFiber = ctx.plugin(DigitalEmployeeService)
+    await ultraFiber
+    let executions = 0
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'Synthetic exact write',
+      parameters: {},
+      async execute() {
+        executions += 1
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const seen: ApprovalRequest[] = []
+    ctx.on('approval/request', (request) => {
+      seen.push(request)
+      return Promise.resolve<ApprovalOutcome>('allowed-once')
+    })
+    const service = ctx.digitalEmployees as unknown as {
+      installProfileCapabilities(caller: Agent, target: Agent, source: DigitalEmployeeProfileDraft & {
+        revision: number
+        createdAt: number
+        updatedAt: number
+      }): () => void
+    }
+    service.installProfileCapabilities(lead, employee, {
+      ...profile({
+        toolPolicy: { mode: 'inherit', names: [] },
+        context: [],
+        memory: [],
+        hooks: [{
+          id: 'confirm-write',
+          point: 'before-tool',
+          effect: 'ask',
+          matcher: 'write*',
+          text: 'Confirm this exact write call.',
+          enabled: true,
+        }],
+      }),
+      revision: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    employee.session.append('turn/start', { turn: 1 })
+
+    const first = await ctx.tools.execute({
+      agent: employee,
+      signal: SIGNAL,
+      callId: ToolCallId('profile-call-1'),
+      name: 'write_file',
+      arguments: {},
+    })
+    expect(first.isError).toBe(false)
+    expect(executions).toBe(1)
+    expect(seen[0]?.agent).toBe(employee)
+    expect(seen[0]).toMatchObject({
+      toolName: 'write_file',
+      callId: 'profile-call-1',
+      reason: 'Confirm this exact write call.',
+    })
+
+    const removeSandboxGuard = employee.ctx.tools.guard(exec =>
+      exec.name === 'write_file' ? 'native sandbox remains read-only' : undefined)
+    const guarded = await ctx.tools.execute({
+      agent: employee,
+      signal: SIGNAL,
+      callId: ToolCallId('profile-call-2'),
+      name: 'write_file',
+      arguments: {},
+    })
+    expect(guarded).toMatchObject({ isError: true, error: { message: 'native sandbox remains read-only' } })
+    expect(executions).toBe(1)
+    expect(seen.map(request => request.callId)).toEqual(['profile-call-1', 'profile-call-2'])
+    const audit = employee.session.ownEvents().filter(event =>
+      String(event.type) === 'approval/asked' || String(event.type) === 'approval/decided')
+    expect(audit.map(event => event.type)).toEqual([
+      'approval/asked',
+      'approval/decided',
+      'approval/asked',
+      'approval/decided',
+    ])
+    expect((audit[0]?.data as { callId?: string }).callId).toBe('profile-call-1')
+    expect((audit[1]?.data as { outcome?: string }).outcome).toBe('allowed-once')
+    expect((audit[2]?.data as { callId?: string }).callId).toBe('profile-call-2')
+    expect((audit[3]?.data as { outcome?: string }).outcome).toBe('allowed-once')
+
+    removeSandboxGuard()
+    await ultraFiber.dispose()
+    expect(ctx.get('approval')).toBeDefined()
+    const afterUltra = await ctx.tools.execute({
+      agent: employee,
+      signal: SIGNAL,
+      callId: ToolCallId('profile-call-3'),
+      name: 'write_file',
+      arguments: {},
+    })
+    expect(afterUltra.isError).toBe(false)
+    expect(executions).toBe(2)
+    expect(seen).toHaveLength(2)
+    employee.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    await employeeHandle.dispose()
+    await leadHandle.dispose()
+    await ctx.fiber.dispose()
+    activeContext = undefined
+  }, 20_000)
+
   it('keeps the selected route and immutable Profile scope across a real cold resume', async () => {
     const ctx = new Context()
     activeContext = ctx
@@ -524,6 +706,121 @@ describe('pinned dsh-model route integration', () => {
 })
 
 describe('durable external-agent route integration', () => {
+  it('proves exact native approval identity while preserving independent sandbox denial', async () => {
+    const ctx = new Context()
+    activeContext = ctx
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
+    const sessionRoot = mkdtempSync(join(tmpdir(), 'dsh-ultra-external-approval-'))
+    temporaryRoots.push(sessionRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: sessionRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(TeamService)
+    installMemoryStorageDomain(ctx)
+    const lead = ctx.agentLoop.create(SessionId('external-approval-lead'), {})
+    const ultraFiber = ctx.plugin(DigitalEmployeeService)
+    await ultraFiber
+    const provider = new FakeNativeProvider(fakeNativeStore(), { exactCallApproval: true })
+    const providerFiber = ctx.plugin({
+      inject: ['digitalEmployees'],
+      apply(pluginCtx: Context) {
+        pluginCtx.digitalEmployees.registerExternalRuntimeProvider(provider)
+      },
+    })
+    const other = new FakeNativeProvider(fakeNativeStore(), { id: 'other-native' })
+    const otherFiber = ctx.plugin({
+      inject: ['digitalEmployees'],
+      apply(pluginCtx: Context) {
+        pluginCtx.digitalEmployees.registerExternalRuntimeProvider(other)
+      },
+    })
+    await Promise.all([providerFiber, otherFiber])
+    await ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    const approvalProfile = profile({
+      toolPolicy: { mode: 'inherit', names: [] },
+      hooks: [{
+        id: 'confirm-write',
+        point: 'before-tool',
+        effect: 'ask',
+        matcher: 'write*',
+        text: 'Confirm this exact write call.',
+        enabled: true,
+      }],
+    })
+    const saved = await ctx.digitalEmployees.saveProfile(lead, {
+      expectedHeadRevision: null,
+      profile: approvalProfile,
+      runtimeTarget: { kind: 'external-agent', provider: 'fake-native' },
+    })
+    if (!saved.ok) throw new Error(saved.error.message)
+    const activated = await ctx.digitalEmployees.activateProfile(lead, {
+      profileId: saved.value.head.profileId,
+      revision: saved.value.revision.revision,
+      expectedHeadRevision: saved.value.head.headRevision,
+    })
+    if (!activated.ok) throw new Error(activated.error.message)
+    const launched = await ctx.digitalEmployees.spawnProfile(lead, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: saved.value.head.profileId,
+    }, SIGNAL)
+    if (!launched.ok) throw new Error(launched.error.message)
+
+    expect(provider.create).toHaveBeenCalledWith(expect.objectContaining({
+      profile: expect.objectContaining({
+        hooks: [{
+          id: 'confirm-write',
+          point: 'before-tool',
+          effect: 'ask',
+          matcher: 'write*',
+          text: 'Confirm this exact write call.',
+        }],
+      }),
+      requirements: expect.objectContaining({
+        runtimeCapabilities: ['exact-call-approval'],
+      }),
+    }))
+    const run = (await ctx.digitalEmployees.remoteView(lead)).runs
+      .find(candidate => candidate.canonicalTurnId === 'fake-initial-1')
+    if (run === undefined) throw new Error('external approval Run is missing')
+    const evidence = await ctx.digitalEmployees.runEvidence(lead, { runId: run.runId }, SIGNAL)
+    expect(evidence).toMatchObject({
+      ok: true,
+      value: {
+        timeline: [
+          {
+            kind: 'approval',
+            approvalId: 'fake-approval-1',
+            callId: 'fake-call-1',
+            policyId: 'confirm-write',
+            outcome: 'asked',
+          },
+          {
+            kind: 'approval',
+            approvalId: 'fake-approval-1',
+            callId: 'fake-call-1',
+            policyId: 'confirm-write',
+            outcome: 'allowed-once',
+          },
+          { kind: 'tool', callId: 'fake-call-1', outcome: 'blocked' },
+          { kind: 'usage' },
+          { kind: 'turn', outcome: 'completed' },
+        ],
+      },
+    })
+    expect(provider.sandboxMode).toBe('read-only')
+
+    await providerFiber.dispose()
+    await ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    expect(provider.attached).toHaveLength(0)
+    expect(ctx.digitalEmployees.studioView(lead).runtimeCatalog.backends).toContainEqual(
+      expect.objectContaining({ routingId: 'external-agent/other-native', availability: 'available' }),
+    )
+    await otherFiber.dispose()
+    await ultraFiber.dispose()
+  }, 20_000)
+
   it('keeps one native identity across Ultra restart, provider absence, and multiple turns', async () => {
     const ctx = new Context()
     activeContext = ctx
@@ -613,8 +910,8 @@ describe('durable external-agent route integration', () => {
         memory: [{ id: 'memory-v1', title: 'Memory V1', content: 'MEMORY V1' }],
         toolPolicy: { mode: 'allow', names: ['read'] },
         hooks: [
-          { point: 'session-start', effect: 'context', text: 'START HOOK V1' },
-          { point: 'before-step', effect: 'context', text: 'STEP HOOK V1' },
+          { id: 'start-v1', point: 'session-start', effect: 'context', text: 'START HOOK V1' },
+          { id: 'step-v1', point: 'before-step', effect: 'context', text: 'STEP HOOK V1' },
         ],
       },
     }))

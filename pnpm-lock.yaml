@@ -135,6 +135,9 @@ importers:
       '@deepseek-ai/dsh-typert-registry':
         specifier: link:../../../deepseek-harness/packages/typert/registry
         version: link:../../../deepseek-harness/packages/typert/registry
+      '@deepseek-ai/dsh-user-approval':
+        specifier: link:../../../deepseek-harness/packages/interaction/user-approval
+        version: link:../../../deepseek-harness/packages/interaction/user-approval
 
   packages/profile:
     devDependencies:

@@ -45,7 +45,7 @@ export type ProfileHookPoint = 'session-start' | 'before-step' | 'before-tool' |
 export interface ProfileHook {
   readonly id: string
   readonly point: ProfileHookPoint
-  readonly effect: 'context' | 'deny'
+  readonly effect: 'context' | 'deny' | 'ask'
   readonly matcher?: string
   readonly text: string
   readonly enabled: boolean
@@ -372,11 +372,23 @@ export interface DigitalEmployeeRunIndexRecord {
 
 /** One normalized evidence edge; raw model and tool payloads cannot be represented. */
 export interface DigitalEmployeeRunTimelineItem {
-  readonly kind: 'turn' | 'step' | 'tool' | 'usage' | 'diagnostic'
+  readonly kind: 'turn' | 'step' | 'tool' | 'approval' | 'usage' | 'diagnostic'
   readonly timestamp: number
   readonly step?: number
   readonly name?: string
-  readonly outcome?: 'started' | DigitalEmployeeRunTerminal
+  readonly callId?: string
+  readonly approvalId?: string
+  readonly policyId?: string
+  readonly policy?: string
+  readonly outcome?:
+    | 'started'
+    | 'asked'
+    | 'waiting-approval'
+    | 'orphaned'
+    | 'allowed-once'
+    | 'rejected'
+    | 'unavailable'
+    | DigitalEmployeeRunTerminal
   readonly usage?: DigitalEmployeeRunUsage
 }
 

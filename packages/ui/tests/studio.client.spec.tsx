@@ -295,6 +295,15 @@ describe('Digital Employee Studio', () => {
           run: externalRun,
           timeline: [
             { kind: 'tool' as const, timestamp: 210, name: 'read', outcome: 'completed' as const },
+            {
+              kind: 'approval' as const,
+              timestamp: 215,
+              name: 'write_file',
+              outcome: 'asked' as const,
+              callId: 'call-7',
+              approvalId: 'approval-7',
+              policyId: 'confirm-write',
+            },
             { kind: 'turn' as const, timestamp: 220, outcome: 'completed' as const },
           ],
           timelineTruncated: false,
@@ -323,6 +332,10 @@ describe('Digital Employee Studio', () => {
     expect(screen.getByText(/Selected route:/).parentElement?.textContent).toContain('native-reviewer')
     expect(screen.getByText(/content, tool-arguments, tool-results, raw-payloads/)).toBeTruthy()
     expect(screen.getByText(/tool · read/)).toBeTruthy()
+    expect(screen.getByText('Approval requested')).toBeTruthy()
+    expect(screen.getByText(/Call ID: call-7/)).toBeTruthy()
+    expect(screen.getByText(/Approval ID: approval-7/)).toBeTruthy()
+    expect(screen.getByText(/Policy ID: confirm-write/)).toBeTruthy()
     const source = screen.getByRole('link', { name: 'Canonical source' }) as HTMLAnchorElement
     expect(source.getAttribute('href')).toContain('native-reviewer/native-turn-7')
   })
@@ -909,6 +922,33 @@ describe('hook cards', () => {
     fireEvent.change(screen.getByLabelText('Point'), { target: { value: 'before-step' } })
     expect(screen.getByText('Inject context')).toBeDefined()
     expect(screen.queryByLabelText(/Tool matcher/)).toBeNull()
+  })
+
+  it('edits a before-tool Hook between deny and exact-call approval', async () => {
+    const save = vi.fn(async () => ({
+      ok: true as const,
+      value: { ok: false as const, error: { code: 'profile-invalid' as const, message: 'captured' } },
+    }))
+    const load = vi.fn(async () => ({ ok: true as const, value: view([withHook()]) }))
+    render(<DigitalEmployeeStudio {...props({ load, save })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Hooks/ }))
+
+    fireEvent.change(screen.getByLabelText('Point'), { target: { value: 'before-tool' } })
+    const effect = screen.getByLabelText('Effect') as HTMLSelectElement
+    expect(effect.value).toBe('deny')
+    fireEvent.change(effect, { target: { value: 'ask' } })
+    expect(screen.getByText('Ask for approval')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await waitFor(() => { expect(save).toHaveBeenCalledOnce() })
+    expect(save.mock.calls[0]?.[1].profile.hooks[0]).toMatchObject({
+      id: 'h1',
+      point: 'before-tool',
+      effect: 'ask',
+      matcher: '*',
+    })
   })
 })
 

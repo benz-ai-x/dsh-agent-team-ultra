@@ -202,6 +202,7 @@ async function harness(options: {
     ['teammate', []],
   ])
   const session = (id: string, header: Record<string, unknown>) => ({
+    id,
     header,
     ownEvents: () => [...sessionEvents.get(id) ?? []],
   })
@@ -899,6 +900,27 @@ describe('Digital Employee profile contract', () => {
     expect(parsed.success).toBe(false)
   })
 
+  it('permits declarative ask only for before-tool hooks', () => {
+    const ask: ProfileHook = {
+      id: 'confirm-write',
+      point: 'before-tool',
+      effect: 'ask',
+      matcher: 'write*',
+      text: 'Confirm this exact write call.',
+      enabled: true,
+    }
+
+    expect(digitalEmployeeProfileDraftSchema.safeParse(draft({ hooks: [ask] })).success).toBe(true)
+    for (const point of ['session-start', 'before-step', 'after-tool'] as const) {
+      expect(digitalEmployeeProfileDraftSchema.safeParse(draft({
+        hooks: [{ ...ask, point }],
+      })).success).toBe(false)
+    }
+    expect(digitalEmployeeProfileDraftSchema.safeParse(draft({
+      hooks: [{ ...ask, effect: 'deny' }],
+    })).success).toBe(true)
+  })
+
   it('deeply detaches and freezes snapshots', () => {
     const source: DigitalEmployeeProfile = {
       ...draft(),
@@ -975,6 +997,60 @@ describe('Digital Employee profile contract', () => {
     expect(disposals).toHaveLength(8)
     expect(disposals.every(candidate => candidate.mock.calls.length === 1)).toBe(true)
 
+    await runtime.fiber.dispose()
+  })
+
+  it('returns the first enabled matching before-tool ask or deny decision in Profile order', async () => {
+    const runtime = await harness()
+    let beforeTool: ((exec: { readonly name: string }, next: () => Promise<unknown>) => Promise<unknown>) | undefined
+    const childCtx = {
+      systemPrompt: {
+        section: () => vi.fn(),
+        context: () => vi.fn(),
+      },
+      tools: { restrict: () => vi.fn() },
+      on: (event: string, listener: unknown) => {
+        if (event === 'tools/pre-execute') beforeTool = listener as typeof beforeTool
+        return vi.fn()
+      },
+    } as unknown as Context
+    const child = {
+      id: 'approval-worker',
+      session: { header: {} },
+      ctx: childCtx,
+    } as unknown as Agent
+    Object.defineProperty(childCtx, 'agent', { value: child })
+    const profile: DigitalEmployeeProfile = {
+      ...draft({
+        hooks: [
+          { id: 'disabled', point: 'before-tool', effect: 'deny', matcher: '*', text: 'Disabled.', enabled: false },
+          { id: 'confirm-write', point: 'before-tool', effect: 'ask', matcher: 'write*', text: 'Confirm write.', enabled: true },
+          { id: 'late-deny', point: 'before-tool', effect: 'deny', matcher: 'write_file', text: 'Too late.', enabled: true },
+          { id: 'deny-shell', point: 'before-tool', effect: 'deny', matcher: 'bash*', text: 'No shell.', enabled: true },
+        ],
+      }),
+      revision: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const service = runtime.ctx.digitalEmployees as unknown as {
+      installProfileCapabilities(caller: Agent, target: Agent, source: DigitalEmployeeProfile): () => void
+    }
+    const dispose = service.installProfileCapabilities(runtime.leader, child, profile)
+    const next = vi.fn(async () => ({ kind: 'allow' as const }))
+
+    await expect(beforeTool?.({ name: 'write_file' }, next)).resolves.toEqual({
+      kind: 'ask',
+      reason: 'Confirm write.',
+    })
+    await expect(beforeTool?.({ name: 'bash_exec' }, next)).resolves.toEqual({
+      kind: 'deny',
+      reason: 'No shell.',
+    })
+    await expect(beforeTool?.({ name: 'read' }, next)).resolves.toEqual({ kind: 'allow' })
+    expect(next).toHaveBeenCalledOnce()
+
+    dispose()
     await runtime.fiber.dispose()
   })
 
@@ -1359,6 +1435,83 @@ describe('Digital Employee profile contract', () => {
     })
     expect(JSON.stringify([...runtime.runs.records.values()])).not.toContain('SECRET_RUN_REPLY')
     await runtime.fiber.dispose()
+  })
+
+  it('shows only a live in-process DSH approval as waiting and orphans it after service restart', async () => {
+    const runtime = await harness()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft({
+        hooks: [{
+          id: 'confirm-write',
+          point: 'before-tool',
+          effect: 'ask',
+          matcher: 'write*',
+          text: 'Confirm this exact write call.',
+          enabled: true,
+        }],
+      }),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(
+      runtime.leader,
+      { launchRequestId: LAUNCH_REQUEST_ID, profileId: 'code-reviewer' },
+      new AbortController().signal,
+    )
+    runtime.appendSessionEvent('child', 'turn/start', { turn: 1 }, 100)
+    runtime.appendSessionEvent('child', 'tool/call', {
+      turn: 1,
+      step: 0,
+      callId: 'call-1',
+      name: 'write_file',
+      arguments: '{"path":"SECRET_PATH"}',
+    }, 101)
+    runtime.appendSessionEvent('child', 'approval/asked' as SessionEvent['type'], {
+      id: 'approval-1',
+      toolName: 'write_file',
+      callId: 'call-1',
+      reason: 'Confirm this exact write call.',
+    }, 102)
+
+    const run = (await runtime.ctx.digitalEmployees.remoteView(runtime.leader)).runs[0]!
+    await expect(runtime.ctx.digitalEmployees.runEvidence(
+      runtime.leader,
+      { runId: run.runId },
+      new AbortController().signal,
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        timeline: [
+          { kind: 'turn', outcome: 'started' },
+          { kind: 'tool', callId: 'call-1', outcome: 'started' },
+          { kind: 'approval', approvalId: 'approval-1', outcome: 'waiting-approval' },
+        ],
+      },
+    })
+
+    await runtime.fiber.dispose()
+    const replacement = runtime.ctx.plugin(DigitalEmployeeService)
+    await replacement
+    await expect(runtime.ctx.digitalEmployees.runEvidence(
+      runtime.leader,
+      { runId: run.runId },
+      new AbortController().signal,
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        timeline: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'approval',
+            approvalId: 'approval-1',
+            outcome: 'orphaned',
+          }),
+        ]),
+      },
+    })
+    await replacement.dispose()
   })
 
   it('repairs external launch and delivery Runs and lazily folds exact native evidence', async () => {
@@ -2123,6 +2276,12 @@ describe('Digital Employee profile contract', () => {
         providerName: 'Duplicate Label',
         model: 'second-model',
         modelName: 'Duplicate Label',
+      }, {
+        provider: 'aliased-provider',
+        providerName: 'Aliased Provider',
+        model: 'advertised-model',
+        modelName: 'Advertised Model',
+        resolvedModel: 'canonical-model',
       }],
     })
     await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
@@ -2140,6 +2299,7 @@ describe('Digital Employee profile contract', () => {
           displayName: 'Duplicate Label',
           contextModes: ['fresh', 'fork'],
           profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+          runtimeCapabilities: ['exact-call-approval'],
           reasoning: {
             efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
             defaultEffort: 'low',
@@ -2150,12 +2310,20 @@ describe('Digital Employee profile contract', () => {
         providerDisplayName: 'Duplicate Label',
         displayName: 'Duplicate Label',
       })
+    expect(initial.backends.find(backend => backend.routingId === 'dsh-model/aliased-provider/advertised-model'))
+      .toMatchObject({
+        availability: 'unavailable',
+        contextModes: [],
+        profileCapabilities: [],
+        runtimeCapabilities: [],
+      })
     expect(initial.backends.find(backend => backend.routingId === 'external-agent/codex'))
       .toMatchObject({
           routingId: 'external-agent/codex',
           family: 'external-agent',
           availability: 'unsupported',
           provider: 'codex',
+          runtimeCapabilities: [],
       })
     expect(initial.backends.find(backend => backend.routingId === 'external-agent/claude-code'))
       .toMatchObject({
@@ -2163,6 +2331,7 @@ describe('Digital Employee profile contract', () => {
           family: 'external-agent',
           availability: 'unsupported',
           provider: 'claude-code',
+          runtimeCapabilities: [],
       })
     expect(Object.isFrozen(initial)).toBe(true)
     expect(Object.isFrozen(initial.backends)).toBe(true)
@@ -2439,6 +2608,69 @@ describe('Digital Employee profile contract', () => {
     await runtime.fiber.dispose()
   })
 
+  it('requires exact-call approval for external ask hooks and forwards the immutable demand', async () => {
+    const runtime = await harness()
+    const askProfile = draft({
+      hooks: [{
+        id: 'confirm-write',
+        point: 'before-tool',
+        effect: 'ask',
+        matcher: 'write*',
+        text: 'Confirm this exact write call.',
+        enabled: true,
+      }],
+    })
+    const incapable = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-without-approval',
+      displayName: 'Native Without Approval',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: ['evidence'],
+    }))
+    const capable = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-with-approval',
+      displayName: 'Native With Approval',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: ['exact-call-approval', 'evidence'],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: askProfile,
+      runtimeTarget: { kind: 'external-agent', provider: 'native-without-approval' },
+    })).resolves.toMatchObject({ ok: false, error: { code: 'runtime-capability-mismatch' } })
+    await expect(runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: askProfile,
+      runtimeTarget: { kind: 'external-agent', provider: 'native-with-approval' },
+    })).resolves.toMatchObject({ ok: true })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: askProfile.id,
+      revision: 1,
+      expectedHeadRevision: 1,
+    })
+    await runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: askProfile.id,
+    }, new AbortController().signal)
+
+    expect(runtime.spawn).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      runtime: expect.objectContaining({
+        profile: expect.objectContaining({
+          hooks: [expect.objectContaining({ id: 'confirm-write', effect: 'ask' })],
+        }),
+        requirements: expect.objectContaining({
+          runtimeCapabilities: ['exact-call-approval'],
+        }),
+      }),
+    }))
+    await incapable()
+    await capable()
+    await runtime.fiber.dispose()
+  })
+
   it('keeps a missing historical target visible but blocks activation and launch without fallback', async () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
@@ -2459,6 +2691,7 @@ describe('Digital Employee profile contract', () => {
       availability: 'unavailable',
       provider: 'test-provider',
       model: 'test-model',
+      runtimeCapabilities: [],
     })
     await expect(runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
       profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 2,
