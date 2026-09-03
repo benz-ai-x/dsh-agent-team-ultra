@@ -37,6 +37,11 @@
       config:
         sandbox: read-only
 
+    - id: agent-team-claude-code
+      name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'
+      config:
+        sandbox: read-only
+
     - id: tool-agent-team
       name: '@deepseek-ai/dsh-experimental-tool-agent-team'
       config:

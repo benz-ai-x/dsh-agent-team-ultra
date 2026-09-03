@@ -150,6 +150,9 @@ importers:
       '@deepseek-ai/dsh-experimental-agent-team':
         specifier: link:../../../deepseek-harness/packages/experimental/agent-team
         version: link:../../../deepseek-harness/packages/experimental/agent-team
+      '@deepseek-ai/dsh-experimental-agent-team-claude-code':
+        specifier: link:../../../deepseek-harness/packages/experimental/agent-team-claude-code
+        version: link:../../../deepseek-harness/packages/experimental/agent-team-claude-code
       '@deepseek-ai/dsh-experimental-agent-team-codex':
         specifier: link:../../../deepseek-harness/packages/experimental/agent-team-codex
         version: link:../../../deepseek-harness/packages/experimental/agent-team-codex

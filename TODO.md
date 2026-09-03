@@ -21,6 +21,7 @@
 - [x] Launch and cold-resume dsh-model employees on their exact provider/model/reasoning route while retaining selected and resolved routes.
 - [x] Make Launch Intents Team-idempotent and restart-reconcilable with separate provisioning, availability, and presence state.
 - [x] Activate the audited package-local durable Codex Runtime Backend in the profile and local artifact closure.
+- [x] Activate the audited package-local durable Claude Code Runtime Backend in the profile and local artifact closure.
 
 ## Later
 

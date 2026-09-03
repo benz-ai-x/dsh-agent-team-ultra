@@ -25,6 +25,10 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 - `@deepseek-ai/dsh-experimental-agent-team-codex` is the Host-only durable
   Codex Runtime Backend, qualified against its exact package-local native
   payload and activated with a read-only sandbox.
+- `@deepseek-ai/dsh-experimental-agent-team-claude-code` is the Host-only
+  durable Claude Code Runtime Backend, qualified against its exact
+  package-local Agent SDK/native payload and activated with a read-only
+  sandbox.
 - Required Host services: `agents`, `agentTeams`, `llm`, `storageDomain`,
   `subagents`, `systemPrompt`, and `tools`.
 
@@ -137,8 +141,16 @@ contracts.
   workspace-write sandboxing, bounded scrubbed evidence, and usage accounting.
   The shipped profile selects read-only sandboxing, approval `never`, and
   disabled network access.
-- One-shot-only Claude Code providers may appear as unsupported diagnostics,
-  but are disabled until a durable runtime registers.
+- The Claude Code provider qualifies only the pinned package-local Claude
+  Agent SDK `0.3.241` and Claude Code `2.1.241` native payload. It never
+  searches `PATH`; a missing, mismatched, or unqualified payload leaves the
+  route unavailable without another backend.
+- Claude Code owns one deterministic native Session per accepted teammate,
+  verifies the hashed launch identity against the native transcript before
+  resume, serializes mailbox delivery, and de-duplicates turns by their hashed
+  message identity. It accepts only fresh context, inherited Profile tool
+  policy with no Hooks, fixed `Read`/`Glob`/`Grep` tools, read-only sandboxing,
+  bounded scrubbed evidence, and usage occurrence.
 - A durable external provider registers one complete typed contract with Agent
   Team and Ultra. Its detached catalog metadata includes enforceable context,
   Profile, and operational Runtime Capabilities. Provider objects, credentials,
@@ -219,8 +231,8 @@ direct constructor call could bypass Loader validation.
 Delivery is a local-only overlay bound to the audited Harness commit in
 `dsh-reference.lock.json`. The upstream Agent Team packages are private, so
 this workspace is not npm-publishable. `pack:local` creates the three Ultra
-archives and the four pinned private Agent Team archives for artifact
-inspection, then emits a seven-package source-link command. The runnable DSH
+archives and the five pinned private Agent Team archives for artifact
+inspection, then emits an eight-package source-link command. The runnable DSH
 profile uses those exact built source links because the pinned public DSH peer
 versions are not all present in the registry.
 
@@ -250,3 +262,8 @@ session, no one-shot fallback, and no provider secret in Remote or Studio. For
 the Codex route, qualification must prove the exact package-local native
 payload; evidence must remain bounded and scrubbed, and Fiber disposal must
 remove the registration and every owned process/thread handle.
+
+For the Claude Code route, qualification must prove the exact package-local
+SDK/native product, cold resume must verify the same deterministic native
+Session, and evidence must not expose prompts, payloads, credentials, native
+paths, configuration, or login state.

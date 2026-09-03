@@ -26,8 +26,8 @@ scrubbed before leaving the provider boundary.
 
 ## Consequences
 
-The Codex package is a fourth pinned private upstream package and part of the
-seven-source-link local delivery closure. Missing or mismatched native payloads
+The Codex package is one of the five pinned private upstream packages in the
+eight-source-link local delivery closure. Missing or mismatched native payloads
 leave its stable catalog route unavailable without fallback. Exact interrupt,
 crash repair, teammate removal, evaluation cleanup, and Fiber disposal apply
 only to the matching native handles; disposing the provider also removes its

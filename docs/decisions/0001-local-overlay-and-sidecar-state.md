@@ -26,13 +26,13 @@ commit, and child-scope capability installation. Promotion requires the
 upstream Agent Team packages to become published or Ultra to independently
 reimplement their public contracts.
 
-The local delivery check creates seven archives: three Ultra packages and the
-four pinned private Agent Team packages. Those archives prove package content
+The local delivery check creates eight archives: three Ultra packages and the
+five pinned private Agent Team packages. Those archives prove package content
 and browser-safe ordinary resolution, but they are not advertised as an
 independent executable closure: the pinned public DSH peer versions are not all
-available in the registry. The runnable Web profile installs the same seven built
+available in the registry. The runnable Web profile installs the same eight built
 packages through explicit `link:` specs, so Node resolves their public runtime
-peers from the audited Harness and Ultra workspaces. The bundle keeps the six
+peers from the audited Harness and Ultra workspaces. The bundle keeps the seven
 runtime packages as optional peers so it can act as this local composition
 layer without requesting nonexistent registry packages.
 

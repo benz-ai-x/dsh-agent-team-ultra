@@ -2,13 +2,14 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `7e2aebd304d53e0b972acd21e46d3648a2702f1d`。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、固定包内 Codex Runtime Backend 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-alpha.4` 兼容源码分支与提交 `f9349a98d0577a7dc80db3b052d0fe8615be6237`。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、固定包内 Codex/Claude Code Runtime Backend 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 能力
 
 - 身份：Profile ID、队友名称、显示名称、职责描述。
 - 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；目录只公开可执行的上下文、Profile 与运行能力，provider 凭据和原生对象留在 Host。
 - Codex：使用固定 `@openai/codex` `0.149.1` 包内原生载荷维护非临时 app-server thread；默认只读沙箱、拒绝审批且禁用网络，不搜索或回退到 `PATH` 中的 Codex。
+- Claude Code：使用固定 Claude Agent SDK `0.3.241` 与 Claude Code `2.1.241` 包内原生载荷维护稳定 Session；冷恢复校验原生 transcript，固定只读工具与沙箱，不搜索或回退到 `PATH` 中的 Claude。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
@@ -23,6 +24,7 @@ flowchart LR
   RPC --> HOST[DigitalEmployeeService]
   MODELS[DSH Model Registry] --> HOST
   CODEX[Package-local Codex Runtime] --> TEAM
+  CLAUDE[Package-local Claude Code Runtime] --> TEAM
   LOCAL[Durable Local Runtime Registry] --> HOST
   HOST --> STORE[(storageDomain\nHead + Revision + Binding)]
   HOST --> TEAM[DSH Agent Team]
@@ -44,7 +46,7 @@ pnpm install
 pnpm verify
 ```
 
-`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；七包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
+`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；八包本地归档的干净安装和 browser-safe ESM 导入；以及真实源码链接 DSH Web profile 的 Host 解析、`--dump-config` 组合和随机端口启动检查。
 
 ## 安装到本地 DSH Web
 
@@ -54,12 +56,13 @@ pnpm verify
 pnpm run pack:local
 ```
 
-该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成三个 Ultra 包与四个上游 private Agent Team 包。归档用于内容验收；固定版本的 DSH 公共 peers 尚未全部发布到 registry，因此可运行安装必须使用命令最后打印的七个源码 `link:`，让每个包从已审计 checkout 解析准确依赖。其形式如下：
+该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成三个 Ultra 包与五个上游 private Agent Team 包。归档用于内容验收；固定版本的 DSH 公共 peers 尚未全部发布到 registry，因此可运行安装必须使用命令最后打印的八个源码 `link:`，让每个包从已审计 checkout 解析准确依赖。其形式如下：
 
 ```sh
 dsh plugin --profile web add \
   "link:/absolute/path/to/deepseek-harness/packages/experimental/agent-team" \
   "link:/absolute/path/to/deepseek-harness/packages/experimental/agent-team-codex" \
+  "link:/absolute/path/to/deepseek-harness/packages/experimental/agent-team-claude-code" \
   "link:/absolute/path/to/deepseek-harness/packages/experimental/tool-agent-team" \
   "link:/absolute/path/to/deepseek-harness/packages/experimental/client-ui-agent-team" \
   "link:/absolute/path/to/dsh-agent-team-ultra/packages/domain" \
@@ -74,7 +77,7 @@ dsh --profile web --dump-config
 dsh web
 ```
 
-配置结果中应出现 `agent-team`、`agent-team-codex`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team` 和 `ui-agent-team-ultra` 六个稳定行，同时三个冲突的全局 continuable 控制工具保持禁用。
+配置结果中应出现 `agent-team`、`agent-team-codex`、`agent-team-claude-code`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team` 和 `ui-agent-team-ultra` 七个稳定行，同时三个冲突的全局 continuable 控制工具保持禁用。
 
 ## 使用
 
@@ -123,6 +126,7 @@ DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、miss
 - Runtime Catalog 只包含白名单化的展示、可用性、上下文、能力和推理元数据；API key、endpoint、环境值、本机路径、登录状态及 live adapter 均不会传给 Client。
 - 耐久外部 provider 与 Agent Team 共用一个 Fiber 生命周期：移除时立即停止新调用，在 cleanup 宽限期后发出中止信号但继续等待实际静止，并只释放该 generation 的 runtime/evaluation handle；其他 provider 不受影响。
 - Codex adapter 只在固定包内原生载荷及其版本通过资格校验时注册；它保留稳定 thread identity，幂等处理启动与 mailbox turn，并在 interrupt、崩溃修复或 Fiber disposal 时只清理精确 handle。
+- Claude Code adapter 只在固定 SDK/native 载荷通过资格校验时注册；它以确定性 Session id 幂等启动，逐条串行处理 mailbox turn，冷恢复先核验 transcript 身份，并在 interrupt 或 Fiber disposal 时只终止精确 Query/process tree。
 - 外部 mailbox、interrupt 与 evidence 始终使用精确 provider/native handle；隔离 evaluation 使用自己的 evaluation id/handle。两者都不会回退到一次性 Codex/Claude subagent。
 - Profile 不包含凭据字段，也不会把 API key 或其他 secret 传给 Client。
 
@@ -134,13 +138,13 @@ DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、miss
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md) 和 [包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md)。
+接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md) 和 [包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md)。
 
 ## 当前限制
 
 - 仅支持同一进程内的现有 Agent Team，不支持嵌套 Team 或跨进程 Team 消息。
 - 不热更新已存在员工的 Profile，不自动写回策展记忆。
 - Hook 不执行用户代码；首版仅提供上下文注入和工具拒绝。
-- 固定包内 Codex `0.149.1` 未通过资格校验时会显示为不可用；只支持一次性调用的 Claude Code 仍显示为“不支持”。历史中暂时缺失的目标可原样保留但显示为不可用，激活或启动不会回退到 Lead 路由。
+- 固定包内 Codex `0.149.1` 或 Claude Agent SDK `0.3.241`/Claude Code `2.1.241` 未通过资格校验时，对应路由会显示为不可用。Claude Code 仅接受 fresh 上下文、继承工具策略且不支持 Hook、exact-call approval 或 evaluation；历史中暂时缺失的目标可原样保留但显示为不可用，激活或启动不会回退到 Lead 路由。
 - 不提供托管 worktree、自动任务所有权、Profile 导入导出或 secret reference。
 - 自动化无凭据测试覆盖完整组合与协议边界；2026-08-30 已在隔离 Profile 完成一次真实模型 Web 创建与冷恢复验收，后续变更仍应在目标 DSH 安装中复验。

@@ -23,6 +23,7 @@ describe('Agent Team Ultra profile overlay', () => {
       '@deepseek-ai/dsh-agent-team-ultra': '0.1.0',
       '@deepseek-ai/dsh-client-ui-agent-team-ultra': '0.1.0',
       '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-alpha.4',
+      '@deepseek-ai/dsh-experimental-agent-team-claude-code': '0.1.2-alpha.4',
       '@deepseek-ai/dsh-experimental-agent-team-codex': '0.1.2-alpha.4',
       '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.2-alpha.4',
       '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.2-alpha.4',
@@ -30,6 +31,9 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(Object.values(manifest.peerDependenciesMeta ?? {}).every(meta => meta.optional === true)).toBe(true)
     expect(manifest.devDependencies?.['@deepseek-ai/dsh-experimental-agent-team-codex']).toBe(
       'link:../../../deepseek-harness/packages/experimental/agent-team-codex',
+    )
+    expect(manifest.devDependencies?.['@deepseek-ai/dsh-experimental-agent-team-claude-code']).toBe(
+      'link:../../../deepseek-harness/packages/experimental/agent-team-claude-code',
     )
 
     const patches = yaml.load(
@@ -51,6 +55,7 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(inserted.map(entry => entry.id)).toEqual([
       'agent-team',
       'agent-team-codex',
+      'agent-team-claude-code',
       'tool-agent-team',
       'agent-team-ultra',
       'ui-agent-team',
@@ -59,6 +64,10 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(new Set(inserted.map(entry => entry.id)).size).toBe(inserted.length)
     expect(inserted.find(entry => entry.id === 'agent-team-codex')).toMatchObject({
       name: '@deepseek-ai/dsh-experimental-agent-team-codex',
+      config: { sandbox: 'read-only' },
+    })
+    expect(inserted.find(entry => entry.id === 'agent-team-claude-code')).toMatchObject({
+      name: '@deepseek-ai/dsh-experimental-agent-team-claude-code',
       config: { sandbox: 'read-only' },
     })
     expect(inserted.find(entry => entry.id === 'agent-team-ultra')).toMatchObject({

@@ -19,6 +19,7 @@ mkdirSync(output, { recursive: true })
 const packageRoots = [
   join(harness, 'packages', 'experimental', 'agent-team'),
   join(harness, 'packages', 'experimental', 'agent-team-codex'),
+  join(harness, 'packages', 'experimental', 'agent-team-claude-code'),
   join(harness, 'packages', 'experimental', 'tool-agent-team'),
   join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
   join(root, 'packages', 'domain'),

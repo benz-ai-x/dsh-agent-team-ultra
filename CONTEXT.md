@@ -72,6 +72,10 @@ _Avoid_: One-shot subagent, catalog metadata object
 The durable external provider backed only by the audited package-local `@openai/codex` native payload, with one stable app-server thread per accepted teammate and no `PATH` fallback.
 _Avoid_: Codex CLI invocation, one-shot Codex task
 
+**Claude Code Runtime Backend**:
+The durable external provider backed only by the audited package-local Claude Agent SDK/native payload, with one deterministic native Session per teammate and exact transcript-verified resume.
+_Avoid_: Claude Code CLI invocation, one-shot Claude subagent
+
 **Native Runtime Handle**:
 The stable opaque provider-native identity returned after initial work is durably accepted and retained before an external Binding becomes active.
 _Avoid_: Member ID, Launch Request ID, provider process object
