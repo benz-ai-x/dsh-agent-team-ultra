@@ -32,6 +32,7 @@
     - id: agent-team-codex
       name: '@deepseek-ai/dsh-experimental-agent-team-codex'
       config:
+        catalogOwnerService: digitalEmployees
         sandbox: read-only
 
     - id: agent-team-claude-code
