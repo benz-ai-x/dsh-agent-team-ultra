@@ -1,13 +1,10 @@
 # Local Agent Team Ultra overlay. Apply after dsh-base and dsh-web-app.
-# Team-owned controls replace the three overlapping global continuable controls.
+# Team-owned controls replace the two overlapping global continuable controls.
 
 - id: tool-subagent-control
   disabled: true
 
 - id: tool-subagent-list-agents
-  disabled: true
-
-- id: tool-subagent-report
   disabled: true
 
 - id: tool-subagent

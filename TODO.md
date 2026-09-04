@@ -12,7 +12,7 @@
 - [x] Compose stable Loader rows in the bundle patch.
 - [x] Pass unit, lifecycle, Loader/profile, Client, and packed-artifact checks.
 - [x] Run the credentialed manual Web launch and cold-resume acceptance scenario on the target DSH installation.
-- [x] Upgrade the audited source baseline to DSH `0.1.2-alpha.4` and migrate child composition to the supported Agent lifecycle.
+- [x] Upgrade the audited source baseline to DSH `0.1.2-rc.1`, migrate Session persistence to scoped handles, and align Agent Team delivery/profile contracts.
 - [x] Make the Studio window movable, eight-direction resizable, viewport-bounded, and container-responsive.
 - [x] Harden Studio, Remote, and headless seams to exact live Team Lead authority with reusable snapshot and Agent-scope lifecycle primitives.
 - [x] Add the isolated v1 storage generation and idempotently migrate v0 Profiles and Bindings on JSON and SQLite.

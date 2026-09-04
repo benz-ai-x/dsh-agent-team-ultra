@@ -22,11 +22,11 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(manifest.peerDependencies).toEqual({
       '@deepseek-ai/dsh-agent-team-ultra': '0.1.0',
       '@deepseek-ai/dsh-client-ui-agent-team-ultra': '0.1.0',
-      '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-alpha.4',
-      '@deepseek-ai/dsh-experimental-agent-team-claude-code': '0.1.2-alpha.4',
-      '@deepseek-ai/dsh-experimental-agent-team-codex': '0.1.2-alpha.4',
-      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.2-alpha.4',
-      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.2-alpha.4',
+      '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-rc.1',
+      '@deepseek-ai/dsh-experimental-agent-team-claude-code': '0.1.2-rc.1',
+      '@deepseek-ai/dsh-experimental-agent-team-codex': '0.1.2-rc.1',
+      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.2-rc.1',
+      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.2-rc.1',
     })
     expect(Object.values(manifest.peerDependenciesMeta ?? {}).every(meta => meta.optional === true)).toBe(true)
     expect(manifest.devDependencies?.['@deepseek-ai/dsh-experimental-agent-team-codex']).toBe(
@@ -47,7 +47,6 @@ describe('Agent Team Ultra profile overlay', () => {
     }[]
     expect(patches.find(patch => patch.id === 'tool-subagent-control')).toMatchObject({ disabled: true })
     expect(patches.find(patch => patch.id === 'tool-subagent-list-agents')).toMatchObject({ disabled: true })
-    expect(patches.find(patch => patch.id === 'tool-subagent-report')).toMatchObject({ disabled: true })
     expect(patches.find(patch => patch.id === 'tool-subagent')?.config).toMatchObject({ backgroundMode: 'one-shot' })
     expect(patches.find(patch => patch.id === 'tool-subagent-fork')?.config).toMatchObject({ backgroundMode: 'one-shot' })
 

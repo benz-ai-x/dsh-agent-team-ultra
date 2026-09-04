@@ -30,9 +30,12 @@ const pinnedPeerRoots = [
   join(harness, 'vendor', 'cordis'),
   join(harness, 'packages', 'core', 'agent'),
   join(harness, 'packages', 'util', 'brand'),
+  join(harness, 'packages', 'runtime-diagnostics', 'invariants'),
   join(harness, 'packages', 'llm', 'llm'),
   join(harness, 'packages', 'sandbox', 'sandbox-policy'),
   join(harness, 'packages', 'core', 'session'),
+  join(harness, 'packages', 'session', 'session-persistence'),
+  join(harness, 'packages', 'session', 'session-projection'),
   join(harness, 'packages', 'storage', 'storage-domain'),
   join(harness, 'packages', 'subagent', 'subagent'),
   join(harness, 'packages', 'core', 'system-prompt'),
@@ -42,6 +45,15 @@ const pinnedPeerRoots = [
   join(harness, 'packages', 'sdk', 'protocol'),
   join(harness, 'packages', 'subprocess', 'subprocess'),
   join(harness, 'packages', 'util', 'timeout'),
+  join(harness, 'packages', 'api', 'gateway'),
+  join(harness, 'packages', 'api', 'remotes'),
+  join(harness, 'packages', 'api', 'session-controller'),
+  join(harness, 'packages', 'client', 'locale'),
+  join(harness, 'packages', 'client', 'ui-conversation'),
+  join(harness, 'packages', 'client', 'ui-primitives'),
+  join(harness, 'packages', 'client', 'ui-renderer'),
+  join(harness, 'packages', 'client', 'ui-session'),
+  join(harness, 'packages', 'client', 'ui-slots'),
 ]
 const packageNames = packageRoots.map(packageRoot => {
   const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))

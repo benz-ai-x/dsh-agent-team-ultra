@@ -2942,8 +2942,13 @@ export class DigitalEmployeeService extends TypertRemoteService {
     signal.throwIfAborted()
     const live = this.ctx.agents.get(SessionId(sessionId))
     if (live !== undefined) return live.session.ownEvents()
-    const inspected = await this.ctx.sessionPersistence.inspect(SessionId(sessionId), signal)
-    return inspected.events.slice(inspected.inheritedEventCount)
+    const handle = await this.ctx.sessionPersistence.open(SessionId(sessionId), 'read', { signal })
+    try {
+      const events = await handle.read(0, undefined, { signal })
+      return events.slice(handle.inheritedEventCount)
+    } finally {
+      await handle.close()
+    }
   }
 
   /** Rebuild every DSH Run row from its canonical child Session. */

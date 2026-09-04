@@ -646,7 +646,7 @@ describe('pinned dsh-model route integration', () => {
     const adapter = new PinnedRouteAdapter()
     ctx.llm.registerAdapter([SELECTED_PROVIDER], adapter)
     ctx.llm.registerAdapter(['lead-provider-before', 'lead-provider-after'], new LeadAdapter())
-    const lead = ctx.agentLoop.create(SessionId('pinned-route-lead'), {
+    const lead = await ctx.agentLoop.create(SessionId('pinned-route-lead'), {
       provider: 'lead-provider-before',
       model: 'lead-model-before',
     })
@@ -710,12 +710,17 @@ describe('pinned dsh-model route integration', () => {
     expect(firstRequest.tools?.map(tool => tool.name)).toEqual(['read'])
     await waitForMissingAgent(ctx, childId)
 
-    const durable = await ctx.sessionPersistence.inspect(childId, SIGNAL)
-    expect(foldSubagentDescriptor(durable.events.slice(durable.inheritedEventCount))).toMatchObject({
-      agentProvider: SELECTED_PROVIDER,
-      agentModel: SELECTED_MODEL,
-      agentReasoningEffort: 'high',
-    })
+    const durable = await ctx.sessionPersistence.open(childId, 'read', { signal: SIGNAL })
+    try {
+      const events = await durable.read(durable.inheritedEventCount, undefined, { signal: SIGNAL })
+      expect(foldSubagentDescriptor(events)).toMatchObject({
+        agentProvider: SELECTED_PROVIDER,
+        agentModel: SELECTED_MODEL,
+        agentReasoningEffort: 'high',
+      })
+    } finally {
+      await durable.close()
+    }
     expect(ctx.agentTeams.listMembers(lead)[1]).toMatchObject({
       id: childId,
       model: SELECTED_MODEL,
@@ -761,7 +766,6 @@ describe('pinned dsh-model route integration', () => {
     await ctx.agentTeams.sendMessage(lead, {
       target: 'route-reviewer',
       content: [{ type: 'text', text: 'resume the existing employee' }],
-      delivery: 'wakeup',
       signal: SIGNAL,
     })
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(2) }, { timeout: 5_000 })
@@ -816,7 +820,7 @@ describe('durable external-agent route integration', () => {
     await ctx.plugin(SubagentService)
     await ctx.plugin(TeamService)
     installMemoryStorageDomain(ctx)
-    const lead = ctx.agentLoop.create(SessionId('external-approval-lead'), {})
+    const lead = await ctx.agentLoop.create(SessionId('external-approval-lead'), {})
     const ultraFiber = ctx.plugin(DigitalEmployeeService)
     await ultraFiber
     const provider = new FakeNativeProvider(fakeNativeStore(), { exactCallApproval: true })
@@ -933,7 +937,7 @@ describe('durable external-agent route integration', () => {
     const storageState = installMemoryStorageDomain(ctx)
     const { v1Tables } = storageState
     const leadId = SessionId('external-route-lead')
-    const lead = ctx.agentLoop.create(leadId, {})
+    const lead = await ctx.agentLoop.create(leadId, {})
     const oneShot = vi.spyOn(ctx.subagents, 'startContinuable')
     await ctx.plugin(DigitalEmployeeService)
     const store = fakeNativeStore()
@@ -1019,7 +1023,6 @@ describe('durable external-agent route integration', () => {
     await expect(ctx.agentTeams.sendMessage(lead, {
       target: 'route-reviewer',
       content: [{ type: 'text', text: 'First work turn.' }],
-      delivery: 'wakeup',
       signal: SIGNAL,
     })).resolves.toMatchObject({ status: 'accepted' })
     const beforeRestartRuns = (await ctx.digitalEmployees.remoteView(lead)).runs
@@ -1091,7 +1094,6 @@ describe('durable external-agent route integration', () => {
     await expect(resumedCtx.agentTeams.sendMessage(leadHandle.agent, {
       target: 'route-reviewer',
       content: [{ type: 'text', text: 'Second work turn after restart.' }],
-      delivery: 'wakeup',
       signal: SIGNAL,
     })).resolves.toMatchObject({ status: 'accepted' })
     expect([...store.sessions.values()][0]?.turns).toHaveLength(2)
@@ -1163,7 +1165,7 @@ describe('isolated candidate evaluation integration', () => {
     }))
     const adapter = new EvaluationAdapter()
     ctx.llm.registerAdapter([SELECTED_PROVIDER], adapter)
-    const lead = ctx.agentLoop.create(SessionId('dsh-evaluation-lead'), {})
+    const lead = await ctx.agentLoop.create(SessionId('dsh-evaluation-lead'), {})
     const ultraFiber = ctx.plugin(DigitalEmployeeService)
     await ultraFiber
     const saved = await ctx.digitalEmployees.saveProfile(lead, {
@@ -1262,7 +1264,7 @@ describe('isolated candidate evaluation integration', () => {
     await ctx.plugin(SubagentService)
     await ctx.plugin(TeamService)
     const storage = installMemoryStorageDomain(ctx)
-    const lead = ctx.agentLoop.create(SessionId('external-evaluation-lead'), {})
+    const lead = await ctx.agentLoop.create(SessionId('external-evaluation-lead'), {})
     const ultraFiber = ctx.plugin(DigitalEmployeeService)
     await ultraFiber
     const provider = new FakeNativeProvider(fakeNativeStore(), { exactCallApproval: true })

@@ -1,6 +1,6 @@
 # DSH Agent Team Ultra 交接文档
 
-> 交接快照：2026-09-03（Asia/Shanghai）
+> 交接快照：2026-09-04（Asia/Shanghai）
 >
 > 当前阶段：全部可信开发轮次已完成；除既有精确路由、耐久 Runtime、Run 证据和隔离评测外，Studio 完整快照流、代际监督、生命周期静止及归档安装/卸载证明均已落地。
 
@@ -20,10 +20,10 @@ pnpm verify
 
 | 项目 | 固定值 |
 |---|---|
-| DSH 版本 | `0.1.2-alpha.4` |
+| DSH 版本 | `0.1.2-rc.1` |
 | Harness source fork | `https://github.com/benz-ai-x/deepseek-harness.git` |
-| Harness commit | `13d301be906ddf60a6e2a09ea86465726cc42edf` |
-| Harness docs digest | `37732ed5e550a6d201b6dc48001fde0c8e0c8d163e920cd69853d872b5b0bae4` |
+| Harness commit | `4b60986f8c85a12e23ff4eb2ebbd5dc868f44587` |
+| Harness docs digest | `abb5005d9f3b25070538d67045d14323213f818f510b727d8867bebef3c14ce4` |
 | Node.js | `^22.19.0 || >=24.0.0` |
 | pnpm | `11.7.0` |
 | 交付方式 | local-only、八个 `file:` 归档 + 锁定 Harness peer `link:` |
@@ -34,8 +34,8 @@ pnpm verify
 
 - 分支：`main`
 - 远端：`git@github.com:benz-ai-x/dsh-agent-team-ultra.git`
-- 本快照对应 Issue #14 的完整实现；最终提交以远端 `main` 的 HEAD 为准。
-- 锁定 Harness checkout 位于 `/root/workspace/deepseek-harness`，并在 source fork 分支 `agent-team-ultra-pinned-route` 的固定 commit 上保持干净。
+- 本快照包含 Issue #14 的完整实现与 DSH `0.1.2-rc.1` 契约迁移；最终提交以远端 `main` 的 HEAD 为准。
+- 锁定 Harness checkout 位于 `/root/workspace/deepseek-harness`，并在 source fork 分支 `agent-team-ultra-current` 的固定 commit 上保持干净。
 - 2026-08-30 的 credentialed 人工验收未重复执行；本次 credential-free 套件覆盖完整工作流，并通过八归档安装、双原生运行时解析、真实 Web 组合启动和残留为零的卸载门禁。
 - 本地启动应使用锁定源码 CLI 或与锁定版本一致的 CLI，并使用隔离的 `DSH_HOME`。
 
@@ -162,9 +162,9 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 5. 创建临时真实 DSH Web Profile，安装八个归档及锁定 peer links，验证 Host import、双 Runtime、最终 Cordis 组合和随机端口监听。
 6. 卸载八个 overlay 包，验证 Ultra、Codex、Claude Code Loader 行和安装目录均无残留。
 
-2026-09-03 当前全量验证结果：
+2026-09-04 当前全量验证结果：
 
-- 严格上下文检查：`284 passed, 0 warnings`。
+- 严格上下文检查：`290 passed, 0 warnings`。
 - Vitest：`12` 个测试文件、`157` 个测试全部通过。
 - 归档内容：Ultra domain `17` 个文件、UI `8` 个文件、Profile `4` 个文件，无源码、测试、source map 或 tsbuildinfo 泄漏。
 - 八个归档可在干净消费者中安装，Codex/Claude Code Host 与 browser-safe ESM import 均正常解析。
@@ -185,7 +185,7 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 
 ### 本次复验状态
 
-本次提交的 `pnpm verify` 门禁包含 284 项严格上下文检查、Host/Client 构建、Typert 生成、157 项 Vitest、八归档/双 Runtime 安装、真实 DSH Web 启动及无残留卸载。
+本次提交的 `pnpm verify` 门禁包含 290 项严格上下文检查、Host/Client 构建、Typert 生成、157 项 Vitest、八归档/双 Runtime 安装、真实 DSH Web 启动及无残留卸载。
 
 ## 7. 真实模型与冷恢复验收证据
 
