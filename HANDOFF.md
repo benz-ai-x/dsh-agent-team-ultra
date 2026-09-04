@@ -1,51 +1,111 @@
-# HANDOFF — 2026-09-04 会话
+# HANDOFF — 2026-09-05 catalog-owner closeout
 
-> 本文件承载最新会话的交接；持久技术状态、固定 Harness source lock、验证证据与 Web Runbook 以 [`docs/HANDOFF.md`](docs/HANDOFF.md) 和 [`PROJECT_CONTRACT.md`](docs/agent/PROJECT_CONTRACT.md) 为准。上一版（2026-09-02 UI/alpha.4 迁移）交接见 git 历史 `c0c038f:HANDOFF.md`。
+> Durable contracts live in [`PROJECT_CONTRACT.md`](docs/agent/PROJECT_CONTRACT.md),
+> domain language in [`CONTEXT.md`](CONTEXT.md), and the full operating guide in
+> [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
-## 1. 本次会话完成了什么
+## 1. Current outcome
 
-1. **启动应用**：按 Runbook 用锁定源码 CLI 起 DSH Web（隔离 profile `agent-team-ultra-e2e`，端口 4317)，启动前校验 fork 分支/HEAD 与 `dsh-reference.lock.json` 一致。
-2. **修复陈旧构建**：Studio"身份与运行时"缺 Runtime Backend 下拉框——根因是 `packages/*/lib` 停在 9 月 2 日构建，9 月 3 日源码三个提交未构建。重新构建 + 重启后下拉框（模型/Agent 分组目录 + 推理强度）出现并截图验收。
-3. **全面重建**：物理删除三个 `lib/`（含增量缓存）后 `pnpm verify` 全绿（严格上下文 284 项、12 文件 157 测试、八包归档 + 真实 profile 组合门禁、卸载无残留）。
-4. **诊断"本地 Agent"目录为空**：根因、方案对比、被证伪路径的完整取证已写入 [issue #15](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/15) 正文与项目记忆 `local-agent-catalog-empty-wiring-gap`，此处不重复。
-5. **方案 A 定稿并拆票**（GitHub Issues，均带 `ready-for-agent`):
-   - **#15 Codex 端到端**——无阻塞，模式建立票，TDD
-   - **#16 Claude Code 端到端**——blocked by #15，同构复刻
-   - **#17 文档收口**——blocked by #15/#16,ADR-0013 + 最终 verify
-6. **交付链答疑**：fork 在打包时的处理（5 个 fork 包烘成 `file:` tarball + 15 个 `link:` peers;e2e profile 为 `link:` 直连开发模式，本地验证不必打包）——以 `scripts/pack-local-overlay.mjs` 为准。
+Issues #15 and #16 close the Local Agent catalog wiring gap for both packaged
+runtimes. Codex and Claude Code now use the configured Runtime Backend Catalog
+Owner, so one Fiber-owned registration publishes the executable provider to
+Agent Team and its detached Runtime Backend to Studio. The complete decision,
+rejected alternatives, and lifecycle semantics are recorded in
+[`ADR-0013`](docs/adr/0013-route-durable-runtimes-through-the-catalog-owner.md).
+The repaired project memory is
+[`local-agent-catalog-empty-wiring-gap`](docs/memory/local-agent-catalog-empty-wiring-gap.md).
 
-## 2. 接手前必读
+Pinned delivery state:
 
-- **issue [#15](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/15) / [#16](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/16) / [#17](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/17)**——验收标准即规格
-- 项目记忆（自动加载，勿重复分析）：`local-agent-catalog-empty-wiring-gap`（根因 + 方案 A + 被证伪路径 + cordis `ctx.inject`/`ctx.provide`/处置器语义事实）、`harness-checkout-must-stay-on-pinned-fork-branch`(fork 恢复步骤）
-- [`PROJECT_CONTRACT.md`](docs/agent/PROJECT_CONTRACT.md) 与 ADR-0006/0007/0008——契约字面表述是验收依据
-- [`docs/HANDOFF.md`](docs/HANDOFF.md) §8 Runbook——启动与冷恢复复验流程
+| Repository | Commit | Purpose |
+|---|---|---|
+| Harness fork | `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` | Shared catalog-owner lifecycle plus Codex and Claude Code adapters |
+| Ultra | `2ae12c2ec1797d73dac1ae990f378476d1fdfae4` or later | Both profile rows configured and real-Web evidence committed |
 
-## 3. 当前未决问题
+The Harness lock and docs digest in [`dsh-reference.lock.json`](dsh-reference.lock.json)
+are the machine-readable authority. Do not replace either value with a branch
+name or an unverified checkout.
 
-1. **#15 待开发**（可立即开工）。实施要点已验证：provider 类元数据与 Ultra 契约结构兼容；默认 provider id 为 `codex`/`claude-code`；两家均不含 `evaluation` 能力（评测门不受影响）;adapter 侧处置函数加 once-guard。
-2. 沿用 cosmetic:Chrome 审计 `form field should have id or name`（宿主与兄弟插件同款，未处理）。
-3. `TODO.md` Later 列表原样保留。
+## 2. Verification evidence
 
-## 4. 环境现状
+- Strict source attestation: 290 checks, 0 warnings.
+- Ultra Vitest: 12 files, 157 tests passed.
+- Current-source archive set: all eight local archives install and resolve;
+  the real composed Web profile starts, and uninstall removes every Ultra,
+  Codex, and Claude Code Loader row and package.
+- Real browser DOM: DSH Models retains three enabled routes; Local Agents
+  contains enabled `external-agent/codex` and
+  `external-agent/claude-code`, with no page errors.
+- Screenshots:
+  [`Codex`](docs/evidence/issue-15-codex-runtime-catalog.png) and
+  [`Claude Code`](docs/evidence/issue-16-local-agent-runtime-catalog.png).
 
-- DSH Web 后台运行中：端口 4317，日志 `/tmp/dsh-web-4317.log`。访问 token 由 CLI 启动时打印在该日志（惯例：不入交接；重启取新 token)。
-- 两仓库（本仓 `main`、fork `agent-team-ultra-pinned-route`）干净且与远端同步，无未提交内容。
-- e2e profile `agent-team-ultra-e2e` 为 `link:` 直连开发模式：fork adapter 改完重建 `lib/` 并重启 Web 即生效，无需打包。
+The browser proof must always install archives packed from the current sources.
+Repository `artifacts/` may be older than an uncommitted source edit; do not use
+its timestamps as proof of current behavior. `pnpm verify` itself packs into an
+isolated temporary directory and is the final gate.
 
-## 5. 会话中学到的关键事实（勿再踩坑）
+## 3. Environment state
 
-- **`packages/*/lib` 不入库也不会自动重建**。改完源码必须跑构建再验收 Web，否则界面是陈旧构建——本次"缺下拉框"就是它。`pnpm verify` 是全量门禁（上下文校验 → 构建 → 测试 → 打包组合）。
-- 启动/验收前先 `pnpm context:check:strict`：fork 必须停在 lock 的提交且产物新鲜。
-- fork 的 5 个包 `pnpm pack` 只带 `lib/`：改完 fork 源码必须先重建再打包。
-- 改 UI 测试注意：Vitest 下 CSS Modules 生成哈希类名，查询一律用 role/label/text（沿用）。
-- "数字员工"入口只在已打开会话的头部横幅（沿用）。
+- Ultra branch `main` is pushed to `origin` through commit `2ae12c2` before
+  this documentation closeout.
+- Harness checkout `/root/workspace/deepseek-harness` is clean at `8b4bae0b`
+  on local branch `agent-team-ultra-current`; the exact commit is also pushed
+  to remote branch `agent-team-ultra-pinned-route`.
+- No issue-verification DSH Web process or temporary profile is intentionally
+  left running. Start a fresh isolated profile for any later manual proof.
+- No API key, Web token, native transcript, profile state, or temporary archive
+  belongs in this repository or in a handoff document.
 
-## 6. Suggested skills
+## 4. Runbook
 
-- **`dsh-plugin-dev`**——本仓任何改动的前置技能，改代码前必调。
-- **`superpowers:test-driven-development`**——#15/#16 为行为改动，RED→GREEN。
-- **`superpowers:verification-before-completion`**——声称通过前跑实际命令取证。
-- **`superpowers:systematic-debugging`**——验收行为不符预期时先取证。
-- **`run`**——启动/驱动真实 Web 验收。
-- **`mattpocock-skills:writing-for-agents`**——再更新本文件或 AGENTS.md 时。
+Before any edit, read `AGENTS.md`, `docs/agent/PROJECT_CONTRACT.md`, `TODO.md`,
+and `dsh-reference.lock.json`, then run:
+
+```sh
+pnpm context:check:strict
+```
+
+For the complete merge gate:
+
+```sh
+pnpm verify
+git diff --check
+```
+
+For a new isolated local installation, first build the audited eight-archive
+closure and use the printed installation command:
+
+```sh
+pnpm pack:local
+```
+
+Start that installation with the locked source CLI and an explicit isolated
+DSH Home. Pick an unused port rather than stopping another user's server:
+
+```sh
+export DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness
+export DSH_HOME=/absolute/path/to/isolated-dsh-home
+
+node "$DSH_HARNESS_ROOT/apps/cli/lib/bin.js" --profile web --dump-config
+node "$DSH_HARNESS_ROOT/apps/cli/lib/bin.js" web --no-open --port 4317
+```
+
+The final dump must configure `catalogOwnerService: digitalEmployees` on both
+`agent-team-codex` and `agent-team-claude-code`. In a real Lead session, the
+Digital Employee Studio Runtime Backend selector must group three DSH Models
+and both enabled Local Agents. An absent configured owner must leave that local
+route absent; it must never fall back to direct registration.
+
+After modifying any Harness adapter source, rebuild its `lib/` before strict
+attestation or packing. After modifying a Profile patch, regenerate archives
+before manual browser verification.
+
+## 5. Remaining scope
+
+Only the three items under `TODO.md` → Later remain: optional managed
+worktrees after an enforceable DSH ownership seam, profile import/export and
+secret references, and publishability re-evaluation after the experimental
+Agent Team packages are released. The cosmetic browser audit about form fields
+without `id` or `name` remains inherited from the surrounding UI and was not
+part of Issues #15–#17.

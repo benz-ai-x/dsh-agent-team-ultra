@@ -64,6 +64,10 @@ _Avoid_: Actual route, child route
 A detached, browser-safe catalog row describing one stable Runtime Target route, current availability, context semantics, enforceable Profile capabilities, and enforceable operational Runtime Capabilities.
 _Avoid_: Adapter object, credential-bearing provider config
 
+**Runtime Backend Catalog Owner**:
+The Host authority that publishes one durable external provider generation into both the executable Agent Team registry and its detached Studio Runtime Backend catalog.
+_Avoid_: Metadata mirror, registry proxy, Client catalog
+
 **Durable External Runtime Provider**:
 A Fiber-scoped Host implementation of the Agent Team teammate-runtime contract that owns provider-native sessions, turns, evidence, evaluation handles, and exact resource disposal.
 _Avoid_: One-shot subagent, catalog metadata object

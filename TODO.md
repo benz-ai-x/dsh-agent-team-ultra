@@ -22,6 +22,7 @@
 - [x] Make Launch Intents Team-idempotent and restart-reconcilable with separate provisioning, availability, and presence state.
 - [x] Activate the audited package-local durable Codex Runtime Backend in the profile and local artifact closure.
 - [x] Activate the audited package-local durable Claude Code Runtime Backend in the profile and local artifact closure.
+- [x] Close the catalog-owner registration gap for both packaged runtimes and record ADR-0013.
 - [x] Index one truthful, repairable Run per accepted DSH or external work turn and inspect bounded redacted canonical evidence in Studio.
 - [x] Add exact-call one-shot approval through stock DSH approval, external capability gating, and truthful waiting/orphan evidence.
 - [x] Gate Profile promotion with versioned exact isolated candidate evaluations.

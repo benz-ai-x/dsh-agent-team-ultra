@@ -1,8 +1,8 @@
 # DSH Agent Team Ultra 交接文档
 
-> 交接快照：2026-09-04（Asia/Shanghai）
+> 交接快照：2026-09-05（Asia/Shanghai）
 >
-> 当前阶段：全部可信开发轮次已完成；除既有精确路由、耐久 Runtime、Run 证据和隔离评测外，Studio 完整快照流、代际监督、生命周期静止及归档安装/卸载证明均已落地。
+> 当前阶段：全部可信开发轮次已完成；Codex 与 Claude Code 已通过配置的 Runtime Backend Catalog Owner 同时进入 Agent Team 和 Studio Local Agents 目录，且 Studio 快照流、生命周期静止及归档安装/卸载证明均已落地。
 
 ## 1. 接手结论
 
@@ -21,22 +21,23 @@ pnpm verify
 | 项目 | 固定值 |
 |---|---|
 | DSH 版本 | `0.1.2-rc.1` |
-| Harness source fork | `https://github.com/benz-ai-x/deepseek-harness.git` |
-| Harness commit | `4b60986f8c85a12e23ff4eb2ebbd5dc868f44587` |
-| Harness docs digest | `abb5005d9f3b25070538d67045d14323213f818f510b727d8867bebef3c14ce4` |
+| Harness source fork | `https://github.com/benz-ai-x/deepseek-harness_x.git` |
+| Harness commit | `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` |
+| Harness docs digest | `2bdc220516b6fa090ca99215fd3a2ff8f5805c4bec6bd0f48e8e51fba77a8656` |
 | Node.js | `^22.19.0 || >=24.0.0` |
 | pnpm | `11.7.0` |
 | 交付方式 | local-only、八个 `file:` 归档 + 锁定 Harness peer `link:` |
 
 固定值的唯一机器可读来源是 [`dsh-reference.lock.json`](../dsh-reference.lock.json)。默认 Harness checkout 位于相邻目录 `../deepseek-harness`，也可以通过 `DSH_HARNESS_ROOT` 指定。
+目录接线决策见 [`ADR-0013`](adr/0013-route-durable-runtimes-through-the-catalog-owner.md)，已修复的根因记录见 [`local-agent-catalog-empty-wiring-gap`](memory/local-agent-catalog-empty-wiring-gap.md)。
 
 ## 2. 当前仓库状态
 
 - 分支：`main`
 - 远端：`git@github.com:benz-ai-x/dsh-agent-team-ultra.git`
-- 本快照包含 Issue #14 的完整实现与 DSH `0.1.2-rc.1` 契约迁移；最终提交以远端 `main` 的 HEAD 为准。
-- 锁定 Harness checkout 位于 `/root/workspace/deepseek-harness`，并在 source fork 分支 `agent-team-ultra-current` 的固定 commit 上保持干净。
-- 2026-08-30 的 credentialed 人工验收未重复执行；本次 credential-free 套件覆盖完整工作流，并通过八归档安装、双原生运行时解析、真实 Web 组合启动和残留为零的卸载门禁。
+- 本快照包含 Issues #15–#17 的 catalog-owner 注册接线、双 Runtime 真实 Web 验收与文档收口；最终提交以远端 `main` 的 HEAD 为准。
+- 锁定 Harness checkout 位于 `/root/workspace/deepseek-harness`，并在 source fork 分支 `agent-team-ultra-current` 的固定 commit 上保持干净；同一 commit 已推送到远端 `agent-team-ultra-pinned-route`。
+- 2026-08-30 的 credentialed 人工验收未重复执行；本次 credential-free 套件覆盖完整工作流，并通过八归档安装、双原生运行时解析、真实 Web 组合启动、浏览器 DOM 目录验证和残留为零的卸载门禁。
 - 本地启动应使用锁定源码 CLI 或与锁定版本一致的 CLI，并使用隔离的 `DSH_HOME`。
 
 交接文档不会记录 API key、凭据正文、临时 Web token 或 Session URL。隔离 Profile 只应保留在本机，不能提交进仓库。
@@ -162,13 +163,14 @@ Host 依赖 `agents`、`agentTeams`、`llm`、`sessionPersistence`、`storageDom
 5. 创建临时真实 DSH Web Profile，安装八个归档及锁定 peer links，验证 Host import、双 Runtime、最终 Cordis 组合和随机端口监听。
 6. 卸载八个 overlay 包，验证 Ultra、Codex、Claude Code Loader 行和安装目录均无残留。
 
-2026-09-04 当前全量验证结果：
+2026-09-05 当前全量验证结果：
 
 - 严格上下文检查：`290 passed, 0 warnings`。
 - Vitest：`12` 个测试文件、`157` 个测试全部通过。
 - 归档内容：Ultra domain `17` 个文件、UI `8` 个文件、Profile `4` 个文件，无源码、测试、source map 或 tsbuildinfo 泄漏。
 - 八个归档可在干净消费者中安装，Codex/Claude Code Host 与 browser-safe ESM import 均正常解析。
-- 八个归档及锁定 peer links 可被真实 DSH Profile 解析；最终配置包含全部七个稳定行，Web 可监听随机端口；随后卸载不残留 Ultra/Codex/Claude Code 行或包。
+- 八个归档及锁定 peer links 可被真实 DSH Profile 解析；最终配置包含全部七个稳定行，两个 adapter 行均配置 `catalogOwnerService: digitalEmployees`，Web 可监听随机端口；随后卸载不残留 Ultra/Codex/Claude Code 行或包。
+- 当前源码重新打包后的真实 Web DOM 保留三个 DSH Models，并同时显示已启用的 `external-agent/codex` 与 `external-agent/claude-code`；页面异常为零，证据见 [`docs/evidence`](evidence/)。
 
 测试职责分布：
 
@@ -233,6 +235,9 @@ node "$DSH_HARNESS_ROOT/apps/cli/lib/bin.js" \
   --no-open --port 4317
 ```
 
+`--dump-config` 必须在 Codex 和 Claude Code 两行都显示
+`catalogOwnerService: digitalEmployees`。浏览器复验必须使用从当前源码新打包的归档，不能把早于源码修改时间的 `artifacts/` 文件当作当前行为证据。
+
 先按 [`README.md`](../README.md#安装到本地-dsh-web) 把八个归档及锁定 peer links 安装到该隔离 Profile。端口被占用时换一个空闲端口，不要停止或修改用户已有的其他 DSH Web 进程。
 
 重新做完整冷恢复验收时：
@@ -267,8 +272,7 @@ pnpm run pack:local
 
 1. 在 DSH 提供可强制执行的 ownership seam 后增加可选 managed worktree。
 2. 增加 Profile 导入/导出与 secret reference，同时确保凭据不经过浏览器或持久 Profile 明文传输。
-3. 在任何 storage-domain 格式变化前实现迁移工具和失败恢复策略。
-4. 上游 experimental Agent Team 包发布后，重新评估公开包和 registry 安装闭包。
+3. 上游 experimental Agent Team 包发布后，重新评估公开包和 registry 安装闭包。
 
 ## 10. 修改前后的检查清单
 
