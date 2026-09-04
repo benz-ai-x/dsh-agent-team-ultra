@@ -70,7 +70,10 @@ describe('Agent Team Ultra profile overlay', () => {
     })
     expect(inserted.find(entry => entry.id === 'agent-team-claude-code')).toMatchObject({
       name: '@deepseek-ai/dsh-experimental-agent-team-claude-code',
-      config: { sandbox: 'read-only' },
+      config: {
+        catalogOwnerService: 'digitalEmployees',
+        sandbox: 'read-only',
+      },
     })
     expect(inserted.find(entry => entry.id === 'agent-team-ultra')).toMatchObject({
       name: '@deepseek-ai/dsh-agent-team-ultra',

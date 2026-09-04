@@ -38,6 +38,7 @@
     - id: agent-team-claude-code
       name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'
       config:
+        catalogOwnerService: digitalEmployees
         sandbox: read-only
 
     - id: tool-agent-team
