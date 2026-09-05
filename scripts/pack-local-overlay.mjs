@@ -4,17 +4,22 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { requirePreparedHarness } from './harness-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const lock = JSON.parse(readFileSync(join(root, 'dsh-reference.lock.json'), 'utf8'))
-const harness = resolve(process.env.DSH_HARNESS_ROOT
-  ?? join(root, lock.localResolution?.fallbackRelativePath ?? '../deepseek-harness'))
-const output = resolve(process.argv[2] ?? join(root, 'artifacts', 'agent-team-ultra'))
+const { lock, harnessRoot: harness } = requirePreparedHarness(root)
+const output = resolve(root, process.argv[2] ?? 'artifacts/agent-team-ultra')
+const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
 
 if (!existsSync(join(harness, 'package.json'))) {
   throw new Error(`pack-local-overlay: pinned Harness source not found at ${harness}`)
 }
+if (!existsSync(cli)) throw new Error(`pack-local-overlay: selected Harness CLI is not built at ${cli}`)
 mkdirSync(output, { recursive: true })
+
+function shellWord(value) {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`
+}
 
 const packageRoots = [
   join(harness, 'packages', 'experimental', 'agent-team'),
@@ -84,12 +89,12 @@ console.log(`Packed ${archives.length} local-only archives against Harness ${loc
 console.log(`Archives are available in ${output}; exact unpublished peers resolve from the pinned Harness checkout.`)
 console.log(`Install the ${archives.length} archives into a DSH Web profile with:`)
 console.log([
-  'dsh plugin --profile web add',
-  ...archives.map(archive => `  ${JSON.stringify(`file:${archive}`)}`),
-  ...pinnedPeerRoots.map(packageRoot => `  ${JSON.stringify(`link:${packageRoot}`)}`),
+  `${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web add`,
+  ...archives.map(archive => `  ${shellWord(`file:${archive}`)}`),
+  ...pinnedPeerRoots.map(packageRoot => `  ${shellWord(`link:${packageRoot}`)}`),
 ].join(' \\\n'))
 console.log('Remove every overlay package and Loader row with:')
 console.log([
-  'dsh plugin --profile web remove --config.offline=true --config.auto-install-peers=false',
-  ...packageNames.map(packageName => `  ${JSON.stringify(packageName)}`),
+  `${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web remove --config.offline=true --config.auto-install-peers=false`,
+  ...packageNames.map(packageName => `  ${shellWord(packageName)}`),
 ].join(' \\\n'))

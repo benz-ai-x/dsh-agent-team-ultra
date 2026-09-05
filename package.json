@@ -10,17 +10,18 @@
   "scripts": {
     "context:check": "node scripts/verify-dsh-context.mjs",
     "context:check:strict": "node scripts/verify-dsh-context.mjs --require-source",
-    "build:host": "tsc -b tsconfig.host.json && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
-    "build:client": "tsc -b tsconfig.client.json && pnpm --dir packages/ui bundle",
+    "build:host": "node scripts/check-harness-source.mjs && tsc -b tsconfig.host.json && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
+    "build:client": "node scripts/check-harness-source.mjs && tsc -b tsconfig.client.json && pnpm --dir packages/ui bundle",
     "build": "pnpm run build:host && pnpm run build:client",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "node scripts/check-harness-source.mjs && vitest run",
+    "test:watch": "node scripts/check-harness-source.mjs && vitest",
     "pack:local": "pnpm run context:check:strict && pnpm run build && node scripts/pack-local-overlay.mjs",
     "verify:pack": "node scripts/verify-pack.mjs",
-    "verify": "pnpm run context:check:strict && pnpm run build && pnpm run test && pnpm run verify:pack"
+    "verify": "pnpm run context:check:strict && pnpm run build && pnpm run test && pnpm run verify:pack",
+    "prepare:harness": "node scripts/prepare-harness.mjs"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-typert-generator": "link:../deepseek-harness/packages/typert/generator",
+    "@deepseek-ai/dsh-typert-generator": "link:./.dsh/harness/packages/typert/generator",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",

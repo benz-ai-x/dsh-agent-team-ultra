@@ -5,11 +5,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { requirePreparedHarness } from './harness-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const lock = JSON.parse(readFileSync(join(root, 'dsh-reference.lock.json'), 'utf8'))
-const harness = resolve(process.env.DSH_HARNESS_ROOT
-  ?? join(root, lock.localResolution?.fallbackRelativePath ?? '../deepseek-harness'))
+const { lock, harnessRoot: harness } = requirePreparedHarness(root)
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'dsh-agent-team-ultra-pack-'))
 const destination = join(temporaryRoot, 'archives')
 const consumer = join(temporaryRoot, 'consumer')
