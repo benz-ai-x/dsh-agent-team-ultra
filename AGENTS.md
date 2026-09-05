@@ -9,6 +9,11 @@ Agent authority, and prove every registration disappears on Fiber disposal.
 
 Use the canonical `dsh-plugin-dev` skill when changing DSH contracts.
 
+## Handoff
+
+Follow the project handoff rules in [AGENT.md](AGENT.md). Read and update the
+root [HANDOFF.md](HANDOFF.md) for session handoffs.
+
 ## Agent skills
 
 ### Issue tracker
