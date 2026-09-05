@@ -173,7 +173,7 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
-  it('admits a complete profile with the Ultra-owned Codex package', () => {
+  it('admits a complete profile with both Ultra-owned native adapters', () => {
     const root = installedPackage(join(project, 'packages/profile'))
     const result = importHost(root)
     expect(result.status, result.stderr + result.stdout).toBe(0)
@@ -181,15 +181,49 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
-  it('rejects co-installed old and Ultra-owned Codex packages before either can register', () => {
+  it('requires the Ultra-owned Claude Code adapter before loading the profile', () => {
     const root = installedPackage(join(project, 'packages/profile'))
-    symlinkSync(join(project, '.dsh/harness/packages/experimental/agent-team-codex'),
-      join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team-codex'), 'dir')
+    rmSync(join(root, 'node_modules/@benz-ai-x/dsh-agent-team-claude-code'))
+    const result = importHost(root)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
+      message: expect.stringContaining('@benz-ai-x/dsh-agent-team-claude-code'),
+    })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it.each([
+    { version: '0.3.240', claudeCodeVersion: '2.1.241' },
+    { version: '0.3.241', claudeCodeVersion: '2.1.240' },
+  ])('rejects an unqualified Claude SDK or native product before importing the adapter: %j', fields => {
+    const root = installedPackage(join(project, 'packages/profile'))
+    const claude = join(root, 'node_modules/@benz-ai-x/dsh-agent-team-claude-code')
+    const isolated = installedPackage(realpathSync(claude))
+    rmSync(claude)
+    symlinkSync(isolated, claude, 'dir')
+    const sdk = join(isolated, 'node_modules/@anthropic-ai/claude-agent-sdk')
+    rmSync(sdk)
+    mkdirSync(sdk)
+    writeFileSync(join(sdk, 'package.json'), JSON.stringify({ name: '@anthropic-ai/claude-agent-sdk', ...fields }))
+    const result = importHost(root)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
+      message: expect.stringContaining('@anthropic-ai/claude-agent-sdk'),
+    })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it.each(['codex', 'claude-code'])('rejects co-installed old and Ultra-owned %s packages before either can register', provider => {
+    const root = installedPackage(join(project, 'packages/profile'))
+    symlinkSync(join(project, `.dsh/harness/packages/experimental/agent-team-${provider}`),
+      join(root, `node_modules/@deepseek-ai/dsh-experimental-agent-team-${provider}`), 'dir')
     const result = importHost(root)
     expect(result.status, result.stderr + result.stdout).toBe(1)
     expect(JSON.parse(result.stdout)).toMatchObject({
       code: 'ULTRA_COMPAT_LEGACY_RUNTIME',
-      message: expect.stringContaining('@deepseek-ai/dsh-experimental-agent-team-codex'),
+      message: expect.stringContaining(`@deepseek-ai/dsh-experimental-agent-team-${provider}`),
     })
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })

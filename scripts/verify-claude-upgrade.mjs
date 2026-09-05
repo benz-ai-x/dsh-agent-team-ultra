@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Reproduce the documented stopped-Web upgrade from the fixed, built #22 checkout. */
+/** Reproduce the documented stopped-Web upgrade from the fixed, built #23 checkout. */
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
@@ -10,10 +10,10 @@ import { requirePreparedHarness } from './harness-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const previous = process.argv[2] && resolve(process.argv[2])
-assert.ok(previous, 'Pass the built, isolated #22 checkout to verify:codex-upgrade')
+assert.ok(previous, 'Pass the built, isolated #23 checkout to verify:claude-upgrade')
 const { harnessRoot } = requirePreparedHarness(root)
 requirePreparedHarness(previous)
-const baseline = '61d23615bb8987e85f2397ed57b94ef23c79ade3'
+const baseline = 'ae2ec7258146ea14ec4895d39795221c3774e29d'
 function run(command, args, cwd = root, env = {}) {
   const result = spawnSync(command, args, {
     cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -24,11 +24,11 @@ function run(command, args, cwd = root, env = {}) {
 }
 assert.equal(run('git', ['rev-parse', 'HEAD'], previous).trim(), baseline)
 assert.equal(run('git', ['status', '--porcelain', '--untracked-files=no'], previous).trim(), '')
-const temporary = mkdtempSync(join(tmpdir(), 'ultra-codex-archive-upgrade-'))
+const temporary = mkdtempSync(join(tmpdir(), 'ultra-claude-code-archive-upgrade-'))
 const environment = { DSH_HOME: join(temporary, 'home') }
 const profileDirectory = join(environment.DSH_HOME, 'profiles/web')
-const retired = '@deepseek-ai/dsh-experimental-agent-team-codex'
-const current = '@benz-ai-x/dsh-agent-team-codex'
+const retired = '@deepseek-ai/dsh-experimental-agent-team-claude-code'
+const current = '@benz-ai-x/dsh-agent-team-claude-code'
 const cli = join(harnessRoot, 'apps/cli/lib/bin.js')
 try {
   const pack = (source, output) => {
@@ -63,14 +63,14 @@ try {
     ...archives.map(pkg => `file:${pkg.file}`), ...peers,
   ], source, environment)
   const probe = (phase, backend) => JSON.parse(run(process.execPath, [
-    join(root, 'scripts/probe-codex-continuity.mjs'), profileDirectory, phase, join(temporary, backend), backend,
+    join(root, 'scripts/probe-claude-continuity.mjs'), profileDirectory, phase, join(temporary, backend), backend,
   ], root, environment).trim())
   install(previous, before)
   const oldDump = run(process.execPath, [cli, '--profile', 'web', '--dump-config'], root, environment)
-  assert.equal(oldDump.match(/id: agent-team-codex\n/g)?.length, 1)
+  assert.equal(oldDump.match(/id: agent-team-claude-code\n/g)?.length, 1)
   assert.ok(oldDump.includes(retired))
   const initial = ['json', 'sqlite'].map(backend => probe('before', backend))
-  console.log('PASS predecessor archives create and deliver to one Codex employee on JSON and SQLite')
+  console.log('PASS predecessor archives create and deliver to one Claude Code employee on JSON and SQLite')
 
   // Every old runtime context has stopped. Remove retired product packages;
   // the profile, its configuration, and all business/native storage are retained.
@@ -79,7 +79,7 @@ try {
   for (const name of retiredPackages) assert.ok(!existsSync(join(profileDirectory, 'node_modules', name)))
   install(root, after)
   const newDump = run(process.execPath, [cli, '--profile', 'web', '--dump-config'], root, environment)
-  assert.equal(newDump.match(/id: agent-team-codex\n/g)?.length, 1)
+  assert.equal(newDump.match(/id: agent-team-claude-code\n/g)?.length, 1)
   assert.ok(newDump.includes(current))
   assert.ok(!newDump.includes(retired))
   const upgraded = ['json', 'sqlite'].map(backend => probe('after', backend))
@@ -87,7 +87,7 @@ try {
     assert.equal(upgraded[index].memberId, initial[index].memberId)
     assert.equal(upgraded[index].nativeRuntimeHandle, initial[index].nativeRuntimeHandle)
   }
-  console.log('PASS upgraded archives resume original members, revisions and native handles without duplicate threads')
+  console.log('PASS upgraded archives resume original members, revisions and native handles without duplicate Sessions')
   run(process.execPath, [join(root, 'scripts/verify-web-boot.mjs'), join(root, 'scripts/compatible-dsh.mjs')], root, environment)
   run(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove',
     '--config.offline=true', '--config.auto-install-peers=false', ...after.map(pkg => pkg.name)], root, environment)
@@ -97,7 +97,7 @@ try {
   const removed = run(process.execPath, [cli, '--profile', 'web', '--dump-config'], root, environment)
   assert.doesNotMatch(removed, /agent-team-ultra|agent-team-codex|agent-team-claude-code/)
   console.log('PASS upgraded Web boots and uninstall removes every overlay package and Loader row')
-  console.log(JSON.stringify({ baseline, initial, upgraded, nativeAcceptance: 'controlled transport; authenticated product acceptance remains #44' }, null, 2))
+  console.log(JSON.stringify({ baseline, initial, upgraded, nativeAcceptance: 'controlled SDK; authenticated product acceptance remains #44' }, null, 2))
 } finally {
   rmSync(temporary, { recursive: true, force: true })
 }

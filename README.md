@@ -2,12 +2,13 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-本项目由 `benz-ai-x` 维护，四个自有包使用 `@benz-ai-x` 命名空间：
+本项目由 `benz-ai-x` 维护，五个自有包使用 `@benz-ai-x` 命名空间：
 
 - `@benz-ai-x/dsh-agent-team-ultra`：Host 服务与 Remote 合约。
 - `@benz-ai-x/dsh-client-ui-agent-team-ultra`：浏览器工作室。
 - `@benz-ai-x/dsh-agent-team-ultra-profile`：本地安装组合包。
 - `@benz-ai-x/dsh-agent-team-codex`：耐久 Codex 产品适配器。
+- `@benz-ai-x/dsh-agent-team-claude-code`：耐久 Claude Code 产品适配器。
 
 锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
 
@@ -80,7 +81,7 @@ pnpm verify
 pnpm run pack:local
 ```
 
-该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成四个 Ultra 包与四个锁定 Harness private Agent Team 包。固定版本的部分 DSH peers 尚未发布到 registry，因此命令会打印完整的本地安装指令：八个产品包使用 `file:` 归档，未发布 peers 使用锁定 Harness checkout 的 `link:`。使用本次打印的八个归档路径，勿用目录通配符包含历史旧包；核心形式如下：
+该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成五个 Ultra 包与三个锁定 Harness private Agent Team 包。固定版本的部分 DSH peers 尚未发布到 registry，因此命令会打印完整的本地安装指令：八个产品包使用 `file:` 归档，未发布 peers 使用锁定 Harness checkout 的 `link:`。使用本次打印的八个归档路径，勿用目录通配符包含历史旧包；核心形式如下：
 
 ```text
 node scripts/compatible-dsh.mjs plugin --profile web add <八个 file: 归档参数> <锁定 Harness 的 link: peer 参数>
@@ -104,15 +105,21 @@ DSH_HOME=/absolute/path/to/isolated-dsh-home pnpm dsh:checked web --no-open --po
 
 从旧命名空间升级时，先停止目标 Web 实例，使用旧版打印的卸载命令移除旧包，再执行新版打印的安装命令。沿用原 `DSH_HOME` 和 Profile，并在重启后刷新浏览器，使 Host、Client 与生成的 RPC 标识同步切换；会话与 `agent_team_ultra_v1` 数据继续保存在原位置。
 
-如果 Host／Client／Profile 已经使用 `@benz-ai-x`，仅 Codex 仍是旧包，则停止 Web 后，沿用同一 `DSH_HOME` 执行下面的移除命令，再执行本次 `pack:local` 打印的完整安装命令：
+如果 Host／Client／Profile 已经使用 `@benz-ai-x`，Codex 或 Claude Code 仍是旧包，则停止 Web 后，沿用同一 `DSH_HOME` 只执行对应已安装旧包的移除命令，再执行本次 `pack:local` 打印的完整安装命令：
 
 ```sh
 node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offline=true --config.auto-install-peers=false @deepseek-ai/dsh-experimental-agent-team-codex
+node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offline=true --config.auto-install-peers=false @deepseek-ai/dsh-experimental-agent-team-claude-code
 ```
 
-保留 Profile 配置和所有 Session／Ultra／native 数据。`agent-team-codex` 行、`digitalEmployees` 服务、`external-agent/codex` 路由、Profile Revision、成员和 native handle 均沿用原身份。预检只接受 ESM 实际可解析的依赖；`NODE_PATH` 中的工作区副本不能补齐缺包。旧 Codex 包仍在安装路径中时，Profile 会在子插件加载前返回 `ULTRA_COMPAT_LEGACY_RUNTIME`；先完成上述移除与安装流程。
+保留 Profile 配置和所有 Session／Ultra／native 数据。`agent-team-codex`／`agent-team-claude-code` 行、`digitalEmployees` 服务、`external-agent/codex`／`external-agent/claude-code` 路由、Profile Revision、成员和 native handle 均沿用原身份。预检只接受 ESM 实际可解析的依赖；`NODE_PATH` 中的工作区副本不能补齐缺包。任一旧产品适配包仍在安装路径中时，Profile 会在子插件加载前返回 `ULTRA_COMPAT_LEGACY_RUNTIME`；先完成上述移除与安装流程。
 
-升级验证可通过 `pnpm verify:codex-upgrade /absolute/path/to/built-previous-checkout` 重跑。参数必须是固定提交 `61d23615bb8987e85f2397ed57b94ef23c79ade3` 的独立干净 checkout，已按该版本说明准备 Harness、安装依赖并完成构建。验证会在隔离 `DSH_HOME` 中打包和安装新旧归档，经真实 Loader、生成 Remote、JSON／SQLite 存储验证原身份恢复、后续消息、目录移除／回归、Web 启动及完整卸载。native app-server 通道由确定性边界替身响应；真实认证后的产品验收仍由 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44) 完成。
+升级验证使用独立干净的前身 checkout，已按该版本说明准备 Harness、安装依赖并完成构建：
+
+- Codex：`pnpm verify:codex-upgrade /absolute/path/to/built-previous-checkout`，前身固定为 `61d23615bb8987e85f2397ed57b94ef23c79ade3`。
+- Claude Code：`pnpm verify:claude-upgrade /absolute/path/to/built-previous-checkout`，前身固定为 `ae2ec7258146ea14ec4895d39795221c3774e29d`。
+
+验证会在隔离 `DSH_HOME` 中打包和安装新旧归档，经真实 Loader、生成 Remote、JSON／SQLite 存储验证原身份恢复、后续消息、目录移除／回归、Web 启动及完整卸载。Codex app-server 通道和 Claude SDK API 使用确定性外部边界替身；发货 adapter、受控进程桥接、SDK/payload 资格检查与权限策略均使用实际归档代码。真实认证后的产品验收仍由 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44) 完成。
 
 ## 使用
 

@@ -40,7 +40,7 @@
             sandbox: read-only
 
         - id: agent-team-claude-code
-          name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'
+          name: '@benz-ai-x/dsh-agent-team-claude-code'
           config:
             catalogOwnerService: digitalEmployees
             sandbox: read-only
