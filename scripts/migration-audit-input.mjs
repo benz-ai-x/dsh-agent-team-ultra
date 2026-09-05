@@ -126,12 +126,12 @@ export function validateUnits(units) {
     const { spec } = unit
     if (!unit.tables || typeof unit.tables !== 'object' || Array.isArray(unit.tables)) refuse('AUDIT_ULTRA_TABLE', 'Ultra tables are malformed')
     try {
-      if (spec.global && unit.global !== undefined) spec.global.schema.parse(unit.global)
+      if (spec.global && unit.global !== undefined) unit.global = spec.global.schema.parse(unit.global)
       for (const [name, records] of Object.entries(unit.tables)) {
         if (!Object.hasOwn(spec.tables, name) || !records || typeof records !== 'object' || Array.isArray(records)) {
           refuse('AUDIT_ULTRA_TABLE', 'An unknown or malformed Ultra table is present')
         }
-        for (const record of Object.values(records)) spec.tables[name].valueSchema.parse(record)
+        for (const [key, record] of Object.entries(records)) records[key] = spec.tables[name].valueSchema.parse(record)
       }
     } catch (error) {
       if (error.code?.startsWith('AUDIT_')) throw error
@@ -174,6 +174,7 @@ export function readSqliteUnits(path, specs) {
 
 export function readCheckpoints(source, backend) {
   const records = new Map()
+  let unreadable = false
   const parse = (id, version, text) => {
     try { records.set(id, { version, record: JSON.parse(text) }) }
     catch { records.set(id, { version, reason: 'cache-unreadable' }) }
@@ -198,13 +199,15 @@ export function readCheckpoints(source, backend) {
     }
     const legacy = join(source, 'session_projcache.json')
     if (records.size === 0 && existsSync(legacy)) {
-      const unit = readJson(legacy)
-      for (const [id, record] of Object.entries(unit.tables?.sessions ?? {})) {
-        records.set(id, { version: unit.unit?.version, record })
-      }
+      try {
+        const unit = readJson(legacy)
+        for (const [id, record] of Object.entries(unit.tables?.sessions ?? {})) {
+          records.set(id, { version: unit.unit?.version, record })
+        }
+      } catch { unreadable = true }
     }
   }
-  return records
+  return { records, unreadable }
 }
 
 function checkpointReason(cached, handle, events, registry, definition, schema) {
@@ -227,7 +230,7 @@ function checkpointReason(cached, handle, events, registry, definition, schema) 
   return undefined
 }
 
-export async function readSessions(root, harnessRoot, cached = new Map()) {
+export async function readSessions(root, harnessRoot, { records: cached = new Map(), unreadable = false } = {}) {
   const load = (path, entry = 'index.js') => imported(join(harnessRoot, path, 'lib', entry))
   const [{ Context }, { default: Persistence }, { default: Projections }, { teamProjectionDefinition, isTeamEvent }, format, zstd, { checkpointRecord }, subagent] = await Promise.all([
     load('vendor/cordis'), load('packages/session/session-persistence-jsonl'),
@@ -303,8 +306,9 @@ export async function readSessions(root, harnessRoot, cached = new Map()) {
           if (error.code?.startsWith('AUDIT_')) throw error
           refuse('AUDIT_DESCRIPTOR_SCHEMA', 'A child descriptor does not satisfy its declared schema')
         }
-        if (cached.has(handle.id)) {
-          const reason = checkpointReason(cached.get(handle.id), handle, events, ctx.sessionProjections, teamProjectionDefinition, checkpointRecord)
+        if (cached.has(handle.id) || unreadable) {
+          const reason = unreadable ? 'cache-unreadable'
+            : checkpointReason(cached.get(handle.id), handle, events, ctx.sessionProjections, teamProjectionDefinition, checkpointRecord)
           checkpoints.push({ sessionId: handle.id, status: reason ? 'rebuild' : 'reusable', ...(reason ? { reason } : {}) })
         }
         sessions.set(handle.id, { header: handle.header, inheritedEventCount: handle.inheritedEventCount, events, team, descriptor })

@@ -145,6 +145,41 @@ describe('operator migration audit', () => {
     expect(bytes(root)).toEqual(before)
   })
 
+  it.each(['json', 'sqlite'] as const)('audits a transitional %s v1 Binding without rewriting its legacy fields', async backend => {
+    const { root, launched } = await created(backend)
+    const transitional = (record: any) => {
+      record.phase = record.provisioningPhase
+      delete record.provisioningPhase
+      delete record.requiredCapabilities
+      const { continuationProvider, ...fields } = record.profile
+      record.profile = { ...fields, provider: continuationProvider }
+      return record
+    }
+    if (backend === 'json') {
+      const directory = join(root, 'storage/agent_team_ultra_v1/bindings')
+      const path = join(directory, readdirSync(directory)[0]!)
+      const envelope = JSON.parse(readFileSync(path, 'utf8'))
+      envelope.record = transitional(envelope.record)
+      writeFileSync(path, JSON.stringify(envelope))
+    } else {
+      const db = new DatabaseSync(join(root, 'storage.sqlite'))
+      try {
+        const row = db.prepare('SELECT key, value FROM u_agent_team_ultra_v1_bindings').get() as { key: string; value: string }
+        db.prepare('UPDATE u_agent_team_ultra_v1_bindings SET value = ? WHERE key = ?')
+          .run(JSON.stringify(transitional(JSON.parse(row.value))), row.key)
+      } finally { db.close() }
+    }
+    const before = bytes(root)
+    const result = audit(root, backend)
+    expect(result.status, result.stderr + result.stdout).toBe(0)
+    const report = JSON.parse(result.stdout)
+    expect(report.ultraMigration.status).toBe('complete')
+    expect(report.bindings).toContainEqual(expect.objectContaining({
+      memberId: launched.value.memberId, profileId: profile.id, profileRevision: 1, runtimeTarget: target,
+    }))
+    expect(bytes(root)).toEqual(before)
+  })
+
   it.each(['identity', 'route'] as const)('refuses a Binding whose %s conflicts with the authoritative Team log', async conflict => {
     const { root } = await created()
     const directory = join(root, 'storage/agent_team_ultra_v1/bindings')
@@ -193,6 +228,19 @@ describe('operator migration audit', () => {
       }))
       expect(bytes(root)).toEqual(before)
     }
+  })
+
+  it('reports unreadable legacy checkpoints for rebuilding without changing the source', async () => {
+    const { root, leadId } = await created('json', true)
+    rmSync(join(root, 'storage/session_projcache'), { recursive: true })
+    writeFileSync(join(root, 'storage/session_projcache.json'), '{"unit":')
+    const before = bytes(root)
+    const result = audit(root)
+    expect(result.status, result.stderr + result.stdout).toBe(0)
+    expect(JSON.parse(result.stdout).checkpoints).toContainEqual({
+      sessionId: leadId, status: 'rebuild', reason: 'cache-unreadable',
+    })
+    expect(bytes(root)).toEqual(before)
   })
 
   it('refuses a schema-valid Profile Head that points outside its durable Revision history', async () => {
