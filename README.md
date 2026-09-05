@@ -2,11 +2,12 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-本项目由 `benz-ai-x` 维护，三个自有包使用 `@benz-ai-x` 命名空间：
+本项目由 `benz-ai-x` 维护，四个自有包使用 `@benz-ai-x` 命名空间：
 
 - `@benz-ai-x/dsh-agent-team-ultra`：Host 服务与 Remote 合约。
 - `@benz-ai-x/dsh-client-ui-agent-team-ultra`：浏览器工作室。
 - `@benz-ai-x/dsh-agent-team-ultra-profile`：本地安装组合包。
+- `@benz-ai-x/dsh-agent-team-codex`：耐久 Codex 产品适配器。
 
 锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
 
@@ -79,7 +80,7 @@ pnpm verify
 pnpm run pack:local
 ```
 
-该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成三个 Ultra 包与五个上游 private Agent Team 包。固定版本的部分 DSH peers 尚未发布到 registry，因此命令会打印完整的本地安装指令：八个产品包使用 `file:` 归档，未发布 peers 使用锁定 Harness checkout 的 `link:`。直接复制该输出执行即可；核心形式如下：
+该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成四个 Ultra 包与四个锁定 Harness private Agent Team 包。固定版本的部分 DSH peers 尚未发布到 registry，因此命令会打印完整的本地安装指令：八个产品包使用 `file:` 归档，未发布 peers 使用锁定 Harness checkout 的 `link:`。使用本次打印的八个归档路径，勿用目录通配符包含历史旧包；核心形式如下：
 
 ```text
 node scripts/compatible-dsh.mjs plugin --profile web add <八个 file: 归档参数> <锁定 Harness 的 link: peer 参数>
@@ -102,6 +103,16 @@ DSH_HOME=/absolute/path/to/isolated-dsh-home pnpm dsh:checked web --no-open --po
 `pack:local` 同时打印卸载命令。执行后，最终配置和 profile `node_modules` 中不得残留 Ultra、Codex 或 Claude Code overlay 行/包。
 
 从旧命名空间升级时，先停止目标 Web 实例，使用旧版打印的卸载命令移除旧包，再执行新版打印的安装命令。沿用原 `DSH_HOME` 和 Profile，并在重启后刷新浏览器，使 Host、Client 与生成的 RPC 标识同步切换；会话与 `agent_team_ultra_v1` 数据继续保存在原位置。
+
+如果 Host／Client／Profile 已经使用 `@benz-ai-x`，仅 Codex 仍是旧包，则停止 Web 后，沿用同一 `DSH_HOME` 执行下面的移除命令，再执行本次 `pack:local` 打印的完整安装命令：
+
+```sh
+node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offline=true --config.auto-install-peers=false @deepseek-ai/dsh-experimental-agent-team-codex
+```
+
+保留 Profile 配置和所有 Session／Ultra／native 数据。`agent-team-codex` 行、`digitalEmployees` 服务、`external-agent/codex` 路由、Profile Revision、成员和 native handle 均沿用原身份。预检只接受 ESM 实际可解析的依赖；`NODE_PATH` 中的工作区副本不能补齐缺包。旧 Codex 包仍在安装路径中时，Profile 会在子插件加载前返回 `ULTRA_COMPAT_LEGACY_RUNTIME`；先完成上述移除与安装流程。
+
+升级验证可通过 `pnpm verify:codex-upgrade /absolute/path/to/built-previous-checkout` 重跑。参数必须是固定提交 `61d23615bb8987e85f2397ed57b94ef23c79ade3` 的独立干净 checkout，已按该版本说明准备 Harness、安装依赖并完成构建。验证会在隔离 `DSH_HOME` 中打包和安装新旧归档，经真实 Loader、生成 Remote、JSON／SQLite 存储验证原身份恢复、后续消息、目录移除／回归、Web 启动及完整卸载。native app-server 通道由确定性边界替身响应；真实认证后的产品验收仍由 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44) 完成。
 
 ## 使用
 
@@ -172,7 +183,7 @@ DSH 分支不在 child Agent 之外额外调用模型；启用的 persona、miss
 - `scripts/generate-typert.mjs`：在隔离分析工作区调用官方 DSH Typert generator，不修改 Harness checkout。
 - `scripts/verify-pack.mjs`：归档白名单、干净安装、普通解析和真实 DSH profile 组合门禁。
 
-接手开发请先阅读 [交接文档](docs/HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md)、[包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md)、[可信 Run 证据决策](docs/adr/0009-index-runs-and-fold-canonical-evidence-lazily.md)、[库存审批决策](docs/adr/0010-reuse-stock-exact-call-approval.md)、[精确隔离评测门禁决策](docs/adr/0011-gate-promotion-with-exact-isolated-evaluations.md) 和 [完整 Studio 快照流决策](docs/adr/0012-stream-complete-studio-snapshots.md)。
+接手开发请先阅读 [交接文档](HANDOFF.md)。更严格的运行时与交付约束见 [项目合约](docs/agent/PROJECT_CONTRACT.md)、[本地 overlay 决策](docs/decisions/0001-local-overlay-and-sidecar-state.md)、[v1 存储代际决策](docs/adr/0002-isolate-the-v1-storage-generation.md)、[Profile 发布生命周期决策](docs/adr/0003-separate-profile-authoring-from-release.md)、[能力感知 Runtime Target 决策](docs/adr/0004-pin-capability-aware-runtime-targets.md)、[启动意图持久化决策](docs/adr/0005-make-launch-intent-durable.md)、[耐久外部 teammate seam 决策](docs/adr/0006-use-durable-external-teammate-runtime.md)、[包内 Codex Runtime 决策](docs/adr/0007-activate-package-local-codex-runtime.md)、[包内 Claude Code Runtime 决策](docs/adr/0008-activate-package-local-claude-code-runtime.md)、[可信 Run 证据决策](docs/adr/0009-index-runs-and-fold-canonical-evidence-lazily.md)、[库存审批决策](docs/adr/0010-reuse-stock-exact-call-approval.md)、[精确隔离评测门禁决策](docs/adr/0011-gate-promotion-with-exact-isolated-evaluations.md) 和 [完整 Studio 快照流决策](docs/adr/0012-stream-complete-studio-snapshots.md)。
 
 ## 当前限制
 

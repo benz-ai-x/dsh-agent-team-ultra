@@ -81,7 +81,7 @@ A Fiber-scoped Host implementation of the Agent Team teammate-runtime contract t
 _Avoid_: One-shot subagent, catalog metadata object
 
 **Codex Runtime Backend**:
-The durable external provider backed only by the audited package-local `@openai/codex` native payload, with one stable app-server thread per accepted teammate and no `PATH` fallback.
+The Ultra-owned `@benz-ai-x/dsh-agent-team-codex` durable external provider backed only by the audited package-local `@openai/codex` native payload, with one stable app-server thread per accepted teammate and no `PATH` fallback. Its package name is separate from its stable `codex` provider route and Native Runtime Handle.
 _Avoid_: Codex CLI invocation, one-shot Codex task
 
 **Claude Code Runtime Backend**:
