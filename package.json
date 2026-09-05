@@ -23,7 +23,8 @@
     "compatibility:check": "node scripts/compatible-dsh.mjs check",
     "dsh:checked": "node scripts/compatible-dsh.mjs",
     "compatibility:compare": "node scripts/compare-harness-contract.mjs",
-    "verify:claude-upgrade": "node scripts/verify-claude-upgrade.mjs"
+    "verify:claude-upgrade": "node scripts/verify-claude-upgrade.mjs",
+    "migration:audit": "node scripts/audit-migration.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-typert-generator": "link:./.dsh/harness/packages/typert/generator",

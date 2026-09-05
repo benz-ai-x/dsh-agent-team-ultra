@@ -171,3 +171,12 @@ _Avoid_: In-place schema upgrade
 **Migration Marker**:
 The authoritative state indicating whether a Storage Generation is still being populated or is complete and safe to mutate.
 _Avoid_: Migration flag, best-effort status
+
+
+**Migration Audit**:
+A read-only assessment of authoritative data formats, identities and their compatibility with an intended migration, with explicit refusals and cache rebuild requirements.
+_Avoid_: Migration execution, upgrade permission
+
+**Migration Manifest**:
+The durable identity and completion record for one combined migration from a preserved source to an isolated target, binding the exact source and target qualifications.
+_Avoid_: Storage Generation, disposable checkpoint
