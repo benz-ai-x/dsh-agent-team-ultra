@@ -1,32 +1,47 @@
-# Agent instructions
+# Repository Guidelines
 
-Before editing, read `docs/agent/PROJECT_CONTRACT.md`, `TODO.md`, and
-`dsh-reference.lock.json`, then run `pnpm context:check:strict`.
+## Shared Agent Setup
 
-This repository is a source-linked, local-only DSH Agent Team extension. Keep
-Host state authoritative, keep Client bundles browser-safe, preserve exact
-Agent authority, and prove every registration disappears on Fiber disposal.
+Codex/Claude Code share this guide. Keep `CLAUDE.md → AGENTS.md` as a relative symlink; edit only `AGENTS.md`. Inspect Git state; preserve others' changes.
 
-Use the canonical `dsh-plugin-dev` skill when changing DSH contracts.
+## Project Structure
 
-## Handoff / 交接文档
+- `packages/domain/src/`: Host services, persistence, authority, and Remote contracts.
+- `packages/ui/src/client/`: React Studio, CSS Modules, and bilingual locales.
+- `packages/profile/`: local bundle and `cordis.patch.yml`.
+- `packages/*/tests/`: tests; `scripts/`: generation and verification; `docs/evidence/`: screenshots.
+- Vocabulary: [CONTEXT.md](CONTEXT.md); ADRs: `docs/adr/`; historical decisions: `docs/decisions/`. Follow [domain conventions](docs/agents/domain.md).
 
-- 用户要求交接或调用 `$handoff` 时，必须将交接内容写入本项目根目录的 [HANDOFF.md](HANDOFF.md)，后续交接更新同一文件。
-- 本项目约定优先于 `handoff` 技能默认写入系统临时目录的规则；仅提供临时文件或对话中的摘要不算完成交接。
-- 接手时先读根目录的 `HANDOFF.md`，并核实仓库、分支、提交和工作区状态。更新时保留仍然有效的上下文，替换过时状态，明确已完成、未实现、下一步及验证范围。
-- 交接以中文为主，引用现有规格、Issue、ADR 和证据路径，不复制整份权威文档；记录适用技能和环境限制，不写入凭据、令牌或私人会话内容。
-- [docs/HANDOFF.md](docs/HANDOFF.md) 仅保留历史运行手册与验收记录；最新会话交接统一维护在根目录 `HANDOFF.md`。
+## Environment and Commands
 
-## Agent skills
+Before editing, read [PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md), [TODO.md](TODO.md), and [dsh-reference.lock.json](dsh-reference.lock.json), then run `pnpm context:check:strict`.
 
-### Issue tracker
+Use Node `^22.19.0 || >=24.0.0`, pnpm `11.7.0`, and locked, built Harness sources. pnpm/TypeScript references require adjacent `../deepseek-harness`; `DSH_HARNESS_ROOT` alone cannot redirect them. Report mismatches without weakening the lock or resetting shared checkouts.
 
-Issues and PRDs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+| Command | Purpose |
+| --- | --- |
+| `pnpm install` | Install workspace dependencies. |
+| `pnpm build` | Build Host/Client and generate Typert artifacts. |
+| `pnpm test` / `pnpm test:watch` | Run/watch Vitest. |
+| `pnpm verify` | Strict check, build, tests, packed install/boot/uninstall. |
+| `pnpm pack:local` | Generate eight archives and installation commands. |
 
-### Triage labels
+After archive installation, use the locked CLI's `web --no-open --port 4317` with isolated `DSH_HOME`; choose an unused port. See [local setup](README.md#安装到本地-dsh-web).
 
-Use the default five-role triage vocabulary. See `docs/agents/triage-labels.md`.
+## Style and Architecture
 
-### Domain docs
+Use TypeScript ESM, two-space indentation, single quotes, and no semicolons. Use PascalCase components/types, camelCase functions/variables, and kebab-case module filenames. No lint/formatter script exists.
 
-Use a single-context layout with `CONTEXT.md` at the root and ADRs under `docs/adr/`. See `docs/agents/domain.md`.
+Host state is authoritative; resolve exact live Agent authority, keep Client bundles browser-safe, and prove every registration disappears on Fiber disposal. Use canonical `dsh-plugin-dev` for DSH contract changes. Regenerate Typert; never hand-edit generated artifacts. Ultra uses `@benz-ai-x`; pinned Harness dependencies retain `@deepseek-ai`. Delivery remains local-only.
+
+## Testing Guidelines
+
+Name tests `*.spec.ts`/`*.spec.tsx`; Client tests declare jsdom and use React Testing Library. No coverage threshold is configured. Cover changed permissions, persistence, recovery, cancellation, and disposal boundaries. Run `pnpm verify` before merging runtime changes; validate documentation links and `git diff --check` for documentation-only edits.
+
+## Commits and Pull Requests
+
+Follow history: imperative `fix:`, `docs:`, or `chore:` subjects. PRs describe behavior, link Issues, report validation limits, and include relevant UI screenshots. Manage Issues/PRDs with `gh`; follow [tracker](docs/agents/issue-tracker.md) and [five-role triage](docs/agents/triage-labels.md) conventions.
+
+## Handoff
+
+Read/update root [HANDOFF.md](HANDOFF.md) in Chinese: completed/planned work, next steps, environment, verification, and skills. This overrides the handoff skill's temporary-directory default. Preserve valid context, replace stale status, reference authoritative specs/Issues/ADRs, and exclude credentials, tokens, and private conversations. [docs/HANDOFF.md](docs/HANDOFF.md) remains historical.
