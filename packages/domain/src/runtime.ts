@@ -251,6 +251,14 @@ export class RuntimeBackendRegistry {
     return this.generation
   }
 
+  /** A replacement catalog must not reuse a generation retained by an earlier evaluation. */
+  advanceGenerationPast(retained: number): void {
+    if (!Number.isSafeInteger(retained) || retained < 0 || retained >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('Digital Employee runtime capability generation cannot be advanced safely')
+    }
+    this.generation = Math.max(this.generation, retained + 1)
+  }
+
   /** Classify current executability without changing durable provisioning state. */
   availability(
     profile: DigitalEmployeeProfileDraft,
@@ -711,4 +719,10 @@ export function snapshotRequiredCapabilities(
   required: DigitalEmployeeRequiredCapabilities,
 ): DigitalEmployeeRequiredCapabilities {
   return snapshotRequirements(required)
+}
+
+export function sameDshTarget(left: DshModelRuntimeTarget, right: DshModelRuntimeTarget): boolean {
+  return left.provider === right.provider
+    && left.model === right.model
+    && left.reasoningEffort === right.reasoningEffort
 }
