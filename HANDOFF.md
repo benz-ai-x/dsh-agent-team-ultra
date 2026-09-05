@@ -2,7 +2,7 @@
 
 交接日期：2026-09-05（Asia/Shanghai）。用户使用中文；下一会话主题由用户的新指令决定。
 
-本文件是本项目最新交接的唯一入口，存放规则见 [AGENT.md](AGENT.md)。[docs/HANDOFF.md](docs/HANDOFF.md) 保留前一阶段运行手册与历史验收；其中的环境、进度和剩余范围不能覆盖本文件及当前权威材料。
+本文件是本项目最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。[docs/HANDOFF.md](docs/HANDOFF.md) 保留前一阶段运行手册与历史验收；其中的环境、进度和剩余范围不能覆盖本文件及当前权威材料。
 
 ## 当前状态与完成边界
 
@@ -17,7 +17,7 @@
 
 以下相对路径均以主仓库为根；本交接不复制其中的规格、领域定义或架构决策。
 
-1. [AGENTS.md](AGENTS.md)、[AGENT.md](AGENT.md)、[PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md)、[TODO.md](TODO.md)、[dsh-reference.lock.json](dsh-reference.lock.json)：开发约束、交接规则、当前实现契约、进度和精确运行基线。
+1. [AGENTS.md](AGENTS.md)、[PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md)、[TODO.md](TODO.md)、[dsh-reference.lock.json](dsh-reference.lock.json)：开发约束、交接规则、当前实现契约、进度和精确运行基线。
 2. [CONTEXT.md](CONTEXT.md)、[领域文档约定](docs/agents/domain.md)、[ADRs](docs/adr/) 与 [历史决策](docs/decisions/)：统一领域词汇和历史决策。新 Spec 要求调整哪些 ADR 已在其 D-21、D-25 明确，实施时显式补充或修订。
 3. [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)：新版本范围、双语要求、用户故事、技术边界及验收的唯一需求来源。上一版 [Spec #1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/1) 已关闭，仅供历史追踪。
 4. [官方 Agent Team 兼容性研究](docs/research/2026-09-05-official-agent-team-compatibility.md)及其链接的复现脚本：已验证的官方／fork 差异、证据范围及限制，避免重新从猜测开始。
@@ -63,6 +63,6 @@ DSH_HARNESS_ROOT="$HOME/Dev-Space/.agent-team-ultra-runtime/deepseek-harness" \
 - **codebase-design**：`$HOME/.codex/skills/codebase-design/SKILL.md`。适合在实施前落实模块职责、依赖方向和真实 provider/consumer 接口。
 - **to-spec**：`$HOME/.codex/skills/to-spec/SKILL.md`。用户继续调整需求时使用，更新既有 Issue #18 和双语编号；已确认内容直接继承。
 - **code-review**：`$HOME/.codex/skills/code-review/SKILL.md`。实际实现完成后，针对固定提交范围检查契约和行为。
-- **handoff**：`$HOME/.codex/skills/handoff/SKILL.md`。再次交接时更新项目根目录的 `HANDOFF.md`，遵循 [AGENT.md](AGENT.md) 中优先于技能默认临时存放位置的项目约定，并引用现有材料而非复制。
+- **handoff**：`$HOME/.codex/skills/handoff/SKILL.md`。再次交接时更新项目根目录的 `HANDOFF.md`，遵循 [AGENTS.md](AGENTS.md) 中优先于技能默认临时存放位置的项目约定，并引用现有材料而非复制。
 
 技能可用性以新会话的目录为准。当前 AGENTS 没有要求委派，勿仅因可用工具而自动启动子代理。

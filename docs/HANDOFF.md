@@ -1,6 +1,6 @@
 # DSH Agent Team Ultra 历史运行手册与验收记录
 
-> 最新交接统一维护在项目根目录的 [HANDOFF.md](../HANDOFF.md)，存放规则见 [AGENT.md](../AGENT.md)。
+> 最新交接统一维护在项目根目录的 [HANDOFF.md](../HANDOFF.md)，存放规则见 [AGENTS.md](../AGENTS.md)。
 >
 > 以下保留 2026-09-05（Asia/Shanghai）catalog-owner 收口阶段的历史快照。环境路径、完成状态、验证结果和剩余工作描述仅适用于该阶段；当前进度以根目录交接、TODO 和 Spec #18 为准。
 >
