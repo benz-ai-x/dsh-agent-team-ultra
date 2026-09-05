@@ -23,9 +23,11 @@ function indexPackages(parent, nested = false) {
 }
 indexPackages('vendor')
 indexPackages('packages', true)
-const codexDirectory = join(root, 'packages/codex')
-const codexManifest = JSON.parse(readFileSync(join(codexDirectory, 'package.json'), 'utf8'))
-workspace.set(codexManifest.name, { directory: codexDirectory, manifest: codexManifest })
+for (const name of ['codex', 'claude-code']) {
+  const directory = join(root, 'packages', name)
+  const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
+  workspace.set(manifest.name, { directory, manifest })
+}
 const hostManifest = JSON.parse(readFileSync(join(root, 'packages/domain/package.json'), 'utf8'))
 const profileManifest = JSON.parse(readFileSync(join(root, 'packages/profile/package.json'), 'utf8'))
 const roots = {
@@ -67,7 +69,10 @@ writeFileSync(join(output, 'compatibility.json'), `${JSON.stringify({
   schemaVersion: 1,
   maintainedFork: lock.upstream,
   ...lock.compatibility,
-  retiredRuntimePackages: ['@deepseek-ai/dsh-experimental-agent-team-codex'],
+  retiredRuntimePackages: [
+    '@deepseek-ai/dsh-experimental-agent-team-codex',
+    '@deepseek-ai/dsh-experimental-agent-team-claude-code',
+  ],
   roots,
   packages,
 }, null, 2)}\n`)

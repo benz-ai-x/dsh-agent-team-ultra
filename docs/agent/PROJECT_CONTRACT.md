@@ -26,7 +26,7 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 - `@benz-ai-x/dsh-agent-team-codex` is the Ultra-owned Host-only durable
   Codex Runtime Backend, qualified against its exact package-local native
   payload and activated with a read-only sandbox.
-- `@deepseek-ai/dsh-experimental-agent-team-claude-code` is the Host-only
+- `@benz-ai-x/dsh-agent-team-claude-code` is the Ultra-owned Host-only
   durable Claude Code Runtime Backend, qualified against its exact
   package-local Agent SDK/native payload and activated with a read-only
   sandbox.
@@ -46,7 +46,7 @@ Normal builds generate an executable proof and a public Host wrapper that
 checks it before dynamically importing fork-only implementation dependencies.
 The profile checks its full private package closure before Loader starts any
 child; validation follows each package's own ESM dependency resolution, excluding
-`NODE_PATH` fallbacks. A retired Codex package remaining in the installation
+`NODE_PATH` fallbacks. A retired Codex or Claude Code package remaining in the installation
 is rejected before any child can register. The local
 CLI wrapper validates source before installation, actual dependencies after
 installation, and source plus installed dependencies before startup. Admission
@@ -394,8 +394,8 @@ direct constructor call could bypass Loader validation.
 
 Delivery is a local-only overlay bound to the audited Harness commit in
 `dsh-reference.lock.json`. The upstream Agent Team packages are private, so
-this workspace is not npm-publishable. `pack:local` creates the four Ultra
-archives and the four pinned private Agent Team archives, then emits a local
+this workspace is not npm-publishable. `pack:local` creates the five Ultra
+archives and the three pinned private Agent Team archives, then emits a local
 archive installation command whose unpublished peer dependencies resolve from
 the audited Harness checkout. Verification installs all eight archives,
 resolves both Codex and Claude Code runtime families, boots a real DSH Web

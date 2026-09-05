@@ -17,6 +17,10 @@ mkdirSync(destination, { recursive: true })
 
 const packages = [
   {
+    directory: 'packages/claude-code',
+    required: ['package.json', 'lib/index.js', 'lib/types/index.d.ts', 'lib/types/product.d.ts', 'lib/types/process.d.ts', 'LICENSE'],
+  },
+  {
     directory: 'packages/codex',
     required: ['package.json', 'lib/index.js', 'lib/types/index.d.ts', 'lib/types/product.d.ts', 'LICENSE'],
   },
@@ -40,7 +44,6 @@ const packages = [
 ]
 const privateClosure = [
   join(harness, 'packages', 'experimental', 'agent-team'),
-  join(harness, 'packages', 'experimental', 'agent-team-claude-code'),
   join(harness, 'packages', 'experimental', 'tool-agent-team'),
   join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
 ]
@@ -145,9 +148,9 @@ try {
     `  'zod': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team', 'node_modules', 'zod')}`)}`,
     `  'react': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'client-ui-agent-team', 'node_modules', 'react')}`)}`,
     `  '@openai/codex': ${JSON.stringify(`link:${join(root, 'packages', 'codex', 'node_modules', '@openai', 'codex')}`)}`,
-    `  '@anthropic-ai/claude-agent-sdk': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-claude-code', 'node_modules', '@anthropic-ai', 'claude-agent-sdk')}`)}`,
-    `  '@anthropic-ai/sdk': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-claude-code', 'node_modules', '@anthropic-ai', 'sdk')}`)}`,
-    `  '@modelcontextprotocol/sdk': ${JSON.stringify(`link:${join(harness, 'packages', 'experimental', 'agent-team-claude-code', 'node_modules', '@modelcontextprotocol', 'sdk')}`)}`,
+    `  '@anthropic-ai/claude-agent-sdk': ${JSON.stringify(`link:${join(root, 'packages', 'claude-code', 'node_modules', '@anthropic-ai', 'claude-agent-sdk')}`)}`,
+    `  '@anthropic-ai/sdk': ${JSON.stringify(`link:${join(root, 'packages', 'claude-code', 'node_modules', '@anthropic-ai', 'sdk')}`)}`,
+    `  '@modelcontextprotocol/sdk': ${JSON.stringify(`link:${join(root, 'packages', 'claude-code', 'node_modules', '@modelcontextprotocol', 'sdk')}`)}`,
     '',
   ].join('\n'))
   checkedRun(
@@ -177,7 +180,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      "await Promise.all([import('@benz-ai-x/dsh-agent-team-codex'), import('@deepseek-ai/dsh-experimental-agent-team-claude-code')])",
+      "await Promise.all([import('@benz-ai-x/dsh-agent-team-codex'), import('@benz-ai-x/dsh-agent-team-claude-code')])",
     ],
     consumer,
     'packed runtime-family public imports',
@@ -207,7 +210,7 @@ try {
     '@benz-ai-x/dsh-agent-team-ultra',
     '@deepseek-ai/dsh-experimental-agent-team',
     '@benz-ai-x/dsh-agent-team-codex',
-    '@deepseek-ai/dsh-experimental-agent-team-claude-code',
+    '@benz-ai-x/dsh-agent-team-claude-code',
     '@deepseek-ai/dsh-experimental-tool-agent-team',
   ].map(packageName => pathToFileURL(join(installed, ...packageName.split('/'), 'lib', 'index.js')).href)
   checkedRun(
@@ -232,7 +235,7 @@ try {
     'id: agent-team-codex',
     "name: '@benz-ai-x/dsh-agent-team-codex'",
     'id: agent-team-claude-code',
-    "name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'",
+    "name: '@benz-ai-x/dsh-agent-team-claude-code'",
     'id: agent-team-ultra',
     "name: '@benz-ai-x/dsh-agent-team-ultra'",
     'id: ui-agent-team-ultra',
@@ -295,7 +298,7 @@ try {
     '@benz-ai-x/dsh-client-ui-agent-team-ultra',
     '@benz-ai-x/dsh-agent-team-ultra-profile',
     '@benz-ai-x/dsh-agent-team-codex',
-    '@deepseek-ai/dsh-experimental-agent-team-claude-code',
+    '@benz-ai-x/dsh-agent-team-claude-code',
   ]) {
     const packageDirectory = join(profileHome, 'profiles', 'web', 'node_modules', ...packageName.split('/'))
     if (existsSync(packageDirectory)) throw new Error(`${packageName} remained installed after uninstall`)

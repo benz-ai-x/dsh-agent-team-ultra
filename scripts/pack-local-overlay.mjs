@@ -25,7 +25,7 @@ function shellWord(value) {
 const packageRoots = [
   join(harness, 'packages', 'experimental', 'agent-team'),
   join(root, 'packages', 'codex'),
-  join(harness, 'packages', 'experimental', 'agent-team-claude-code'),
+  join(root, 'packages', 'claude-code'),
   join(harness, 'packages', 'experimental', 'tool-agent-team'),
   join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
   join(root, 'packages', 'domain'),
@@ -91,6 +91,8 @@ console.log(`Packed ${archives.length} local-only archives against Harness ${loc
 console.log(`Archives are available in ${output}; exact unpublished peers resolve from the pinned Harness checkout.`)
 console.log('For an existing old Codex installation, stop Web and remove only its retired adapter before installing:')
 console.log(`${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web remove --config.offline=true --config.auto-install-peers=false '@deepseek-ai/dsh-experimental-agent-team-codex'`)
+console.log('For an existing old Claude Code installation, stop Web and remove its retired adapter before installing:')
+console.log(`${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web remove --config.offline=true --config.auto-install-peers=false '@deepseek-ai/dsh-experimental-agent-team-claude-code'`)
 console.log(`Install the ${archives.length} archives into a DSH Web profile with:`)
 console.log([
   `${shellWord(process.execPath)} ${shellWord(checkedCli)} plugin --profile web add`,

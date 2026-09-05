@@ -10,7 +10,7 @@
   "scripts": {
     "context:check": "node scripts/verify-dsh-context.mjs",
     "context:check:strict": "node scripts/verify-dsh-context.mjs --require-source",
-    "build:host": "node scripts/check-harness-source.mjs && tsc -b tsconfig.host.json && pnpm --dir packages/codex bundle && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
+    "build:host": "node scripts/check-harness-source.mjs && tsc -b tsconfig.host.json && pnpm --dir packages/codex bundle && pnpm --dir packages/claude-code bundle && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
     "build:client": "node scripts/check-harness-source.mjs && tsc -b tsconfig.client.json && pnpm --dir packages/ui bundle",
     "build": "pnpm run build:host && pnpm run build:client",
     "test": "node scripts/check-harness-source.mjs && vitest run",
@@ -22,7 +22,8 @@
     "prepare:harness": "node scripts/prepare-harness.mjs",
     "compatibility:check": "node scripts/compatible-dsh.mjs check",
     "dsh:checked": "node scripts/compatible-dsh.mjs",
-    "compatibility:compare": "node scripts/compare-harness-contract.mjs"
+    "compatibility:compare": "node scripts/compare-harness-contract.mjs",
+    "verify:claude-upgrade": "node scripts/verify-claude-upgrade.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-typert-generator": "link:./.dsh/harness/packages/typert/generator",

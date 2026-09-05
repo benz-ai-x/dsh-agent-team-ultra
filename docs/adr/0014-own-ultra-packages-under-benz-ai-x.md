@@ -4,8 +4,8 @@ Status: accepted — 2026-09-05
 
 ## Decision
 
-The Host package, Client package, profile bundle, Codex runtime adapter, and
-private workspace root use the `@benz-ai-x` scope. The remaining pinned Harness
+The Host package, Client package, profile bundle, Codex and Claude Code runtime adapters,
+and private workspace root use the `@benz-ai-x` scope. The remaining pinned Harness
 packages keep their original `@deepseek-ai` identities.
 
 ## Why
@@ -45,4 +45,18 @@ and `external-agent/codex` route. No Profile, Revision, Binding, member, native
 handle, or storage generation is renamed. Local upgrade removes the old Codex
 package with Web stopped and installs the new complete archive set; retaining
 both packages is an admission error, rather than an alias or second provider.
-The Claude Code move remains separate work in #24.
+The subsequent Claude Code ownership revision is recorded below.
+
+## Ownership revision — 2026-09-05, Issue #24
+
+Claude Code moves from `@deepseek-ai/dsh-experimental-agent-team-claude-code`
+to `@benz-ai-x/dsh-agent-team-claude-code`, version `0.1.0`. Ultra owns both
+product adapters; the remaining three private Harness delivery packages retain
+their names. Exact SDK/native qualification, the stable Loader row, route,
+Catalog Owner, member and native Session identity are unchanged.
+
+The same stopped-Web procedure removes installed retired adapters before the
+new eight-archive set is installed. Neither old package is an alias or a second
+provider. No history is copied and no replacement Session is created.
+[ADR-0008](0008-activate-package-local-claude-code-runtime.md) records the
+unchanged permission boundary and the separate controlled Team tool work.

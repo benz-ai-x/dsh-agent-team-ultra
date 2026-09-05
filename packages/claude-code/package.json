@@ -1,0 +1,50 @@
+{
+  "name": "@benz-ai-x/dsh-agent-team-claude-code",
+  "description": "Durable Claude Code Agent SDK provider for Agent Team teammates",
+  "version": "0.1.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benz-ai-x/dsh-agent-team-ultra.git",
+    "directory": "packages/claude-code"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.241",
+    "@anthropic-ai/sdk": "0.93.0",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-experimental-agent-team": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-timeout": "0.1.2-rc.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "link:../../.dsh/harness/vendor/cordis",
+    "@deepseek-ai/dsh-experimental-agent-team": "link:../../.dsh/harness/packages/experimental/agent-team",
+    "@deepseek-ai/dsh-subprocess": "link:../../.dsh/harness/packages/subprocess/subprocess",
+    "@deepseek-ai/dsh-timeout": "link:../../.dsh/harness/packages/util/timeout",
+    "@benz-ai-x/dsh-agent-team-ultra": "workspace:*",
+    "@deepseek-ai/dsh-subprocess-local": "link:../../.dsh/harness/packages/subprocess/subprocess-local"
+  },
+  "scripts": {
+    "bundle": "node ../../scripts/check-harness-source.mjs && tsdown"
+  }
+}
