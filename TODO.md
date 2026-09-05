@@ -34,6 +34,8 @@
 ## Next increment
 
 - [ ] Deliver [vNext Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) through its A/B/C phases and all acceptance criteria; specification publication does not mark implementation complete.
+- [ ] [A01 / #19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19): shared Host context, Profile release, isolated evaluation, and capability installation consolidation implemented on `fix/19-host-profile-evaluation`. Full `pnpm verify` passes 164 tests and eight-archive install/boot/uninstall; PR creation awaits GitHub CLI authentication, followed by post-submission review and manual review.
+- [ ] Continue open implementation issues #20–#44 in order after A01, preserving their dependency and integration-branch requirements. Leave Spec #18 open for the final acceptance audit.
 
 ## Later
 
