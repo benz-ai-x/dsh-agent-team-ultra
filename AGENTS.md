@@ -9,17 +9,18 @@ Codex/Claude Code share this guide. Keep `CLAUDE.md → AGENTS.md` as a relative
 - `packages/domain/src/`: Host services, persistence, authority, and Remote contracts.
 - `packages/ui/src/client/`: React Studio, CSS Modules, and bilingual locales.
 - `packages/profile/`: local bundle and `cordis.patch.yml`.
-- `packages/*/tests/`: tests; `scripts/`: generation and verification; `docs/evidence/`: screenshots.
+- `packages/*/tests/`: product tests; `scripts/`: source preparation, generation, verification, and CLI tests; `docs/evidence/`: screenshots.
 - Vocabulary: [CONTEXT.md](CONTEXT.md); ADRs: `docs/adr/`; historical decisions: `docs/decisions/`. Follow [domain conventions](docs/agents/domain.md).
 
 ## Environment and Commands
 
 Before editing, read [PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md), [TODO.md](TODO.md), and [dsh-reference.lock.json](dsh-reference.lock.json), then run `pnpm context:check:strict`.
 
-Use Node `^22.19.0 || >=24.0.0`, pnpm `11.7.0`, and locked, built Harness sources. pnpm/TypeScript references require adjacent `../deepseek-harness`; `DSH_HARNESS_ROOT` alone cannot redirect them. Report mismatches without weakening the lock or resetting shared checkouts.
+Use Node `^22.19.0 || >=24.0.0`, pnpm `11.7.0`, and locked, built Harness sources. For a fresh checkout or changed source selection, run `DSH_HARNESS_ROOT=/absolute/locked/source pnpm prepare:harness`, then `pnpm install`; the prepared `.dsh/harness` link supplies every source consumer. Relative selections resolve from this repository root. See [source preparation](README.md#开发与验证); report mismatches without weakening the lock or resetting shared checkouts.
 
 | Command | Purpose |
 | --- | --- |
+| `pnpm prepare:harness` | Attest and prepare the selected Harness source before dependency installation. |
 | `pnpm install` | Install workspace dependencies. |
 | `pnpm build` | Build Host/Client and generate Typert artifacts. |
 | `pnpm test` / `pnpm test:watch` | Run/watch Vitest. |

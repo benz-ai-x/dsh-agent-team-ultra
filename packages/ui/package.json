@@ -34,7 +34,7 @@
     }
   },
   "scripts": {
-    "bundle": "tsdown"
+    "bundle": "node ../../scripts/check-harness-source.mjs && tsdown"
   },
   "files": [
     "lib/index.js",
@@ -58,16 +58,16 @@
     "@deepseek-ai/dsh-typert-protocol": "0.1.2-rc.1"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "link:../../../deepseek-harness/vendor/cordis",
+    "@deepseek-ai/cordis": "link:../../.dsh/harness/vendor/cordis",
     "@benz-ai-x/dsh-agent-team-ultra": "workspace:*",
-    "@deepseek-ai/dsh-api-gateway": "link:../../../deepseek-harness/packages/api/gateway",
-    "@deepseek-ai/dsh-api-remotes": "link:../../../deepseek-harness/packages/api/remotes",
-    "@deepseek-ai/dsh-client-locale": "link:../../../deepseek-harness/packages/client/locale",
-    "@deepseek-ai/dsh-client-ui-conversation": "link:../../../deepseek-harness/packages/client/ui-conversation",
-    "@deepseek-ai/dsh-client-ui-primitives": "link:../../../deepseek-harness/packages/client/ui-primitives",
-    "@deepseek-ai/dsh-client-ui-renderer": "link:../../../deepseek-harness/packages/client/ui-renderer",
-    "@deepseek-ai/dsh-client-ui-slots": "link:../../../deepseek-harness/packages/client/ui-slots",
-    "@deepseek-ai/dsh-session": "link:../../../deepseek-harness/packages/core/session",
-    "@deepseek-ai/dsh-typert-protocol": "link:../../../deepseek-harness/packages/typert/protocol"
+    "@deepseek-ai/dsh-api-gateway": "link:../../.dsh/harness/packages/api/gateway",
+    "@deepseek-ai/dsh-api-remotes": "link:../../.dsh/harness/packages/api/remotes",
+    "@deepseek-ai/dsh-client-locale": "link:../../.dsh/harness/packages/client/locale",
+    "@deepseek-ai/dsh-client-ui-conversation": "link:../../.dsh/harness/packages/client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:../../.dsh/harness/packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-renderer": "link:../../.dsh/harness/packages/client/ui-renderer",
+    "@deepseek-ai/dsh-client-ui-slots": "link:../../.dsh/harness/packages/client/ui-slots",
+    "@deepseek-ai/dsh-session": "link:../../.dsh/harness/packages/core/session",
+    "@deepseek-ai/dsh-typert-protocol": "link:../../.dsh/harness/packages/typert/protocol"
   }
 }
