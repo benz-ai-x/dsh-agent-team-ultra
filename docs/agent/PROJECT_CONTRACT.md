@@ -21,7 +21,8 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 - `@benz-ai-x/dsh-client-ui-agent-team-ultra` is the browser-only UI adapter
   and React Studio surface.
 - `@benz-ai-x/dsh-agent-team-ultra-profile` is the bundle patch that activates
-  the Host and UI rows alongside the experimental Agent Team rows.
+  the Host and UI rows alongside the experimental Agent Team rows, beneath a
+  Loader group whose Node-only compatibility admission precedes child imports.
 - `@deepseek-ai/dsh-experimental-agent-team-codex` is the Host-only durable
   Codex Runtime Backend, qualified against its exact package-local native
   payload and activated with a read-only sandbox.
@@ -35,6 +36,20 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 The packages remain together in one workspace, but Host, Client, and bundle
 boundaries are separate because they have different runtime and delivery
 contracts.
+
+The [compatibility decision](../adr/0015-maintain-explicit-harness-compatibility.md)
+and [patch ledger](../reference/harness-patch-ledger.md) supplement the historical
+consume-without-replacement boundary. The lock identifies the official
+foundation, maintained fork, comparison baseline, documentation digest,
+extension API qualification, durable formats, and native SDK/payloads separately.
+Normal builds generate an executable proof and a public Host wrapper that
+checks it before dynamically importing fork-only implementation dependencies.
+The profile checks its full private package closure before Loader starts any
+child; validation follows each package's own dependency resolution. The local
+CLI wrapper validates source before installation, actual dependencies after
+installation, and source plus installed dependencies before startup. Admission
+failure does not open Ultra or Team business storage. Native user authentication
+and final product acceptance remain separate requirements.
 
 Ultra-owned packages use the maintainer's `@benz-ai-x` scope. Dependencies
 provided by the pinned Harness retain their `@deepseek-ai` names. Package and

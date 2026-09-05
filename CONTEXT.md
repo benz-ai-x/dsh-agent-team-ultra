@@ -4,6 +4,14 @@ Agent Team Ultra models reusable Digital Employee definitions and their exact de
 
 ## Language
 
+**Compatibility Identity**:
+The separate, exact identities of an official foundation, maintained extensions, documented contracts, durable formats, and native products qualified to operate together.
+_Avoid_: Package version, latest Harness, best-effort compatibility
+
+**Maintained Extension**:
+A deliberately owned change to the official foundation whose public contract, durable-format impact, validation, and upstream disposition remain explicit.
+_Avoid_: Replacement Team, hidden fork, copied product logic
+
 **Digital Employee Profile**:
 A reusable definition of one Digital Employee's identity, behavior, context, memory, hooks, and capability policy.
 _Avoid_: Template, agent config

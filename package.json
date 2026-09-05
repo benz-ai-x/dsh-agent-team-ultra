@@ -18,7 +18,10 @@
     "pack:local": "pnpm run context:check:strict && pnpm run build && node scripts/pack-local-overlay.mjs",
     "verify:pack": "node scripts/verify-pack.mjs",
     "verify": "pnpm run context:check:strict && pnpm run build && pnpm run test && pnpm run verify:pack",
-    "prepare:harness": "node scripts/prepare-harness.mjs"
+    "prepare:harness": "node scripts/prepare-harness.mjs",
+    "compatibility:check": "node scripts/compatible-dsh.mjs check",
+    "dsh:checked": "node scripts/compatible-dsh.mjs",
+    "compatibility:compare": "node scripts/compare-harness-contract.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-typert-generator": "link:./.dsh/harness/packages/typert/generator",

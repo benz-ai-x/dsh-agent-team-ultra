@@ -20,6 +20,7 @@ const packages = [
     directory: 'packages/domain',
     required: [
       'package.json', 'lib/index.js', 'lib/client.js', 'lib/types/index.d.ts',
+      'lib/host.js', 'lib/compatibility.js', 'lib/compatibility.json',
       'lib/typert.host.js', 'lib/typert.host.d.ts',
       'lib/typert.remote-client.js', 'lib/typert.remote-client.d.ts',
     ],
@@ -42,6 +43,7 @@ const privateClosure = [
 ]
 const pinnedHarnessPeers = [
   join(harness, 'vendor', 'cordis'),
+  join(harness, 'vendor', 'loader'),
   join(harness, 'packages', 'core', 'agent'),
   join(harness, 'packages', 'util', 'brand'),
   join(harness, 'packages', 'runtime-diagnostics', 'invariants'),
@@ -181,10 +183,11 @@ try {
   console.log(`PASS private archive content: ${archives.length - ultraArchives.length} local-only archive(s) packed`)
 
   const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
+  const checkedCli = join(root, 'scripts', 'compatible-dsh.mjs')
   checkedRun(
     process.execPath,
     [
-      cli,
+      checkedCli,
       'plugin',
       '--profile',
       'web',
@@ -246,7 +249,7 @@ try {
   }
   checkedRun(
     process.execPath,
-    [join(root, 'scripts', 'verify-web-boot.mjs'), cli],
+    [join(root, 'scripts', 'verify-web-boot.mjs'), checkedCli],
     root,
     'real dsh Web startup',
     { DSH_HOME: profileHome },
