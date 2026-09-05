@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-client-ui-agent-team-ultra",
+  "name": "@benz-ai-x/dsh-client-ui-agent-team-ultra",
   "description": "Visual Digital Employee Studio for Agent Team Ultra",
   "version": "0.1.0",
   "private": true,
@@ -46,7 +46,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-agent-team-ultra": "0.1.0",
+    "@benz-ai-x/dsh-agent-team-ultra": "0.1.0",
     "@deepseek-ai/dsh-api-gateway": "0.1.2-rc.1",
     "@deepseek-ai/dsh-api-remotes": "0.1.2-rc.1",
     "@deepseek-ai/dsh-client-locale": "0.1.2-rc.1",
@@ -59,7 +59,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "link:../../../deepseek-harness/vendor/cordis",
-    "@deepseek-ai/dsh-agent-team-ultra": "workspace:*",
+    "@benz-ai-x/dsh-agent-team-ultra": "workspace:*",
     "@deepseek-ai/dsh-api-gateway": "link:../../../deepseek-harness/packages/api/gateway",
     "@deepseek-ai/dsh-api-remotes": "link:../../../deepseek-harness/packages/api/remotes",
     "@deepseek-ai/dsh-client-locale": "link:../../../deepseek-harness/packages/client/locale",

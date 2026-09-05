@@ -16,11 +16,11 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 
 ## DSH form and topology
 
-- `@deepseek-ai/dsh-agent-team-ultra` is the Host service, storage-domain
+- `@benz-ai-x/dsh-agent-team-ultra` is the Host service, storage-domain
   owner, generated Remote contract, and exact-Agent lifecycle composer.
-- `@deepseek-ai/dsh-client-ui-agent-team-ultra` is the browser-only UI adapter
+- `@benz-ai-x/dsh-client-ui-agent-team-ultra` is the browser-only UI adapter
   and React Studio surface.
-- `@deepseek-ai/dsh-agent-team-ultra-profile` is the bundle patch that activates
+- `@benz-ai-x/dsh-agent-team-ultra-profile` is the bundle patch that activates
   the Host and UI rows alongside the experimental Agent Team rows.
 - `@deepseek-ai/dsh-experimental-agent-team-codex` is the Host-only durable
   Codex Runtime Backend, qualified against its exact package-local native
@@ -35,6 +35,11 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 The packages remain together in one workspace, but Host, Client, and bundle
 boundaries are separate because they have different runtime and delivery
 contracts.
+
+Ultra-owned packages use the maintainer's `@benz-ai-x` scope. Dependencies
+provided by the pinned Harness retain their `@deepseek-ai` names. Package and
+generated RPC identities move together; `digitalEmployees`, stable Loader row
+ids, and the `agent_team_ultra_v1` storage generation remain unchanged.
 
 ## Authority and state
 

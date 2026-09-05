@@ -53,7 +53,7 @@ import type {
   SpawnDigitalEmployeeResult,
   StartDigitalEmployeeEvalRunRequest,
   StartDigitalEmployeeEvalRunResult,
-} from '@deepseek-ai/dsh-agent-team-ultra/client'
+} from '@benz-ai-x/dsh-agent-team-ultra/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   IconChevronDownOutline14,

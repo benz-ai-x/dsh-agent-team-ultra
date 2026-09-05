@@ -20,8 +20,8 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(manifest.publishConfig).toBeUndefined()
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.peerDependencies).toEqual({
-      '@deepseek-ai/dsh-agent-team-ultra': '0.1.0',
-      '@deepseek-ai/dsh-client-ui-agent-team-ultra': '0.1.0',
+      '@benz-ai-x/dsh-agent-team-ultra': '0.1.0',
+      '@benz-ai-x/dsh-client-ui-agent-team-ultra': '0.1.0',
       '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-rc.1',
       '@deepseek-ai/dsh-experimental-agent-team-claude-code': '0.1.2-rc.1',
       '@deepseek-ai/dsh-experimental-agent-team-codex': '0.1.2-rc.1',
@@ -76,7 +76,7 @@ describe('Agent Team Ultra profile overlay', () => {
       },
     })
     expect(inserted.find(entry => entry.id === 'agent-team-ultra')).toMatchObject({
-      name: '@deepseek-ai/dsh-agent-team-ultra',
+      name: '@benz-ai-x/dsh-agent-team-ultra',
       config: {
         defaultContinuationProvider: 'spawn',
         maxProfiles: 64,

@@ -1,8 +1,8 @@
 /** Browser registration and generated Remote lifecycle for Digital Employee Studio. */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-agent-team-ultra/remote'
-import type { DigitalEmployeeStudioFrame } from '@deepseek-ai/dsh-agent-team-ultra/client'
+import type {} from '@benz-ai-x/dsh-agent-team-ultra/remote'
+import type { DigitalEmployeeStudioFrame } from '@benz-ai-x/dsh-agent-team-ultra/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteSnapshotStream, RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'

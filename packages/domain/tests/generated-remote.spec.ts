@@ -24,7 +24,7 @@ class DigitalEmployeesGatewayFixture extends Service {
 
 describe('generated Digital Employee Remote contract', () => {
   it('publishes the immutable release workflow without a hard-delete operation', () => {
-    expect(remote.package).toBe('@deepseek-ai/dsh-agent-team-ultra')
+    expect(remote.package).toBe('@benz-ai-x/dsh-agent-team-ultra')
     expect(remote.descriptors.map(method => method.method)).toEqual([
       'activate', 'archive', 'cancelEvalRun', 'evalRun', 'restore', 'revision', 'rollback', 'run',
       'save', 'saveEvalSet', 'setEvalGate', 'spawn', 'startEvalRun', 'view', 'watch',
@@ -83,21 +83,21 @@ describe('generated Digital Employee Remote contract', () => {
     )
     const host = TYPERT as { invocations: { id: string }[] }
     expect(host.invocations.map(invocation => invocation.id)).toEqual([
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/activate',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/archive',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/cancelEvalRun',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/evalRun',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/restore',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/revision',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/rollback',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/run',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/save',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/saveEvalSet',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/setEvalGate',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/spawn',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/startEvalRun',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/view',
-      '@deepseek-ai/dsh-agent-team-ultra#digitalEmployees/watch',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/activate',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/archive',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/cancelEvalRun',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/evalRun',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/restore',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/revision',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/rollback',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/run',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/save',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/saveEvalSet',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/setEvalGate',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/spawn',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/startEvalRun',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/view',
+      '@benz-ai-x/dsh-agent-team-ultra#digitalEmployees/watch',
     ])
   })
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { DigitalEmployeeEvalRunId, LaunchRequestId } from '@deepseek-ai/dsh-agent-team-ultra/client'
+import type { DigitalEmployeeEvalRunId, LaunchRequestId } from '@benz-ai-x/dsh-agent-team-ultra/client'
 import type { RemoteStreamOptions } from '@deepseek-ai/dsh-api-gateway/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/src/client/index.ts'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/src/client/registry.ts'
@@ -11,7 +11,7 @@ import { DigitalEmployeeStudio, type DigitalEmployeeStudioInjected } from '../sr
 import { inject, mountDigitalEmployeeStudio } from '../src/client/mount.ts'
 
 const REMOTE: TypertRemoteContribution = {
-  package: '@deepseek-ai/dsh-agent-team-ultra',
+  package: '@benz-ai-x/dsh-agent-team-ultra',
   descriptors: [],
 }
 

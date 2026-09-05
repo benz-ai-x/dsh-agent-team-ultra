@@ -1,6 +1,6 @@
 - name: '@fixture/agent-team-runtime'
 
-- name: '@deepseek-ai/dsh-agent-team-ultra'
+- name: '@benz-ai-x/dsh-agent-team-ultra'
   config:
     defaultContinuationProvider: fixture-provider
     maxProfiles: 1

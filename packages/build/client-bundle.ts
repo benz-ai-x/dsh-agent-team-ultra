@@ -90,9 +90,9 @@ export function externalClientBundle(id: string): UserConfig[] {
     plugins: [{
       name: 'agent-team-ultra-client-purity',
       resolveId(source: string) {
-        if (!source.startsWith('@deepseek-ai/')) return null
+        if (!source.startsWith('@deepseek-ai/') && !source.startsWith('@benz-ai-x/')) return null
         if (PLATFORM_EXTERNALS.has(source)) return null
-        if (source === '@deepseek-ai/dsh-agent-team-ultra/remote') return null
+        if (source === '@benz-ai-x/dsh-agent-team-ultra/remote') return null
         throw new Error(`Agent Team Ultra Client cannot inline the cross-plugin runtime ${source}`)
       },
     }, {

@@ -1,6 +1,6 @@
 /** Browser entry for Agent Team Ultra. */
 
-import digitalEmployeesRemote from '@deepseek-ai/dsh-agent-team-ultra/remote'
+import digitalEmployeesRemote from '@benz-ai-x/dsh-agent-team-ultra/remote'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { mountDigitalEmployeeStudio } from './mount.ts'
 

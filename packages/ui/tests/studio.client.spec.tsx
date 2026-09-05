@@ -14,7 +14,7 @@ import type {
   DigitalEmployeeRuntimeCatalog,
   DigitalEmployeeRuntimeTarget,
   DigitalEmployeeStudioView,
-} from '@deepseek-ai/dsh-agent-team-ultra/client'
+} from '@benz-ai-x/dsh-agent-team-ultra/client'
 import { DigitalEmployeeStudio, type DigitalEmployeeStudioProps } from '../src/client/Studio.tsx'
 import { en, type UltraKey } from '../src/client/locales.ts'
 
@@ -1289,7 +1289,7 @@ describe('standalone Client bundle', () => {
     }
     // Deliberate built-artifact fixture: execute the browser factory registration in window scope.
     new Function(code)()
-    expect(handoff?.id).toBe('@deepseek-ai/dsh-client-ui-agent-team-ultra')
+    expect(handoff?.id).toBe('@benz-ai-x/dsh-client-ui-agent-team-ultra')
     expect(document.querySelectorAll('style')).toHaveLength(0)
     const modules = new Map<string, unknown>([
       ['react', await import('react')],

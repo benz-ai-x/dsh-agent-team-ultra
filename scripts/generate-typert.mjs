@@ -144,7 +144,7 @@ try {
   })
 
   const generator = new WorkspaceTypertGenerator(temporaryRoot, { checkDiagnostics: false })
-  const artifacts = generator.generate(['@deepseek-ai/dsh-agent-team-ultra'], ['host'])
+  const artifacts = generator.generate(['@benz-ai-x/dsh-agent-team-ultra'], ['host'])
   const artifact = artifacts.find(candidate =>
     candidate.packageRoot === 'packages/domain' && candidate.face === 'host')
   if (artifact === undefined || artifact.remote === undefined) {

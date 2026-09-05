@@ -2,7 +2,21 @@
 
 Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作区。它在 DSH Web 的会话头部加入“数字员工工作室”，把可视化配置的 Agent Profile 创建为真实、可持续恢复的 Agent Team 队友。
 
-当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `4b60986f8c85a12e23ff4eb2ebbd5dc868f44587`。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+本项目由 `benz-ai-x` 维护，三个自有包使用 `@benz-ai-x` 命名空间：
+
+- `@benz-ai-x/dsh-agent-team-ultra`：Host 服务与 Remote 合约。
+- `@benz-ai-x/dsh-client-ui-agent-team-ultra`：浏览器工作室。
+- `@benz-ai-x/dsh-agent-team-ultra-profile`：本地安装组合包。
+
+锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
+
+当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a`，以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend 和初始工作持久接受后的取消权转移；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+
+## 下一版本规格
+
+[Spec #18：Agent Team Ultra vNext（规范版本 1.1）](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 以“官方基础＋明确的 Ultra 扩展”为目标，中文为规范主版，附完整英文对照。待交付范围包括 native 完整协作、团队消息中心、任务 DAG 交互、扩展格式迁移和升级验收；这些能力尚未因 Spec 发布而完成实现。
+
+当前实现与官方基线的差异及复现证据见 [兼容性核验报告](docs/research/2026-09-05-official-agent-team-compatibility.md)。
 
 ## 能力
 
@@ -76,6 +90,8 @@ dsh web
 配置结果中应出现 `agent-team`、`agent-team-codex`、`agent-team-claude-code`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team` 和 `ui-agent-team-ultra` 七个稳定行，同时三个冲突的全局 continuable 控制工具保持禁用。
 
 `pack:local` 同时打印卸载命令。执行后，最终配置和 profile `node_modules` 中不得残留 Ultra、Codex 或 Claude Code overlay 行/包。
+
+从旧命名空间升级时，先停止目标 Web 实例，使用旧版打印的卸载命令移除旧包，再执行新版打印的安装命令。沿用原 `DSH_HOME` 和 Profile，并在重启后刷新浏览器，使 Host、Client 与生成的 RPC 标识同步切换；会话与 `agent_team_ultra_v1` 数据继续保存在原位置。
 
 ## 使用
 

@@ -48,7 +48,7 @@
         forkProvider: fork
 
     - id: agent-team-ultra
-      name: '@deepseek-ai/dsh-agent-team-ultra'
+      name: '@benz-ai-x/dsh-agent-team-ultra'
       config:
         defaultContinuationProvider: spawn
         maxProfiles: 64
@@ -68,4 +68,4 @@
       name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'
 
     - id: ui-agent-team-ultra
-      name: '@deepseek-ai/dsh-client-ui-agent-team-ultra'
+      name: '@benz-ai-x/dsh-client-ui-agent-team-ultra'

@@ -163,7 +163,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      "await Promise.all([import('@deepseek-ai/dsh-agent-team-ultra/client'), import('@deepseek-ai/dsh-client-ui-agent-team-ultra'), import('@deepseek-ai/dsh-agent-team-ultra-profile')])",
+      "await Promise.all([import('@benz-ai-x/dsh-agent-team-ultra/client'), import('@benz-ai-x/dsh-client-ui-agent-team-ultra'), import('@benz-ai-x/dsh-agent-team-ultra-profile')])",
     ],
     consumer,
     'ordinary-resolution public import',
@@ -197,19 +197,20 @@ try {
     'real packed-artifact dsh profile install',
     { DSH_HOME: profileHome },
   )
-  const installed = join(profileHome, 'profiles', 'web', 'node_modules', '@deepseek-ai')
+  const installed = join(profileHome, 'profiles', 'web', 'node_modules')
+  const installedHostEntries = [
+    '@benz-ai-x/dsh-agent-team-ultra',
+    '@deepseek-ai/dsh-experimental-agent-team',
+    '@deepseek-ai/dsh-experimental-agent-team-codex',
+    '@deepseek-ai/dsh-experimental-agent-team-claude-code',
+    '@deepseek-ai/dsh-experimental-tool-agent-team',
+  ].map(packageName => pathToFileURL(join(installed, ...packageName.split('/'), 'lib', 'index.js')).href)
   checkedRun(
     process.execPath,
     [
       '--input-type=module',
       '--eval',
-      `await Promise.all(${JSON.stringify([
-        pathToFileURL(join(installed, 'dsh-agent-team-ultra', 'lib', 'index.js')).href,
-        pathToFileURL(join(installed, 'dsh-experimental-agent-team', 'lib', 'index.js')).href,
-        pathToFileURL(join(installed, 'dsh-experimental-agent-team-codex', 'lib', 'index.js')).href,
-        pathToFileURL(join(installed, 'dsh-experimental-agent-team-claude-code', 'lib', 'index.js')).href,
-        pathToFileURL(join(installed, 'dsh-experimental-tool-agent-team', 'lib', 'index.js')).href,
-      ])}.map(specifier => import(specifier)))`,
+      `await Promise.all(${JSON.stringify(installedHostEntries)}.map(specifier => import(specifier)))`,
     ],
     root,
     'packed Host imports',
@@ -222,13 +223,13 @@ try {
     { DSH_HOME: profileHome },
   ).stdout
   for (const expected of [
-    '# == @deepseek-ai/dsh-agent-team-ultra-profile',
+    '# == @benz-ai-x/dsh-agent-team-ultra-profile',
     'id: agent-team-codex',
     "name: '@deepseek-ai/dsh-experimental-agent-team-codex'",
     'id: agent-team-claude-code',
     "name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'",
     'id: agent-team-ultra',
-    "name: '@deepseek-ai/dsh-agent-team-ultra'",
+    "name: '@benz-ai-x/dsh-agent-team-ultra'",
     'id: ui-agent-team-ultra',
     'maxProfiles: 64',
   ]) {
@@ -285,9 +286,9 @@ try {
     }
   }
   for (const packageName of [
-    '@deepseek-ai/dsh-agent-team-ultra',
-    '@deepseek-ai/dsh-client-ui-agent-team-ultra',
-    '@deepseek-ai/dsh-agent-team-ultra-profile',
+    '@benz-ai-x/dsh-agent-team-ultra',
+    '@benz-ai-x/dsh-client-ui-agent-team-ultra',
+    '@benz-ai-x/dsh-agent-team-ultra-profile',
     '@deepseek-ai/dsh-experimental-agent-team-codex',
     '@deepseek-ai/dsh-experimental-agent-team-claude-code',
   ]) {

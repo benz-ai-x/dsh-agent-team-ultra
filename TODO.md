@@ -27,6 +27,13 @@
 - [x] Add exact-call one-shot approval through stock DSH approval, external capability gating, and truthful waiting/orphan evidence.
 - [x] Gate Profile promotion with versioned exact isolated candidate evaluations.
 - [x] Complete Studio snapshot streaming, lifecycle quiescence, and packed install/uninstall proof.
+- [x] Move every Ultra-owned package and generated RPC identity to `@benz-ai-x`, verify the renamed archive set, and update the local Web installation.
+- [x] Compare the official Agent Team contracts with the locked Ultra fork and record reproduced API, replay, runtime-capability, and v2 Run evidence compatibility findings in `docs/research/2026-09-05-official-agent-team-compatibility.md`.
+- [x] Publish the Chinese-primary bilingual vNext Spec 1.1 as [Issue #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18), including the Team message center and interactive task DAG.
+
+## Next increment
+
+- [ ] Deliver [vNext Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) through its A/B/C phases and all acceptance criteria; specification publication does not mark implementation complete.
 
 ## Later
 

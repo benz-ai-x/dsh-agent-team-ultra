@@ -146,7 +146,7 @@ async function loadComposition(): Promise<{
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['@fixture/agent-team-runtime', runtimePlugin],
-    ['@deepseek-ai/dsh-agent-team-ultra', DigitalEmployeeService],
+    ['@benz-ai-x/dsh-agent-team-ultra', DigitalEmployeeService],
   ])
   context.loader.internal = {
     version: 'v2',
