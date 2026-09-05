@@ -9,9 +9,9 @@
 
 - 用户要求从 [#19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19) 开始逐项实现全部 open issue：新分支、TDD、创建 PR、提交 PR 后使用 code-review，最后通知用户人工审核。每项完成及遇到开发阻塞时使用飞书 CLI 通知用户；已有明确通知授权。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
-- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 已推送到 `fix/20-host-launch-recovery`（`1185bd0`）；#21 已推送到 `fix/21-locked-source-preparation`（`a8adac0`）。#22 已推送到 `fix/22-runtime-compatibility-preflight`（`61d2361`）。#23 已推送到 `fix/23-ultra-codex-runtime`（`ae2ec72`）。当前 #24 分支为 `fix/24-ultra-claude-code-runtime`，固定基线为 `ae2ec7258146ea14ec4895d39795221c3774e29d`。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
-- **用户最新指示：Issue 在开发和验证完成后即可关闭，不等待 PR 或人工审核。#19–#24 已达到关闭条件；PR 创建、提交后的 code-review 和人工审核仍是独立未完成待办。** 当前容器 `gh auth status` 明确未登录；实际执行的 `gh issue close 19 --repo benz-ai-x/dsh-agent-team-ultra --reason completed` 因未认证退出 4，尚未改变远端 Issue 状态。Git SSH 推送可用，PR 创建也因同一认证问题受阻；认证可用后直接关闭 #19–#24，无需再次确认。
-- #24 的开发与验证已完成，PR 创建与后续评审仍待认证。#25–#44 尚未实现；下一项 [#25](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/25) 实现只读格式与迁移审计并收口阶段 A。后续按依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
+- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 已推送到 `fix/20-host-launch-recovery`（`1185bd0`）；#21 已推送到 `fix/21-locked-source-preparation`（`a8adac0`）。#22 已推送到 `fix/22-runtime-compatibility-preflight`（`61d2361`）。#23 已推送到 `fix/23-ultra-codex-runtime`（`ae2ec72`）。#24 已推送到 `fix/24-ultra-claude-code-runtime`（`d4e72b835362d766f402f761f4dcf29a931e2400`）。当前 #25 开发分支为 `fix/25-read-only-migration-audit`，固定基线为 `d4e72b8`。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
+- **用户最新指示：Issue 在开发和验证完成后即可关闭，不等待 PR 或人工审核。#19–#25 已达到关闭条件；PR 创建、提交后的 code-review 和人工审核仍是独立未完成待办。** 当前容器 `gh auth status` 明确未登录；实际执行的 `gh issue close 19 --repo benz-ai-x/dsh-agent-team-ultra --reason completed` 因未认证退出 4，尚未改变远端 Issue 状态。Git SSH 推送可用，PR 创建也因同一认证问题受阻；认证可用后直接关闭 #19–#25，无需再次确认。
+- #25 的开发与验证已完成，阶段 A 已收口，PR 创建与后续评审仍待认证。#26–#44 尚未实现，下一项为阶段 B 的 native 授权与 Codex 查询通道。后续按依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
 
 ## #19 已实现内容
 
@@ -63,6 +63,17 @@
 - 本次首轮升级在 pnpm 安装新包时超过 120 秒，被外层超时中止，退出 124，未算通过。带输出观察的复跑及不带观察器的原命令随后均自然退出 0；未证明卡住的根因，没有更改 pnpm／Harness 或绕过检查。已飞书通知阻塞，临时观察器与超时遗留隔离目录已清理，日志保留。
 - [Codex 升级验证](scripts/verify-codex-upgrade.mjs) 现在从旧八包中识别并移除所有已退役产品包，以支持 #22 前身同时含旧 Codex 和 Claude 的升级。更新后的完整升级验证已退出 0，日志 `/tmp/ultra-24-codex-upgrade.log`；原 Codex 成员／handle 与两轮到三轮连续性保留。ADR-0008、ADR-0014、README、领域词汇与补丁清单明确修订归属；后续 Team 工具仍由 #29／#30 单独追踪。
 
+## #25 已实现内容与阶段 A 验收
+
+- 新增 `pnpm migration:audit --sessions <root> --json <storage>`／`--sqlite <database>`。CLI 从完整源文件、正式 schema、真实 Session read handle 和锁定 Team 投影读取；不打开会迁移／写入的 Ultra Domain。JSON per-record envelope、整体 unit、SQLite 物理版本及 Ultra Generation 在业务读取前检查，未来格式和未知布局不当作空库。
+- 审计区分 Session `0`、Team payload `2`、projection `3`、descriptor `3`、Ultra v0/v1；核验 Profile Head／Revision／fingerprint、Binding、Team 成员、descriptor、固定 route、native handle／Launch Request 与实际能力需求。Host 与审计复用纯 Revision 补全、v0 投影及不可变关系校验；审计结果仅在内存中生成。
+- checkpoint 使用真实 cache schema、Session identity、投影版本、日志游标和冷重建状态核验。匹配报告 reusable，不匹配报告 rebuild 及原因，源文件保留。v0 和实际中断的 pending v1 均可重复审计，相同记录复用、不同目标拒绝，不创建迁移目标或提交完成标记。
+- SQLite 的数据库／WAL 复制到私有临时目录，再以只读连接读取，避免创建或修改源 SHM；报告摘要包含全部旁文件并在成功前复核，临时副本退出时清除。RED 复现了只摘要主文件会漏掉 WAL 已提交变更的问题；修正后保持源数据库和旁文件字节不变。Session Zstd 解码逐帧复制上游复用的 buffer，SQLite 表检查使用完整 unit/table 集合区分 v0/v1 前缀。
+- [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md) 接受阶段 C 的 Session `2`、Team payload `3`、projection `4`、descriptor `3` 方案，规定 native operation／发送请求／回复关联进入正式 schema、codec、生成词汇和投影，业务提交与操作回执同批持久化。迁移保留源、关闭 pending 目标写入、幂等复用并拒绝分歧、最后提交 manifest；禁止双向写入。包归属变化不触发 Ultra 新代际。当前运行锁不变，阶段 A 完成后进入 B，执行迁移与新 fork 资格仍由阶段 C 交付。
+- 完整 `pnpm verify` 已退出 0：**554 项 strict、0 警告；240 项测试（21 个文件），其中新增审计集成测试 27 项；八个归档真实安装、Web 启动及无残留卸载通过**。日志 `/tmp/ultra-25-final-verify.log`。关键 RED 日志 `/tmp/ultra-25-{descriptor,formats,revision,wal,native-requirements,native-turn}-red.log`；所有最终用例以完整验证为准。
+- Codex `61d2361`→当前归档、Claude Code `ae2ec72`→当前归档的 JSON／SQLite 升级均自然退出 0，保留原成员／Revision／native handle，后续工作、运行中卸载、注册释放、Web 启动和无残留移除通过。日志 `/tmp/ultra-25-codex-upgrade.log`、`/tmp/ultra-25-claude-upgrade.log`。外部 native SDK／进程为明确的确定性替身，真实认证产品验收仍由 #44 完成。
+- 最后新增 native turn 关联检查，拒绝把 native 回执附在 DSH 成员上；报告列出有界的初始轮／消息轮关联。#25 已达到用户要求的关闭条件；提交与推送以 Git 为准，GitHub 认证仍阻塞实际关闭、PR 创建及提交后评审。
+
 ## 验证证据与限制
 
 ### #22 安装／导入前兼容性诊断
@@ -100,10 +111,10 @@
 
 ## 下一步
 
-1. #19–#24 的实现和验证均已就绪，提交／推送状态以 Git 为准；PR 描述在 `/tmp/ultra-{19,20,21,22,23,24}-pr-body.md`。这些临时文件不代替最终 PR。
-2. `gh` 认证可用后先按最新授权关闭开发／验证完成的 #19–#24，再创建各自 PR。#19 PR base 为 `main`，固定基线 `c3c96c9`；#20 PR base 为 `fix/19-host-profile-evaluation`，固定基线 `3046af5`。逐个在 PR 提交后执行 code-review；该技能要求 Standards 和 Spec 两路评审，允许届时按技能要求委派，开发本身没有默认委派要求。
+1. #19–#25 的实现和验证均已就绪，提交／推送状态以 Git 为准；PR 描述在 `/tmp/ultra-{19,20,21,22,23,24,25}-pr-body.md`。这些临时文件不代替最终 PR。
+2. `gh` 认证可用后先按最新授权关闭开发／验证完成的 #19–#25，再创建各自 PR。#19 PR base 为 `main`，固定基线 `c3c96c9`；#20 PR base 为 `fix/19-host-profile-evaluation`，固定基线 `3046af5`。逐个在 PR 提交后执行 code-review；该技能要求 Standards 和 Spec 两路评审，允许届时按技能要求委派，开发本身没有默认委派要求。
 3. 处理评审发现并补足相应验证，通知用户人工审核，同时通过飞书发送 issue 摘要和 PR 链接。不要自动合并，不要提前关闭父 Spec。
-4. #21 的 PR base 为 `fix/20-host-launch-recovery`，固定评审起点 `1185bd0`；#22 的 PR base 为 `fix/21-locked-source-preparation`，固定评审起点 `a8adac0`。#23 的 PR base 为 `fix/22-runtime-compatibility-preflight`，固定起点 `61d2361`。#24 的 PR base 为 `fix/23-ultra-codex-runtime`，固定起点 `ae2ec72`。接着从 #24 分支按 [#25](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/25) 继续 TDD，保留 #25–#44 的依赖与阶段 C 集成分支要求。
+4. #21 的 PR base 为 `fix/20-host-launch-recovery`，固定评审起点 `1185bd0`；#22 的 PR base 为 `fix/21-locked-source-preparation`，固定评审起点 `a8adac0`。#23 的 PR base 为 `fix/22-runtime-compatibility-preflight`，固定起点 `61d2361`。#24 的 PR base 为 `fix/23-ultra-codex-runtime`，固定起点 `ae2ec72`。#25 的 PR base 为 `fix/24-ultra-claude-code-runtime`，固定起点 `d4e72b835362d766f402f761f4dcf29a931e2400`。接着从 #25 分支按 [#26](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/26) 继续 TDD，保留 #26–#44 的依赖与阶段 C 集成分支要求。
 
 ## 权威材料与技能
 

@@ -80,6 +80,34 @@ Build and test entry points reject disagreement between configured links,
 installed Node resolution, and TypeScript inputs before loading Harness modules.
 Preparation preserves the selected checkout and application data directories.
 
+## Read-only migration audit and phase delivery
+
+The operator CLI `pnpm migration:audit` consumes an existing Session root and
+either JSON storage or SQLite, without opening a writable business domain.
+It validates physical formats before readers can skip unknown data, replays
+real Session read handles through the locked Team projection, and correlates
+Profile revisions, Bindings, fixed routes, descriptors, native identities and
+capability requirements. The Host and audit share pure Revision normalization,
+v0 projection and immutable-reference validation. The audit never persists the
+in-memory result. JSON and SQLite v0/pending-v1 retries accept equal projected
+records and refuse divergence. Invalid checkpoints are reported for cold
+rebuilding, leaving original bytes intact.
+
+SQLite is read through a private database/WAL copy so even SHM creation stays
+outside the source. Source digests include sidecars and are checked again before
+success; active rollback journals require explicit recovery. Unknown, future
+or conflicting business data returns a bounded `AUDIT_*` refusal, never an empty
+catalog. Reports exclude message bodies, prompts and native transcripts.
+
+[ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) specifies Phase C
+Session 2, Team payload 3 and projection 4, formal generated vocabulary for
+native operations/send requests/replies, deterministic source-preserving
+migration, a closed pending target and completion committed last. Audit success
+does not execute or qualify that target. Ultra v1 remains unless an incompatible
+record change requires another generation. Phase A retains the locked fork and
+its eight-archive behavior; Phase B adds collaboration before Phase C qualifies
+an actual integration commit based on the fixed official comparison.
+
 ## Authority and state
 
 - The Client sends a Session id through the generated Typert contract. The Host
