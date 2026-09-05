@@ -17,20 +17,20 @@ function indexPackages(parent, nested = false) {
     if (nested) indexPackages(directory)
     else if (existsSync(join(harnessRoot, directory, 'package.json'))) {
       const manifest = JSON.parse(readFileSync(join(harnessRoot, directory, 'package.json'), 'utf8'))
-      workspace.set(manifest.name, { directory, manifest })
+      workspace.set(manifest.name, { directory: join(harnessRoot, directory), manifest })
     }
   }
 }
 indexPackages('vendor')
 indexPackages('packages', true)
+const codexDirectory = join(root, 'packages/codex')
+const codexManifest = JSON.parse(readFileSync(join(codexDirectory, 'package.json'), 'utf8'))
+workspace.set(codexManifest.name, { directory: codexDirectory, manifest: codexManifest })
 const hostManifest = JSON.parse(readFileSync(join(root, 'packages/domain/package.json'), 'utf8'))
+const profileManifest = JSON.parse(readFileSync(join(root, 'packages/profile/package.json'), 'utf8'))
 const roots = {
   host: Object.keys(hostManifest.peerDependencies).filter(name => workspace.has(name)),
-  profile: [
-    '@deepseek-ai/cordis-plugin-loader',
-    ...['agent-team', 'agent-team-codex', 'agent-team-claude-code', 'tool-agent-team', 'client-ui-agent-team']
-      .map(name => `@deepseek-ai/dsh-experimental-${name}`),
-  ],
+  profile: Object.keys(profileManifest.peerDependencies).filter(name => workspace.has(name)),
 }
 const packages = {}
 const pending = [...roots.host, ...roots.profile]
@@ -38,7 +38,7 @@ while (pending.length) {
   const name = pending.shift()
   if (name in packages) continue
   const { directory, manifest } = workspace.get(name)
-  const packageRoot = join(harnessRoot, directory)
+  const packageRoot = directory
   const files = {}
   for (const file of readdirSync(join(packageRoot, 'lib'), { recursive: true }).sort()) {
     if (!file.endsWith('.js')) continue
@@ -67,6 +67,7 @@ writeFileSync(join(output, 'compatibility.json'), `${JSON.stringify({
   schemaVersion: 1,
   maintainedFork: lock.upstream,
   ...lock.compatibility,
+  retiredRuntimePackages: ['@deepseek-ai/dsh-experimental-agent-team-codex'],
   roots,
   packages,
 }, null, 2)}\n`)

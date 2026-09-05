@@ -1,8 +1,8 @@
 /** Node-only admission; this module must never import a Harness implementation. */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 interface PackageProof {
   readonly version: string
@@ -17,6 +17,7 @@ interface CompatibilityProof {
   readonly schemaVersion: 1
   readonly packages: Readonly<Record<string, PackageProof>>
   readonly roots: Readonly<Record<'host' | 'profile', readonly string[]>>
+  readonly retiredRuntimePackages?: readonly string[]
 }
 
 export class UltraCompatibilityError extends Error {
@@ -26,11 +27,21 @@ export class UltraCompatibilityError extends Error {
   }
 }
 
+function findManifest(name: string, from: string): string | undefined {
+  let directory = dirname(from.startsWith('file:') ? fileURLToPath(from) : from)
+  for (;;) {
+    const candidate = join(directory, 'node_modules', name, 'package.json')
+    if (basename(directory) !== 'node_modules' && existsSync(candidate)) return realpathSync(candidate)
+    const parent = dirname(directory)
+    if (parent === directory) return undefined
+    directory = parent
+  }
+}
+
 function resolveManifest(name: string, from: string): string {
-  const candidate = createRequire(from).resolve.paths(name)?.map(directory => join(directory, name, 'package.json'))
-    .find(path => existsSync(path))
-  if (!candidate) throw new Error(`required package ${name} is not installed`)
-  return realpathSync(candidate)
+  const path = findManifest(name, from)
+  if (!path) throw new Error(`required package ${name} is not installed`)
+  return path
 }
 
 /** Validate installed executable bytes before any fork-only ESM linking takes place. */
@@ -43,6 +54,15 @@ export function assertUltraCompatibility(anchor: string, entry: 'host' | 'profil
   } catch (error) {
     throw new UltraCompatibilityError('@benz-ai-x/dsh-agent-team-ultra',
       error instanceof Error ? error.message : 'compatibility proof is unavailable', 'ULTRA_COMPAT_PROOF_INVALID')
+  }
+  if (entry === 'profile') {
+    for (const name of proof.retiredRuntimePackages ?? []) {
+      if (findManifest(name, anchor)) {
+        throw new UltraCompatibilityError(name,
+          'retired runtime is still installed; stop Web and remove this package before upgrading',
+          'ULTRA_COMPAT_LEGACY_RUNTIME')
+      }
+    }
   }
   const visited = new Set<string>()
   function verify(name: string, from: string): void {

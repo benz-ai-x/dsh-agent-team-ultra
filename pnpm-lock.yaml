@@ -54,6 +54,37 @@ importers:
         specifier: ^4.1.8
         version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12))
 
+  packages/codex:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: 3.18.2
+        version: 3.18.2
+      '@openai/codex':
+        specifier: 0.149.1
+        version: 0.149.1
+    devDependencies:
+      '@benz-ai-x/dsh-agent-team-ultra':
+        specifier: workspace:*
+        version: link:../domain
+      '@deepseek-ai/cordis':
+        specifier: link:../../.dsh/harness/vendor/cordis
+        version: link:../../.dsh/harness/vendor/cordis
+      '@deepseek-ai/dsh-experimental-agent-team':
+        specifier: link:../../.dsh/harness/packages/experimental/agent-team
+        version: link:../../.dsh/harness/packages/experimental/agent-team
+      '@deepseek-ai/dsh-sdk-protocol':
+        specifier: link:../../.dsh/harness/packages/sdk/protocol
+        version: link:../../.dsh/harness/packages/sdk/protocol
+      '@deepseek-ai/dsh-subprocess':
+        specifier: link:../../.dsh/harness/packages/subprocess/subprocess
+        version: link:../../.dsh/harness/packages/subprocess/subprocess
+      '@deepseek-ai/dsh-subprocess-local':
+        specifier: link:../../.dsh/harness/packages/subprocess/subprocess-local
+        version: link:../../.dsh/harness/packages/subprocess/subprocess-local
+      '@deepseek-ai/dsh-timeout':
+        specifier: link:../../.dsh/harness/packages/util/timeout
+        version: link:../../.dsh/harness/packages/util/timeout
+
   packages/domain:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -147,6 +178,9 @@ importers:
 
   packages/profile:
     devDependencies:
+      '@benz-ai-x/dsh-agent-team-codex':
+        specifier: workspace:*
+        version: link:../codex
       '@benz-ai-x/dsh-agent-team-ultra':
         specifier: workspace:*
         version: link:../domain
@@ -165,9 +199,6 @@ importers:
       '@deepseek-ai/dsh-experimental-agent-team-claude-code':
         specifier: link:../../.dsh/harness/packages/experimental/agent-team-claude-code
         version: link:../../.dsh/harness/packages/experimental/agent-team-claude-code
-      '@deepseek-ai/dsh-experimental-agent-team-codex':
-        specifier: link:../../.dsh/harness/packages/experimental/agent-team-codex
-        version: link:../../.dsh/harness/packages/experimental/agent-team-codex
       '@deepseek-ai/dsh-experimental-client-ui-agent-team':
         specifier: link:../../.dsh/harness/packages/experimental/client-ui-agent-team
         version: link:../../.dsh/harness/packages/experimental/client-ui-agent-team
@@ -428,6 +459,47 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
+
+  '@openai/codex@0.149.1':
+    resolution: {integrity: sha512-6q5pbcpFbJbqOpkubSDBwXmktQ55aD8eUzGzBF1zASob2DjwhBKDSNGtdZKalfrNJUdTDTPDMmzCXEXs5tMBYA==}
+    engines: {node: '>=16'}
+    hasBin: true
+
+  '@openai/codex@0.149.1-darwin-arm64':
+    resolution: {integrity: sha512-6X84kTCbnTgPIJ2EdcPsrvwS0Wxsqpa+bCswGmRf4BjhcQ5nPMnBC6yCAaCMj+vrbXQHj+L6sa9FaR4QkmA1qw==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@openai/codex@0.149.1-darwin-x64':
+    resolution: {integrity: sha512-MfLBQLfcElJL9tvj6y45qVHHMGSXCPnQOixuD3/Zq0g1BW/eFizkrGLdn48cFpc+l8cK+gt5nYG5pQYwVs6g4A==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@openai/codex@0.149.1-linux-arm64':
+    resolution: {integrity: sha512-OqxUfZ1TVvHd18zHPKK/8ZRlpk8Vy11mg5CMHaLxNWldTbwVImDKtSLWT+m8m4NM5Sz4PbjtZMrVT/RfpBW/mQ==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@openai/codex@0.149.1-linux-x64':
+    resolution: {integrity: sha512-Of5fGYgr7tAMsyj6vhXb4/RM/UoA3Zq8BLegUBDC09UNy1XTLGYP/2XD+UX8z3qh0NDwxYdCjFIWdDNijKZggQ==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [linux]
+
+  '@openai/codex@0.149.1-win32-arm64':
+    resolution: {integrity: sha512-5K0DmOKGK9Bos627p8sK8ATHjovPK0sDyT6h9Cb+4v+5CW5SGw1HLgjGxoLfJ8g3cg6mtg/pRCXXo2L/j71UVA==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@openai/codex@0.149.1-win32-x64':
+    resolution: {integrity: sha512-G3QXGAg7nyyhqOeooAMUekBCeHd8a1QByhKcVAFyzNBaI06t6Ft7nsF+1SzFS0spuIdU4YyMi5YD26ukADBQUQ==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [win32]
 
   '@oxc-project/types@0.147.0':
     resolution: {integrity: sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg==}
@@ -1528,6 +1600,33 @@ snapshots:
       chalk: 4.0.0
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
+
+  '@openai/codex@0.149.1':
+    optionalDependencies:
+      '@openai/codex-darwin-arm64': '@openai/codex@0.149.1-darwin-arm64'
+      '@openai/codex-darwin-x64': '@openai/codex@0.149.1-darwin-x64'
+      '@openai/codex-linux-arm64': '@openai/codex@0.149.1-linux-arm64'
+      '@openai/codex-linux-x64': '@openai/codex@0.149.1-linux-x64'
+      '@openai/codex-win32-arm64': '@openai/codex@0.149.1-win32-arm64'
+      '@openai/codex-win32-x64': '@openai/codex@0.149.1-win32-x64'
+
+  '@openai/codex@0.149.1-darwin-arm64':
+    optional: true
+
+  '@openai/codex@0.149.1-darwin-x64':
+    optional: true
+
+  '@openai/codex@0.149.1-linux-arm64':
+    optional: true
+
+  '@openai/codex@0.149.1-linux-x64':
+    optional: true
+
+  '@openai/codex@0.149.1-win32-arm64':
+    optional: true
+
+  '@openai/codex@0.149.1-win32-x64':
+    optional: true
 
   '@oxc-project/types@0.147.0': {}
 

@@ -34,7 +34,7 @@
             disposalTimeoutMs: 5000
 
         - id: agent-team-codex
-          name: '@deepseek-ai/dsh-experimental-agent-team-codex'
+          name: '@benz-ai-x/dsh-agent-team-codex'
           config:
             catalogOwnerService: digitalEmployees
             sandbox: read-only
