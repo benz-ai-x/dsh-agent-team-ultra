@@ -9,9 +9,9 @@
 
 - 用户要求从 [#19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19) 开始逐项实现全部 open issue：新分支、TDD、创建 PR、提交 PR 后使用 code-review，最后通知用户人工审核。每项完成及遇到开发阻塞时使用飞书 CLI 通知用户；已有明确通知授权。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
-- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），其 main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 已在其上提交并推送到 `fix/20-host-launch-recovery`（`1185bd0`）。当前在后者基础上的 `fix/21-locked-source-preparation` 开发 #21。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时状态以 Git 为准。
-- **#19、#20、#21 的实现与完整验证已完成；PR 创建及提交后的 code-review 均未完成，不能报告 issue 已完成。** 当前容器 `gh auth status` 明确未登录；Git SSH 已成功推送 #19、#20，但具体的 `gh pr create` 命令因未认证而失败。已经通过飞书发送认证阻塞通知，用户也已获知需要在当前环境运行 `gh auth login`，无需发送凭据。
-- #22–#44 尚未实现。下一项 [#22](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/22) 补充安装／导入前兼容性诊断与补丁清单。后续按依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
+- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 已推送到 `fix/20-host-launch-recovery`（`1185bd0`）；#21 已推送到 `fix/21-locked-source-preparation`（`a8adac0`）。当前 #22 分支为 `fix/22-runtime-compatibility-preflight`，固定基线为 `a8adac0`。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
+- **用户最新指示：Issue 在开发和验证完成后即可关闭，不等待 PR 或人工审核。#19–#22 已达到关闭条件；PR 创建、提交后的 code-review 和人工审核仍是独立未完成待办。** 当前容器 `gh auth status` 明确未登录；实际执行的 `gh issue close 19 --repo benz-ai-x/dsh-agent-team-ultra --reason completed` 因未认证退出 4，尚未改变远端 Issue 状态。Git SSH 推送可用，PR 创建也因同一认证问题受阻；认证可用后直接关闭 #19–#22，无需再次确认。
+- #23–#44 尚未实现。下一项 [#23](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/23) 将 Codex 产品适配器迁入 Ultra。后续按依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
 
 ## #19 已实现内容
 
@@ -41,6 +41,19 @@
 
 ## 验证证据与限制
 
+### #22 安装／导入前兼容性诊断
+
+- `dsh-reference.lock.json` 新增独立的官方基础 `76fda729…`、官方对照 `d347e703…`、扩展接口资格、Session/Team/投影/Ultra 格式及 native SDK/payload 标识；原 `upstream` 提交、版本和文档摘要保持不变。当前受支持运行时仍是完整 `8b4bae0b…` fork。
+- `scripts/generate-compatibility.mjs` 从严格证明的源码生成实际发货 JavaScript 摘要、依赖关系及 Host 公共入口。公开 Host 包先执行 Node-only 检查，再动态导入实现；TypeScript 公共类型和生成 Remote 保持原契约，Client 不引入 Node 预检。
+- `packages/domain/src/compatibility.ts` 检查每个包实际 Node 解析路径、版本、exports、发货文件摘要及 SDK manifest。直接依赖和传递依赖分别检查；相同 semver 不能掩盖错误产物。兼容性证明缺失、源码错误、产物／SDK 不匹配均有 `ULTRA_COMPAT_*` 稳定诊断。
+- profile 将七个原有子行放入 `agent-team-ultra-compatibility` Loader 组，组入口预检完成后才加载子插件。`compatible-dsh.mjs` 使用锁定 CLI 的参数解析和真实 CLI，安装前校验源码及构建，安装后校验实际依赖，启动前再次校验。
+- `pack:local` 打印绝对路径的预检安装入口，归档仍为八个；新增明确的锁定 Loader peer。依赖锁只增加该 link，未改变包解析版本。
+- 8 条新 CLI／包入口集成案例按 TDD 验证：错误源码不初始化 DSH home、完整 Host 可导入、证明缺失、同版本 Team 缺接口、直接 Session 被替换、Team 传递 Session 混用、原生适配器缺失及 SDK 版本不合格。
+- [ADR 0015](docs/adr/0015-maintain-explicit-harness-compatibility.md)、[补丁清单](docs/reference/harness-patch-ledger.md)、术语、项目契约和 README 已更新。补丁表明确用途、公开合约、格式影响、测试责任与上游状态；没有把未来 #23/#24 的适配器迁移或 #44 的真实 native 验收标成已完成。
+- 最终 `pnpm verify`：**448 项 strict、0 警告；186 项测试（16 个文件）；8 个真实归档安装、Web 启动及卸载全部通过，退出码 0**。日志：`/tmp/ultra-22-final-verify.log`。RED 日志：`/tmp/ultra-22-{import,session,transitive,profile,sdk,install,proof}-red.log`；最终比较报告：`/tmp/ultra-22-comparison-final.json`。
+- 固定官方基线在 `/tmp/ultra-22-official-d347e7` 独立 worktree 中，冻结安装成功，源码保持干净。Node 22 默认打包缺少 `unrun`，`tsx` 与临时补齐的 `unrun` 路径均未完成打包；改用经过官方 SHA256 校验的 Node 24.11.1 arm64 原生配置加载后，Host 构建成功。原生依赖由 Node 22 安装，探针继续用 Node 22 运行，避免 `fs-ext` ABI 混用。维护 fork 和共享源码未被改动。
+- 同一 `probe-team-contract.mjs` 对两个真实构建均通过六组公共合约：精确 live 角色、任务 CAS/DAG/所有权、墓碑与 wait cancellation、持久回执早于 delivered、永久名称、Fiber 卸载。仅 LLM 外部边界受控。`compare-harness-contract.mjs` 验证固定官方提交和源码状态，再复跑探针，并证明官方源码在安装前、实际官方 Team 包在导入前被稳定拒绝且不创建业务数据；Session 格式分别为 fork 0、官方 2。
+
 - 初始 `pnpm context:check:strict`：290 项检查通过、0 警告。
 - 改动前完整 `pnpm verify`：157 项测试通过，并通过 8 个归档的真实安装、Web 启动与卸载。日志：`/tmp/ultra-19-baseline-verify.log`。
 - 改动后完整 `pnpm verify`：**164 项测试通过（13 个测试文件）**，严格检查、Host／Client 构建、Typert 生成、8 个归档安装、固定 CLI Web 启动及卸载全部通过，进程退出码 0。日志：`/tmp/ultra-19-final-verify.log`。
@@ -57,16 +70,16 @@
 - 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
 - 相邻 `/root/workspace/deepseek-harness` 已匹配 [dsh-reference.lock.json](dsh-reference.lock.json)，HEAD 为 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a`，版本 `0.1.2-rc.1`，所需构建产物齐全。当前不需要旧交接中的 macOS 隔离验证副本，也没有重置其他 checkout。
 - 当前工作分支已通过 `pnpm prepare:harness` 建立 `.dsh/harness`，依赖和 TypeScript 共用它；首次或换源时先准备再安装依赖。旧分支仍使用相邻路径，切换开发分支后按其说明恢复对应依赖布局。
-- 飞书 CLI 已安装并验证当前 user／bot 身份可用，已成功发送一次阻塞通知。不要在本文件记录凭据、用户标识或私人消息。
+- 飞书 CLI 已验证当前 user／bot 身份可用；认证阻塞、#21 缓存阻塞及恢复、#22 官方构建阻塞及恢复均已通知。不要在本文件记录凭据、用户标识或私人消息。
 - GitHub CLI 尚未认证。认证后先刷新 issue／评论状态，再使用 `gh` 创建 PR；无需重复询问已经授权的提交、推送、PR 和飞书通知操作。
 - 历史交接提到的 `4317`／`3080` 常驻实例并未在本容器重新确认；本次验证使用打包脚本的隔离 home 与端口，不能据此声称用户应用已运行。
 
 ## 下一步
 
-1. #19–#21 的实现和验证均已就绪，提交／推送状态以 Git 为准；PR 描述在 `/tmp/ultra-{19,20,21}-pr-body.md`。这些临时文件不代替最终 PR。
-2. `gh` 认证可用后先创建 #19 PR（base 为 `main`，固定基线 `c3c96c9`），再创建 #20 PR（base 为 `fix/19-host-profile-evaluation`，固定基线 `3046af5`）。逐个在 PR 提交后执行 code-review；该技能要求 Standards 和 Spec 两路评审，允许届时按技能要求委派，开发本身没有默认委派要求。
+1. #19–#22 的实现和验证均已就绪，提交／推送状态以 Git 为准；PR 描述在 `/tmp/ultra-{19,20,21,22}-pr-body.md`。这些临时文件不代替最终 PR。
+2. `gh` 认证可用后先按最新授权关闭开发／验证完成的 #19–#22，再创建各自 PR。#19 PR base 为 `main`，固定基线 `c3c96c9`；#20 PR base 为 `fix/19-host-profile-evaluation`，固定基线 `3046af5`。逐个在 PR 提交后执行 code-review；该技能要求 Standards 和 Spec 两路评审，允许届时按技能要求委派，开发本身没有默认委派要求。
 3. 处理评审发现并补足相应验证，通知用户人工审核，同时通过飞书发送 issue 摘要和 PR 链接。不要自动合并，不要提前关闭父 Spec。
-4. #21 的 PR base 为 `fix/20-host-launch-recovery`，固定评审起点 `1185bd0`。之后按 [#22](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/22) 继续 TDD；#23–#44 保留各自依赖与阶段 C 集成分支要求。
+4. #21 的 PR base 为 `fix/20-host-launch-recovery`，固定评审起点 `1185bd0`；#22 的 PR base 为 `fix/21-locked-source-preparation`，固定评审起点 `a8adac0`。接着在 #22 基础上按 [#23](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/23) 继续 TDD，保留 #23–#44 的依赖与阶段 C 集成分支要求。
 
 ## 权威材料与技能
 

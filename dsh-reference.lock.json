@@ -11,5 +11,29 @@
     "environmentVariable": "DSH_HARNESS_ROOT",
     "fallbackRelativePath": "../deepseek-harness"
   },
+  "compatibility": {
+    "officialFoundation": {
+      "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+      "commit": "76fda729799fe9b3848dbe2c211d4b231032b81e",
+      "version": "0.1.2-rc.1"
+    },
+    "officialComparison": {
+      "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+      "commit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+      "version": "0.1.3-alpha.1",
+      "supportedRuntime": false
+    },
+    "extensionApi": "agent-team-ultra.phase-a.v1",
+    "formats": {
+      "session": 0,
+      "teamEvent": 2,
+      "teamProjection": 3,
+      "ultraDomain": { "name": "agent_team_ultra_v1", "version": 1 }
+    },
+    "nativeProducts": {
+      "codex": { "package": "@openai/codex", "version": "0.149.1", "nativePayload": "0.149.1-<platform>-<arch>", "protocol": "app-server-v2" },
+      "claudeCode": { "package": "@anthropic-ai/claude-agent-sdk", "version": "0.3.241", "nativePayload": "2.1.241", "protocol": "claude-agent-sdk" }
+    }
+  },
   "verifiedOn": "2026-09-05"
 }

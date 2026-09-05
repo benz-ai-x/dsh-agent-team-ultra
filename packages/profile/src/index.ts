@@ -1,6 +1,7 @@
-/**
- * Local Agent Team Ultra bundle. Runtime content lives in cordis.patch.yml.
- * This named, empty module keeps Loader namespace semantics explicit.
- */
+/** Admit the complete overlay before Loader can import any child plugin. */
+import { assertUltraCompatibility } from '@benz-ai-x/dsh-agent-team-ultra/compatibility'
 
-export {}
+assertUltraCompatibility(import.meta.url, 'profile')
+const { Group } = await import('@deepseek-ai/cordis-plugin-loader')
+
+export default Group
