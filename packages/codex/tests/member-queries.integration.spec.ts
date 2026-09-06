@@ -104,8 +104,9 @@ it('marks a large final answer as truncated within the complete Team request byt
 it.each(['json', 'sqlite'] as const)('recovers an offline Codex terminal once through %s Host restart', async backend => {
   const first = await queryWorkflow(undefined, backend)
   const turnId = first.native.data.threads[first.handle].turns[0].id
-  await first.ctx.fiber.dispose()
+  first.native.dropNextCompletion = true
   first.native.complete('completed', 'The offline review is ready.')
+  await first.ctx.fiber.dispose()
   const second = await queryWorkflow(undefined, backend, { root: first.root, resumeLead: true })
   expect(second.member.id).toBe(first.member.id)
   expect(second.handle).toBe(first.handle)
@@ -130,7 +131,32 @@ it.each(['json', 'sqlite'] as const)('recovers an offline Codex terminal once th
   expect(third.native.live.size).toBe(0)
 })
 
-it('replays a lost native tool receipt after a full Host restart without a second message', async () => {
+it('reauthorizes a crashed Codex connection before delivering follow-up work', async () => {
+  const { ctx, lead, native, runtime, handle, member } = await queryWorkflow()
+  native.complete('completed', 'First review finished.')
+  await expect.poll(() => ctx.agentTeams.listMembers(lead.agent).find(value => value.id === member.id)?.status).toBe('idle')
+  for (const process of native.live) process.terminate()
+  await expect.poll(() => ctx.agentTeams.listMembers(lead.agent).find(value => value.id === member.id)?.status).toBe('inactive')
+  const delivered = await ctx.agentTeams.sendMessage(lead.agent, {
+    target: member.name, content: [{ type: 'text', text: 'Review the follow-up.' }], signal: new AbortController().signal,
+  })
+  expect(delivered.status).toBe('accepted')
+  await expect.poll(() => native.data.threads[handle].turns).toHaveLength(2)
+  expect((await native.query(handle, 'team_message_send', { target: 'lead', text: 'Follow-up accepted.' })).success).toBe(true)
+  native.complete('completed', 'Follow-up review finished.')
+  const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+  try {
+    await expect.poll(async () => (await stored.read(0)).filter(event =>
+      event.type === 'team/native-operation/committed' && event.data.receipt.source.kind === 'settlement')).toHaveLength(2)
+    expect((await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
+      .map(event => event.data.message.content[0].text)).toContain('Follow-up review finished.')
+  } finally { await stored.close() }
+  expect(native.starts).toBe(1)
+  await runtime.dispose()
+  expect(native.live.size).toBe(0)
+})
+
+it('retries a lost live tool receipt and settles its interrupted turn once after cold restart', async () => {
   const first = await queryWorkflow()
   const input = { target: 'lead', text: 'One durable progress message.' }
   const correlation = { callId: 'lost-native-reply' }
@@ -143,20 +169,37 @@ it('replays a lost native tool receipt after a full Host restart without a secon
     expect(events).toHaveLength(1)
     receipt = events[0].data.receipt.result
   } finally { await before.close() }
-  await first.ctx.fiber.dispose()
-  const second = await queryWorkflow(undefined, 'json', { root: first.root, resumeLead: true })
-  const response = await second.native.query(second.handle, 'team_message_send', input, correlation)
+  const response = await first.native.query(first.handle, 'team_message_send', input, correlation)
   expect(response.success).toBe(true)
   expect(JSON.parse(response.contentItems[0].text)).toEqual(receipt)
-  const conflict = await second.native.query(second.handle, 'team_message_send', { ...input, text: 'Changed input.' }, correlation)
+  const conflict = await first.native.query(first.handle, 'team_message_send', { ...input, text: 'Changed input.' }, correlation)
   expect(JSON.parse(conflict.contentItems[0].text).error.code).toBe('TEAM_NATIVE_OPERATION_CONFLICT')
+  first.native.dropNextToolReply = true
+  await expect(first.native.query(first.handle, 'team_message_send', input, correlation)).rejects.toThrow('reply lost')
+  await first.ctx.fiber.dispose()
+  const second = await queryWorkflow(undefined, 'json', { root: first.root, resumeLead: true })
+  expect(second.native.data.threads[second.handle].turns[0].status).toBe('interrupted')
   const after = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
   try {
-    expect((await after.read(0)).filter(event => event.type === 'team/native-operation/committed')).toHaveLength(1)
+    await expect.poll(async () => (await after.read(0)).filter(event => event.type === 'team/native-operation/committed')).toHaveLength(2)
+    const events = (await after.read(0)).filter(event => event.type === 'team/native-operation/committed')
+    expect(events[0].data.receipt.result).toEqual(receipt)
+    expect(events[1].data.receipt.result.value.outcome).toBe('interrupted')
+    expect(events[1].data.message.content).toEqual([{ type: 'text', text: 'Codex work interrupted without a final response.' }])
   } finally { await after.close() }
   expect(second.member.id).toBe(first.member.id)
   expect(second.native.starts).toBe(0)
   await second.ctx.fiber.dispose()
+  const third = await queryWorkflow(undefined, 'json', { root: first.root, resumeLead: true })
+  const replay = await third.ctx.sessionPersistence.open(third.lead.agent.id, 'read')
+  try {
+    expect((await replay.read(0)).filter(event => event.type === 'team/native-operation/committed')).toHaveLength(2)
+  } finally { await replay.close() }
+  expect((await third.ctx.agentTeams.sendMessage(third.lead.agent, {
+    target: third.member.name, content: [{ type: 'text', text: 'Continue the interrupted review.' }], signal: new AbortController().signal,
+  })).status).toBe('accepted')
+  expect((await third.native.query(third.handle, 'team_message_send', { target: 'lead', text: 'The new turn can reply.' })).success).toBe(true)
+  await third.ctx.fiber.dispose()
 })
 
 it('keeps multiple native Team calls and the final result in one bound employee Run', async () => {
@@ -293,7 +336,7 @@ it('rejects model-supplied authority and malformed native query envelopes with s
     { callId: 'x'.repeat(201) }, { namespace: 'other-tools' }, { rpc: 'tasks.delete' },
   ]) expect(await native.query(handle, 'team_members_list', {}, envelope)).toEqual(invalidEnvelope)
   for (const tool of ['toString', 'constructor', '__proto__', 'tasks.delete', 'shell', 'mcp']) {
-    expect(await native.query(handle, tool, {})).toEqual(errorResult('CODEX_TEAM_UNAVAILABLE', 'This Team query is unavailable.'))
+    expect(await native.query(handle, tool, {})).toEqual(errorResult('CODEX_TEAM_UNAVAILABLE', 'This Team operation is unavailable.'))
   }
   expect(ctx.agentTeams.listTasks(lead.agent)).toEqual([])
   native.complete()
@@ -329,7 +372,7 @@ it('cancels an in-flight query immediately when the Lead interrupts its native t
   const { ctx, lead, native, runtime, handle } = await queryWorkflow()
   const pending = native.query(handle, 'team_tasks_list', {})
   expect(ctx.agentTeams.interrupt(lead.agent, 'codex-reviewer')).toEqual({ previousStatus: 'running' })
-  const cancelled = errorResult('TEAM_NATIVE_CANCELLED', 'The Team query was cancelled.')
+  const cancelled = errorResult('TEAM_NATIVE_CANCELLED', 'The Team operation was cancelled.')
   expect(await pending).toEqual(cancelled)
   expect(await native.query(handle, 'team_members_list', {})).toEqual(cancelled)
   native.complete()
@@ -344,7 +387,7 @@ it('bounds native request size and query count without exhausting a later turn',
     expect(await native.query(handle, 'team_tasks_list', {})).toEqual(empty)
   }
   expect(await native.query(handle, 'team_tasks_list', {}))
-    .toEqual(errorResult('CODEX_TEAM_RATE_LIMIT', 'The native turn has reached its limit of 64 Team queries.'))
+    .toEqual(errorResult('CODEX_TEAM_RATE_LIMIT', 'The native turn has reached its limit of 64 Team operations.'))
   native.complete()
   expect(await ctx.agentTeams.sendMessage(lead.agent, {
     target: 'codex-reviewer', content: [{ type: 'text', text: 'Continue reading.' }], signal: new AbortController().signal,
@@ -405,7 +448,7 @@ it('ends an ungranted startup query at its deadline and permits a later authoriz
       product.onTurnStart = undefined
     }
   })
-  expect(timedOut).toEqual(errorResult('CODEX_TEAM_UNAVAILABLE', 'This Team query is unavailable.'))
+  expect(timedOut).toEqual(errorResult('CODEX_TEAM_UNAVAILABLE', 'This Team operation is unavailable.'))
   expect(await native.query(handle, 'team_tasks_list', {})).toEqual({ success: true, contentItems: [{ type: 'inputText',
     text: '{"ok":true,"operation":"tasks.list","value":{"tasks":[]}}' }] })
   native.complete()

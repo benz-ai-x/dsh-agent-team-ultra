@@ -33,11 +33,14 @@ native sessions, not a retroactive upgrade of existing threads. See the
 [authorization decision](../../docs/adr/0017-authorize-native-team-member-queries.md).
 
 Member messages atomically commit their original receipt before acknowledgement
-and delivery. Tool replay preserves trusted thread/turn/call identities; changed
+and delivery. Retries within a live turn preserve trusted thread/turn/call identities; changed
 normalized input conflicts. Queued means durable acceptance only. Final answers
 and explicit failed/interrupted notices use the same mailbox under a separate
 settlement identity. Cold resume recovers native terminal output and replays its
-original receipt. Reasoning, interim commentary and complete native transcripts
+settlement receipt. Codex marks orphan running turns interrupted after process
+restart; their dead tool RPC callbacks cannot be restored. Host receipt recovery
+and native interrupted-turn recovery are verified separately. Mailbox delivery
+to an inactive member first verifies its identity and binds a fresh grant. Reasoning, interim commentary and complete native transcripts
 are excluded; Run evidence remains scrubbed. See the
 [durable message decision](../../docs/adr/0018-persist-native-team-message-receipts.md).
 

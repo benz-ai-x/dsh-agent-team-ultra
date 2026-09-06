@@ -20,18 +20,25 @@
 
 - **再次回读核对 #19–#26（最新：2026-09-06 14:30，Asia/Shanghai）**：GitHub main 仍为 `6253119`，39 项验收文字与逐项审计一致且均已勾选；8 个对应合并提交都在当前 main 中。最终完整验证记录中的 112 个输入 SHA-256 与现有文件全部一致，锁定 Harness `fdfdbaeb0e` 工作区干净。本次重新运行 strict，554 项／0 警告通过；既有运行时验证仍适用，未重复运行完整测试，也无需重复写入 GitHub 正文。最新回读快照和证据映射保存在 `/tmp/ultra-19-26-latest-recheck.json`，严格检查日志为 `/tmp/ultra-19-26-latest-strict.log`；前次记录保留于 `/tmp/ultra-19-26-recheck-9heliuay/recheck.json`。
 
-## #27 本轮进展（2026-09-06 16:56，Asia/Shanghai）
+## #27 本轮进展（2026-09-06，Asia/Shanghai）
 
-- 继续范围为冻结的 #27–#44；最新 main 回读仍为 `6253119`。GitHub #27 正文、评论与六项验收已重新读取；没有 PR，也尚未勾选验收条件或关闭 Issue。全部 Issue 最新正文和评论另存 `/tmp/ultra-27plus-current-issues.json`，不是权威需求替代品。
-- Harness `9649602da984ff1f3aeb8f3b30dc4ad0d6d32391` 已推送至 `ultra/fix/ultra-27-native-team-messages`。`origin` 是官方仓库，首次误向 origin 推送因权限失败；改用已配置的维护 fork 远端成功，无需用户处理。共享旧 checkout 未修改。
-- Harness 原有消息与回执 TDD、真实 flush 故障、冷重启、旧 grant 撤销、schema／projection 拒绝、真实 Loader 和 authored recorded-session 已核对。199 项 owning tests、相关源码 100% coverage（`/tmp/ultra-27-team-coverage-final.log`）；recorded replay 3 项通过；built Loader 1 项通过，负对照证据 `/tmp/ultra-27-recorded-negative-control.json`。
-- 本轮补跑并确认终态：Harness build 退出 0（`/tmp/ultra-27-harness-build-resumed.log`）、doc-sync 32 项通过（`/tmp/ultra-27-doc-sync-resumed.log`）、全 lint 通过、正常 push hook 类型检查通过。pre-commit 后声明时间落后于源码，强制重新生成 Session／Team 声明后 Ultra strict 恢复 554 项／0 警告；没有弱化校验或手改生成产物。
-- Ultra 已实现 `team_message_send`，可信 turn/call 单独传入 grant；最终 agent message 与 failed/interrupted 通知经 `turns.settle` 进入 Lead mailbox，冷恢复重放原 settlement。恢复进行中的 native turn 可重试丢失回执。大结果按完整 JSON 的 4096 UTF-8 字节限额截断并明确标记；不拷贝 commentary／reasoning／完整 transcript。
-- 新 TDD 通过在线结果、JSON／SQLite 离线完成恢复与重复重启、丢 native 回执后的完整 Host 重启重放及改输入冲突、失败／中断状态与大结果多字节限额。Codex↔DSH 往返已通过；普通 DSH 成员会自动退出驻留，测试通过真实 Session resume 获取当前 live Agent 再回信。多个 Team 工具调用仍是一个 bound employee Run，公开按需 `run` 入口证明 completed 和 7 Tokens，Studio／Run 不含消息正文。
-- 新 [ADR 0018](docs/adr/0018-persist-native-team-message-receipts.md)、领域词汇、项目契约、补丁表及 Codex README 已更新。lock 保留 Session 0、legacy Team payload 2，新增 nativeOperation 3、projection 4；完整 Phase C 联合迁移仍待 #39–#43。只读 audit 新增脱敏 operation／settlement 关联，使用当前锁定格式；4 项审计回归通过（`/tmp/ultra-27-audit-native-green.log`）。
-- 已扩充真实归档 probe 的成员消息、同调用重放、改输入冲突和终止通知断言。最终完整 `pnpm verify` 退出 0：554 项 strict、273 项测试／22 文件、八归档安装、成员消息／回执／结果断言、JSON／SQLite 冷恢复、真实 Web 启动和完整卸载通过；日志 `/tmp/ultra-27-final-verify.log`。此前两次完整测试的新验收测试假设已修正，不使用失败运行作为完成证据。
-- 下一步：核对完整 verify（尤其真实 archive install／message／cold resume／Web／uninstall）；检查老线程工具不补装、provider 代际和结算清理等风险。逐项完成 #27 六项验收后才勾选、提交一个 Ultra PR。PR 创建后固定当时 origin/main SHA，按 code-review 并行 Standards／Spec 审查 Ultra 和新增 Harness 提交，修复后复验；满足全部门禁再合并、关闭 #27、飞书通知，然后才开始 #28。
-- 本轮技能：tdd、dsh-plugin-dev、domain-modeling、writing-for-agents；维护 Harness 另遵循 dsh-pre-push-checks／dsh-ci-test-reliability。code-review 已读取但 #27 的 PR 尚未创建，不能宣称已审查。飞书 lark-im／lark-shared 及发送／身份／输出参考已读取，当前用户明确授权按已确认身份和收件人通知；本轮尚无 Issue 完成通知。
+- 冻结范围仍为 #27–#44，按编号逐个完成；main 基准 `62531191d909a890394d7e922259a8e63eb80f32`。PR #53 已创建但未合并，#27 保持 open，#28 尚未开始。完整 Issue 正文／评论缓存于 `/tmp/ultra-27plus-current-issues.json`，权威需求为 GitHub。
+- Harness 原实现提交 `9649602da9` 使 native 消息／终止结算与回执在一个 required payload-3 事件中原子提交，Team checkpoint 4、Session 0、legacy payload 2；真实 flush 故障、冷重启、旧 grant 撤销、schema／projection 拒绝、Loader 和 authored recorded-session 均有验证。共享旧 checkout 未修改。
+- Ultra 实现 `team_message_send` 与 `turns.settle`：可信 turn／call 独立传入 grant；最终／失败／中断消息归属 native 成员，进入 Lead mailbox。大结果按完整 JSON 的 4096 UTF-8 字节限额明确截断，不复制 reasoning／commentary／完整 transcript。一次工作轮次只有一个 Run，按需详情证明完成和 7 Tokens；Codex↔DSH 往返保留 native thread。
+- [ADR 0018](docs/adr/0018-persist-native-team-message-receipts.md)、词汇、项目契约、补丁表和 Codex README 已更新；audit 输出脱敏 operation／settlement 关联。真实认证 native 验收仍归 #44，阶段 C 联合迁移仍归 #39–#43。
+- 首版完整 verify 曾通过 554 strict、273 项测试／22 文件、八归档安装／消息／回执／结果／JSON＋SQLite 冷恢复／Web／卸载，日志 `/tmp/ultra-27-final-verify.log`。首次 PR 审查发现的补修和新验证见下；旧日志不能替代修复后验证。
+- 本轮使用 tdd、dsh-plugin-dev、domain-modeling、writing-for-agents、code-review、lark-im／lark-shared；维护 Harness 遵循 dsh-pre-push-checks／dsh-ci-test-reliability。用户已授权按确认的 bot／收件人通知。
+
+## #27 PR #53 首次审查后的修复（进行中）
+
+- PR #53 已创建，固定审查基准 main `62531191d909a890394d7e922259a8e63eb80f32`、首版 head `1fbde8a097010d7c6776a05e0dda676865a1eaef`；尚未合并，#28 尚未开始。
+- Standards 首评：缺少 TS／Python SDK 的新事件回放证据（P2）；接口 JSDoc 仍称 read-only（P3）；工具 query 命名不准确（P3 判断项）。后二者已修正；SDK 夹具已补齐，TS 真实进程和 Python 实际单文件运行时的刷新／回放均通过，且断言原始回执和 messageId 关联。
+- Spec 首评确认崩溃后追加工作未重新绑定 grant（P1）。新 Host 测试已 RED→GREEN：inactive 成员的 mailbox 投递先走现有 roster 恢复和重新授权。修复已提交 Harness `d5eca257c2a0a21392ae8af0ee050f28358362f6`，Ultra lock／prepare 已更新；完整 verify 已通过端到端恢复及归档测试。
+- Spec 随后撤回要求历史 turn 重放的 P1 判断：锁定 Codex 的原 RPC callback 仅保存在进程内，冷启动会将孤立 turn 标为 interrupted。保留 active-turn 校验；修正替身与证据，分别验证存活 turn 重试、Host 持久回执恢复和 Codex 冷启动中断结算。完成通知丢失的测试改为原生已落盘、传输未通知后重启。
+- GitHub 撤回受影响的第 3／4／6 项验收勾选；首次验证不能作为修复后证明。使用已确认 bot／收件人发送首次审查阻塞通知成功，日志 `/tmp/ultra-27-review-blocker-feishu.log`，不需要用户操作。
+- 验证：Harness 196 项测试通过；业务源码 100% coverage（未改动的公开 testkit 不属于此次覆盖选择）。完整 build、32 项 doc-sync、全 lint 通过；正常 push hook 正在收尾。TS SDK 日志 `/tmp/ultra-27-ts-sdk-replay.log`，Python 实际产物回放 `/tmp/ultra-27-python-sdk-replay.log`。打包后按锁恢复 workspace 开发依赖，未更改锁定版本。
+- 最终完整 `pnpm verify` 退出 0（`/tmp/ultra-27-review-final-verify.log`）：554 strict、274 项测试、八归档安装／消息／回执／终态／JSON＋SQLite 冷恢复／Web／卸载全部通过。此前补修中仅错误文案断言与嵌套 matcher lint 失败，均已修正。
+- 下一步：最终 head 双轴重审，通过全部门禁后恢复六项验收勾选、合并／关闭／通知。
 
 ## PR 与提交后评审
 

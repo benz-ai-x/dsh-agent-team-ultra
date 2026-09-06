@@ -53,7 +53,7 @@ const DEFAULT_PROVIDER_NAME = 'codex'
 const DEFAULT_DISPOSE_GRACE_MS = 3_000
 const DEFAULT_MAX_EVIDENCE_ITEMS = 512
 
-const TEAM_QUERY_TOOLS = [
+const TEAM_MEMBER_TOOLS = [
   { type: 'function', name: 'team_members_list', description: 'List the members of your current Team.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { type: 'function', name: 'team_tasks_list', description: 'Read a page of your Team shared tasks. Use a smaller limit if the result is too large.',
@@ -70,12 +70,12 @@ const TEAM_QUERY_TOOLS = [
     }, required: ['target', 'text'], additionalProperties: false } },
 ] as const
 
-const TEAM_QUERY_OPERATIONS: Readonly<Record<string, 'members.list' | 'tasks.list' | 'tasks.get' | 'messages.send'>> = {
+const TEAM_MEMBER_OPERATIONS: Readonly<Record<string, 'members.list' | 'tasks.list' | 'tasks.get' | 'messages.send'>> = {
   team_members_list: 'members.list', team_tasks_list: 'tasks.list', team_tasks_get: 'tasks.get',
   team_message_send: 'messages.send',
 }
 
-function teamQueryResponse(result: NativeMemberOperationResult) {
+function teamOperationResponse(result: NativeMemberOperationResult) {
   const response = { success: result.ok, contentItems: [{ type: 'inputText', text: JSON.stringify(result) }] }
   if (Buffer.byteLength(JSON.stringify(response), 'utf8') <= 65_536) return response
   return { success: false, contentItems: [{ type: 'inputText', text: JSON.stringify({ ok: false, error: {
@@ -437,7 +437,7 @@ class CodexConnection {
       approvalPolicy: 'never',
       sandbox: config.sandbox,
       developerInstructions: instructions,
-      dynamicTools: TEAM_QUERY_TOOLS,
+      dynamicTools: TEAM_MEMBER_TOOLS,
       ...config.model === undefined ? {} : { model: config.model },
     }, signal), signal), 'thread/start response')
     this.assertEffectivePolicy(response, config)
@@ -588,7 +588,7 @@ class CodexConnection {
   private handleRequest(method: string, params: JsonObject): Promise<unknown> {
     switch (method) {
       case 'item/tool/call':
-        return this.handleTeamQuery(params)
+        return this.handleTeamOperation(params)
       case 'item/commandExecution/requestApproval':
       case 'item/fileChange/requestApproval': {
         this.validateRequest(params)
@@ -610,9 +610,9 @@ class CodexConnection {
     }
   }
 
-  private async handleTeamQuery(params: JsonObject): Promise<unknown> {
+  private async handleTeamOperation(params: JsonObject): Promise<unknown> {
     if (Buffer.byteLength(JSON.stringify(params), 'utf8') > 16_384) {
-      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_REQUEST_LIMIT', message: 'The native Team tool request exceeds 16384 UTF-8 bytes.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'CODEX_TEAM_REQUEST_LIMIT', message: 'The native Team tool request exceeds 16384 UTF-8 bytes.' } })
     }
     try {
       if (Object.keys(params).some(key => !['threadId', 'turnId', 'callId', 'tool', 'arguments', 'namespace'].includes(key))
@@ -623,26 +623,26 @@ class CodexConnection {
       }
       this.validateRequest(params)
     } catch {
-      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_INVALID_REQUEST', message: 'The native Team tool request is invalid.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'CODEX_TEAM_INVALID_REQUEST', message: 'The native Team tool request is invalid.' } })
     }
-    const operation = typeof params.tool === 'string' && Object.hasOwn(TEAM_QUERY_OPERATIONS, params.tool)
-      ? TEAM_QUERY_OPERATIONS[params.tool] : undefined
+    const operation = typeof params.tool === 'string' && Object.hasOwn(TEAM_MEMBER_OPERATIONS, params.tool)
+      ? TEAM_MEMBER_OPERATIONS[params.tool] : undefined
     if (operation === undefined) {
-      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_UNAVAILABLE', message: 'This Team query is unavailable.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'CODEX_TEAM_UNAVAILABLE', message: 'This Team operation is unavailable.' } })
     }
     let args: JsonObject
     try {
-      args = object(params.arguments, 'Team query arguments')
+      args = object(params.arguments, 'Team operation arguments')
       if (Object.hasOwn(args, 'operation')) throw new Error('model-supplied operation')
     } catch {
-      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_INVALID_REQUEST', message: 'The Team query arguments are invalid.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_INVALID_REQUEST', message: 'The Team query arguments are invalid.' } })
     }
     const active = this.active
     if (active === undefined || active.queries.signal.aborted) {
-      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team query was cancelled.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team operation was cancelled.' } })
     }
     if (active.queryCount >= 64) {
-      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_RATE_LIMIT', message: 'The native turn has reached its limit of 64 Team queries.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'CODEX_TEAM_RATE_LIMIT', message: 'The native turn has reached its limit of 64 Team operations.' } })
     }
     active.queryCount += 1
     let grant = this.memberGrant
@@ -653,9 +653,9 @@ class CodexConnection {
         grant = await this.guarded(this.memberBound.promise, AbortSignal.any([deadline.signal, active.queries.signal]))
       } catch {
         if (active.queries.signal.aborted) {
-          return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team query was cancelled.' } })
+          return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team operation was cancelled.' } })
         }
-        return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_UNAVAILABLE', message: 'This Team query is unavailable.' } })
+        return teamOperationResponse({ ok: false, error: { code: 'CODEX_TEAM_UNAVAILABLE', message: 'This Team operation is unavailable.' } })
       } finally {
         clearTimeout(timer)
       }
@@ -665,12 +665,12 @@ class CodexConnection {
       callId: TeammateRuntimeToolCallId(string(params.callId, 'Team tool call id')),
     })
     if (grant.signal.aborted || this.memberGrant !== grant) {
-      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_GRANT_REVOKED', message: 'This Team authorization is no longer active.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_GRANT_REVOKED', message: 'This Team authorization is no longer active.' } })
     }
     if (active.queries.signal.aborted || this.active !== active) {
-      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team query was cancelled.' } })
+      return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team operation was cancelled.' } })
     }
-    return teamQueryResponse(result)
+    return teamOperationResponse(result)
   }
 
   private handleNotification(method: string, params: JsonObject): void {

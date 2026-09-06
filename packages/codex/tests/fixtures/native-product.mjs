@@ -112,8 +112,15 @@ export class NativeProduct {
             assert.equal(params.approvalPolicy, 'never')
             assert.equal(params.sandbox, 'read-only')
             assert.ok(this.data.threads[params.threadId], 'resume must use an existing native handle')
+            const resumed = this.data.threads[params.threadId]
+            // The real app-server interrupts persisted turns whose executor died with its process.
+            for (const turn of resumed.turns) {
+              if (turn.status === 'inProgress') turn.status = 'interrupted'
+            }
+            resumed.status = { type: 'idle' }
+            persist()
             this.channels.set(params.threadId, { send, completion })
-            reply(frame, policy(this.data.threads[params.threadId]))
+            reply(frame, policy(resumed))
             break
           case 'turn/start': {
             const thread = this.data.threads[params.threadId]
@@ -140,6 +147,10 @@ export class NativeProduct {
                 { type: 'agentMessage', id: randomUUID(), text, phase: 'final_answer' },
               )
               persist()
+              if (this.dropNextCompletion) {
+                this.dropNextCompletion = false
+                return
+              }
               send({ method: 'thread/tokenUsage/updated', params: {
                 threadId: thread.id, turnId: turn.id, tokenUsage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
               } })
