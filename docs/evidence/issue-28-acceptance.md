@@ -34,6 +34,8 @@ Harness 的 [原回执重启及真实 flush 故障测试](https://github.com/ben
 2026-09-06 最终完整 `pnpm verify` 退出 0：562 项 strict 检查／0 警告，281 项测试／
 24 文件，八归档安装、任务／等待／丢回执重放、JSON／SQLite 原身份冷恢复、真实 Web
 启动及完整卸载通过。固定官方与维护 fork 的 11 组公共行为对照及拒绝导入检查通过。
+Codex／Claude 两条历史归档升级均通过 JSON／SQLite 原成员、Revision、native handle
+及后续工作保留检查；旧基线先按原 frozen lock 恢复缺失依赖。
 UI 的 Host 加载设置只作用于专用 Vitest project，现有 92 项相关回归先通过，随后
 完整测试集通过。此次使用现有任务组件，未改变界面视觉设计。
 归档任务、等待、丢回执重试及 JSON／SQLite 冷恢复断言在
