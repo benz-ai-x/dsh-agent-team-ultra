@@ -1,68 +1,55 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-05（Asia/Shanghai）。用户使用中文；下一会话主题由用户的新指令决定。
+交接日期：2026-09-05（Asia/Shanghai）。用户使用中文。
 
-本文件是本项目最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。[docs/HANDOFF.md](docs/HANDOFF.md) 保留前一阶段运行手册与历史验收；其中的环境、进度和剩余范围不能覆盖本文件及当前权威材料。
+本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
+[docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
-## 当前状态与完成边界
+## 当前任务与完成边界
 
-- 主仓库：`$HOME/Dev-Space/dsh-agent-team-ultra`；远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)。文中的 `$HOME` 代替本地账户路径。
-- 上一轮 `commit push` 已完成：`main` 与 `origin/main` 均在 [b1a762f7598f01bbcbf44ed965452d35db8712d9](https://github.com/benz-ai-x/dsh-agent-team-ultra/commit/b1a762f7598f01bbcbf44ed965452d35db8712d9)，本轮文档修改前工作区干净。该提交包含自有包迁移到 `@benz-ai-x`、官方兼容性研究与 vNext 文档入口；具体差异查看该 commit。
-- 当前权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，状态 OPEN，标签 `ready-for-agent`。中文为规范主版，正文后有完整英文对照。用户已确认的取舍和新增协作 UI 均已写入，不需要重新访谈。
-- 已确认方向是“官方基础＋明确的 Ultra 扩展”：第一阶段保留完整 pinned-fork 能力，Codex／Claude Code 作为完整队友；持久 mailbox 消息中心与共享任务 DAG 的用户交互均已补入 Spec。具体边界和回放语义以 Spec 为准。
-- **Spec 编写、补充和发布已完成；vNext 实现尚未开始。** 本轮按用户要求更新项目内交接及存放规则；这些后续文档更新的提交状态需通过 `git status`、`git log` 核实，不能从上一轮推送完成推断。
-- 下一会话按用户的新指令推进；若开始实现，使用 Spec 的 D-22 阶段顺序及全部验收要求，不把标签或文档发布误当功能已实现。
+- 用户要求从 [#19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19) 开始逐项实现全部 open issue：新分支、TDD、创建 PR、提交 PR 后使用 code-review，最后通知用户人工审核。每项完成及遇到开发阻塞时使用飞书 CLI 通知用户；已有明确通知授权。
+- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
+- 当前在 `fix/19-host-profile-evaluation`，起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`，开始开发前工作区干净。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)。实时提交及推送状态以 `git status`、`git log` 为准。
+- **#19 的实现与完整验证已完成，PR 创建及提交后的 code-review 尚未完成，不能报告 issue 已完成。** 当前容器 `gh auth status` 明确未登录；Git SSH 只读连接成功。已经通过飞书发送认证阻塞通知，用户也已获知需要在当前环境运行 `gh auth login`，无需发送凭据。
+- #20–#44 尚未实现。下一项 [#20](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20) 复用 #19 的 Host 上下文，拆分启动／恢复、Run 修复及 Snapshot 投影。后续按 issue 依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
 
-## 先读这些权威材料
+## #19 已实现内容
 
-以下相对路径均以主仓库为根；本交接不复制其中的规格、领域定义或架构决策。
+- `packages/domain/src/index.ts` 保留公开 Host／生成 Remote 入口与组合根；Profile 发布、隔离评测、能力安装分别归入 `profile-lifecycle.ts`、`evaluation-workflow.ts`、`profile-capabilities.ts`。
+- `host-context.ts` 统一精确 live Lead 校验、公共写入准入、串行 mutation、runtime catalog、生命周期信号和 storage handle；关闭公共准入后，内部已接纳结算仍能落盘。
+- 配置、不可变 Profile 快照及错误构造分离为内部辅助模块；公开结果、Remote 名称、持久化 generation 和权威 `agentTeams` 服务保持既有契约。Typert 已通过正式 build 重新生成。
+- TDD 复现并修复：Lead 在 runtime preflight 或写队列等待期间退出后，保存、激活、归档及评测仍可能提交的问题。现在在实际执行业务决策以及异步预检后重新校验精确 live authority。
+- TDD 复现并修复：Host 替换使进程内 capability generation 从头计数，历史失效 Promotion Gate 因编号复用而重新变成 passed。新 catalog 在开放准入前推进到所有持久 Eval Run、Binding、Run Index generation 之后；历史结果和已有 Active Revision 保留，新 catalog 生命周期的后续激活需要新评测证明。
+- 更新了 [项目契约](docs/agent/PROJECT_CONTRACT.md)、[ADR 0003](docs/adr/0003-separate-profile-authoring-from-release.md) 和 [ADR 0011](docs/adr/0011-gate-promotion-with-exact-isolated-evaluations.md)，记录共享业务入口、权限检查时机及评测有效期规则。
 
-1. [AGENTS.md](AGENTS.md)、[PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md)、[TODO.md](TODO.md)、[dsh-reference.lock.json](dsh-reference.lock.json)：开发约束、交接规则、当前实现契约、进度和精确运行基线。
-2. [CONTEXT.md](CONTEXT.md)、[领域文档约定](docs/agents/domain.md)、[ADRs](docs/adr/) 与 [历史决策](docs/decisions/)：统一领域词汇和历史决策。新 Spec 要求调整哪些 ADR 已在其 D-21、D-25 明确，实施时显式补充或修订。
-3. [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)：新版本范围、双语要求、用户故事、技术边界及验收的唯一需求来源。上一版 [Spec #1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/1) 已关闭，仅供历史追踪。
-4. [官方 Agent Team 兼容性研究](docs/research/2026-09-05-official-agent-team-compatibility.md)及其链接的复现脚本：已验证的官方／fork 差异、证据范围及限制，避免重新从猜测开始。
-5. [Issue tracker 约定](docs/agents/issue-tracker.md)、[triage 标签约定](docs/agents/triage-labels.md)：本项目通过 `gh` CLI 管理 GitHub Issues；Specs/PRDs 属于 Issue tracker。
+## 验证证据与限制
 
-## 环境与验证：最容易踩错的地方
+- 初始 `pnpm context:check:strict`：290 项检查通过、0 警告。
+- 改动前完整 `pnpm verify`：157 项测试通过，并通过 8 个归档的真实安装、Web 启动与卸载。日志：`/tmp/ultra-19-baseline-verify.log`。
+- 改动后完整 `pnpm verify`：**164 项测试通过（13 个测试文件）**，严格检查、Host／Client 构建、Typert 生成、8 个归档安装、固定 CLI Web 启动及卸载全部通过，进程退出码 0。日志：`/tmp/ultra-19-final-verify.log`。
+- 新增 [Profile 工作流集成测试](packages/domain/tests/profile-workflow.integration.spec.ts) 的 7 个案例经真实生成 Remote、Host、Agent／Team 和 JSON／SQLite storage，覆盖 Revision 不可变、独立 CAS、显式激活、archive／restore／rollback、精确门禁与历史保留、权限失效及 Fiber 卸载时评测结算。
+- 这些测试仅在 LLM 外部边界使用可控 adapter，隔离 Worker 仍使用真实 Host 生命周期与工具／sandbox／approval 策略。未进行用户授权 native 登录后的真实产品会话验收；该要求仍属于后续 issue，尤其 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44)。
+- 关键 RED 日志位于 `/tmp/ultra-19-{red,queue-red,gate-red,eval-red,activation-red}.log`。`/tmp` 为本容器辅助证据，不是仓库中持久规范；复核以提交内容和可重跑测试为准。
 
-- 主目录相邻的 `../deepseek-harness` **不匹配 reference lock**。最近主目录 strict 检查的四项失败是提交、文档摘要和两个 native 包链接。不要通过放宽锁文件掩盖它，也不要擅自切换那个可能被其他工作使用的 checkout。
-- 已有精确锁定环境：
-  - Harness：`$HOME/Dev-Space/.agent-team-ultra-runtime/deepseek-harness`，交接时 HEAD 为 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a`。
-  - Ultra 验证副本：`$HOME/Dev-Space/.agent-team-ultra-runtime/dsh-agent-team-ultra`。
-- **Ultra 验证副本不是当前 main。** 交接时仍 detached 在 `c12a3b71238d1f20a13729ef0556f61b60760515`，保留此前改名及研究记录的未提交副本。不要清理或重置它来“修复”状态；它还支持既有运行环境。验证新代码前，安全同步待验证源码或另建匹配隔离目录，并证明源码一致。
-- 提交前主目录的 85 个源文件与该验证副本字节一致；之后仅调整文档，包括 README、TODO、研究报告引用及本轮交接约定。运行、构建、测试源码没有变化。
-- 本轮在主目录重跑 strict 仍为上述四项失败；精确锁定副本重跑 strict 通过：290 项检查、0 警告。既有全量构建／测试／安装／卸载证据在 `$HOME/Dev-Space/.agent-team-ultra-runtime/scope-verify.log`；提交前复用了同字节源码的证据，没有声称再次完整运行。文档链接、研究脚本语法和 Git whitespace 已核对。
-- 设置 `DSH_HARNESS_ROOT` 不能单独修复主目录硬编码的 pnpm links／TypeScript 相邻目录引用。统一解析是 Spec 中待实现的内容。
+## 当前环境
 
-可在已核对源码的锁定验证副本执行：
+- 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
+- 相邻 `/root/workspace/deepseek-harness` 已匹配 [dsh-reference.lock.json](dsh-reference.lock.json)，HEAD 为 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a`，版本 `0.1.2-rc.1`，所需构建产物齐全。当前不需要旧交接中的 macOS 隔离验证副本，也没有重置其他 checkout。
+- pnpm／TypeScript 仍依赖相邻 Harness 路径；仅设置 `DSH_HARNESS_ROOT` 不能重定向全部解析。统一来源处理属于 [#21](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/21) 及后续工作。
+- 飞书 CLI 已安装并验证当前 user／bot 身份可用，已成功发送一次阻塞通知。不要在本文件记录凭据、用户标识或私人消息。
+- GitHub CLI 尚未认证。认证后先刷新 issue／评论状态，再使用 `gh` 创建 PR；无需重复询问已经授权的提交、推送、PR 和飞书通知操作。
+- 历史交接提到的 `4317`／`3080` 常驻实例并未在本容器重新确认；本次验证使用打包脚本的隔离 home 与端口，不能据此声称用户应用已运行。
 
-```sh
-DSH_HARNESS_ROOT="$HOME/Dev-Space/.agent-team-ultra-runtime/deepseek-harness" \
-  pnpm --dir "$HOME/Dev-Space/.agent-team-ultra-runtime/dsh-agent-team-ultra" context:check:strict
-```
+## 下一步
 
-- 固定官方对标 checkout 位于 `$HOME/Dev-Space/.agent-team-ultra-runtime/compatibility-official/deepseek-harness`。准确基线和用法见研究报告；它用于兼容性研究，不是可直接替换的完整 Ultra 运行环境。
+1. 核对最终文档链接与 `git diff --check`，提交并推送 #19 分支；准备可直接用于 `gh pr create --body-file` 的 PR 描述。
+2. `gh` 认证可用后创建 #19 PR，以固定 main 基线和提交后的 PR diff 执行 code-review。该技能要求分别检查 Standards 和 Spec，允许在执行评审时按技能要求委派两路；开发本身没有默认委派要求。
+3. 处理评审发现并补足相应验证，通知用户人工审核，同时通过飞书发送 issue 摘要和 PR 链接。不要自动合并，不要提前关闭父 Spec。
+4. 按 [#20](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20) 的职责边界和真实可观察行为继续 TDD；后续 #21–#44 保留各自依赖与阶段 C 集成分支要求。
 
-## 已存在的本地应用
+## 权威材料与技能
 
-- 先前已完成应用启动和输入配置修复；隔离 Web 地址为 `http://127.0.0.1:4317/`，应用 home 为 `$HOME/.dsh-agent-team-ultra`。
-- 上一轮交接的只读探测得到 HTTP 401，当时服务仍在响应；没有重新做已认证 UI 或真实模型验收。继续使用现有认证，勿为交接重置用户配置或会话。
-- 先前另有一个 3080 实例，本会话未改动它。需要操作应用时先确认目标；不要按全部 Node 进程清理环境。
-- 本交接不包含认证信息、凭据文件内容、用户消息内容或 native 登录状态。
-
-## Spec 的本地编辑材料
-
-- 未跟踪的辅助材料位于 `$HOME/Dev-Space/.agent-team-ultra-runtime/spec-vnext/`：`build_spec.py`、`spec.zh-CN.md`、`spec.en.md`、`issue-body.md`、`manifest.json`、`published-issue.json`。
-- 它们是编辑／发布辅助材料，不是仓库中已提交的规格源文件。GitHub Issue 是权威副本；后续更新前先通过 `gh issue view 18` 读取并比较，避免生成器覆盖他人的更新。
-- Issue 当前正文约 64,264 字符，接近 65,536 字符上限。继续扩写时先处理容量和文档组织，保留中文主版与完整英文对照，不能截断译文。
-- 仓库 README 和 TODO 已有 Spec 入口；本次没有把整份双语正文复制进仓库。
-
-## Suggested skills / 建议技能
-
-- **dsh-plugin-dev**：`$HOME/.agents/skills/dsh-plugin-dev/SKILL.md`。修改 DSH 合约时按项目要求使用；根据任务读取 Agent Team、Service、Client、版本和打包引用。先通过匹配源码的严格门禁。
-- **codebase-design**：`$HOME/.codex/skills/codebase-design/SKILL.md`。适合在实施前落实模块职责、依赖方向和真实 provider/consumer 接口。
-- **to-spec**：`$HOME/.codex/skills/to-spec/SKILL.md`。用户继续调整需求时使用，更新既有 Issue #18 和双语编号；已确认内容直接继承。
-- **code-review**：`$HOME/.codex/skills/code-review/SKILL.md`。实际实现完成后，针对固定提交范围检查契约和行为。
-- **handoff**：`$HOME/.codex/skills/handoff/SKILL.md`。再次交接时更新项目根目录的 `HANDOFF.md`，遵循 [AGENTS.md](AGENTS.md) 中优先于技能默认临时存放位置的项目约定，并引用现有材料而非复制。
-
-技能可用性以新会话的目录为准。当前 AGENTS 没有要求委派，勿仅因可用工具而自动启动子代理。
+- 开发前必读：[AGENTS.md](AGENTS.md)、[PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md)、[TODO.md](TODO.md)、[reference lock](dsh-reference.lock.json)。
+- 领域／历史：[CONTEXT.md](CONTEXT.md)、[领域约定](docs/agents/domain.md)、[ADRs](docs/adr/)、[历史决策](docs/decisions/)、[官方兼容性研究](docs/research/2026-09-05-official-agent-team-compatibility.md)。
+- 任务管理：[Issue tracker 约定](docs/agents/issue-tracker.md)、[triage 约定](docs/agents/triage-labels.md)；GitHub Issue 是需求源，不能用本地缓存或 TODO 替代。
+- 本轮已使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`、`lark-im`、`lark-shared`；已读取 `code-review`，实际评审等待 PR 提交。技能路径以当前会话可用列表为准；不得引用旧交接中本环境不存在的技能作为完成证据。

@@ -41,6 +41,14 @@ provided by the pinned Harness retain their `@deepseek-ai` names. Package and
 generated RPC identities move together; `digitalEmployees`, stable Loader row
 ids, and the `agent_team_ultra_v1` storage generation remain unchanged.
 
+The Host composes internal Profile lifecycle, Evaluation workflow, and Profile
+capability installation modules around one service context. That context owns
+exact live Lead checks, public mutation admission, the serial write queue,
+runtime catalog, and storage lifetime. Generated Remote and headless methods
+delegate to the same business operations. A queued decision rechecks its caller
+before it starts, and runtime preflight rechecks authority after asynchronous
+work. Internal settlement remains able to flush after public admission closes.
+
 ## Authority and state
 
 - The Client sends a Session id through the generated Typert contract. The Host
@@ -259,6 +267,11 @@ ids, and the `agent_team_ultra_v1` storage generation remain unchanged.
   separate CAS mutation and accepts only a passed Eval Run whose complete
   identity tuple still matches the latest candidate and current environment;
   prior successes remain visible as `invalidated` after any relevant change.
+- A replacement Host catalog advances beyond every capability generation
+  retained in Eval Runs, Bindings, and the Run Index before opening admission.
+  Restart cannot reuse a prior generation number to revive an invalidated
+  Promotion Gate. Historical Eval Runs remain immutable; a new catalog lifetime
+  requires fresh exact evaluation proof for activation.
 - Studio can create/version Eval Sets, attach/clear the gate, start/cancel and
   inspect Eval Runs, compare their status and fingerprints, and show
   `not-required | pending | passed | invalidated` eligibility without deriving

@@ -1,48 +1,39 @@
-/** Agent Team Ultra Host service and generated Remote surface. */
-
+import { Config, resolveConfig } from './configuration.ts'
+import { DigitalEmployeeHostContext } from './host-context.ts'
+import { ProfileLifecycle } from './profile-lifecycle.ts'
+import { EvaluationWorkflow } from './evaluation-workflow.ts'
+import { ProfileCapabilityInstaller, TEAM_OWN_TOOL_NAMES } from './profile-capabilities.ts'
+import {
+  errorText,
+  failure,
+  authorityRemoteError,
+  externalRuntimeFailure,
+} from './host-errors.ts'
+import { snapshotProfile } from './profile-snapshot.ts'
 import { Buffer } from 'node:buffer'
-import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { Context, Service } from '@deepseek-ai/cordis'
-import s from '@deepseek-ai/schemastery'
-import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { DomainChanged } from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-session-persistence'
-import {
-  TeamError,
-  TeammateEvaluationId,
-  TeammateLaunchRequestId,
-  TeammateRuntimeError,
-} from '@deepseek-ai/dsh-experimental-agent-team'
+import { TeamError, TeammateLaunchRequestId, TeammateRuntimeError } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { TeamMemberRouteSnapshot } from '@deepseek-ai/dsh-experimental-agent-team'
-import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { SessionId, type SessionEvent, type UserMessage } from '@deepseek-ai/dsh-session'
-import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
-import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
-import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
+import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { launchRequestIdSchema, nativeRuntimeHandleFromTeammate, type DigitalEmployeeBinding } from './spec.ts'
 import {
-  digitalEmployeeProfileDraftSchema,
-  digitalEmployeeEvalSetDraftSchema,
-  evalRunIdSchema,
-  launchRequestIdSchema,
-  nativeRuntimeHandleFromTeammate,
-  selectableDigitalEmployeeRuntimeTargetSchema,
-  type DigitalEmployeeBinding,
-} from './spec.ts'
-import {
+  sameDshTarget,
   externalRuntimeProfileSnapshot,
-  requiredCapabilitiesForProfile,
   requiredRuntimeCapabilitiesForProfile,
-  RuntimeBackendRegistry,
   snapshotRequiredCapabilities,
   type DigitalEmployeeExternalRuntimeProvider,
   type DigitalEmployeeExternalRuntimeRegistration,
 } from './runtime.ts'
 import {
   assignmentContentHash,
-  DigitalEmployeeStorage,
   digitalEmployeeBindingKey,
   legacyInheritLeadRuntimeTarget,
   openDigitalEmployeeStorage,
@@ -67,17 +58,9 @@ import {
 import type {
   ActivateDigitalEmployeeProfileRequest,
   ArchiveDigitalEmployeeProfileRequest,
-  DigitalEmployeeAuthorityErrorDetails,
   DigitalEmployeeFailure,
   DigitalEmployeeInstanceView,
-  DigitalEmployeeProfileCatalogEntry,
-  DigitalEmployeeProfileHead,
   DigitalEmployeeProfile,
-  DigitalEmployeeProfileDraft,
-  DigitalEmployeeProfileRevision,
-  DigitalEmployeeProfileDiffEntry,
-  DigitalEmployeeProfileRevisionSummary,
-  DigitalEmployeeRuntimeTarget,
   DigitalEmployeeRunIndexRecord,
   DshModelRuntimeTarget,
   DigitalEmployeeStudioView,
@@ -88,10 +71,7 @@ import type {
   GetDigitalEmployeeRunResult,
   LaunchRequestId,
   MutateDigitalEmployeeProfileHeadResult,
-  ProfileHook,
-  ProfileTextBlock,
   ProfileToolOption,
-  ProfileToolPolicy,
   RollbackDigitalEmployeeProfileRequest,
   RestoreDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileRequest,
@@ -107,33 +87,12 @@ import type {
   CancelDigitalEmployeeEvalRunResult,
   GetDigitalEmployeeEvalRunRequest,
   GetDigitalEmployeeEvalRunResult,
-  DigitalEmployeeEvalCase,
-  DigitalEmployeeEvalCaseResult,
-  DigitalEmployeeEvalRunRecord,
-  DigitalEmployeeEvalSetCatalogEntry,
-  DigitalEmployeeEvalSetHead,
-  DigitalEmployeeEvalSetRevision,
-  DigitalEmployeePromotionGate,
-  SelectableDigitalEmployeeRuntimeTarget,
 } from './types.ts'
 import { StudioSnapshotFeed } from './studio-feed.ts'
-import {
-  EVAL_ASSERTION_SCHEMA_VERSION,
-  casePassed,
-  effectiveEvaluationTools,
-  evalEnvironmentFingerprint,
-  evalRunPassed,
-  evalRunRequestFingerprint,
-  evalSetContentFingerprint,
-  evaluateCaseAssertions,
-  evaluationTerminal,
-  snapshotEvalRun,
-  snapshotEvalSetDraft,
-  snapshotEvalSetHead,
-  snapshotEvalSetRevision,
-  summarizeEvalRun,
-} from './evaluation.ts'
+import { summarizeEvalRun } from './evaluation.ts'
 
+export { Config } from './configuration.ts'
+export { snapshotProfile } from './profile-snapshot.ts'
 export type * from './types.ts'
 export type {
   DigitalEmployeeExternalRuntimeProvider,
@@ -174,41 +133,6 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Deployment limits and the fallback continuation provider. */
-export interface Config {
-  readonly defaultContinuationProvider?: string
-  /** Transitional loader spelling accepted while local profiles upgrade. */
-  readonly defaultProvider?: string
-  readonly maxProfiles?: number
-  readonly maxProfileBytes?: number
-  readonly maxHooks?: number
-  readonly maxAssignmentBytes?: number
-  readonly maxRevisionHistory?: number
-  readonly maxDiffEntries?: number
-  readonly maxRuns?: number
-  readonly maxRunEvidenceItems?: number
-  readonly maxEvalSets?: number
-  readonly maxEvalSetBytes?: number
-  readonly maxEvalCases?: number
-  readonly maxEvalRuns?: number
-}
-
-interface ResolvedConfig {
-  readonly defaultContinuationProvider: string
-  readonly maxProfiles: number
-  readonly maxProfileBytes: number
-  readonly maxHooks: number
-  readonly maxAssignmentBytes: number
-  readonly maxRevisionHistory: number
-  readonly maxDiffEntries: number
-  readonly maxRuns: number
-  readonly maxRunEvidenceItems: number
-  readonly maxEvalSets: number
-  readonly maxEvalSetBytes: number
-  readonly maxEvalCases: number
-  readonly maxEvalRuns: number
-}
-
 interface NormalizedLaunchRequest {
   readonly launchRequestId: LaunchRequestId
   readonly profileId: string
@@ -220,186 +144,6 @@ interface InFlightLaunch {
   readonly profileId: string
   readonly assignmentHash: string
   readonly operation: Promise<SpawnDigitalEmployeeResult>
-}
-
-interface InFlightEvaluation {
-  readonly teamId: string
-  readonly requestFingerprint: string
-  readonly controller: AbortController
-  readonly operation: Promise<void>
-}
-
-interface EvaluationPlan {
-  readonly teamId: string
-  readonly profile: DigitalEmployeeProfileRevision
-  readonly evalSet: DigitalEmployeeEvalSetRevision
-  readonly runtimeTarget: SelectableDigitalEmployeeRuntimeTarget
-  readonly capabilityGeneration: number
-  readonly effectiveToolAllowlist: readonly string[]
-  readonly environmentFingerprint: string
-  readonly requestFingerprint: string
-}
-
-class EvaluationCancelledError extends Error {
-  constructor(readonly reason: 'cancelled' | 'interrupted') {
-    super(`evaluation ${reason}`)
-    this.name = 'EvaluationCancelledError'
-  }
-}
-
-class EvaluationTimeoutError extends Error {
-  constructor(maxElapsedMs: number) {
-    super(`evaluation Case exceeded ${maxElapsedMs}ms`)
-    this.name = 'EvaluationTimeoutError'
-  }
-}
-
-const DEFAULT_PROVIDER = 'spawn'
-const DEFAULT_MAX_PROFILES = 64
-const DEFAULT_MAX_PROFILE_BYTES = 131_072
-const DEFAULT_MAX_HOOKS = 32
-const DEFAULT_MAX_ASSIGNMENT_BYTES = 32_768
-const DEFAULT_MAX_REVISION_HISTORY = 32
-const DEFAULT_MAX_DIFF_ENTRIES = 512
-const DEFAULT_MAX_RUNS = 512
-const DEFAULT_MAX_RUN_EVIDENCE_ITEMS = 512
-const DEFAULT_MAX_EVAL_SETS = 64
-const DEFAULT_MAX_EVAL_SET_BYTES = 262_144
-const DEFAULT_MAX_EVAL_CASES = 64
-const DEFAULT_MAX_EVAL_RUNS = 256
-
-const TEAM_OWN_TOOL_NAMES = new Set([
-  'spawn_teammate',
-  'send_message',
-  'followup_task',
-  'list_agents',
-  'wait_agent',
-  'interrupt_agent',
-  'team_task_create',
-  'team_task_list',
-  'team_task_get',
-  'team_task_update',
-  'run_code',
-])
-
-const PLUGIN_SOURCE = { kind: 'plugin', plugin: 'agent-team-ultra' } as const
-
-/** Loader schema; defaults are universal operational limits, not deployment policy guesses. */
-export const Config: s<Config> = s.object({
-  defaultContinuationProvider: s.string(),
-  defaultProvider: s.string(),
-  maxProfiles: s.number().step(1).min(1).default(DEFAULT_MAX_PROFILES),
-  maxProfileBytes: s.number().step(1).min(1024).default(DEFAULT_MAX_PROFILE_BYTES),
-  maxHooks: s.number().step(1).min(0).default(DEFAULT_MAX_HOOKS),
-  maxAssignmentBytes: s.number().step(1).min(1).default(DEFAULT_MAX_ASSIGNMENT_BYTES),
-  maxRevisionHistory: s.number().step(1).min(1).default(DEFAULT_MAX_REVISION_HISTORY),
-  maxDiffEntries: s.number().step(1).min(1).default(DEFAULT_MAX_DIFF_ENTRIES),
-  maxRuns: s.number().step(1).min(1).default(DEFAULT_MAX_RUNS),
-  maxRunEvidenceItems: s.number().step(1).min(1).default(DEFAULT_MAX_RUN_EVIDENCE_ITEMS),
-  maxEvalSets: s.number().step(1).min(1).default(DEFAULT_MAX_EVAL_SETS),
-  maxEvalSetBytes: s.number().step(1).min(1024).default(DEFAULT_MAX_EVAL_SET_BYTES),
-  maxEvalCases: s.number().step(1).min(1).default(DEFAULT_MAX_EVAL_CASES),
-  maxEvalRuns: s.number().step(1).min(1).default(DEFAULT_MAX_EVAL_RUNS),
-})
-
-/** Validate a direct-constructor integer that Loader normally checks. */
-function positiveInteger(name: string, value: number, minimum = 1): number {
-  if (!Number.isSafeInteger(value) || value < minimum) {
-    throw new TypeError(`agent-team-ultra: ${name} must be a safe integer >= ${minimum}`)
-  }
-  return value
-}
-
-/** Keep arbitrary failures bounded before they enter a durable binding diagnostic. */
-function errorText(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error)
-  return text.length <= 2048 ? text : `${text.slice(0, 2045)}...`
-}
-
-/** Freeze one text block before it crosses or enters a public boundary. */
-function freezeTextBlock(block: ProfileTextBlock): ProfileTextBlock {
-  return Object.freeze({
-    id: block.id,
-    title: block.title,
-    content: block.content,
-    enabled: block.enabled,
-  })
-}
-
-/** Freeze one declarative hook before storage retains it by reference. */
-function freezeHook(hook: ProfileHook): ProfileHook {
-  return Object.freeze({
-    id: hook.id,
-    point: hook.point,
-    effect: hook.effect,
-    ...(hook.matcher === undefined ? {} : { matcher: hook.matcher }),
-    text: hook.text,
-    enabled: hook.enabled,
-  })
-}
-
-/** Deep-detach the full profile snapshot. */
-export function snapshotProfile(profile: DigitalEmployeeProfile): DigitalEmployeeProfile {
-  return Object.freeze({
-    ...snapshotProfileDraft(profile),
-    revision: profile.revision,
-    createdAt: profile.createdAt,
-    updatedAt: profile.updatedAt,
-  })
-}
-
-/** Deep-detach normalized editable content from storage or caller ownership. */
-function snapshotProfileDraft(profile: DigitalEmployeeProfileDraft): DigitalEmployeeProfileDraft {
-  const names = Object.freeze([...profile.toolPolicy.names])
-  const toolPolicy: ProfileToolPolicy = Object.freeze({ mode: profile.toolPolicy.mode, names })
-  return Object.freeze({
-    id: profile.id,
-    employeeName: profile.employeeName,
-    displayName: profile.displayName,
-    description: profile.description,
-    continuationProvider: profile.continuationProvider,
-    contextMode: profile.contextMode,
-    persona: profile.persona,
-    mission: profile.mission,
-    toolPolicy,
-    context: Object.freeze(profile.context.map(freezeTextBlock)),
-    memory: Object.freeze(profile.memory.map(freezeTextBlock)),
-    hooks: Object.freeze(profile.hooks.map(freezeHook)),
-  })
-}
-
-function snapshotProfileHead(head: DigitalEmployeeProfileHead): DigitalEmployeeProfileHead {
-  return Object.freeze({
-    schemaVersion: 1,
-    profileId: head.profileId,
-    headRevision: head.headRevision,
-    latestRevision: head.latestRevision,
-    ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
-    historyStartsAtRevision: head.historyStartsAtRevision,
-    ...(head.requiredEvalSet === undefined
-      ? {}
-      : { requiredEvalSet: Object.freeze({ ...head.requiredEvalSet }) }),
-    ...(head.archivedAt === undefined ? {} : { archivedAt: head.archivedAt }),
-    createdAt: head.createdAt,
-    updatedAt: head.updatedAt,
-  })
-}
-
-function snapshotProfileRevision(revision: DigitalEmployeeProfileRevision): DigitalEmployeeProfileRevision {
-  const target: DigitalEmployeeRuntimeTarget = revision.runtimeTarget.kind === 'legacy-inherit-lead'
-    ? legacyInheritLeadRuntimeTarget
-    : Object.freeze({ ...revision.runtimeTarget })
-  return Object.freeze({
-    schemaVersion: 1,
-    profileId: revision.profileId,
-    revision: revision.revision,
-    profile: snapshotProfileDraft(revision.profile),
-    runtimeTarget: target,
-    requiredCapabilities: snapshotRequiredCapabilities(revision.requiredCapabilities),
-    fingerprint: revision.fingerprint,
-    createdAt: revision.createdAt,
-    updatedAt: revision.updatedAt,
-  })
 }
 
 function snapshotRunIndex(run: DigitalEmployeeRunIndexRecord): DigitalEmployeeRunIndexRecord {
@@ -421,31 +165,6 @@ function snapshotRunIndex(run: DigitalEmployeeRunIndexRecord): DigitalEmployeeRu
   })
 }
 
-function failure(code: DigitalEmployeeFailure['code'], message: string, currentHead?: DigitalEmployeeProfileHead): DigitalEmployeeFailure {
-  return Object.freeze({
-    code,
-    message,
-    ...(currentHead === undefined ? {} : { currentHead: snapshotProfileHead(currentHead) }),
-  })
-}
-
-/** Translate typed teammate-runtime rejections without inspecting provider prose. */
-function externalRuntimeFailure(error: TeammateRuntimeError): DigitalEmployeeFailure {
-  switch (error.code) {
-    case 'TEAM_RUNTIME_UNAVAILABLE':
-      return failure('runtime-target-unavailable', error.message)
-    case 'TEAM_RUNTIME_CAPABILITY_MISMATCH':
-      return failure('runtime-capability-mismatch', error.message)
-    case 'TEAM_RUNTIME_IDENTITY_CONFLICT':
-    case 'TEAM_RUNTIME_INVALID_PROVIDER':
-      return failure('runtime-route-invalid', error.message)
-  }
-}
-
-function saveRejected(error: DigitalEmployeeFailure): SaveDigitalEmployeeProfileResult {
-  return Object.freeze({ ok: false, error })
-}
-
 function spawnRejected(error: DigitalEmployeeFailure): SpawnDigitalEmployeeResult {
   return Object.freeze({ ok: false, error })
 }
@@ -460,202 +179,8 @@ function dshTargetFromRoute(route: TeamMemberRouteSnapshot | undefined): DshMode
   })
 }
 
-function sameDshTarget(left: DshModelRuntimeTarget, right: DshModelRuntimeTarget): boolean {
-  return left.provider === right.provider
-    && left.model === right.model
-    && left.reasoningEffort === right.reasoningEffort
-}
-
-function sameRuntimeTarget(left: DigitalEmployeeRuntimeTarget, right: DigitalEmployeeRuntimeTarget): boolean {
-  if (left.kind !== right.kind) return false
-  if (left.kind === 'legacy-inherit-lead' || right.kind === 'legacy-inherit-lead') return true
-  if (left.kind === 'external-agent' || right.kind === 'external-agent') {
-    return left.kind === 'external-agent' && right.kind === 'external-agent' && left.provider === right.provider
-  }
-  return sameDshTarget(left, right)
-}
-
-function headMutationRejected(error: DigitalEmployeeFailure): MutateDigitalEmployeeProfileHeadResult {
-  return Object.freeze({ ok: false, error })
-}
-
-function revisionRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeProfileRevisionResult {
-  return Object.freeze({ ok: false, error })
-}
-
 function runRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeRunResult {
   return Object.freeze({ ok: false, error })
-}
-
-function saveEvalSetRejected(error: DigitalEmployeeFailure): SaveDigitalEmployeeEvalSetResult {
-  return Object.freeze({ ok: false, error })
-}
-
-function startEvalRejected(error: DigitalEmployeeFailure): StartDigitalEmployeeEvalRunResult {
-  return Object.freeze({ ok: false, error })
-}
-
-function cancelEvalRejected(error: DigitalEmployeeFailure): CancelDigitalEmployeeEvalRunResult {
-  return Object.freeze({ ok: false, error })
-}
-
-function getEvalRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeEvalRunResult {
-  return Object.freeze({ ok: false, error })
-}
-
-function evaluationSessionId(evalRunId: string, caseId: string): SessionId {
-  const digest = createHash('sha256')
-    .update(JSON.stringify(['agent-team-ultra-evaluation', evalRunId, caseId]), 'utf8')
-    .digest('base64url')
-  return SessionId(`eval_${digest}`)
-}
-
-function profileFromRevision(revision: DigitalEmployeeProfileRevision): DigitalEmployeeProfile {
-  return snapshotProfile({
-    ...revision.profile,
-    revision: revision.revision,
-    createdAt: revision.createdAt,
-    updatedAt: revision.updatedAt,
-  })
-}
-
-function assistantOutputForTurn(events: readonly SessionEvent[], turn: number): string {
-  const output: string[] = []
-  for (const event of events) {
-    if (event.type !== 'assistant/message' || event.data.turn !== turn) continue
-    for (const block of event.data.message.content) {
-      if (block.type === 'text') output.push(block.text)
-    }
-  }
-  return output.join('')
-}
-
-function contentBlockOutput(blocks: readonly { readonly type: string; readonly text?: string }[]): string {
-  return blocks.filter(block => block.type === 'text' && typeof block.text === 'string')
-    .map(block => block.text!)
-    .join('')
-}
-
-function evaluationFixturesText(testCase: DigitalEmployeeEvalCase): string {
-  if (testCase.fixtures.length === 0) return ''
-  return [
-    '# Immutable evaluation fixtures',
-    ...testCase.fixtures.map(fixture => `## ${fixture.id}\n${fixture.content}`),
-  ].join('\n\n')
-}
-
-function authorityRemoteError(
-  error: DigitalEmployeeFailure,
-  operation: DigitalEmployeeAuthorityErrorDetails['operation'],
-): RemoteError<'digital-employees/team-lead-required' | 'digital-employees/team-rejected'> {
-  const details = Object.freeze({ operation })
-  return error.code === 'team-lead-required'
-    ? new RemoteError('digital-employees/team-lead-required', error.message, details)
-    : new RemoteError('digital-employees/team-rejected', error.message, details)
-}
-
-/** Render enabled blocks as one bounded, deterministic prompt section. */
-function blockSection(title: string, blocks: readonly ProfileTextBlock[]): string {
-  const enabled = blocks.filter(block => block.enabled)
-  if (enabled.length === 0) return ''
-  return [`# ${title}`, ...enabled.map(block => `## ${block.title}\n${block.content}`)].join('\n\n')
-}
-
-/** Simple wildcard matcher: `*` spans any substring and every other character is literal. */
-function matchesTool(matcher: string, name: string): boolean {
-  if (matcher === '*') return true
-  const parts = matcher.split('*')
-  if (parts.length === 1) return matcher === name
-  let cursor = 0
-  if (!matcher.startsWith('*')) {
-    const first = parts[0] ?? ''
-    if (!name.startsWith(first)) return false
-    cursor = first.length
-  }
-  const end = matcher.endsWith('*') ? parts.length : parts.length - 1
-  for (let index = 1; index < end; index += 1) {
-    const part = parts[index] ?? ''
-    if (part === '') continue
-    const found = name.indexOf(part, cursor)
-    if (found === -1) return false
-    cursor = found + part.length
-  }
-  if (!matcher.endsWith('*')) {
-    const last = parts.at(-1) ?? ''
-    return name.endsWith(last) && name.length - last.length >= cursor
-  }
-  return true
-}
-
-function hookMessage(text: string): UserMessage {
-  return createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE })
-}
-
-function diffValue(value: unknown): string {
-  return JSON.stringify(value) ?? 'null'
-}
-
-/** Deterministic, bounded structural comparison of immutable Revision content. */
-function profileRevisionDiff(
-  before: DigitalEmployeeProfileRevision | undefined,
-  after: DigitalEmployeeProfileRevision,
-  limit: number,
-): { readonly entries: readonly DigitalEmployeeProfileDiffEntry[]; readonly truncated: boolean } {
-  const entries: DigitalEmployeeProfileDiffEntry[] = []
-  const append = (entry: DigitalEmployeeProfileDiffEntry): void => {
-    if (entries.length <= limit) entries.push(Object.freeze(entry))
-  }
-  const walk = (left: unknown, right: unknown, path: string): void => {
-    if (entries.length > limit || Object.is(left, right)) return
-    if (Array.isArray(left) && Array.isArray(right)) {
-      const length = Math.max(left.length, right.length)
-      for (let index = 0; index < length && entries.length <= limit; index += 1) {
-        const nextPath = `${path}[${index}]`
-        if (index >= left.length) append({ path: nextPath, kind: 'added', after: diffValue(right[index]) })
-        else if (index >= right.length) append({ path: nextPath, kind: 'removed', before: diffValue(left[index]) })
-        else walk(left[index], right[index], nextPath)
-      }
-      return
-    }
-    if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object'
-      && !Array.isArray(left) && !Array.isArray(right)) {
-      const leftRecord = left as Record<string, unknown>
-      const rightRecord = right as Record<string, unknown>
-      const keys = [...new Set([...Object.keys(leftRecord), ...Object.keys(rightRecord)])].sort()
-      for (const key of keys) {
-        if (entries.length > limit) break
-        const nextPath = path === '' ? key : `${path}.${key}`
-        if (!Object.hasOwn(leftRecord, key)) {
-          append({ path: nextPath, kind: 'added', after: diffValue(rightRecord[key]) })
-        } else if (!Object.hasOwn(rightRecord, key)) {
-          append({ path: nextPath, kind: 'removed', before: diffValue(leftRecord[key]) })
-        } else {
-          walk(leftRecord[key], rightRecord[key], nextPath)
-        }
-      }
-      return
-    }
-    append({ path, kind: 'changed', before: diffValue(left), after: diffValue(right) })
-  }
-  walk(
-    before === undefined
-      ? {}
-      : {
-        profile: before.profile,
-        runtimeTarget: before.runtimeTarget,
-        requiredCapabilities: before.requiredCapabilities,
-      },
-    {
-      profile: after.profile,
-      runtimeTarget: after.runtimeTarget,
-      requiredCapabilities: after.requiredCapabilities,
-    },
-    '',
-  )
-  return Object.freeze({
-    entries: Object.freeze(entries.slice(0, limit)),
-    truncated: entries.length > limit,
-  })
 }
 
 /** Concrete Host service; one provider is sufficient for this local overlay. */
@@ -672,85 +197,46 @@ export class DigitalEmployeeService extends TypertRemoteService {
   ]
   static Config = Config
 
-  private readonly resolved: ResolvedConfig
-  private storage: DigitalEmployeeStorage | undefined
-  private mutationTail: Promise<void> = Promise.resolve()
+  private readonly profiles: ProfileLifecycle
+  private readonly evaluationWorkflow: EvaluationWorkflow
+  private readonly capabilities: ProfileCapabilityInstaller
+  private readonly host: DigitalEmployeeHostContext
   private readonly launches = new Set<Promise<unknown>>()
   private readonly launchesByRequest = new Map<string, InFlightLaunch>()
   private readonly reconciliations = new Set<Promise<void>>()
   private readonly runRepairs = new Set<Promise<void>>()
-  private readonly evaluations = new Set<Promise<void>>()
-  private readonly evaluationsById = new Map<string, InFlightEvaluation>()
-  private readonly childInstallations = new Map<Agent, () => void>()
   private readonly pendingApprovals = new Map<string, Set<string>>()
-  private readonly lifecycle = new AbortController()
   private readonly studioSnapshots = new StudioSnapshotFeed<DigitalEmployeeStudioView>()
-  private readonly runtimeBackends: RuntimeBackendRegistry
-  private admissionOpen = false
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'digitalEmployees')
-    this.runtimeBackends = new RuntimeBackendRegistry(
-      ctx,
-      ctx.llm,
-      ctx.subagents,
-      () => {
-        this.scheduleAvailableLeadReconciliation()
-        this.studioSnapshots.invalidate()
-      },
-    )
-    this.resolved = {
-      defaultContinuationProvider: (
-        config.defaultContinuationProvider ?? config.defaultProvider ?? DEFAULT_PROVIDER
-      ).trim(),
-      maxProfiles: positiveInteger('maxProfiles', config.maxProfiles ?? DEFAULT_MAX_PROFILES),
-      maxProfileBytes: positiveInteger('maxProfileBytes', config.maxProfileBytes ?? DEFAULT_MAX_PROFILE_BYTES, 1024),
-      maxHooks: positiveInteger('maxHooks', config.maxHooks ?? DEFAULT_MAX_HOOKS, 0),
-      maxAssignmentBytes: positiveInteger('maxAssignmentBytes', config.maxAssignmentBytes ?? DEFAULT_MAX_ASSIGNMENT_BYTES),
-      maxRevisionHistory: positiveInteger(
-        'maxRevisionHistory',
-        config.maxRevisionHistory ?? DEFAULT_MAX_REVISION_HISTORY,
-      ),
-      maxDiffEntries: positiveInteger('maxDiffEntries', config.maxDiffEntries ?? DEFAULT_MAX_DIFF_ENTRIES),
-      maxRuns: positiveInteger('maxRuns', config.maxRuns ?? DEFAULT_MAX_RUNS),
-      maxRunEvidenceItems: positiveInteger(
-        'maxRunEvidenceItems',
-        config.maxRunEvidenceItems ?? DEFAULT_MAX_RUN_EVIDENCE_ITEMS,
-      ),
-      maxEvalSets: positiveInteger('maxEvalSets', config.maxEvalSets ?? DEFAULT_MAX_EVAL_SETS),
-      maxEvalSetBytes: positiveInteger(
-        'maxEvalSetBytes',
-        config.maxEvalSetBytes ?? DEFAULT_MAX_EVAL_SET_BYTES,
-        1024,
-      ),
-      maxEvalCases: positiveInteger('maxEvalCases', config.maxEvalCases ?? DEFAULT_MAX_EVAL_CASES),
-      maxEvalRuns: positiveInteger('maxEvalRuns', config.maxEvalRuns ?? DEFAULT_MAX_EVAL_RUNS),
-    }
-    if (this.resolved.defaultContinuationProvider === '') {
-      throw new TypeError('agent-team-ultra: defaultContinuationProvider must not be blank')
-    }
+    this.host = new DigitalEmployeeHostContext(ctx, resolveConfig(config), () => {
+      this.scheduleAvailableLeadReconciliation()
+      this.studioSnapshots.invalidate()
+    })
+    this.capabilities = new ProfileCapabilityInstaller(this.host)
+    this.evaluationWorkflow = new EvaluationWorkflow(this.host, this.capabilities)
+    this.profiles = new ProfileLifecycle(this.host, (caller, teamId, head, revision) =>
+      this.evaluationWorkflow.promotionGate(caller, teamId, head, revision))
   }
 
   /** Open durable sidecar state, then compose every matching live and future child scope. */
   protected async [Service.init](): Promise<void> {
-    await this.runtimeBackends.initialize()
+    await this.host.runtimeBackends.initialize()
     const storage = await openDigitalEmployeeStorage(this.ctx.storageDomain, {
       resolveBindingRuntimeTarget: binding => this.migratedBindingRuntimeTarget(binding),
     })
-    this.storage = storage
+    this.host.attachStorage(storage)
     let stopCreated = (): void => undefined
     let stopDisposed = (): void => undefined
     let stopSessionStart = (): void => undefined
     let stopSessionEvent = (): void => undefined
     let stopDomainChanged = (): void => undefined
     this.ctx.effect(() => async () => {
-      this.admissionOpen = false
-      this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
+      this.host.closeAdmission()
       this.studioSnapshots.close()
-      for (const evaluation of this.evaluationsById.values()) {
-        evaluation.controller.abort(new Error('Agent Team Ultra service disposed'))
-      }
-      const runtimeBackendDisposal = this.runtimeBackends.dispose()
+      this.evaluationWorkflow.interrupt()
+      const runtimeBackendDisposal = this.host.runtimeBackends.dispose()
       const failures: unknown[] = []
       try { stopCreated() } catch (error: unknown) { failures.push(error) }
       try { stopDisposed() } catch (error: unknown) { failures.push(error) }
@@ -758,17 +244,14 @@ export class DigitalEmployeeService extends TypertRemoteService {
       try { stopSessionEvent() } catch (error: unknown) { failures.push(error) }
       try { stopDomainChanged() } catch (error: unknown) { failures.push(error) }
       this.pendingApprovals.clear()
-      try { this.revokeBoundAgents() } catch (error: unknown) { failures.push(error) }
+      try { this.capabilities.disposeAll() } catch (error: unknown) { failures.push(error) }
       await Promise.allSettled([...this.launches])
       await Promise.allSettled([...this.reconciliations])
       await Promise.allSettled([...this.runRepairs])
-      await Promise.allSettled([...this.evaluations])
-      await this.mutationTail
+      await this.evaluationWorkflow.whenSettled()
+      await this.host.whenWritesSettled()
       try { await runtimeBackendDisposal } catch (error: unknown) { failures.push(error) }
-      try { await storage.close() } catch (error: unknown) { failures.push(error) }
-      finally {
-        this.storage = undefined
-      }
+      try { await this.host.closeStorage() } catch (error: unknown) { failures.push(error) }
       if (failures.length > 0) {
         throw new AggregateError(failures, 'Agent Team Ultra disposal failed')
       }
@@ -780,7 +263,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     })
     stopDisposed = this.ctx.on('agent/disposed', ({ agent }) => {
       this.pendingApprovals.delete(agent.id)
-      this.removeBoundAgent(agent)
+      this.capabilities.remove(agent)
       this.studioSnapshots.invalidate()
     })
     stopSessionStart = this.ctx.on('agent/session-start', ({ agent }) => {
@@ -803,8 +286,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
     stopDomainChanged = this.ctx.on('domain/changed', (change: DomainChanged) => {
       if (change.domain === 'agent_team_ultra_v1') this.studioSnapshots.invalidate()
     })
-    await this.repairInterruptedEvaluations()
-    this.admissionOpen = true
+    this.host.restoreRuntimeGeneration()
+    await this.evaluationWorkflow.repairInterrupted()
+    this.host.openAdmission()
     for (const agent of this.ctx.agents.list()) this.installBoundAgent(agent)
     await this.reconcileAvailableLeads()
     await this.repairAvailableTeamRuns()
@@ -814,12 +298,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
   registerExternalRuntimeProvider(
     provider: DigitalEmployeeExternalRuntimeProvider,
   ): DigitalEmployeeExternalRuntimeRegistration {
-    return this.runtimeBackends.registerExternalRuntimeProvider(this.ctx, provider)
+    return this.host.runtimeBackends.registerExternalRuntimeProvider(this.ctx, provider)
   }
 
   /** Await the latest topology generation; useful to coordinate Host startup and tests. */
   whenRuntimeCatalogSettled(): Promise<void> {
-    return this.runtimeBackends.whenSettled()
+    return this.host.runtimeBackends.whenSettled()
   }
 
   /** Complete replaceable Studio view for one exact live Team Lead. */
@@ -860,47 +344,47 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Build the complete replaceable Studio view for one exact live Team Lead. */
   studioView(caller: Agent): DigitalEmployeeStudioView {
-    const authorityFailure = this.leadAuthorityFailure(caller)
+    const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) throw authorityRemoteError(authorityFailure, 'view')
     const membership = this.ctx.agentTeams.membership(caller)
-    const profiles = [...this.requireStorage().profileHeadEntries()]
-      .map(([, head]) => this.profileCatalogEntry(caller, membership.id, head))
+    const profiles = [...this.host.storage.profileHeadEntries()]
+      .map(([, head]) => this.profiles.catalogEntry(caller, membership.id, head))
       .sort((left, right) => left.latest.profile.displayName.localeCompare(right.latest.profile.displayName)
         || left.head.profileId.localeCompare(right.head.profileId))
     const tools: ProfileToolOption[] = this.ctx.tools.schemas(caller)
       .filter(tool => !TEAM_OWN_TOOL_NAMES.has(tool.name))
       .map(tool => Object.freeze({ name: tool.name, description: tool.description }))
       .sort((left, right) => left.name.localeCompare(right.name))
-    const instances = [...this.requireStorage().bindingEntries()]
+    const instances = [...this.host.storage.bindingEntries()]
       .map(([, binding]) => binding)
       .filter(binding => binding.teamId === membership.id)
       .map(binding => this.instanceView(caller, binding))
       .sort((left, right) => left.memberName.localeCompare(right.memberName))
-    const runs = [...this.requireStorage().runEntries()]
+    const runs = [...this.host.storage.runEntries()]
       .map(([, run]) => run)
       .filter(run => run.teamId === membership.id)
       .sort((left, right) => right.startedAt - left.startedAt || right.runId.localeCompare(left.runId))
       .map(snapshotRunIndex)
-    const evalSets = [...this.requireStorage().evalSetHeadEntries()]
-      .map(([, head]) => this.evalSetCatalogEntry(head))
+    const evalSets = [...this.host.storage.evalSetHeadEntries()]
+      .map(([, head]) => this.evaluationWorkflow.catalogEntry(head))
       .sort((left, right) => left.latest.evalSet.displayName.localeCompare(right.latest.evalSet.displayName)
         || left.head.evalSetId.localeCompare(right.head.evalSetId))
-    const evalRuns = [...this.requireStorage().evalRunEntries()]
+    const evalRuns = [...this.host.storage.evalRunEntries()]
       .map(([, run]) => run)
       .filter(run => run.teamId === membership.id)
       .sort((left, right) => right.startedAt - left.startedAt
         || right.evalRunId.localeCompare(left.evalRunId))
       .map(summarizeEvalRun)
     const historicalTargets = profiles.flatMap(entry =>
-      [...this.requireStorage().profileRevisionEntries(entry.head.profileId)]
+      [...this.host.storage.profileRevisionEntries(entry.head.profileId)]
         .map(([, revision]) => revision.runtimeTarget))
-    for (const [, binding] of this.requireStorage().bindingEntries()) {
+    for (const [, binding] of this.host.storage.bindingEntries()) {
       if (binding.teamId === membership.id) historicalTargets.push(binding.runtimeTarget)
     }
     for (const run of evalRuns) historicalTargets.push(run.runtimeTarget)
     return Object.freeze({
       profiles: Object.freeze(profiles),
-      runtimeCatalog: this.runtimeBackends.snapshot(historicalTargets),
+      runtimeCatalog: this.host.runtimeBackends.snapshot(historicalTargets),
       tools: Object.freeze(tools),
       instances: Object.freeze(instances),
       runs: Object.freeze(runs),
@@ -914,45 +398,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: GetDigitalEmployeeProfileRevisionRequest,
   ): Promise<GetDigitalEmployeeProfileRevisionResult> {
-    if (!this.admissionOpen) {
-      return Promise.resolve(revisionRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(revisionRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.revision) || request.revision < 1) {
-      return Promise.resolve(revisionRejected(failure('profile-invalid', 'Revision must be a positive integer')))
-    }
-    const storage = this.requireStorage()
-    const head = storage.getProfileHead(request.profileId)
-    if (head === undefined) {
-      return Promise.resolve(revisionRejected(failure('profile-not-found', `profile "${request.profileId}" not found`)))
-    }
-    const revision = storage.getProfileRevision(request.profileId, request.revision)
-    if (revision === undefined || request.revision < head.historyStartsAtRevision
-      || request.revision > head.latestRevision) {
-      return Promise.resolve(revisionRejected(failure(
-        'revision-not-found',
-        `Profile Revision ${request.revision} is not in retained history`,
-        head,
-      )))
-    }
-    const active = head.activeRevision === undefined
-      ? undefined
-      : storage.getProfileRevision(head.profileId, head.activeRevision)
-    if (head.activeRevision !== undefined && active === undefined) {
-      throw new Error(`Digital Employee Profile Head "${head.profileId}" has no active Revision`)
-    }
-    const comparison = profileRevisionDiff(active, revision, this.resolved.maxDiffEntries)
-    return Promise.resolve(Object.freeze({
-      ok: true as const,
-      value: Object.freeze({
-        head: snapshotProfileHead(head),
-        revision: snapshotProfileRevision(revision),
-        ...(active === undefined ? {} : { comparedToRevision: active.revision }),
-        diff: comparison.entries,
-        diffTruncated: comparison.truncated,
-      }),
-    }))
+    return this.profiles.profileRevision(caller, request)
   }
 
   /** Public Host Run inspector guarded by exact live Lead authority. */
@@ -961,12 +407,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
     request: GetDigitalEmployeeRunRequest,
     signal: AbortSignal,
   ): Promise<GetDigitalEmployeeRunResult> {
-    if (!this.admissionOpen) return runRejected(failure('service-disposed', 'Digital Employee service is disposing'))
-    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (!this.host.admissionOpen) return runRejected(failure('service-disposed', 'Digital Employee service is disposing'))
+    const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return runRejected(authorityFailure)
     signal.throwIfAborted()
     const membership = this.ctx.agentTeams.membership(caller)
-    const stored = this.requireStorage().getRun(request.runId)
+    const stored = this.host.storage.getRun(request.runId)
     if (stored === undefined || stored.teamId !== membership.id) {
       return runRejected(failure('run-not-found', `Run "${request.runId}" not found`))
     }
@@ -980,14 +426,14 @@ export class DigitalEmployeeService extends TypertRemoteService {
           this.dshRunBindingFromIndex(stored),
           SessionId(stored.canonicalSource.sessionId),
           events,
-          this.resolved.maxRunEvidenceItems,
-          this.resolved.maxRuns,
+          this.host.config.maxRunEvidenceItems,
+          this.host.config.maxRuns,
           this.pendingApprovals.get(stored.canonicalSource.sessionId),
         ).find(candidate => candidate.index.runId === stored.runId)
         if (folded === undefined) {
           return runRejected(failure('evidence-unavailable', 'canonical DSH turn is no longer inspectable'))
         }
-        await this.requireStorage().putRun(folded.index, this.resolved.maxRuns)
+        await this.host.storage.putRun(folded.index, this.host.config.maxRuns)
         return Object.freeze({ ok: true as const, value: folded.detail })
       } catch (error: unknown) {
         if (signal.aborted) throw error
@@ -1002,17 +448,17 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
     try {
       const page = await this.ctx.agentTeams.readTeammateRuntimeEvidence(caller, stored.owner.memberName, {
-        limit: this.resolved.maxRunEvidenceItems,
+        limit: this.host.config.maxRunEvidenceItems,
         signal,
       })
       const folded = foldExternalRunEvidence(
         stored,
         page.items,
         page.complete,
-        this.resolved.maxRunEvidenceItems,
+        this.host.config.maxRunEvidenceItems,
         page.pendingApprovals,
       )
-      await this.requireStorage().putRun(folded.index, this.resolved.maxRuns)
+      await this.host.storage.putRun(folded.index, this.host.config.maxRuns)
       return Object.freeze({ ok: true as const, value: folded.detail })
     } catch (error: unknown) {
       if (signal.aborted) throw error
@@ -1119,134 +565,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Public Host API used by headless consumers and tests. */
   async saveProfile(caller: Agent, request: SaveDigitalEmployeeProfileRequest): Promise<SaveDigitalEmployeeProfileResult> {
-    if (!this.admissionOpen) return saveRejected(failure('service-disposed', 'Digital Employee service is disposing'))
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return saveRejected(authorityFailure)
-    if (request.expectedHeadRevision !== null
-      && (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1)) {
-      return saveRejected(failure('profile-invalid', 'Head revision must be null or a positive integer'))
-    }
-    const continuationProvider = typeof request.profile.continuationProvider === 'string'
-      ? request.profile.continuationProvider.trim() || this.resolved.defaultContinuationProvider
-      : this.resolved.defaultContinuationProvider
-    const parsed = digitalEmployeeProfileDraftSchema.safeParse({ ...request.profile, continuationProvider })
-    if (!parsed.success) {
-      return saveRejected(failure(
-        'profile-invalid',
-        parsed.error.issues.map(issue => `${issue.path.join('.') || 'profile'}: ${issue.message}`).join('; ').slice(0, 2048),
-      ))
-    }
-    const parsedTarget = selectableDigitalEmployeeRuntimeTargetSchema.safeParse(request.runtimeTarget)
-    if (!parsedTarget.success) {
-      return saveRejected(failure(
-        'runtime-route-invalid',
-        parsedTarget.error.issues.map(issue => `${issue.path.join('.') || 'runtimeTarget'}: ${issue.message}`).join('; ').slice(0, 2048),
-      ))
-    }
-    if (parsed.data.hooks.length > this.resolved.maxHooks) {
-      return saveRejected(failure(
-        'profile-invalid',
-        `profile has ${parsed.data.hooks.length} hooks; maximum is ${this.resolved.maxHooks}`,
-      ))
-    }
-    const normalized = snapshotProfileDraft(parsed.data)
-    const runtimeTarget = Object.freeze({ ...parsedTarget.data })
-    const requiredCapabilities = requiredCapabilitiesForProfile(normalized)
-    const bytes = Buffer.byteLength(JSON.stringify({
-      profile: normalized,
-      runtimeTarget,
-      requiredCapabilities,
-    }), 'utf8')
-    if (bytes > this.resolved.maxProfileBytes) {
-      return saveRejected(failure(
-        'profile-invalid',
-        `Revision content is ${bytes} UTF-8 bytes; maximum is ${this.resolved.maxProfileBytes}`,
-      ))
-    }
-    await this.runtimeBackends.whenSettled()
-    const targetProblem = this.runtimeBackends.validate(
-      normalized,
-      runtimeTarget,
-      requiredCapabilities,
-      'save',
-    )
-    if (targetProblem !== undefined && targetProblem.code !== 'runtime-target-unavailable') {
-      return saveRejected(failure(targetProblem.code, targetProblem.message))
-    }
-    return await this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const currentHead = storage.getProfileHead(parsed.data.id)
-      if (request.expectedHeadRevision !== (currentHead?.headRevision ?? null)) {
-        return saveRejected(failure(
-          'profile-conflict',
-          'Profile Head changed; reload before saving',
-          currentHead,
-        ))
-      }
-      if (currentHead === undefined && storage.profileCount >= this.resolved.maxProfiles) {
-        return saveRejected(failure('profile-limit', `profile limit ${this.resolved.maxProfiles} reached`))
-      }
-
-      const latest = currentHead === undefined
-        ? undefined
-        : storage.getProfileRevision(parsed.data.id, currentHead.latestRevision)
-      if (currentHead !== undefined && latest === undefined) {
-        throw new Error(`Digital Employee Profile Head "${parsed.data.id}" has no latest Revision`)
-      }
-      if (targetProblem !== undefined
-        && (latest === undefined
-          || !sameRuntimeTarget(latest.runtimeTarget, runtimeTarget)
-          || latest.profile.continuationProvider !== normalized.continuationProvider)) {
-        return saveRejected(failure(targetProblem.code, targetProblem.message, currentHead))
-      }
-      const fingerprint = profileContentFingerprint(normalized, runtimeTarget, requiredCapabilities)
-      if (latest?.fingerprint === fingerprint) {
-        return Object.freeze({
-          ok: true as const,
-          value: Object.freeze({
-            unchanged: true,
-            head: snapshotProfileHead(currentHead!),
-            revision: snapshotProfileRevision(latest),
-          }),
-        })
-      }
-
-      const known = [...storage.profileRevisionEntries(parsed.data.id)].map(([, revision]) => revision)
-      const reusable = known
-        .filter(revision => revision.revision > (currentHead?.latestRevision ?? 0)
-          && revision.fingerprint === fingerprint)
-        .sort((left, right) => left.revision - right.revision)[0]
-      const now = Date.now()
-      const revision = reusable ?? snapshotProfileRevision({
-        schemaVersion: 1,
-        profileId: normalized.id,
-        revision: Math.max(0, ...known.map(candidate => candidate.revision)) + 1,
-        profile: normalized,
-        runtimeTarget,
-        requiredCapabilities,
-        fingerprint,
-        createdAt: currentHead?.createdAt ?? now,
-        updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
-      })
-      const nextHead = snapshotProfileHead({
-        schemaVersion: 1,
-        profileId: normalized.id,
-        headRevision: (currentHead?.headRevision ?? 0) + 1,
-        latestRevision: revision.revision,
-        ...(currentHead?.activeRevision === undefined ? {} : { activeRevision: currentHead.activeRevision }),
-        historyStartsAtRevision: currentHead?.historyStartsAtRevision ?? revision.revision,
-        ...(currentHead?.requiredEvalSet === undefined ? {} : { requiredEvalSet: currentHead.requiredEvalSet }),
-        ...(currentHead?.archivedAt === undefined ? {} : { archivedAt: currentHead.archivedAt }),
-        createdAt: currentHead?.createdAt ?? now,
-        updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
-      })
-      await storage.putProfileRevision(revision)
-      await storage.putProfileHead(nextHead)
-      return Object.freeze({
-        ok: true as const,
-        value: Object.freeze({ unchanged: false, head: nextHead, revision }),
-      })
-    })
+    return this.profiles.saveProfile(caller, request)
   }
 
   /** Publish one immutable Eval Set Revision and move only its CAS Head. */
@@ -1254,101 +573,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: SaveDigitalEmployeeEvalSetRequest,
   ): Promise<SaveDigitalEmployeeEvalSetResult> {
-    if (!this.admissionOpen) {
-      return saveEvalSetRejected(failure('service-disposed', 'Digital Employee service is disposing'))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return saveEvalSetRejected(authorityFailure)
-    if (request.expectedHeadRevision !== null
-      && (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1)) {
-      return saveEvalSetRejected(failure('eval-invalid', 'Eval Set Head revision must be null or positive'))
-    }
-    const parsed = digitalEmployeeEvalSetDraftSchema.safeParse(request.evalSet)
-    if (!parsed.success) {
-      return saveEvalSetRejected(failure(
-        'eval-invalid',
-        parsed.error.issues.map(issue => `${issue.path.join('.') || 'evalSet'}: ${issue.message}`).join('; ').slice(0, 2048),
-      ))
-    }
-    if (parsed.data.cases.length > this.resolved.maxEvalCases) {
-      return saveEvalSetRejected(failure(
-        'eval-invalid',
-        `Eval Set has ${parsed.data.cases.length} Cases; maximum is ${this.resolved.maxEvalCases}`,
-      ))
-    }
-    const normalized = snapshotEvalSetDraft(parsed.data)
-    const bytes = Buffer.byteLength(JSON.stringify(normalized), 'utf8')
-    if (bytes > this.resolved.maxEvalSetBytes) {
-      return saveEvalSetRejected(failure(
-        'eval-invalid',
-        `Eval Set content is ${bytes} UTF-8 bytes; maximum is ${this.resolved.maxEvalSetBytes}`,
-      ))
-    }
-    return await this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const profileHead = storage.getProfileHead(normalized.profileId)
-      if (profileHead === undefined) {
-        return saveEvalSetRejected(failure('profile-not-found', `profile "${normalized.profileId}" not found`))
-      }
-      const currentHead = storage.getEvalSetHead(normalized.id)
-      if (request.expectedHeadRevision !== (currentHead?.headRevision ?? null)) {
-        return saveEvalSetRejected(failure('eval-conflict', 'Eval Set Head changed; reload before saving'))
-      }
-      if (currentHead !== undefined && currentHead.profileId !== normalized.profileId) {
-        return saveEvalSetRejected(failure('eval-conflict', 'Eval Set identity is already owned by another Profile'))
-      }
-      if (currentHead === undefined && storage.evalSetCount >= this.resolved.maxEvalSets) {
-        return saveEvalSetRejected(failure('eval-invalid', `Eval Set limit ${this.resolved.maxEvalSets} reached`))
-      }
-      const latest = currentHead === undefined
-        ? undefined
-        : storage.getEvalSetRevision(normalized.id, currentHead.latestRevision)
-      if (currentHead !== undefined && latest === undefined) {
-        throw new Error(`Eval Set Head "${normalized.id}" has no latest Revision`)
-      }
-      const fingerprint = evalSetContentFingerprint(normalized)
-      if (latest?.fingerprint === fingerprint) {
-        return Object.freeze({
-          ok: true as const,
-          value: Object.freeze({
-            unchanged: true,
-            head: snapshotEvalSetHead(currentHead!),
-            revision: snapshotEvalSetRevision(latest),
-          }),
-        })
-      }
-      const known = [...storage.evalSetRevisionEntries(normalized.id)].map(([, revision]) => revision)
-      const reusable = known
-        .filter(revision => revision.revision > (currentHead?.latestRevision ?? 0)
-          && revision.fingerprint === fingerprint)
-        .sort((left, right) => left.revision - right.revision)[0]
-      const now = Date.now()
-      const revision = reusable ?? snapshotEvalSetRevision({
-        schemaVersion: 1,
-        evalSetId: normalized.id,
-        profileId: normalized.profileId,
-        revision: Math.max(0, ...known.map(candidate => candidate.revision)) + 1,
-        evalSet: normalized,
-        fingerprint,
-        createdAt: currentHead?.createdAt ?? now,
-        updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
-      })
-      const nextHead = snapshotEvalSetHead({
-        schemaVersion: 1,
-        evalSetId: normalized.id,
-        profileId: normalized.profileId,
-        headRevision: (currentHead?.headRevision ?? 0) + 1,
-        latestRevision: revision.revision,
-        createdAt: currentHead?.createdAt ?? now,
-        updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
-      })
-      await storage.putEvalSetRevision(revision)
-      await storage.putEvalSetHead(nextHead)
-      return Object.freeze({
-        ok: true as const,
-        value: Object.freeze({ unchanged: false, head: nextHead, revision }),
-      })
-    })
+    return this.evaluationWorkflow.saveEvalSet(caller, request)
   }
 
   /** Change only the Profile Head's required Eval Set pointer through CAS. */
@@ -1356,55 +581,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: SetDigitalEmployeeEvalGateRequest,
   ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    if (!this.admissionOpen) {
-      return Promise.resolve(headMutationRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1
-      || (request.requiredEvalSet !== undefined
-        && (!Number.isSafeInteger(request.requiredEvalSet.revision) || request.requiredEvalSet.revision < 1))) {
-      return Promise.resolve(headMutationRejected(failure('eval-invalid', 'Eval gate CAS values must be positive integers')))
-    }
-    return this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const head = storage.getProfileHead(request.profileId)
-      if (head === undefined) {
-        return headMutationRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
-      }
-      if (head.headRevision !== request.expectedHeadRevision) {
-        return headMutationRejected(failure('profile-conflict', 'Profile Head changed; reload before changing its gate', head))
-      }
-      const required = request.requiredEvalSet
-      if (required !== undefined) {
-        const revision = storage.getEvalSetRevision(required.evalSetId, required.revision)
-        if (revision === undefined || revision.profileId !== head.profileId) {
-          return headMutationRejected(failure(
-            'eval-not-found',
-            'required Eval Set Revision does not exist for this Profile',
-            head,
-          ))
-        }
-      }
-      if (isDeepStrictEqual(head.requiredEvalSet, required)) {
-        return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
-      }
-      const now = Math.max(Date.now(), head.updatedAt)
-      const next = snapshotProfileHead({
-        schemaVersion: 1,
-        profileId: head.profileId,
-        headRevision: head.headRevision + 1,
-        latestRevision: head.latestRevision,
-        ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
-        historyStartsAtRevision: head.historyStartsAtRevision,
-        ...(required === undefined ? {} : { requiredEvalSet: Object.freeze({ ...required }) }),
-        ...(head.archivedAt === undefined ? {} : { archivedAt: head.archivedAt }),
-        createdAt: head.createdAt,
-        updatedAt: now,
-      })
-      await storage.putProfileHead(next)
-      return Object.freeze({ ok: true as const, value: Object.freeze({ head: next }) })
-    })
+    return this.profiles.setEvalGate(caller, request)
   }
 
   /** Reserve one exact Eval Run identity, then execute it outside the mutation queue. */
@@ -1412,101 +589,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: StartDigitalEmployeeEvalRunRequest,
   ): Promise<StartDigitalEmployeeEvalRunResult> {
-    if (!this.admissionOpen) {
-      return startEvalRejected(failure('service-disposed', 'Digital Employee service is disposing'))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return startEvalRejected(authorityFailure)
-    const parsedId = evalRunIdSchema.safeParse(request.evalRunId)
-    if (!parsedId.success) {
-      return startEvalRejected(failure('eval-invalid', 'evalRunId must be a canonical lowercase UUID'))
-    }
-    if (![request.profileRevision, request.evalSetRevision]
-      .every(value => Number.isSafeInteger(value) && value >= 1)) {
-      return startEvalRejected(failure('eval-invalid', 'evaluation Revision values must be positive integers'))
-    }
-    const teamId = this.ctx.agentTeams.membership(caller).id
-    const planned = await this.prepareEvaluationPlan(caller, teamId, request)
-    if ('code' in planned) return startEvalRejected(planned)
-    const evalRunId = parsedId.data
-    const existing = this.requireStorage().getEvalRun(evalRunId)
-    if (existing !== undefined) {
-      if (existing.teamId !== teamId || existing.requestFingerprint !== planned.requestFingerprint) {
-        return startEvalRejected(failure('eval-conflict', 'evalRunId was already used with different exact inputs'))
-      }
-      return Object.freeze({
-        ok: true,
-        value: Object.freeze({ replayed: true, run: summarizeEvalRun(existing) }),
-      })
-    }
-    const now = Date.now()
-    const initial = snapshotEvalRun({
-      schemaVersion: 1,
-      evalRunId,
-      requestFingerprint: planned.requestFingerprint,
-      teamId,
-      profileId: planned.profile.profileId,
-      profileRevision: planned.profile.revision,
-      profileFingerprint: planned.profile.fingerprint,
-      runtimeTarget: planned.runtimeTarget,
-      capabilityGeneration: planned.capabilityGeneration,
-      evalSetId: planned.evalSet.evalSetId,
-      evalSetRevision: planned.evalSet.revision,
-      evalSetFingerprint: planned.evalSet.fingerprint,
-      assertionSchemaVersion: EVAL_ASSERTION_SCHEMA_VERSION,
-      environmentFingerprint: planned.environmentFingerprint,
-      effectiveToolAllowlist: planned.effectiveToolAllowlist,
-      status: 'running',
-      cases: Object.freeze(planned.evalSet.evalSet.cases.map(testCase => Object.freeze({
-        caseId: testCase.id,
-        status: 'pending' as const,
-        assertions: Object.freeze([]),
-      }))),
-      startedAt: now,
-      updatedAt: now,
-    })
-    const reserved = await this.enqueue(async (): Promise<DigitalEmployeeEvalRunRecord | DigitalEmployeeFailure> => {
-      const storage = this.requireStorage()
-      const concurrent = storage.getEvalRun(evalRunId)
-      if (concurrent !== undefined) {
-        return concurrent.teamId === teamId && concurrent.requestFingerprint === planned.requestFingerprint
-          ? concurrent
-          : failure('eval-conflict', 'evalRunId was concurrently used with different exact inputs')
-      }
-      await storage.putEvalRun(initial, this.resolved.maxEvalRuns)
-      return initial
-    })
-    if ('code' in reserved) return startEvalRejected(reserved)
-    if (reserved !== initial) {
-      return Object.freeze({
-        ok: true,
-        value: Object.freeze({ replayed: true, run: summarizeEvalRun(reserved) }),
-      })
-    }
-    const controller = new AbortController()
-    let operation!: Promise<void>
-    operation = Promise.resolve().then(async () => {
-      await this.executeEvaluation(caller, planned, initial, controller)
-    }).catch((error: unknown) => {
-      this.ctx.logger.warn(`agent-team-ultra: Eval Run ${evalRunId} failed outside its recorded state machine`)
-      this.ctx.logger.warn(error)
-    }).finally(() => {
-      this.evaluations.delete(operation)
-      if (this.evaluationsById.get(evalRunId)?.operation === operation) {
-        this.evaluationsById.delete(evalRunId)
-      }
-    })
-    this.evaluations.add(operation)
-    this.evaluationsById.set(evalRunId, {
-      teamId,
-      requestFingerprint: planned.requestFingerprint,
-      controller,
-      operation,
-    })
-    return Object.freeze({
-      ok: true,
-      value: Object.freeze({ replayed: false, run: summarizeEvalRun(initial) }),
-    })
+    return this.evaluationWorkflow.startEvalRun(caller, request)
   }
 
   /** Abort and drain a running evaluation owned by the caller's exact Team. */
@@ -1514,25 +597,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: CancelDigitalEmployeeEvalRunRequest,
   ): Promise<CancelDigitalEmployeeEvalRunResult> {
-    if (!this.admissionOpen) {
-      return cancelEvalRejected(failure('service-disposed', 'Digital Employee service is disposing'))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return cancelEvalRejected(authorityFailure)
-    const parsedId = evalRunIdSchema.safeParse(request.evalRunId)
-    if (!parsedId.success) return cancelEvalRejected(failure('eval-invalid', 'invalid evalRunId'))
-    const teamId = this.ctx.agentTeams.membership(caller).id
-    const stored = this.requireStorage().getEvalRun(parsedId.data)
-    if (stored === undefined || stored.teamId !== teamId) {
-      return cancelEvalRejected(failure('eval-not-found', `Eval Run "${request.evalRunId}" not found`))
-    }
-    const inFlight = this.evaluationsById.get(parsedId.data)
-    if (stored.status === 'running' && inFlight !== undefined && inFlight.teamId === teamId) {
-      inFlight.controller.abort(new EvaluationCancelledError('cancelled'))
-      await inFlight.operation
-    }
-    const current = this.requireStorage().getEvalRun(parsedId.data) ?? stored
-    return Object.freeze({ ok: true, value: Object.freeze({ run: summarizeEvalRun(current) }) })
+    return this.evaluationWorkflow.cancelEvalRun(caller, request)
   }
 
   /** Read an Eval Run only inside the exact Team that admitted it. */
@@ -1540,467 +605,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: GetDigitalEmployeeEvalRunRequest,
   ): Promise<GetDigitalEmployeeEvalRunResult> {
-    if (!this.admissionOpen) return getEvalRejected(failure('service-disposed', 'Digital Employee service is disposing'))
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return getEvalRejected(authorityFailure)
-    const parsedId = evalRunIdSchema.safeParse(request.evalRunId)
-    if (!parsedId.success) return getEvalRejected(failure('eval-invalid', 'invalid evalRunId'))
-    const teamId = this.ctx.agentTeams.membership(caller).id
-    const run = this.requireStorage().getEvalRun(parsedId.data)
-    if (run === undefined || run.teamId !== teamId) {
-      return getEvalRejected(failure('eval-not-found', `Eval Run "${request.evalRunId}" not found`))
-    }
-    const evalSet = this.requireStorage().getEvalSetRevision(run.evalSetId, run.evalSetRevision)
-    if (evalSet === undefined || evalSet.fingerprint !== run.evalSetFingerprint) {
-      return getEvalRejected(failure('eval-not-found', 'Eval Run immutable Eval Set is unavailable'))
-    }
-    return Object.freeze({
-      ok: true,
-      value: Object.freeze({ run: snapshotEvalRun(run), evalSet: snapshotEvalSetRevision(evalSet) }),
-    })
-  }
-
-  /** Resolve every immutable and live capability input before reserving an Eval Run. */
-  private async prepareEvaluationPlan(
-    caller: Agent,
-    teamId: string,
-    request: StartDigitalEmployeeEvalRunRequest,
-  ): Promise<EvaluationPlan | DigitalEmployeeFailure> {
-    await this.runtimeBackends.whenSettled()
-    const storage = this.requireStorage()
-    const head = storage.getProfileHead(request.profileId)
-    if (head === undefined) return failure('profile-not-found', `profile "${request.profileId}" not found`)
-    if (head.archivedAt !== undefined) return failure('profile-archived', `profile "${request.profileId}" is archived`, head)
-    const profile = storage.getProfileRevision(request.profileId, request.profileRevision)
-    if (profile === undefined || profile.revision < head.historyStartsAtRevision
-      || profile.revision > head.latestRevision) {
-      return failure('revision-not-found', `Profile Revision ${request.profileRevision} is not retained`, head)
-    }
-    const evalSet = storage.getEvalSetRevision(request.evalSetId, request.evalSetRevision)
-    if (evalSet === undefined || evalSet.profileId !== profile.profileId) {
-      return failure('eval-not-found', 'Eval Set Revision does not exist for this Profile')
-    }
-    if (profile.runtimeTarget.kind === 'legacy-inherit-lead') {
-      return failure('runtime-route-invalid', 'legacy inherited Lead routing cannot be evaluated')
-    }
-    const runtimeTarget = Object.freeze({ ...profile.runtimeTarget }) as SelectableDigitalEmployeeRuntimeTarget
-    const targetProblem = this.runtimeBackends.validateEvaluation(
-      profile.profile,
-      runtimeTarget,
-      profile.requiredCapabilities,
-    )
-    if (targetProblem !== undefined) {
-      return failure('eval-environment-unavailable', targetProblem.message)
-    }
-    if (runtimeTarget.kind === 'dsh-model') {
-      const exactProblem = await this.runtimeBackends.verifyDshModelRoute(runtimeTarget)
-      if (exactProblem !== undefined) return failure('eval-environment-unavailable', exactProblem.message)
-      if (this.ctx.get('sandboxPolicy') === undefined
-        || this.ctx.get('approval') === undefined
-        || typeof this.ctx.agents.create !== 'function') {
-        return failure(
-          'eval-environment-unavailable',
-          'DSH evaluation requires Agent creation plus the sandbox and approval policy services',
-        )
-      }
-    }
-    const providerTools = runtimeTarget.kind === 'external-agent'
-      ? this.runtimeBackends.externalEvaluationTools(runtimeTarget.provider)
-      : this.ctx.tools.schemas(caller)
-        .map(tool => tool.name)
-        .filter(name => !TEAM_OWN_TOOL_NAMES.has(name))
-        .sort()
-    if (providerTools === undefined) {
-      return failure(
-        'eval-environment-unavailable',
-        `runtime "${runtimeTarget.provider}" cannot prove its evaluation tool inventory`,
-      )
-    }
-    const effectiveToolAllowlist = effectiveEvaluationTools(
-      profile.profile.toolPolicy,
-      providerTools,
-      evalSet.evalSet.toolAllowlist,
-      TEAM_OWN_TOOL_NAMES,
-    )
-    const environmentFingerprint = evalEnvironmentFingerprint({ effectiveToolAllowlist, evalSet })
-    const capabilityGeneration = this.runtimeBackends.capabilityGeneration
-    const requestFingerprint = evalRunRequestFingerprint({
-      teamId,
-      profile,
-      runtimeTarget,
-      capabilityGeneration,
-      evalSet,
-      environmentFingerprint,
-    })
-    return Object.freeze({
-      teamId,
-      profile: snapshotProfileRevision(profile),
-      evalSet: snapshotEvalSetRevision(evalSet),
-      runtimeTarget,
-      capabilityGeneration,
-      effectiveToolAllowlist,
-      environmentFingerprint,
-      requestFingerprint,
-    })
-  }
-
-  /** Execute Cases sequentially so each terminal result is independently durable. */
-  private async executeEvaluation(
-    caller: Agent,
-    plan: EvaluationPlan,
-    initial: DigitalEmployeeEvalRunRecord,
-    controller: AbortController,
-  ): Promise<void> {
-    const interrupt = (): void => {
-      controller.abort(new EvaluationCancelledError('interrupted'))
-    }
-    if (this.lifecycle.signal.aborted) interrupt()
-    else this.lifecycle.signal.addEventListener('abort', interrupt, { once: true })
-    try {
-      for (const testCase of plan.evalSet.evalSet.cases) {
-        if (controller.signal.aborted) break
-        if (this.runtimeBackends.capabilityGeneration !== plan.capabilityGeneration) {
-          await this.commitEvalCase(initial.evalRunId, {
-            caseId: testCase.id,
-            status: 'environment-unavailable',
-            assertions: Object.freeze([]),
-            diagnostic: 'runtime capability generation changed before the Case started',
-            endedAt: Date.now(),
-          })
-          break
-        }
-        const startedAt = Date.now()
-        await this.commitEvalCase(initial.evalRunId, {
-          caseId: testCase.id,
-          status: 'running',
-          assertions: Object.freeze([]),
-          startedAt,
-        })
-        try {
-          if (plan.runtimeTarget.kind === 'dsh-model') {
-            await this.runDshEvaluationCase(caller, plan, testCase, initial.evalRunId, controller.signal)
-          } else {
-            await this.runExternalEvaluationCase(caller, plan, testCase, initial.evalRunId, controller.signal)
-          }
-        } catch (error: unknown) {
-          const interrupted = this.lifecycle.signal.aborted
-          const cancelled = controller.signal.aborted
-          const timedOut = error instanceof EvaluationTimeoutError
-          const environmentUnavailable = error instanceof TeammateRuntimeError
-            || error instanceof TeamError
-            || (!cancelled && !(error instanceof EvaluationCancelledError) && !timedOut)
-          await this.commitEvalCase(initial.evalRunId, {
-            caseId: testCase.id,
-            status: interrupted
-              ? 'interrupted'
-              : cancelled || error instanceof EvaluationCancelledError
-                ? 'cancelled'
-                : timedOut
-                  ? 'failed'
-                : environmentUnavailable
-                  ? 'environment-unavailable'
-                  : 'failed',
-            assertions: Object.freeze([]),
-            diagnostic: errorText(error),
-            startedAt,
-            endedAt: Date.now(),
-          })
-          if (interrupted || cancelled || environmentUnavailable) break
-        }
-      }
-    } finally {
-      this.lifecycle.signal.removeEventListener('abort', interrupt)
-      await this.finalizeEvalRun(initial.evalRunId, controller.signal.aborted)
-    }
-  }
-
-  /** Run a fresh, parentless DSH Agent under fixed policy and dispose it after its result commits. */
-  private async runDshEvaluationCase(
-    caller: Agent,
-    plan: EvaluationPlan,
-    testCase: DigitalEmployeeEvalCase,
-    evalRunId: DigitalEmployeeEvalRunRecord['evalRunId'],
-    parentSignal: AbortSignal,
-  ): Promise<void> {
-    if (plan.runtimeTarget.kind !== 'dsh-model') throw new TypeError('DSH evaluator requires a DSH model target')
-    const target = plan.runtimeTarget
-    const ceilings = plan.evalSet.evalSet.resourceCeilings
-    const timeout = new AbortController()
-    const timer = setTimeout(() => {
-      timeout.abort(new EvaluationTimeoutError(ceilings.maxElapsedMs))
-    }, ceilings.maxElapsedMs)
-    const signal = AbortSignal.any([parentSignal, timeout.signal])
-    let handle: Awaited<ReturnType<Context['agents']['create']>> | undefined
-    try {
-      signal.throwIfAborted()
-      const profile = profileFromRevision(plan.profile)
-      handle = await caller.ctx.agents.create({
-        sessionId: evaluationSessionId(evalRunId, testCase.id),
-        agentOptions: {
-          provider: target.provider,
-          model: target.model,
-          ...(target.reasoningEffort === undefined
-            ? {}
-            : { reasoningEffort: ReasoningEffortId(target.reasoningEffort) }),
-          maxTokens: ceilings.maxOutputTokens,
-        },
-        signal,
-        setup: (agentCtx) => {
-          const evaluator = agentCtx.agent
-          if (evaluator === undefined) throw new Error('unpublished evaluation Agent is unavailable')
-          setSandboxMode(evaluator.session, 'read-only')
-          setApprovalPolicy(evaluator.session, 'never')
-          this.installProfileCapabilities(caller, evaluator, profile)
-          agentCtx.effect(() => () => { this.removeBoundAgent(evaluator) }, 'agent-team-ultra.evaluation-profile')
-          agentCtx.tools.restrict({ allow: plan.effectiveToolAllowlist })
-          const fixtures = evaluationFixturesText(testCase)
-          if (fixtures !== '') {
-            agentCtx.systemPrompt.context({ name: 'ultra:evaluation-fixtures', order: 145, text: fixtures })
-          }
-          agentCtx.on('agent/pre-step', async (payload, next): Promise<PreStepDecision> => {
-            if (payload.step > ceilings.maxSteps) return { kind: 'reject' }
-            return await next()
-          })
-        },
-      })
-      const evaluator = handle.agent
-      const abort = (): void => {
-        evaluator.cancel({ kind: 'hook', reason: 'isolated evaluation cancelled' })
-      }
-      if (signal.aborted) abort()
-      else signal.addEventListener('abort', abort, { once: true })
-      try {
-        evaluator.followup(createUserMessage({
-          content: [{ type: 'text', text: testCase.input }],
-          source: PLUGIN_SOURCE,
-        }))
-        await evaluator.whenIdle()
-        signal.throwIfAborted()
-      } finally {
-        signal.removeEventListener('abort', abort)
-      }
-      const flushed = await evaluator.ctx.sessions.flush(evaluator.session)
-      if (!flushed) throw new Error('DSH evaluation Session has no durability checkpoint provider')
-      const events = evaluator.session.snapshotEvents()
-      const folded = foldDshRunEvidence({
-        teamId: plan.teamId,
-        owner: Object.freeze({ kind: 'evaluation-worker', evalRunId, caseId: testCase.id }),
-        profileId: plan.profile.profileId,
-        profileRevision: plan.profile.revision,
-        profileFingerprint: plan.profile.fingerprint,
-        selectedRuntimeTarget: target,
-        actualRuntimeTarget: target,
-        capabilityGeneration: plan.capabilityGeneration,
-      }, evaluator.session.id, events, this.resolved.maxRunEvidenceItems, 1).at(-1)
-      if (folded === undefined) throw new Error('DSH evaluation produced no accepted canonical turn')
-      const turn = folded.index.canonicalSource.kind === 'dsh-session'
-        ? folded.index.canonicalSource.turn
-        : 0
-      const assertions = evaluateCaseAssertions(testCase, folded.detail, assistantOutputForTurn(events, turn))
-      await this.commitEvalCase(evalRunId, {
-        caseId: testCase.id,
-        status: casePassed(assertions) ? 'passed' : 'failed',
-        assertions,
-        run: folded.detail,
-        startedAt: folded.index.startedAt,
-        endedAt: folded.index.endedAt ?? Date.now(),
-      })
-    } finally {
-      clearTimeout(timer)
-      await handle?.dispose()
-    }
-  }
-
-  /** Run a provider-native isolated handle and commit while TeamService still owns it. */
-  private async runExternalEvaluationCase(
-    caller: Agent,
-    plan: EvaluationPlan,
-    testCase: DigitalEmployeeEvalCase,
-    evalRunId: DigitalEmployeeEvalRunRecord['evalRunId'],
-    signal: AbortSignal,
-  ): Promise<void> {
-    if (plan.runtimeTarget.kind !== 'external-agent') throw new TypeError('external evaluator requires an external target')
-    const target = plan.runtimeTarget
-    const ceilings = plan.evalSet.evalSet.resourceCeilings
-    const timeout = new AbortController()
-    const timer = setTimeout(() => {
-      timeout.abort(new EvaluationTimeoutError(ceilings.maxElapsedMs))
-    }, ceilings.maxElapsedMs)
-    const caseSignal = AbortSignal.any([signal, timeout.signal])
-    const runtimeCapabilities = Object.freeze([...new Set([
-      ...requiredRuntimeCapabilitiesForProfile(plan.profile.profile),
-      'sandbox' as const,
-      'evaluation' as const,
-      'evidence' as const,
-      'usage' as const,
-    ])].sort())
-    try {
-      await this.ctx.agentTeams.runTeammateEvaluation(caller, target.provider, {
-      evaluationId: TeammateEvaluationId(`${evalRunId}:${testCase.id}`),
-      profile: externalRuntimeProfileSnapshot(plan.profile.profile),
-      requirements: Object.freeze({
-        contextMode: 'fresh',
-        profileCapabilities: plan.profile.requiredCapabilities.profileCapabilities,
-        runtimeCapabilities,
-      }),
-      input: Object.freeze([{ type: 'text', text: testCase.input }]),
-      environment: Object.freeze({
-        sandbox: 'read-only',
-        approval: 'never',
-        toolAllowlist: plan.effectiveToolAllowlist,
-        fixtures: Object.freeze(testCase.fixtures.map(fixture => Object.freeze({ ...fixture }))),
-        maxSteps: ceilings.maxSteps,
-        maxOutputTokens: ceilings.maxOutputTokens,
-        maxElapsedMs: ceilings.maxElapsedMs,
-      }),
-      signal: caseSignal,
-    }, async (result) => {
-      caseSignal.throwIfAborted()
-      const provisional = createExternalRunIndex({
-        teamId: plan.teamId,
-        owner: Object.freeze({ kind: 'evaluation-worker', evalRunId, caseId: testCase.id }),
-        profileId: plan.profile.profileId,
-        profileRevision: plan.profile.revision,
-        profileFingerprint: plan.profile.fingerprint,
-        selectedRuntimeTarget: target,
-        actualRuntimeTarget: target,
-        capabilityGeneration: plan.capabilityGeneration,
-        nativeHandle: result.evaluationHandle,
-      }, result.turnId, result.turnId, result.startedAt)
-      const folded = foldExternalRunEvidence(
-        provisional,
-        result.evidence,
-        result.complete,
-        this.resolved.maxRunEvidenceItems,
-      )
-      const assertions = evaluateCaseAssertions(
-        testCase,
-        folded.detail,
-        contentBlockOutput(result.output),
-      )
-      const terminalMatches = folded.index.terminal === evaluationTerminal(result.terminal)
-      const passed = result.complete && terminalMatches && casePassed(assertions)
-      await this.commitEvalCase(evalRunId, {
-        caseId: testCase.id,
-        status: passed ? 'passed' : 'failed',
-        assertions,
-        run: folded.detail,
-        ...terminalMatches ? {} : { diagnostic: 'provider terminal conflicts with normalized canonical evidence' },
-        startedAt: result.startedAt,
-        endedAt: result.endedAt,
-      })
-    })
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-
-  /** Replace exactly one Case projection while retaining the Eval Run identity tuple. */
-  private async commitEvalCase(
-    evalRunId: DigitalEmployeeEvalRunRecord['evalRunId'],
-    result: DigitalEmployeeEvalCaseResult,
-  ): Promise<void> {
-    await this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const current = storage.getEvalRun(evalRunId)
-      if (current === undefined || current.status !== 'running') return
-      if (!current.cases.some(testCase => testCase.caseId === result.caseId)) {
-        throw new Error(`Eval Run "${evalRunId}" does not own Case "${result.caseId}"`)
-      }
-      const now = Math.max(Date.now(), current.updatedAt)
-      await storage.putEvalRun(snapshotEvalRun({
-        ...current,
-        cases: Object.freeze(current.cases.map(testCase => testCase.caseId === result.caseId
-          ? Object.freeze(structuredClone(result))
-          : testCase)),
-        updatedAt: now,
-      }), this.resolved.maxEvalRuns)
-    })
-  }
-
-  /** Close the state machine; cancellation, crash, and missing guarantees can never pass. */
-  private async finalizeEvalRun(
-    evalRunId: DigitalEmployeeEvalRunRecord['evalRunId'],
-    aborted: boolean,
-  ): Promise<void> {
-    await this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const current = storage.getEvalRun(evalRunId)
-      if (current === undefined || current.status !== 'running') return
-      const interrupted = this.lifecycle.signal.aborted
-      const hasEnvironmentFailure = current.cases.some(testCase => testCase.status === 'environment-unavailable')
-      const fillStatus: DigitalEmployeeEvalCaseResult['status'] = interrupted
-        ? 'interrupted'
-        : aborted
-          ? 'cancelled'
-          : hasEnvironmentFailure
-            ? 'environment-unavailable'
-            : 'interrupted'
-      const now = Math.max(Date.now(), current.updatedAt)
-      const cases = Object.freeze(current.cases.map(testCase => (
-        testCase.status !== 'pending' && testCase.status !== 'running'
-          ? testCase
-          : Object.freeze({
-              ...testCase,
-              status: fillStatus,
-              diagnostic: testCase.diagnostic ?? (
-                interrupted ? 'service stopped before the Case completed'
-                  : aborted ? 'evaluation cancelled before the Case completed'
-                    : hasEnvironmentFailure ? 'evaluation environment became unavailable'
-                      : 'Case did not reach a terminal result'
-              ),
-              ...(testCase.startedAt === undefined ? {} : { startedAt: testCase.startedAt }),
-              endedAt: now,
-            })
-      )))
-      const status: DigitalEmployeeEvalRunRecord['status'] = interrupted
-        ? 'interrupted'
-        : aborted || cases.some(testCase => testCase.status === 'cancelled')
-          ? 'cancelled'
-          : cases.some(testCase => testCase.status === 'environment-unavailable')
-            ? 'environment-unavailable'
-            : cases.some(testCase => testCase.status === 'interrupted')
-              ? 'interrupted'
-              : evalRunPassed(
-                  this.requireStorage().getEvalSetRevision(current.evalSetId, current.evalSetRevision)!.evalSet.passPolicy,
-                  cases,
-                )
-                ? 'passed'
-                : 'failed'
-      await storage.putEvalRun(snapshotEvalRun({
-        ...current,
-        status,
-        cases,
-        updatedAt: now,
-        endedAt: now,
-      }), this.resolved.maxEvalRuns)
-    })
-  }
-
-  /** Cold-start repair: a process-local evaluation is never resumed or inferred to have passed. */
-  private async repairInterruptedEvaluations(): Promise<void> {
-    const storage = this.requireStorage()
-    for (const [, run] of [...storage.evalRunEntries()]) {
-      if (run.status !== 'running') continue
-      const now = Math.max(Date.now(), run.updatedAt)
-      const cases = Object.freeze(run.cases.map(testCase => (
-        testCase.status !== 'pending' && testCase.status !== 'running'
-          ? testCase
-          : Object.freeze({
-              ...testCase,
-              status: 'interrupted' as const,
-              diagnostic: 'Host restarted before the evaluation reached a terminal edge',
-              endedAt: now,
-            })
-      )))
-      await storage.putEvalRun(snapshotEvalRun({
-        ...run,
-        status: 'interrupted',
-        cases,
-        updatedAt: now,
-        endedAt: now,
-      }), this.resolved.maxEvalRuns)
-    }
+    return this.evaluationWorkflow.evalRun(caller, request)
   }
 
   /** Activate only the latest candidate through exact Head CAS. */
@@ -2008,7 +613,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: ActivateDigitalEmployeeProfileRequest,
   ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    return this.setActiveRevision(caller, request, 'activate')
+    return this.profiles.activateProfile(caller, request)
   }
 
   /** Roll back to an older existing Revision through exact Head CAS. */
@@ -2016,7 +621,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: RollbackDigitalEmployeeProfileRequest,
   ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    return this.setActiveRevision(caller, request, 'rollback')
+    return this.profiles.rollbackProfile(caller, request)
   }
 
   /** Archive without removing immutable history or active Binding snapshots. */
@@ -2024,7 +629,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: ArchiveDigitalEmployeeProfileRequest,
   ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    return this.setArchiveState(caller, request, true)
+    return this.profiles.archiveProfile(caller, request)
   }
 
   /** Restore one archived Head through exact CAS. */
@@ -2032,7 +637,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     caller: Agent,
     request: RestoreDigitalEmployeeProfileRequest,
   ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    return this.setArchiveState(caller, request, false)
+    return this.profiles.restoreProfile(caller, request)
   }
 
   /** Public Host launch API with Team-scoped idempotency and pre-acceptance cancellation. */
@@ -2041,8 +646,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
     request: SpawnDigitalEmployeeRequest,
     callerSignal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
-    if (!this.admissionOpen) return Promise.resolve(spawnRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    const authorityFailure = this.leadAuthorityFailure(caller)
+    if (!this.host.admissionOpen) return Promise.resolve(spawnRejected(failure('service-disposed', 'Digital Employee service is disposing')))
+    const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(spawnRejected(authorityFailure))
     const parsedRequestId = launchRequestIdSchema.safeParse(request.launchRequestId)
     if (!parsedRequestId.success) {
@@ -2053,10 +658,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
     const assignmentText = request.assignment?.trim()
     const assignment = assignmentText === '' ? undefined : assignmentText
-    if (assignment !== undefined && Buffer.byteLength(assignment, 'utf8') > this.resolved.maxAssignmentBytes) {
+    if (assignment !== undefined && Buffer.byteLength(assignment, 'utf8') > this.host.config.maxAssignmentBytes) {
       return Promise.resolve(spawnRejected(failure(
         'assignment-too-large',
-        `assignment exceeds ${this.resolved.maxAssignmentBytes} UTF-8 bytes`,
+        `assignment exceeds ${this.host.config.maxAssignmentBytes} UTF-8 bytes`,
       )))
     }
     let teamId: string
@@ -2109,9 +714,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
     request: NormalizedLaunchRequest,
     callerSignal: AbortSignal,
   ): Promise<SpawnDigitalEmployeeResult> {
-    const signal = AbortSignal.any([callerSignal, this.lifecycle.signal])
+    const signal = AbortSignal.any([callerSignal, this.host.lifecycle.signal])
     signal.throwIfAborted()
-    const storage = this.requireStorage()
+    const storage = this.host.storage
     const replay = storage.findBindingByLaunchRequest(teamId, request.launchRequestId)
     if (replay !== undefined) {
       const [, prior] = replay
@@ -2152,8 +757,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
       createdAt: activeRevision.createdAt,
       updatedAt: activeRevision.updatedAt,
     })
-    await this.runtimeBackends.whenSettled()
-    const targetProblem = this.runtimeBackends.validate(
+    await this.host.runtimeBackends.whenSettled()
+    const targetProblem = this.host.runtimeBackends.validate(
       activeRevision.profile,
       activeRevision.runtimeTarget,
       activeRevision.requiredCapabilities,
@@ -2167,7 +772,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       return spawnRejected(failure('runtime-route-invalid', 'the active Revision has no exact executable route', head))
     }
     if (selectedTarget.kind === 'dsh-model') {
-      const resolutionProblem = await this.runtimeBackends.verifyDshModelRoute(selectedTarget)
+      const resolutionProblem = await this.host.runtimeBackends.verifyDshModelRoute(selectedTarget)
       if (resolutionProblem !== undefined) {
         return spawnRejected(failure(resolutionProblem.code, resolutionProblem.message, head))
       }
@@ -2184,8 +789,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
 
     const key = digitalEmployeeBindingKey(teamId, profile.employeeName)
-    const reservation = await this.enqueue(async (): Promise<DigitalEmployeeBindingV1 | DigitalEmployeeFailure> => {
-      const storage = this.requireStorage()
+    const reservation = await this.host.enqueue(async (): Promise<DigitalEmployeeBindingV1 | DigitalEmployeeFailure> => {
+      const storage = this.host.storage
       const requestOwner = storage.findBindingByLaunchRequest(teamId, request.launchRequestId)
       if (requestOwner !== undefined) {
         return bindingMatchesReplay(requestOwner[1], request.profileId, request.assignmentHash)
@@ -2198,7 +803,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       if (existing !== undefined || rosterOwnsName) {
         return failure('profile-in-use', `Team member name "${profile.employeeName}" is already reserved`)
       }
-      const capabilityGeneration = this.runtimeBackends.capabilityGeneration
+      const capabilityGeneration = this.host.runtimeBackends.capabilityGeneration
       const requestFingerprint = launchRequestFingerprint({
         profileId: profile.id,
         profileRevision: profile.revision,
@@ -2308,7 +913,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
             provisioningPhase: 'failed',
             error: message,
           })
-          await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
+          await this.host.enqueue(async () => { await this.host.storage.putBinding(key, failed) })
           return spawnRejected(failure('runtime-route-invalid', message))
         }
         const nativeRuntimeHandle = nativeRuntimeHandleFromTeammate(external.nativeHandle)
@@ -2334,7 +939,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
           provisioningPhase: 'failed',
           error: message,
         })
-        await this.enqueue(async () => { await this.requireStorage().putBinding(key, failed) })
+        await this.host.enqueue(async () => { await this.host.storage.putBinding(key, failed) })
         return spawnRejected(failure('runtime-route-invalid', message))
       }
       const active: DigitalEmployeeBindingV1 = Object.freeze({
@@ -2364,7 +969,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
           })
         : Object.freeze(authoritative)
       try {
-        await this.enqueue(async () => { await this.requireStorage().putBinding(key, recorded) })
+        await this.host.enqueue(async () => { await this.host.storage.putBinding(key, recorded) })
       } catch (recordError: unknown) {
         throw new AggregateError([error, recordError], 'Digital Employee launch and failure recording both failed')
       }
@@ -2391,59 +996,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Install one immutable Profile layer into exactly the supplied Agent scope. */
   installProfileCapabilities(caller: Agent, agent: Agent, source: DigitalEmployeeProfile): () => void {
-    if (!this.admissionOpen) throw new Error('Digital Employee service is disposing')
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) {
-      throw authorityRemoteError(authorityFailure, 'install-profile-capabilities')
-    }
-    if (agent.ctx.agent !== agent) {
-      throw new TypeError('Digital Employee Profile capabilities require the exact Agent-owned scope')
-    }
-    if (this.childInstallations.has(agent)) {
-      throw new Error(`Digital Employee Profile capabilities are already installed for Agent "${agent.id}"`)
-    }
-    const childCtx = agent.ctx
-    const profile = snapshotProfile(source)
-    const disposers: Array<() => unknown> = []
-    const add = (dispose: () => unknown): void => { disposers.push(dispose) }
-    try {
-      add(childCtx.systemPrompt.section({
-        name: 'deployment:persona',
-        order: 0,
-        text: profile.persona,
-      }))
-      const context = blockSection('Digital Employee context', profile.context)
-      if (context !== '') add(childCtx.systemPrompt.context({ name: 'ultra:context', order: 130, text: context }))
-      const memory = blockSection('Curated long-term memory', profile.memory)
-      if (memory !== '') add(childCtx.systemPrompt.context({ name: 'ultra:memory', order: 140, text: memory }))
-      if (profile.toolPolicy.mode !== 'inherit') {
-        add(childCtx.tools.restrict(profile.toolPolicy.mode === 'allow'
-          ? { allow: profile.toolPolicy.names }
-          : { deny: profile.toolPolicy.names }))
-      }
-      this.installHooks(childCtx, profile.hooks, add)
-    } catch (error: unknown) {
-      for (const dispose of disposers.reverse()) void dispose()
-      throw error
-    }
-    let active = true
-    const dispose = (): void => {
-      if (!active) return
-      active = false
-      if (this.childInstallations.get(agent) === dispose) this.childInstallations.delete(agent)
-      const failures: unknown[] = []
-      for (const dispose of disposers.reverse()) {
-        try { void dispose() } catch (error: unknown) { failures.push(error) }
-      }
-      if (failures.length > 0) throw new AggregateError(failures, 'Digital Employee child-scope disposal failed')
-    }
-    this.childInstallations.set(agent, dispose)
-    return dispose
+    return this.capabilities.install(caller, agent, source)
   }
 
   /** Install at most once for an exact Agent object; an id reused later is a distinct lifecycle. */
   private installBoundAgent(agent: Agent): void {
-    if (!this.admissionOpen || this.childInstallations.has(agent)) return
+    if (!this.host.admissionOpen || this.capabilities.has(agent)) return
     const binding = this.bindingFor(agent)
     if (binding === undefined) return
     const caller = this.ctx.agents.get(binding.teamId as Agent['id'])
@@ -2453,71 +1011,9 @@ export class DigitalEmployeeService extends TypertRemoteService {
     this.installProfileCapabilities(caller, agent, binding.profile)
   }
 
-  /** Revoke one exact Agent installation when its published lifecycle ends. */
-  private removeBoundAgent(agent: Agent): void {
-    const dispose = this.childInstallations.get(agent)
-    if (dispose === undefined) return
-    this.childInstallations.delete(agent)
-    dispose()
-  }
-
-  /** Revoke every resident child contribution before the owning service Fiber disappears. */
-  private revokeBoundAgents(): void {
-    const failures: unknown[] = []
-    for (const [agent, dispose] of this.childInstallations) {
-      this.childInstallations.delete(agent)
-      try { dispose() } catch (error: unknown) { failures.push(error) }
-    }
-    if (failures.length > 0) {
-      throw new AggregateError(failures, 'Digital Employee child-scope disposal failed')
-    }
-  }
-
-  /** Install only the declared, bounded hook semantics—never arbitrary code. */
-  private installHooks(childCtx: Context, hooks: readonly ProfileHook[], add: (dispose: () => unknown) => void): void {
-    const enabled = hooks.filter(hook => hook.enabled)
-    const startup = enabled.filter(hook => hook.point === 'session-start')
-    if (startup.length > 0) {
-      add(childCtx.on('agent/session-start', ({ agent }) => {
-        agent.inject(hookMessage(startup.map(hook => hook.text).join('\n\n')))
-      }))
-    }
-    const beforeStep = enabled.filter(hook => hook.point === 'before-step')
-    if (beforeStep.length > 0) {
-      const message = hookMessage(beforeStep.map(hook => hook.text).join('\n\n'))
-      add(childCtx.on('agent/pre-step', async (_payload, next): Promise<PreStepDecision> => {
-        const downstream = await next()
-        if (downstream.kind !== 'enter') return downstream
-        return { ...downstream, messages: [...downstream.messages, message] }
-      }))
-    }
-    const beforeTool = enabled.filter(hook => hook.point === 'before-tool')
-    if (beforeTool.length > 0) {
-      add(childCtx.on('tools/pre-execute', async (exec, next): Promise<PreToolDecision> => {
-        const matched = beforeTool.find(hook => matchesTool(hook.matcher ?? '', exec.name))
-        if (matched?.effect === 'ask') return { kind: 'ask', reason: matched.text }
-        if (matched?.effect === 'deny') return { kind: 'deny', reason: matched.text }
-        return await next()
-      }))
-    }
-    const afterTool = enabled.filter(hook => hook.point === 'after-tool')
-    if (afterTool.length > 0) {
-      add(childCtx.on('tools/post-execute', async (exec, _result, next): Promise<PostToolDecision> => {
-        const downstream = await next()
-        const matching = afterTool.filter(hook => matchesTool(hook.matcher ?? '', exec.name))
-        if (matching.length === 0) return downstream
-        const message = hookMessage(matching.map(hook => hook.text).join('\n\n'))
-        return {
-          ...downstream,
-          additionalContexts: [...downstream.additionalContexts ?? [], message],
-        }
-      }))
-    }
-  }
-
   /** Resolve by durable member id first, then the pre-publication Team/name reservation. */
   private bindingFor(agent: Agent): DigitalEmployeeBindingV1 | undefined {
-    const storage = this.requireStorage()
+    const storage = this.host.storage
     for (const [, binding] of storage.bindingEntries()) {
       if (binding.memberId === agent.id) return binding
     }
@@ -2566,266 +1062,10 @@ export class DigitalEmployeeService extends TypertRemoteService {
     }
   }
 
-  /** Build one bounded, detached catalog entry from authoritative v1 records. */
-  private profileCatalogEntry(
-    caller: Agent,
-    teamId: string,
-    head: DigitalEmployeeProfileHead,
-  ): DigitalEmployeeProfileCatalogEntry {
-    const storage = this.requireStorage()
-    const latest = storage.getProfileRevision(head.profileId, head.latestRevision)
-    if (latest === undefined) {
-      throw new Error(`Digital Employee Profile Head "${head.profileId}" has no latest Revision`)
-    }
-    const revisions = [...storage.profileRevisionEntries(head.profileId)]
-      .map(([, revision]) => revision)
-      .filter(revision => revision.revision >= head.historyStartsAtRevision
-        && revision.revision <= head.latestRevision)
-      .sort((left, right) => right.revision - left.revision)
-    const history: DigitalEmployeeProfileRevisionSummary[] = revisions
-      .slice(0, this.resolved.maxRevisionHistory)
-      .map(revision => Object.freeze({
-        revision: revision.revision,
-        fingerprint: revision.fingerprint,
-        createdAt: revision.createdAt,
-        updatedAt: revision.updatedAt,
-      }))
-    return Object.freeze({
-      head: snapshotProfileHead(head),
-      latest: snapshotProfileRevision(latest),
-      history: Object.freeze(history),
-      historyTruncated: revisions.length > history.length,
-      promotionGate: this.promotionGate(caller, teamId, head, latest),
-    })
-  }
-
-  /** Build one bounded Eval Set catalog row without exposing mutable storage values. */
-  private evalSetCatalogEntry(head: DigitalEmployeeEvalSetHead): DigitalEmployeeEvalSetCatalogEntry {
-    const storage = this.requireStorage()
-    const latest = storage.getEvalSetRevision(head.evalSetId, head.latestRevision)
-    if (latest === undefined) throw new Error(`Eval Set Head "${head.evalSetId}" has no latest Revision`)
-    const revisions = [...storage.evalSetRevisionEntries(head.evalSetId)]
-      .map(([, revision]) => revision)
-      .filter(revision => revision.revision <= head.latestRevision)
-      .sort((left, right) => right.revision - left.revision)
-    const history = revisions.slice(0, this.resolved.maxRevisionHistory).map(revision => Object.freeze({
-      revision: revision.revision,
-      fingerprint: revision.fingerprint,
-      createdAt: revision.createdAt,
-      updatedAt: revision.updatedAt,
-    }))
-    return Object.freeze({
-      head: snapshotEvalSetHead(head),
-      latest: snapshotEvalSetRevision(latest),
-      history: Object.freeze(history),
-      historyTruncated: revisions.length > history.length,
-    })
-  }
-
-  /** Derive the exact current promotion proof; stale successes are visibly invalidated. */
-  private promotionGate(
-    caller: Agent,
-    teamId: string,
-    head: DigitalEmployeeProfileHead,
-    latest: DigitalEmployeeProfileRevision,
-  ): DigitalEmployeePromotionGate {
-    const required = head.requiredEvalSet
-    if (required === undefined) return Object.freeze({ status: 'not-required' })
-    const storage = this.requireStorage()
-    const evalSet = storage.getEvalSetRevision(required.evalSetId, required.revision)
-    const passedRuns = [...storage.evalRunEntries()]
-      .map(([, run]) => run)
-      .filter(run => run.teamId === teamId
-        && run.profileId === head.profileId
-        && run.evalSetId === required.evalSetId
-        && run.evalSetRevision === required.revision
-        && run.status === 'passed')
-      .sort((left, right) => right.startedAt - left.startedAt
-        || right.evalRunId.localeCompare(left.evalRunId))
-    if (evalSet === undefined || evalSet.profileId !== head.profileId) {
-      return Object.freeze({
-        status: passedRuns.length === 0 ? 'pending' : 'invalidated',
-        requiredEvalSet: Object.freeze({ ...required }),
-        diagnostic: 'required Eval Set Revision is unavailable',
-      })
-    }
-    if (latest.runtimeTarget.kind === 'legacy-inherit-lead') {
-      return Object.freeze({
-        status: passedRuns.length === 0 ? 'pending' : 'invalidated',
-        requiredEvalSet: Object.freeze({ ...required }),
-        diagnostic: 'candidate runtime route cannot be evaluated',
-      })
-    }
-    const providerTools = latest.runtimeTarget.kind === 'external-agent'
-      ? this.runtimeBackends.externalEvaluationTools(latest.runtimeTarget.provider)
-      : this.ctx.tools.schemas(caller)
-        .map(tool => tool.name)
-        .filter(name => !TEAM_OWN_TOOL_NAMES.has(name))
-        .sort()
-    if (providerTools === undefined) {
-      return Object.freeze({
-        status: passedRuns.length === 0 ? 'pending' : 'invalidated',
-        requiredEvalSet: Object.freeze({ ...required }),
-        diagnostic: 'current runtime cannot prove the evaluation environment',
-      })
-    }
-    const tools = effectiveEvaluationTools(
-      latest.profile.toolPolicy,
-      providerTools,
-      evalSet.evalSet.toolAllowlist,
-      TEAM_OWN_TOOL_NAMES,
-    )
-    const environment = evalEnvironmentFingerprint({ effectiveToolAllowlist: tools, evalSet })
-    const exact = passedRuns.find(run => run.profileRevision === latest.revision
-      && run.profileFingerprint === latest.fingerprint
-      && isDeepStrictEqual(run.runtimeTarget, latest.runtimeTarget)
-      && run.capabilityGeneration === this.runtimeBackends.capabilityGeneration
-      && run.evalSetFingerprint === evalSet.fingerprint
-      && run.assertionSchemaVersion === EVAL_ASSERTION_SCHEMA_VERSION
-      && run.environmentFingerprint === environment
-      && isDeepStrictEqual(run.effectiveToolAllowlist, tools))
-    if (exact !== undefined) {
-      return Object.freeze({
-        status: 'passed',
-        requiredEvalSet: Object.freeze({ ...required }),
-        satisfiedByEvalRunId: exact.evalRunId,
-      })
-    }
-    return Object.freeze({
-      status: passedRuns.length === 0 ? 'pending' : 'invalidated',
-      requiredEvalSet: Object.freeze({ ...required }),
-      diagnostic: passedRuns.length === 0
-        ? 'the exact candidate has not passed this Eval Set Revision'
-        : 'a prior pass no longer matches the candidate, runtime generation, or environment',
-    })
-  }
-
-  /** Shared Head-only mutation; immutable Revision rows are read, never rewritten. */
-  private setActiveRevision(
-    caller: Agent,
-    request: ActivateDigitalEmployeeProfileRequest | RollbackDigitalEmployeeProfileRequest,
-    operation: 'activate' | 'rollback',
-  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    if (!this.admissionOpen) {
-      return Promise.resolve(headMutationRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.revision) || request.revision < 1
-      || !Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
-      return Promise.resolve(headMutationRejected(failure('profile-invalid', 'Revision CAS values must be positive integers')))
-    }
-    return this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const head = storage.getProfileHead(request.profileId)
-      if (head === undefined) {
-        return headMutationRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
-      }
-      if (request.expectedHeadRevision !== head.headRevision) {
-        return headMutationRejected(failure('profile-conflict', 'Profile Head changed; reload before promotion', head))
-      }
-      if (head.archivedAt !== undefined) {
-        return headMutationRejected(failure('profile-archived', `profile "${request.profileId}" is archived`, head))
-      }
-      const revision = storage.getProfileRevision(request.profileId, request.revision)
-      if (revision === undefined || request.revision < head.historyStartsAtRevision
-        || request.revision > head.latestRevision) {
-        return headMutationRejected(failure(
-          'revision-not-found',
-          `Profile Revision ${request.revision} is not in retained history`,
-          head,
-        ))
-      }
-      if (operation === 'activate' && request.revision !== head.latestRevision) {
-        return headMutationRejected(failure('revision-not-found', 'activation requires the latest candidate Revision', head))
-      }
-      if (operation === 'rollback'
-        && (head.activeRevision === undefined || request.revision > head.activeRevision)) {
-        return headMutationRejected(failure('revision-not-found', 'rollback requires an active or older Revision', head))
-      }
-      await this.runtimeBackends.whenSettled()
-      const targetProblem = this.runtimeBackends.validate(
-        revision.profile,
-        revision.runtimeTarget,
-        revision.requiredCapabilities,
-        'activate',
-      )
-      if (targetProblem !== undefined) {
-        return headMutationRejected(failure(targetProblem.code, targetProblem.message, head))
-      }
-      if (operation === 'activate') {
-        const teamId = this.ctx.agentTeams.membership(caller).id
-        const gate = this.promotionGate(caller, teamId, head, revision)
-        if (gate.status !== 'not-required' && gate.status !== 'passed') {
-          return headMutationRejected(failure(
-            'promotion-gate-failed',
-            gate.diagnostic ?? 'the exact candidate has not passed its required Eval Set',
-            head,
-          ))
-        }
-      }
-      if (head.activeRevision === request.revision) {
-        return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
-      }
-      const next = snapshotProfileHead({
-        ...head,
-        headRevision: head.headRevision + 1,
-        activeRevision: request.revision,
-        updatedAt: Math.max(Date.now(), head.updatedAt),
-      })
-      await storage.putProfileHead(next)
-      return Object.freeze({ ok: true as const, value: Object.freeze({ head: next }) })
-    })
-  }
-
-  /** Toggle archive state as a Head-only CAS mutation. */
-  private setArchiveState(
-    caller: Agent,
-    request: ArchiveDigitalEmployeeProfileRequest | RestoreDigitalEmployeeProfileRequest,
-    archived: boolean,
-  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    if (!this.admissionOpen) {
-      return Promise.resolve(headMutationRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    }
-    const authorityFailure = this.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
-      return Promise.resolve(headMutationRejected(failure('profile-invalid', 'Head revision must be a positive integer')))
-    }
-    return this.enqueue(async () => {
-      const storage = this.requireStorage()
-      const head = storage.getProfileHead(request.profileId)
-      if (head === undefined) {
-        return headMutationRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
-      }
-      if (request.expectedHeadRevision !== head.headRevision) {
-        return headMutationRejected(failure('profile-conflict', 'Profile Head changed; reload before archive mutation', head))
-      }
-      if ((head.archivedAt !== undefined) === archived) {
-        return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
-      }
-      const now = Math.max(Date.now(), head.updatedAt)
-      const next = snapshotProfileHead({
-        schemaVersion: 1,
-        profileId: head.profileId,
-        headRevision: head.headRevision + 1,
-        latestRevision: head.latestRevision,
-        ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
-        historyStartsAtRevision: head.historyStartsAtRevision,
-        ...(head.requiredEvalSet === undefined ? {} : { requiredEvalSet: head.requiredEvalSet }),
-        ...(archived ? { archivedAt: now } : {}),
-        createdAt: head.createdAt,
-        updatedAt: now,
-      })
-      await storage.putProfileHead(next)
-      return Object.freeze({ ok: true as const, value: Object.freeze({ head: next }) })
-    })
-  }
-
   /** A replay may continue a pre-roster reservation only while its exact dependencies remain executable. */
   private async pendingBindingIsExecutable(caller: Agent, binding: DigitalEmployeeBindingV1): Promise<boolean> {
-    await this.runtimeBackends.whenSettled()
-    const problem = this.runtimeBackends.validate(
+    await this.host.runtimeBackends.whenSettled()
+    const problem = this.host.runtimeBackends.validate(
       binding.profile,
       binding.runtimeTarget,
       binding.requiredCapabilities,
@@ -2836,7 +1076,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       return true
     }
     if (binding.runtimeTarget.kind !== 'dsh-model'
-      || await this.runtimeBackends.verifyDshModelRoute(binding.runtimeTarget) !== undefined) return false
+      || await this.host.runtimeBackends.verifyDshModelRoute(binding.runtimeTarget) !== undefined) return false
     return binding.profile.toolPolicy.mode === 'inherit'
       || binding.profile.toolPolicy.names.every(name =>
         !TEAM_OWN_TOOL_NAMES.has(name) && this.ctx.tools.get(name, caller) !== undefined)
@@ -2849,8 +1089,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
     roster = this.ctx.agentTeams.listMembers(caller),
   ): Promise<DigitalEmployeeBindingV1> {
     const key = digitalEmployeeBindingKey(binding.teamId, binding.memberName)
-    return await this.enqueue(async () => {
-      const storage = this.requireStorage()
+    return await this.host.enqueue(async () => {
+      const storage = this.host.storage
       const current = storage.getBinding(key)
       if (current === undefined) return binding
       const reconciled = reconcileBindingFromRoster(current, roster)
@@ -2861,12 +1101,12 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Repair all Bindings owned by one exact live Team Lead from its authoritative roster. */
   private async reconcileTeam(caller: Agent): Promise<void> {
-    if (this.storage === undefined || this.lifecycle.signal.aborted || this.ctx.agents.get(caller.id) !== caller) return
+    if (!this.host.hasStorage || this.host.lifecycle.signal.aborted || this.ctx.agents.get(caller.id) !== caller) return
     const membership = this.ctx.agentTeams.tryMembership(caller)
     if (membership?.role !== 'lead') return
     const teamId = membership.id
     const roster = this.ctx.agentTeams.listMembers(caller)
-    const bindings = [...this.requireStorage().bindingEntries()]
+    const bindings = [...this.host.storage.bindingEntries()]
       .map(([, binding]) => binding)
       .filter(binding => binding.teamId === teamId)
     for (const binding of bindings) await this.reconcileBinding(caller, binding, roster)
@@ -2961,13 +1201,13 @@ export class DigitalEmployeeService extends TypertRemoteService {
       this.dshRunBinding(binding),
       SessionId(binding.memberId),
       events,
-      this.resolved.maxRunEvidenceItems,
-      this.resolved.maxRuns,
+      this.host.config.maxRunEvidenceItems,
+      this.host.config.maxRuns,
       this.pendingApprovals.get(binding.memberId),
     )
     for (const run of runs) {
       signal.throwIfAborted()
-      await this.requireStorage().putRun(run.index, this.resolved.maxRuns)
+      await this.host.storage.putRun(run.index, this.host.config.maxRuns)
     }
   }
 
@@ -2992,43 +1232,43 @@ export class DigitalEmployeeService extends TypertRemoteService {
         ? undefined
         : `launch:${binding.launchRequestId}`)
       if (launchIdentity !== undefined) {
-        await this.requireStorage().putRun(createExternalRunIndex(
+        await this.host.storage.putRun(createExternalRunIndex(
           foldBinding,
           launchIdentity,
           nativeTurnId,
           active.time,
-        ), this.resolved.maxRuns)
+        ), this.host.config.maxRuns)
       }
     }
     for (const event of events) {
       if (event.type !== 'team/message/delivered' || event.data.targetId !== binding.memberId) continue
       const canonicalTurnId = event.data.nativeTurnId ?? `message:${event.data.messageId}`
-      await this.requireStorage().putRun(createExternalRunIndex(
+      await this.host.storage.putRun(createExternalRunIndex(
         foldBinding,
         canonicalTurnId,
         event.data.nativeTurnId,
         event.time,
-      ), this.resolved.maxRuns)
+      ), this.host.config.maxRuns)
     }
   }
 
   /** Repair all Run rows owned by one exact live Team Lead. */
   private async repairTeamRuns(caller: Agent): Promise<void> {
-    if (this.storage === undefined || this.lifecycle.signal.aborted || this.ctx.agents.get(caller.id) !== caller) return
+    if (!this.host.hasStorage || this.host.lifecycle.signal.aborted || this.ctx.agents.get(caller.id) !== caller) return
     const membership = this.ctx.agentTeams.tryMembership(caller)
     if (membership?.role !== 'lead') return
-    const bindings = [...this.requireStorage().bindingEntries()]
+    const bindings = [...this.host.storage.bindingEntries()]
       .map(([, binding]) => binding)
       .filter(binding => binding.teamId === membership.id)
     for (const binding of bindings) {
       try {
         if (binding.runtimeTarget.kind === 'external-agent') {
-          await this.repairExternalBindingRuns(binding, this.lifecycle.signal)
+          await this.repairExternalBindingRuns(binding, this.host.lifecycle.signal)
         } else {
-          await this.repairDshBindingRuns(binding, this.lifecycle.signal)
+          await this.repairDshBindingRuns(binding, this.host.lifecycle.signal)
         }
       } catch (error: unknown) {
-        if (this.lifecycle.signal.aborted) return
+        if (this.host.lifecycle.signal.aborted) return
         this.ctx.logger.warn(`agent-team-ultra: Run repair failed for ${binding.memberName}: ${errorText(error)}`)
       }
     }
@@ -3062,7 +1302,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       return
     }
     if (typeof data.callId !== 'string' || data.callId.length === 0) return
-    const binding = [...this.requireStorage().bindingEntries()]
+    const binding = [...this.host.storage.bindingEntries()]
       .map(([, current]) => current)
       .find(current => current.memberId === sessionId
         && current.provisioningPhase === 'active'
@@ -3075,7 +1315,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Track event-driven Run repair as disposal-visible work. */
   private scheduleRunRepair(sessionId: SessionId): void {
-    if (this.storage === undefined || this.lifecycle.signal.aborted) return
+    if (!this.host.hasStorage || this.host.lifecycle.signal.aborted) return
     const operation = (async () => {
       const lead = this.ctx.agents.get(sessionId)
       const membership = lead === undefined ? undefined : this.ctx.agentTeams.tryMembership(lead)
@@ -3083,14 +1323,14 @@ export class DigitalEmployeeService extends TypertRemoteService {
         await this.repairTeamRuns(lead)
         return
       }
-      const bindings = [...this.requireStorage().bindingEntries()]
+      const bindings = [...this.host.storage.bindingEntries()]
         .map(([, binding]) => binding)
         .filter(binding => binding.memberId === sessionId && binding.runtimeTarget.kind === 'dsh-model')
-      for (const binding of bindings) await this.repairDshBindingRuns(binding, this.lifecycle.signal)
+      for (const binding of bindings) await this.repairDshBindingRuns(binding, this.host.lifecycle.signal)
     })()
     this.runRepairs.add(operation)
     void operation.catch((error: unknown) => {
-      if (!this.lifecycle.signal.aborted) {
+      if (!this.host.lifecycle.signal.aborted) {
         this.ctx.logger.warn(`agent-team-ultra: event-driven Run repair failed: ${errorText(error)}`)
       }
     }).finally(() => { this.runRepairs.delete(operation) })
@@ -3098,7 +1338,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Track one event-driven reconciliation so disposal reaches quiescence. */
   private scheduleLeadReconciliation(agent: Agent): void {
-    if (this.storage === undefined || this.lifecycle.signal.aborted) return
+    if (!this.host.hasStorage || this.host.lifecycle.signal.aborted) return
     const operation = this.reconcileTeam(agent)
     this.reconciliations.add(operation)
     void operation.catch((error: unknown) => {
@@ -3109,25 +1349,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
 
   /** Reconcile live Teams after a complete runtime catalog generation publishes. */
   private scheduleAvailableLeadReconciliation(): void {
-    if (this.storage === undefined || this.lifecycle.signal.aborted) return
+    if (!this.host.hasStorage || this.host.lifecycle.signal.aborted) return
     for (const agent of this.ctx.agents.list()) this.scheduleLeadReconciliation(agent)
-  }
-
-  /** Reject anything except the exact live Agent object currently recognized as a Team Lead. */
-  private leadAuthorityFailure(caller: Agent): DigitalEmployeeFailure | undefined {
-    if (this.ctx.agents.get(caller.id) !== caller) {
-      return failure('team-rejected', 'caller is not the exact live Agent registered on this Host')
-    }
-    try {
-      const membership = this.ctx.agentTeams.membership(caller)
-      if (membership.role !== 'lead') {
-        return failure('team-lead-required', 'only the exact live Team Lead may manage Digital Employee profiles')
-      }
-      return undefined
-    } catch (error: unknown) {
-      if (error instanceof TeamError) return failure('team-rejected', error.message)
-      throw error
-    }
   }
 
   private instanceView(caller: Agent, binding: DigitalEmployeeBindingV1): DigitalEmployeeInstanceView {
@@ -3153,7 +1376,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
         : { nativeRuntimeHandle: binding.nativeRuntimeHandle }),
       requiredCapabilities: snapshotRequiredCapabilities(binding.requiredCapabilities),
       provisioningPhase: binding.provisioningPhase,
-      runtimeAvailability: this.runtimeBackends.availability(
+      runtimeAvailability: this.host.runtimeBackends.availability(
         binding.profile,
         binding.runtimeTarget,
         binding.requiredCapabilities,
@@ -3176,8 +1399,8 @@ export class DigitalEmployeeService extends TypertRemoteService {
     key: string,
     active: DigitalEmployeeBindingV1,
   ): Promise<DigitalEmployeeBindingV1> {
-    return await this.enqueue(async () => {
-      const storage = this.requireStorage()
+    return await this.host.enqueue(async () => {
+      const storage = this.host.storage
       const current = storage.getBinding(key)
       if (current?.launchRequestId !== undefined && current.launchRequestId !== active.launchRequestId) {
         throw new Error(`binding "${key}" changed launch identity during provisioning`)
@@ -3187,18 +1410,6 @@ export class DigitalEmployeeService extends TypertRemoteService {
       await storage.putBinding(key, active)
       return active
     })
-  }
-
-  /** Serialize read-modify-write decisions while letting storage own durability. */
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const run = this.mutationTail.then(operation)
-    this.mutationTail = run.then(() => undefined, () => undefined)
-    return run
-  }
-
-  private requireStorage(): DigitalEmployeeStorage {
-    if (this.storage === undefined) throw new Error('Agent Team Ultra v1 storage is not ready')
-    return this.storage
   }
 }
 
