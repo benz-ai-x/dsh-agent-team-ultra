@@ -148,7 +148,7 @@
 - **最终双轴复审通过**：两个独立代理分别检查 Harness `b4d2a731...fb03045fbe`、Ultra `dcf8ec4...04a50c9722`，结合原全量审查，Standards 规范违规／判断性异味均 0，Spec 缺失／范围扩张／错误实现均 0。原 P2／P3 均确认关闭。本记录之后仅更新 HANDOFF／TODO 的验收状态，不更改已验证的运行时、锁或测试。GitHub 未报告本 PR 的 CI checks；自动化静态复审不等于人工批准。
 
 
-- **PR #52 本轮 main 审查与限额补修（2026-09-06）**：固定 Ultra `ce6cb39...993698d`、Harness `8b4bae0b...fb03045fbe` 重新进行独立双轴审查。Spec 0；Standards 发现 `packages/AGENTS.md` 要求的精确 UTF-8 限额测试缺口（P3），未发现计数实现错误。Harness `fdfdbaeb0e` 仅新增 4 项公开 grant 用例，覆盖 ASCII／多字节请求 4096／4097 字节与完整结果 65536／65537 字节。两种临时负对照分别触发 4／2 项预期失败，源码原样恢复；拥有者测试 **48 passed**，查询模块各项覆盖率 **100%**，日志 `/tmp/ultra-pr52-boundary-coverage.log`、`/tmp/ultra-pr52-boundary-negative-{inclusive,characters}.log`。类型、Host bundle 和常规 commit／push hooks 通过。维护分支已推送，文档摘要及所有运行时源文件不变；Ultra 已更新 lock、准备来源并冻结安装。两路代理确认 Harness 补修 Standards／Spec 均 0，Ultra 最终锁／交接提交仍待增量复核。 最新锁定来源的完整 `pnpm verify` 再次通过 554 strict／0 警告、263 测试／22 文件、八归档安装／查询／冷恢复／Web／卸载；Codex／Claude Code 实际升级和 11 组官方对照也全部退出 0，日志 `/tmp/ultra-pr52-merge-{verify,codex-upgrade,claude-upgrade,comparison}.log`。
+- **PR #52 本轮 main 审查与限额补修（2026-09-06）**：固定 Ultra `ce6cb39...993698d`、Harness `8b4bae0b...fb03045fbe` 重新进行独立双轴审查。Spec 0；Standards 发现 `packages/AGENTS.md` 要求的精确 UTF-8 限额测试缺口（P3），未发现计数实现错误。Harness `fdfdbaeb0e` 仅新增 4 项公开 grant 用例，覆盖 ASCII／多字节请求 4096／4097 字节与完整结果 65536／65537 字节。两种临时负对照分别触发 4／2 项预期失败，源码原样恢复；拥有者测试 **48 passed**，查询模块各项覆盖率 **100%**，日志 `/tmp/ultra-pr52-boundary-coverage.log`、`/tmp/ultra-pr52-boundary-negative-{inclusive,characters}.log`。类型、Host bundle 和常规 commit／push hooks 通过。维护分支已推送，文档摘要及所有运行时源文件不变；Ultra 已更新 lock、准备来源并冻结安装。两路代理已完成 Harness `fdfdbaeb0e` 与 Ultra `0f0a83310f` 的最终复审，Standards 规范违规／判断性异味均 0，Spec 缺失／范围扩张／错误实现均 0，P3 已确认关闭。 最新锁定来源的完整 `pnpm verify` 再次通过 554 strict／0 警告、263 测试／22 文件、八归档安装／查询／冷恢复／Web／卸载；Codex／Claude Code 实际升级和 11 组官方对照也全部退出 0，日志 `/tmp/ultra-pr52-merge-{verify,codex-upgrade,claude-upgrade,comparison}.log`。
 
 ## 验证证据与限制
 
@@ -197,7 +197,7 @@
 ## 下一步
 
 1. PR #45–#51 已全部合并；#19–#26 保持 closed，不重复建 PR。当前 #26 的 PR #52 已创建，最新维护来源完成全部本地验证及双轴复审（Standards 0／Spec 0）；PR 保持 open。父 Spec #18 保持 open。
-2. 本轮用户已单独授权 PR #52 通过 review 后合并 main；最终验证与补修复审通过后执行，并回读远端状态。后续 #27–#44 按父 Spec 和 tracker 继续。
+2. 本轮用户已单独授权 PR #52 通过 review 后合并 main；最终验证与补修复审均通过，执行合并并回读远端状态。后续 #27–#44 按父 Spec 和 tracker 继续。
 3. 继续按依赖处理 #27–#44，保留阶段 C 独立集成分支、格式迁移和真实 native 验收要求。之后的新 PR 仍在提交后分别执行 Standards 和 Spec 评审。
 4. 本轮仅在当前对话通报修复、评审和合并结果；没有新的对外通知待办。
 
