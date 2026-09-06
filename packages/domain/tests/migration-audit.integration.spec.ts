@@ -131,7 +131,7 @@ describe('operator migration audit', () => {
     const report = JSON.parse(result.stdout)
     expect(report).toMatchObject({
       ok: true,
-      sourceFormats: { session: 0, teamEvent: 2, teamProjection: 3, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
+      sourceFormats: { session: 0, teamEvent: 2, teamProjection: 4, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
       migration: {
         sourcePreserved: true, bidirectionalWrites: false, targetWrites: 'closed-until-complete',
         executionAvailable: false,
@@ -338,7 +338,7 @@ describe('operator migration audit', () => {
   })
 
   it.each(['handle', 'requirements'] as const)('matches a real Codex adapter Binding to its committed native %s', async field => {
-    const { ctx, invoke, root } = await workflow()
+    const { ctx, invoke, root, lead } = await workflow()
     const runtimeRequire = createRequire(join(project, 'packages/codex/lib/index.js'))
     const manifestPath = runtimeRequire.resolve('@openai/codex/package.json')
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
@@ -364,6 +364,11 @@ describe('operator migration audit', () => {
     await vi.waitFor(async () => {
       expect((await invoke('view') as DigitalEmployeeStudioView).instances[0]?.runtimePresence).toBe('idle')
     })
+    const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      await expect.poll(async () => (await stored.read(0)).filter(event =>
+        event.type === 'team/native-operation/committed')).toHaveLength(1)
+    } finally { await stored.close() }
     await ctx.fiber.dispose()
     const accepted = audit(root)
     expect(accepted.status, accepted.stderr + accepted.stdout).toBe(0)
@@ -372,6 +377,12 @@ describe('operator migration audit', () => {
       memberId: launched.value.memberId, nativeRuntimeHandle: launched.value.nativeRuntimeHandle,
       nativeTurnId: expect.any(String), kind: 'initial',
     }))
+    expect(JSON.parse(accepted.stdout).sourceFormats).toMatchObject({ teamProjection: 4, nativeOperation: 3 })
+    expect(JSON.parse(accepted.stdout).nativeCorrelations).toContainEqual(expect.objectContaining({
+      memberId: launched.value.memberId, nativeRuntimeHandle: launched.value.nativeRuntimeHandle,
+      nativeTurnId: expect.any(String), operationId: expect.any(String), kind: 'settlement',
+    }))
+    expect(accepted.stdout).not.toMatch(/Review complete\.|PRIVATE_COMMENTARY|PRIVATE_REASONING/)
     const directory = join(root, 'storage/agent_team_ultra_v1/bindings')
     const path = join(directory, readdirSync(directory)[0]!)
     const envelope = JSON.parse(readFileSync(path, 'utf8'))

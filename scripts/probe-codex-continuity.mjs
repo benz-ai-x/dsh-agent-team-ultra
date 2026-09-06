@@ -107,7 +107,7 @@ try {
   const view = await current()
   assert.equal(view.runtimeCatalog.backends.filter(row => row.provider === 'codex' && row.availability === 'available').length, 1)
   if (queries) assert.deepEqual(view.runtimeCatalog.backends.find(row => row.provider === 'codex').memberOperations,
-    ['members.list', 'tasks.list', 'tasks.get'])
+    ['members.list', 'tasks.list', 'tasks.get', 'messages.send'])
   if (creating) {
     const saved = await invoke('save', { expectedHeadRevision: null, runtimeTarget: { kind: 'external-agent', provider: 'codex' }, profile: {
       id: 'codex-reviewer', employeeName: 'codex-reviewer', displayName: 'Codex reviewer', description: 'Retain the original employee.',
@@ -155,9 +155,36 @@ try {
     assert.deepEqual(await native.query(handle, 'team_members_list', { role: 'lead' }), { success: false, contentItems: [{ type: 'inputText',
       text: '{"ok":false,"error":{"code":"TEAM_NATIVE_INVALID_REQUEST","message":"The Team query arguments are invalid."}}' }] })
     assert.equal(native.calls.size, 0)
+    const message = { target: 'lead', text: `Installed member progress ${phase}.` }
+    const correlation = { callId: `installed-progress-${phase}` }
+    const sent = await native.query(handle, 'team_message_send', message, correlation)
+    assert.equal(sent.success, true)
+    assert.deepEqual(await native.query(handle, 'team_message_send', { text: message.text, target: ' lead ' }, correlation), sent)
+    const conflict = await native.query(handle, 'team_message_send', { ...message, text: 'Changed input.' }, correlation)
+    assert.equal(JSON.parse(conflict.contentItems[0].text).error.code, 'TEAM_NATIVE_OPERATION_CONFLICT')
+    const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      const matches = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed'
+        && event.data.receipt.source.callId === correlation.callId)
+      assert.equal(matches.length, 1)
+      assert.equal(matches[0].data.message.senderId, member.id)
+      assert.deepEqual(matches[0].data.receipt.result, JSON.parse(sent.contentItems[0].text))
+    } finally { await stored.close() }
   }
   native.complete()
   await until(current, value => value.instances[0]?.runtimePresence === 'idle')
+  if (queries) {
+    const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      const turnId = native.data.threads[member.externalRuntime.nativeHandle].turns.at(-1).id
+      const matches = await until(async () => (await stored.read(0)).filter(event =>
+        event.type === 'team/native-operation/committed' && event.data.receipt.source.kind === 'settlement'
+        && event.data.receipt.source.turnId === turnId), values => values.length === 1)
+      assert.equal(matches[0].data.receipt.result.value.outcome, 'completed')
+      assert.equal(matches[0].data.message.senderId, member.id)
+      assert.deepEqual(matches[0].data.message.content, [{ type: 'text', text: 'Review complete.' }])
+    } finally { await stored.close() }
+  }
   assert.equal(Object.keys(native.data.threads).length, 1)
   const thread = native.data.threads[live.instances[0].nativeRuntimeHandle]
   assert.equal(thread.turns.length, creating ? 2 : 3)

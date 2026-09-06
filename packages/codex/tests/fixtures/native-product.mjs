@@ -36,8 +36,8 @@ export class NativeProduct {
     return completion.promise
   }
 
-  complete() {
-    for (const finish of this.pending.splice(0)) finish()
+  complete(outcome = 'completed', text = 'Review complete.') {
+    for (const finish of this.pending.splice(0)) finish(outcome, text)
   }
 
   open(spec) {
@@ -63,6 +63,11 @@ export class NativeProduct {
           const call = this.calls.get(frame.id)
           assert.ok(call, 'the adapter must answer a known native request')
           this.calls.delete(frame.id)
+          if (call.method === 'item/tool/call' && this.dropNextToolReply) {
+            this.dropNextToolReply = false
+            call.completion.reject(new Error('native tool reply lost after Host acceptance'))
+            continue
+          }
           if (frame.error !== undefined) call.completion.resolve({ error: frame.error })
           else if (call.method === 'item/tool/call') {
             const item = { type: 'dynamicToolCall', id: call.params.callId, tool: call.params.tool,
@@ -107,8 +112,15 @@ export class NativeProduct {
             assert.equal(params.approvalPolicy, 'never')
             assert.equal(params.sandbox, 'read-only')
             assert.ok(this.data.threads[params.threadId], 'resume must use an existing native handle')
+            const resumed = this.data.threads[params.threadId]
+            // The real app-server interrupts persisted turns whose executor died with its process.
+            for (const turn of resumed.turns) {
+              if (turn.status === 'inProgress') turn.status = 'interrupted'
+            }
+            resumed.status = { type: 'idle' }
+            persist()
             this.channels.set(params.threadId, { send, completion })
-            reply(frame, policy(this.data.threads[params.threadId]))
+            reply(frame, policy(resumed))
             break
           case 'turn/start': {
             const thread = this.data.threads[params.threadId]
@@ -120,14 +132,25 @@ export class NativeProduct {
               items: [{ type: 'userMessage', clientId: params.clientUserMessageId, content: [] }],
             }
             thread.turns.push(turn)
+            thread.status = { type: 'active' }
             persist()
             const acceptance = this.onTurnStart?.(thread.id)
             if (acceptance === undefined) reply(frame, { turn: { id: turn.id } })
             else void acceptance.then(() => reply(frame, { turn: { id: turn.id } }), completion.reject)
-            this.pending.push(() => {
-              turn.status = 'completed'
+            this.pending.push((outcome, text) => {
+              turn.status = outcome
+              thread.status = { type: 'idle' }
               turn.completedAt = Math.floor(Date.now() / 1000)
+              turn.items.push(
+                { type: 'reasoning', id: randomUUID(), summary: ['PRIVATE_REASONING'], content: [] },
+                { type: 'agentMessage', id: randomUUID(), text: 'PRIVATE_COMMENTARY', phase: 'commentary' },
+                { type: 'agentMessage', id: randomUUID(), text, phase: 'final_answer' },
+              )
               persist()
+              if (this.dropNextCompletion) {
+                this.dropNextCompletion = false
+                return
+              }
               send({ method: 'thread/tokenUsage/updated', params: {
                 threadId: thread.id, turnId: turn.id, tokenUsage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
               } })
