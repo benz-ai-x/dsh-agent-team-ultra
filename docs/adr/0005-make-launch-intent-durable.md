@@ -33,3 +33,11 @@ permanent member and one Binding. Caller cancellation controls work only until
 Agent Team durably accepts the initial prompt; after that ownership belongs to
 the Team runtime, and Ultra disposal waits for convergence without stopping the
 Team-owned child.
+
+The [vNext A02 implementation](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20)
+places launch admission and roster-derived recovery in one internal workflow
+around the shared Host context. Both new launches and pending replays recheck
+exact live Lead authority after asynchronous preflight and before provisioning;
+an expired caller receives a stable business rejection. The workflow drains its
+launches and reconciliations before the shared storage handle closes, retaining
+the original pre-roster reservation for an identical later retry.

@@ -41,13 +41,19 @@ provided by the pinned Harness retain their `@deepseek-ai` names. Package and
 generated RPC identities move together; `digitalEmployees`, stable Loader row
 ids, and the `agent_team_ultra_v1` storage generation remain unchanged.
 
-The Host composes internal Profile lifecycle, Evaluation workflow, and Profile
-capability installation modules around one service context. That context owns
+The Host composes internal Profile lifecycle, Evaluation workflow, Profile
+capability installation, Launch/recovery, Run evidence/repair, and Studio
+projection modules around one service context. That context owns
 exact live Lead checks, public mutation admission, the serial write queue,
 runtime catalog, and storage lifetime. Generated Remote and headless methods
 delegate to the same business operations. A queued decision rechecks its caller
 before it starts, and runtime preflight rechecks authority after asynchronous
 work. Internal settlement remains able to flush after public admission closes.
+The Launch workflow owns idempotent admission and roster-derived recovery;
+the Run workflow owns bounded canonical folds and event-driven repair; the
+Studio projection owns the shared instance DTO builder and complete snapshot
+feed. The public service composes their startup, event subscriptions, and drain
+order without wrapping or replacing the authoritative Agent Teams service.
 
 ## Authority and state
 

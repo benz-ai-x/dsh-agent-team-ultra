@@ -34,3 +34,10 @@ stable native turn correlations, and the Lead-only Host evidence seam resolves
 the roster-owned native handle rather than trusting a caller-supplied one.
 Service disposal waits for admitted repair writes, while provider and Session
 lifecycles continue to own their canonical histories.
+
+The [vNext A02 implementation](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20)
+keeps canonical folds, approval correlation, and event-driven repair in one
+internal Run workflow. Studio projection builds the same detached Run rows for
+unary and complete replacement snapshots. Removing the derived index does not
+change the immutable Binding or canonical Session: a cold Host rebuilds the
+same Run identities, timestamps, routes, and reported usage from those owners.

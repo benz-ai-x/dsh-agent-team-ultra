@@ -9,9 +9,9 @@
 
 - 用户要求从 [#19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19) 开始逐项实现全部 open issue：新分支、TDD、创建 PR、提交 PR 后使用 code-review，最后通知用户人工审核。每项完成及遇到开发阻塞时使用飞书 CLI 通知用户；已有明确通知授权。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
-- 当前在 `fix/19-host-profile-evaluation`，起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`，开始开发前工作区干净。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)。实时提交及推送状态以 `git status`、`git log` 为准。
-- **#19 的实现与完整验证已完成，PR 创建及提交后的 code-review 尚未完成，不能报告 issue 已完成。** 当前容器 `gh auth status` 明确未登录；Git SSH 只读连接成功。已经通过飞书发送认证阻塞通知，用户也已获知需要在当前环境运行 `gh auth login`，无需发送凭据。
-- #20–#44 尚未实现。下一项 [#20](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20) 复用 #19 的 Host 上下文，拆分启动／恢复、Run 修复及 Snapshot 投影。后续按 issue 依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
+- #19 已提交并推送到 `fix/19-host-profile-evaluation`，提交 `3046af5`，起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`。当前在其上建立的 `fix/20-host-launch-recovery` 开发 #20。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交及推送状态以 `git status`、`git log` 为准。
+- **#19、#20 的实现与完整验证已完成；PR 创建及提交后的 code-review 均未完成，不能报告 issue 已完成。** 当前容器 `gh auth status` 明确未登录；Git SSH 已成功推送 #19，但具体的 `gh pr create` 命令因未认证而失败。已经通过飞书发送认证阻塞通知，用户也已获知需要在当前环境运行 `gh auth login`，无需发送凭据。
+- #21–#44 尚未实现。下一项 [#21](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/21) 统一 Harness 源码准备与来源解析；不得修改既有锁来掩盖环境问题。后续按 issue 依赖推进；阶段 C 的 Harness 集成、锁定和真实 native 验收不能由本次模拟 LLM 测试替代。
 
 ## #19 已实现内容
 
@@ -22,6 +22,15 @@
 - TDD 复现并修复：Host 替换使进程内 capability generation 从头计数，历史失效 Promotion Gate 因编号复用而重新变成 passed。新 catalog 在开放准入前推进到所有持久 Eval Run、Binding、Run Index generation 之后；历史结果和已有 Active Revision 保留，新 catalog 生命周期的后续激活需要新评测证明。
 - 更新了 [项目契约](docs/agent/PROJECT_CONTRACT.md)、[ADR 0003](docs/adr/0003-separate-profile-authoring-from-release.md) 和 [ADR 0011](docs/adr/0011-gate-promotion-with-exact-isolated-evaluations.md)，记录共享业务入口、权限检查时机及评测有效期规则。
 
+## #20 已实现内容
+
+- `launch-workflow.ts` 接管 Launch Intent、pending Binding、provisioning、固定路由、能力安装触发和权威 roster 派生恢复；`run-workflow.ts` 接管 canonical evidence、Run Index 修复和审批关联；`studio-projection.ts` 接管共用 Instance DTO、完整 Snapshot 与 stream feed。
+- 公开 Host 和生成 Remote 入口保持原样，主服务负责组合、订阅和清理顺序；新模块复用 #19 的 Host 上下文，不包装或替换 `agentTeams`，不引入新的持久化格式。
+- TDD 复现并修复新启动和 pending 重试在 Lead 退出后抛出非稳定 `TeamError` 的问题。启动工作流在异步预检、队列执行和预订落盘后重新校验 exact live authority。
+- 新增 [启动与恢复集成测试](packages/domain/tests/launch-workflow.integration.spec.ts) 共 7 个案例；与 #19 共享 [真实 Host 测试装配](packages/domain/tests/fixtures/host-workflow.ts)，仅 LLM 外部边界使用可控 adapter。
+- JSON／SQLite 整个 Host 重启测试先通过真实 Domain handle 删除派生 Run Index，再证明 canonical Session 能重建相同 Run 身份、时间、用量和路由。重试不唤醒已有冷成员；之后 Team 消息才恢复同一成员，并继续使用原 Revision 的能力和路由。
+- 取消测试区分 Ultra pending Binding 与 Team 已持久接受初始工作的边界；另在真实 pending 落盘事件触发 Fiber 卸载，验证 drain 后仍可重放同一意图。
+
 ## 验证证据与限制
 
 - 初始 `pnpm context:check:strict`：290 项检查通过、0 警告。
@@ -30,6 +39,7 @@
 - 新增 [Profile 工作流集成测试](packages/domain/tests/profile-workflow.integration.spec.ts) 的 7 个案例经真实生成 Remote、Host、Agent／Team 和 JSON／SQLite storage，覆盖 Revision 不可变、独立 CAS、显式激活、archive／restore／rollback、精确门禁与历史保留、权限失效及 Fiber 卸载时评测结算。
 - 这些测试仅在 LLM 外部边界使用可控 adapter，隔离 Worker 仍使用真实 Host 生命周期与工具／sandbox／approval 策略。未进行用户授权 native 登录后的真实产品会话验收；该要求仍属于后续 issue，尤其 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44)。
 - 关键 RED 日志位于 `/tmp/ultra-19-{red,queue-red,gate-red,eval-red,activation-red}.log`。`/tmp` 为本容器辅助证据，不是仓库中持久规范；复核以提交内容和可重跑测试为准。
+- #20 开始前 strict 再次通过 290 项、0 警告；新启动和 pending 重试 RED 分别保存在 `/tmp/ultra-20-launch-red.log`、`/tmp/ultra-20-replay-red.log`。改动后的完整 `pnpm verify` **通过 171 项测试（14 个文件）**、严格检查、Host／Client 构建、Typert 生成及 8 个归档安装／Web 启动／卸载，退出码 0。完整日志：`/tmp/ultra-20-final-verify.log`。
 
 ## 当前环境
 
@@ -42,10 +52,10 @@
 
 ## 下一步
 
-1. 核对最终文档链接与 `git diff --check`，提交并推送 #19 分支；准备可直接用于 `gh pr create --body-file` 的 PR 描述。
-2. `gh` 认证可用后创建 #19 PR，以固定 main 基线和提交后的 PR diff 执行 code-review。该技能要求分别检查 Standards 和 Spec，允许在执行评审时按技能要求委派两路；开发本身没有默认委派要求。
+1. #20 完整验证已通过，核对文档链接与 `git diff --check` 后提交并推送。PR 描述分别在 `/tmp/ultra-19-pr-body.md`、`/tmp/ultra-20-pr-body.md`；这些临时文件不代替 GitHub 上最终创建的 PR。
+2. `gh` 认证可用后先创建 #19 PR（base 为 `main`，固定基线 `c3c96c9`），再创建 #20 PR（base 为 `fix/19-host-profile-evaluation`，固定基线 `3046af5`）。逐个在 PR 提交后执行 code-review；该技能要求 Standards 和 Spec 两路评审，允许届时按技能要求委派，开发本身没有默认委派要求。
 3. 处理评审发现并补足相应验证，通知用户人工审核，同时通过飞书发送 issue 摘要和 PR 链接。不要自动合并，不要提前关闭父 Spec。
-4. 按 [#20](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20) 的职责边界和真实可观察行为继续 TDD；后续 #21–#44 保留各自依赖与阶段 C 集成分支要求。
+4. 按 [#21](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/21) 继续 TDD；后续 #22–#44 保留各自依赖与阶段 C 集成分支要求。
 
 ## 权威材料与技能
 
