@@ -1,49 +1,34 @@
-import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
-import Subprocess, { type SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
-import { TeammateLaunchRequestId } from '@deepseek-ai/dsh-experimental-agent-team'
 import { expect, it } from 'vitest'
-import { profile, workflow } from '../../domain/tests/fixtures/host-workflow.ts'
+import { profile } from '../../domain/tests/fixtures/host-workflow.ts'
 import type { DigitalEmployeeStudioView, SpawnDigitalEmployeeResult } from '../../domain/src/types.ts'
 import * as codex from '../lib/index.js'
-import { NativeProduct } from './fixtures/native-product.mjs'
-
-async function queryWorkflow(configure?: (native: NativeProduct) => void, backend: 'json' | 'sqlite' = 'json',
-  options: { root?: string; resumeLead?: boolean } = {}) {
-  const host = await workflow(backend, options)
-  const require = createRequire(import.meta.url)
-  const manifestPath = require.resolve('@openai/codex/package.json')
-  const native = new NativeProduct(join(host.root, 'native.json'), resolve(dirname(manifestPath), 'bin/codex.js'))
-  configure?.(native)
-  class NativeTransport extends Subprocess {
-    override resolveExecutable(): never { throw new Error('the adapter must not search PATH') }
-    override spawnTerminal(): never { throw new Error('the adapter must use the app-server transport') }
-    override spawn(spec: SubprocessSpawnSpec) { return native.open(spec) }
-  }
-  await host.ctx.plugin(NativeTransport)
-  const runtime = host.ctx.plugin(codex, { catalogOwnerService: 'digitalEmployees', cwd: host.root, sandbox: 'read-only' })
-  await runtime
-  if (options.resumeLead) {
-    const member = host.ctx.agentTeams.listMembers(host.lead.agent).find(value => value.name === 'codex-reviewer')!
-    const handle = member.externalRuntime!.nativeHandle!
-    await expect.poll(() => native.channels.has(handle)).toBe(true)
-    return { ...host, native, runtime, member, handle }
-  }
-  const launched = await host.ctx.agentTeams.spawnTeammate(host.lead.agent, {
-    name: 'codex-reviewer', description: 'Query the shared Team.', context: 'fresh',
-    prompt: [{ type: 'text', text: 'Read the shared task board.' }], signal: new AbortController().signal,
-    runtime: {
-      kind: 'external-agent', provider: 'codex', launchRequestId: TeammateLaunchRequestId('codex-query-boundary'),
-      profile: { persona: 'Be precise.', mission: 'Review source.', context: [], memory: [], toolPolicy: { mode: 'inherit', names: [] }, hooks: [] },
-      requirements: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'], runtimeCapabilities: ['sandbox'] },
-    },
-  })
-  return { ...host, native, runtime, member: launched.member, handle: launched.member.externalRuntime!.nativeHandle! }
-}
+import { queryWorkflow, operationResult } from './fixtures/member-workflow.ts'
 
 function errorResult(code: string, message: string) {
   return { success: false, contentItems: [{ type: 'inputText', text: JSON.stringify({ ok: false, error: { code, message } }) }] }
 }
+
+it('claims and completes a shared task through Codex dynamic tools with a bounded original receipt', async () => {
+  const { ctx, lead, native, runtime, handle } = await queryWorkflow()
+  const task = await ctx.agentTeams.createTask(lead.agent, { subject: 'Task bridge', description: '"'.repeat(16_384) })
+  const input = { taskId: task.id, expectedRevision: 1, action: 'claim' }
+  const correlation = { callId: 'task-claim' }
+  const claimed = await native.query(handle, 'team_task_update', input, correlation)
+  expect(claimed.success).toBe(true)
+  expect(JSON.parse(claimed.contentItems[0].text)).toEqual({ ok: true, operation: 'tasks.update', value: {
+    task: { id: task.id, revision: 2, status: 'in_progress', ownerName: 'codex-reviewer', ready: false },
+  } })
+  expect(Buffer.byteLength(JSON.stringify(claimed), 'utf8')).toBeLessThanOrEqual(65_536)
+  // Receipt values are JSON objects; their member order is not part of acceptance.
+  expect(operationResult(await native.query(handle, 'team_task_update', input, correlation))).toEqual(operationResult(claimed))
+  const completed = await native.query(handle, 'team_task_update', { taskId: task.id, expectedRevision: 2, action: 'complete' })
+  expect(completed.success).toBe(true)
+  expect(ctx.agentTeams.getTask(lead.agent, task.id)).toMatchObject({ revision: 3, status: 'completed', ownerName: 'codex-reviewer' })
+  expect(operationResult(await native.query(handle, 'team_task_update', input, correlation))).toEqual(operationResult(claimed))
+  expect(native.starts).toBe(1)
+  native.complete()
+  await runtime.dispose()
+})
 
 it('delivers the final Codex answer through the durable member mailbox', async () => {
   const { ctx, lead, native, runtime, handle, member } = await queryWorkflow()
@@ -285,7 +270,7 @@ it('persists a Codex member message before returning its original receipt on rep
     const operations = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
     expect(operations).toHaveLength(1)
     expect(operations[0]?.data).toEqual(expect.objectContaining({
-      version: 3,
+      version: 4, kind: 'message',
       message: expect.objectContaining({
         id: receipt.value.messageId, senderId: member.id, senderName: 'codex-reviewer', targetId: lead.agent.id,
         content: [{ type: 'text', text: input.text }],
@@ -315,7 +300,7 @@ it('answers a Codex dynamic tool call with the actual Team task board', async ()
     }] },
   }) }] })
   expect(native.data.threads[handle].dynamicTools.map((tool: { name: string }) => tool.name))
-    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send'])
+    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send', 'team_task_update', 'team_wait'])
   expect(JSON.stringify(response)).not.toContain('Private elsewhere')
   native.complete()
   await runtime.dispose()
@@ -431,7 +416,7 @@ it('revokes a disposed Lead and restores the same native member with a new live 
   expect(native.starts).toBe(1)
   expect(Object.keys(native.data.threads)).toEqual([handle])
   expect(native.data.threads[handle].dynamicTools.map((tool: { name: string }) => tool.name))
-    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send'])
+    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send', 'team_task_update', 'team_wait'])
   native.complete()
   await replacement.dispose()
   await resumed.dispose()

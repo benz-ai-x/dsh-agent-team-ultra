@@ -8,37 +8,55 @@
 ## 当前任务与完成边界
 
 - 当前持续目标固定为任务启动时未关闭的 **#27–#44，共 18 项**。按编号依次完成 TDD 开发、逐项验收、一个 PR、固定审查起点的 Standards／Spec 并行审查、所需检查与审批、合并 main、关闭 Issue，再进入下一项。当前用户已明确授权按已确认身份和收件人通过飞书 CLI 通知每项完成及阻塞；本条取代历史轮次的通知权限和提前关闭约定。
-- 当前主工作区分支为 `fix/27-codex-durable-team-messages`，从最新 main `6253119` 建立。既有 HANDOFF／TODO 改动已备份并保留；#27 尚无完成验收项。Harness 在独立 `/root/workspace/deepseek-harness-ultra-27`、分支 `fix/ultra-27-native-team-messages` 开发，起点 `fdfdbaeb0e`；本轮已提交并推送 `9649602da9` 到维护 fork 的 `ultra` 远端。当前 Ultra 来源链接和 lock 已切换到干净、已构建的 `deepseek-harness-ultra-27`，冻结安装和 554 项 strict 通过。
+- 当前主工作区分支为 `fix/28-codex-task-operations`，从最新 main `25684448723ffa83e6aeb5c37a42f65df1461682` 建立。#27 已完成、PR #53 已合并、Issue 已关闭且飞书完成通知成功。初始来源为 Harness #27；当前锁定 `/root/workspace/deepseek-harness-ultra-28`、`7119c51c8d09ac56370e884e492c66a102c779af`，源码干净并已构建。修复后完整 `pnpm verify` 通过 562 项 strict／0 警告、282 项测试／24 文件及八归档实际安装／任务／等待／冷恢复／Web／卸载。
 - 清单及原始正文／评论／验收快照在 `/tmp/ultra-goal-27plus-7tyh7_0l/manifest.json`。#39–#43 要求共用集成分支、最终门禁后合并，与本轮逐项合并 main 的顺序冲突；已经请求用户决策，相关操作保持待定，不影响先完成 #27–#38。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
-- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。当前 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
+- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。历史 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
 - **历史轮次按当时指示在开发和验证后关闭 #19–#26；本轮 #27 起须在 PR 验收、评审和合并后关闭。PR #45–#52 已按用户逐项授权合并；PR #48 的评审发现和额外模块类型漏检已修复，最终 Standards / Spec 均为 0 项未解决发现。PR #51 已完成 main 整合，修复缓存与 Team 历史审计两项 P2，通过完整验证和双轴复审后合并。** 用户已完成 `gh` 设备授权登录，本仓库权限为 `ADMIN`。此前的认证阻塞已经解决，不能继续将其列为未完成原因。
-- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。远端 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27–#44 尚未实现。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
+- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。该阶段 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27 已完成，#28 开发中，#29–#44 待处理。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
 - 本轮先按用户指示创建 #19 的 PR，再依照“继续”按顺序创建 #20–#25 的 PR、评审并关闭已完成 Issue。评审使用各自固定提交的独立工作区，未把 #26 WIP 混入 PR。#25 的补修在 `/tmp/ultra-25-audit-fix-vHVNjX` 完成，其锁定 Harness 与主工作区 #26 的来源分别验证。
 
 - **#19–#26 Acceptance criteria 已同步**：按用户要求，以 main `6253119`、PR #45–#52 的实际合并记录、逐项代码／测试断言和既有验证日志重新审计 39 项验收条件。已实际将 GitHub #19／#20／#21 各 4 项，#22／#23／#24 各 5 项，#25／#26 各 6 项全部勾选，并逐项回读确认；仅改变该小节的复选框，正文与 closed 状态保留。#25 的完成范围是只读审计和迁移设计，#26 为授权查询，阶段 C 迁移及 #44 真实认证 native 验收仍是后续任务。本轮 strict 554 项／0 警告通过，未重复运行既有通过的完整测试；逐项证据及更新前后快照在 `/tmp/ultra-19-26-acceptance-audit/audit.json`。
 
 - **再次回读核对 #19–#26（最新：2026-09-06 14:30，Asia/Shanghai）**：GitHub main 仍为 `6253119`，39 项验收文字与逐项审计一致且均已勾选；8 个对应合并提交都在当前 main 中。最终完整验证记录中的 112 个输入 SHA-256 与现有文件全部一致，锁定 Harness `fdfdbaeb0e` 工作区干净。本次重新运行 strict，554 项／0 警告通过；既有运行时验证仍适用，未重复运行完整测试，也无需重复写入 GitHub 正文。最新回读快照和证据映射保存在 `/tmp/ultra-19-26-latest-recheck.json`，严格检查日志为 `/tmp/ultra-19-26-latest-strict.log`；前次记录保留于 `/tmp/ultra-19-26-recheck-9heliuay/recheck.json`。
 
+## #27 完成与 #28 接续
+
+- **18:11 OOM 中断后的恢复核对**：内核于 2026-09-06 18:11:42 杀掉 `tsgolint`（PID 1048467，anon RSS 2917116 KiB），原 tmux 窗格 scope 同时以 `oom-kill` 结束，峰值 7.2 GiB；当前 tmux 于 18:12:56 新建。`/tmp` 为 tmpfs、占用约 6.5 GiB，其中 `/tmp/.pnpm-store` 约 4 GiB；`vm.swappiness=0`，事发时 4 GiB swap 全部空闲。当前 scope 为 `OOMPolicy=stop`／`KillMode=control-group`，与 OOM 导致整组终止、最后窗格消失后 tmux 退出的链路一致；没有重演主机 OOM，也没有更改系统配置或删除临时数据。已确认旧 lint／doc-sync 进程结束，全部 WIP 保留。恢复后 strict 554 项／0 警告通过，GitHub main 仍为 `2568444`、#27 closed／PR #53 merged；#28 open、无评论。
+- OOM 恢复后验证完成：最终全 lint、32／32 doc-sync（439.31 秒）、真实 Loader、TS SDK `agent-team-external` 回放通过。Python 单文件打包先触及独立 3 GiB scope 上限，随后单独使用 5 GiB scope 构建 251.8 MB 实际可执行文件，refresh／只读 replay 均通过。开发依赖已按 frozen lock 恢复。重型命令使用 `/root/workspace/.ultra-checks/tmp` 磁盘目录及独立 systemd scope；Go 限制 `GOMEMLIMIT=768MiB`／`GOMAXPROCS=2`，文档门禁串行。全仓 force 声明生成触及 Node 堆上限，改用 Session／Agent Team 两个实际 `tsc -p` 编译及独立 tsBuildInfo 后解决 freshness 失败；没有触摸时间戳或弱化检查。OOM 飞书通知成功，日志 `/tmp/ultra-28-oom-feishu.log`。
+- PR #53 于 2026-09-06 17:33:33（Asia/Shanghai）合并，main `2568444`，#27 随后关闭，6/6 验收均已勾选。最终 head `472145a`，固定基准 `6253119`，Standards／Spec 各 0 项未解决发现。GitHub 未配置必需 checks／审批／保护规则；使用 `--match-head-commit` 正常合并，没有绕过门禁。
+- 修复后完整 verify：554 strict、274 tests、八归档实际安装／消息／回执／JSON＋SQLite 冷恢复／Web／卸载全部通过（`/tmp/ultra-27-review-final-verify.log`）。Harness build、196 owning tests／业务源码 100% coverage、两 SDK 回放、32 doc-sync、全 lint 和正常 push hooks 通过。147 个最终输入摘要在 `/tmp/ultra-27-final-verified-inputs.json`；52 个本地文档链接与差异格式检查通过。
+- 飞书完成通知使用既有 bot／收件人成功（`/tmp/ultra-27-completed-feishu.log`），先前阻塞通知也成功；不记录收件人身份信息。
+- #28 正文和评论已完整读取（无评论），缓存 `/tmp/ultra-28-issue.json`。任务为共享成员任务读取／认领／更新／完成／等待；须复用 expectedRevision／DAG／墓碑／所有权，持久回执重放不增 Revision，wait 仅观察、不启动成员或创建文件锁，中断不释放所有权，现有 UI 展示结果。
+- #28 来源首版 `7efa653185a9986a46f52727f49a70d2c147a659` 已正常提交／推送，任务及回执格式为 payload 4／checkpoint 5，Session 0／Ultra v1 不变。Codex 集成发现注册名单仍缺任务／等待操作；将宿主及 Loader fixture 改为完整六项声明，观察 RED 后修复，提交／推送 `d02bfcdf13171e1167ece7b4ea29938900678de9`。补修后 222 owning tests／业务源码 100% coverage、Host build、真实 Loader、正常 staged lint／pre-push typecheck 通过。最终 doc digest `6daca9531f0e98ac6b09bfe768cd6db008f39381c93d692b116ac75af46c2d53`，扩展资格 `agent-team-ultra.phase-b.member-tasks.v1`。两个 SDK 的格式录制在首版通过，注册补修不改变格式；普通 inline-image SDK 快照的全局技能注入失败已在干净 #27 基线复现，未刷新无关快照。
+- Ultra 当前锁及补丁表已更新至 `d02bfcdf13`。首条真实 Codex 认领／完成／原回执重试已 GREEN；回执按 JSON 值比较，键顺序不作为接受语义。原 22 项 Codex 测试通过；共用真实 Host／外部 native fixture 已提取至 `packages/codex/tests/fixtures/member-workflow.ts`，原 21 项再次通过。新增 `member-tasks.integration.spec.ts` 的 5 个案例分别通过：DSH/Codex 同角色的所有权／CAS／DAG／墓碑／Lead-only 对照、依赖解除及重叠写入范围只作建议、wait 超时／中断保留所有权、JSON／SQLite 丢任务回执与两次冷重启保持原记录。测试期间只替换外部 native／LLM；执行策略仍由 fixture 断言 read-only／approval-never／network-disabled。
+- 现有 TeamAction UI 通过真实 Host 任务／视图展示 Pending → In progress／Codex owner → Completed。新增根 dev link 到锁定 UI 包，lockfile 仅增加该 link；JSON fixture 按需导入 SQLite。Vitest 为该 UI 场景单独配置 Host Node 导入，避免影响普通测试的错误类型身份；相关 92 项回归通过。
+- 最终完整验证 `/root/workspace/.ultra-checks/28-ultra-final-qualified-verify.log` 退出 0：562 strict／0 警告、281 测试／24 文件、八归档安装、任务读写／原回执／wait、JSON＋SQLite 冷恢复、真实 Web 启动、完整卸载。归档中旧任务仍保持原 Revision，新增任务使列表分页，断言已纳入真实游标。固定官方与 fork 的 11 组公共行为对照通过（`28-official-comparison.log`）。[逐项验收记录](docs/evidence/issue-28-acceptance.md) 已写入；Codex 历史归档升级通过。Claude 旧基线缺失 brand→Cordis 依赖，按原 frozen lock 恢复后来源仍干净；其升级安装触及独立 2 GiB scope 上限，20:11:59 内核记录为 MEMCG OOM，tmux 始终存活。旧基线依赖再次缺失后按原锁恢复并先通过原兼容性检查，单独以 4 GiB scope 直接执行同一升级脚本，最终通过（`28-claude-upgrade-direct.log`）；未改系统内存配置。#28 实现已提交／推送 `8711d28`，五项验收已逐项核验并勾选，Issue 保持 open。[PR #54](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/54) 已创建，正在以固定 main `25684448723ffa83e6aeb5c37a42f65df1461682` 开展并行 Standards／Spec 审查；通过后才能合并。
+
+- **PR #54 首评需修复**：候选 `1a32c83`、固定 main `2568444`；Standards 1 项 P3（共享诊断使用 DSH 专属 blocked_by／write_scopes），Spec 1 项 P2（第 64 次 task claim 提交后丢回执，同 call 重试在 grant 前被调用计数拒绝）。独立报告与真实 RED 位于 `/root/workspace/.ultra-checks/28-standards-review.md`、`28-spec-review.md`、`28-spec-rate-limit.log`。已撤回第 3 项验收勾选，其他 4 项保留；PR 不合并。飞书审查阻塞通知已发送。将沿既有公开 native transport／Host grant 边界做 TDD 修复，再复验最终候选及两轴。
+
+- **PR #54 补修后验证**：Codex 按每个 live turn 的不同可信 call 身份限制 64 个新调用；原身份重试交给 Host 恢复回执或拒绝输入冲突，不在 adapter 缓存业务结果。真实第 64 次 claim 丢回执 RED→GREEN，改输入仍冲突、新调用仍限流；原大小／下一轮预算测试通过。Harness 通用依赖列表／写入范围诊断分别在 DSH 与 native grant 完成 RED→GREEN，`7119c51c8d09ac56370e884e492c66a102c779af` 已正常提交／推送；224 owning tests／业务源码 100%、build、Loader、正常 hooks 通过。格式和 docsDigest 不变；先前两个 SDK 的格式回放、历史归档升级和官方对照证据不受这两项补修影响。
+- 修复后 prepare／frozen install 与完整 `pnpm verify` 退出 0（`28-review-final-verify.log`）：562 strict／0 警告，282 测试／24 文件，八归档任务／wait／receipt／JSON＋SQLite 冷恢复／Web／卸载。第 3 项验收可以恢复勾选；五项证据已更新。下一步提交此补修并请两个原审查 agent 对最终提交重新审查，尚未合并。
+
 ## #27 本轮进展（2026-09-06，Asia/Shanghai）
 
-- 冻结范围仍为 #27–#44，按编号逐个完成；main 基准 `62531191d909a890394d7e922259a8e63eb80f32`。PR #53 已创建但未合并，#27 保持 open，#28 尚未开始。完整 Issue 正文／评论缓存于 `/tmp/ultra-27plus-current-issues.json`，权威需求为 GitHub。
+- 冻结范围仍为 #27–#44，按编号逐个完成；main 基准 `62531191d909a890394d7e922259a8e63eb80f32`。PR #53 的首版阶段记录保留如下；当前已合并／关闭，最新状态见上。完整 Issue 正文／评论缓存于 `/tmp/ultra-27plus-current-issues.json`，权威需求为 GitHub。
 - Harness 原实现提交 `9649602da9` 使 native 消息／终止结算与回执在一个 required payload-3 事件中原子提交，Team checkpoint 4、Session 0、legacy payload 2；真实 flush 故障、冷重启、旧 grant 撤销、schema／projection 拒绝、Loader 和 authored recorded-session 均有验证。共享旧 checkout 未修改。
 - Ultra 实现 `team_message_send` 与 `turns.settle`：可信 turn／call 独立传入 grant；最终／失败／中断消息归属 native 成员，进入 Lead mailbox。大结果按完整 JSON 的 4096 UTF-8 字节限额明确截断，不复制 reasoning／commentary／完整 transcript。一次工作轮次只有一个 Run，按需详情证明完成和 7 Tokens；Codex↔DSH 往返保留 native thread。
 - [ADR 0018](docs/adr/0018-persist-native-team-message-receipts.md)、词汇、项目契约、补丁表和 Codex README 已更新；audit 输出脱敏 operation／settlement 关联。真实认证 native 验收仍归 #44，阶段 C 联合迁移仍归 #39–#43。
 - 首版完整 verify 曾通过 554 strict、273 项测试／22 文件、八归档安装／消息／回执／结果／JSON＋SQLite 冷恢复／Web／卸载，日志 `/tmp/ultra-27-final-verify.log`。首次 PR 审查发现的补修和新验证见下；旧日志不能替代修复后验证。
 - 本轮使用 tdd、dsh-plugin-dev、domain-modeling、writing-for-agents、code-review、lark-im／lark-shared；维护 Harness 遵循 dsh-pre-push-checks／dsh-ci-test-reliability。用户已授权按确认的 bot／收件人通知。
 
-## #27 PR #53 首次审查后的修复（进行中）
+## #27 PR #53 首次审查后的修复（已完成）
 
-- PR #53 已创建，固定审查基准 main `62531191d909a890394d7e922259a8e63eb80f32`、首版 head `1fbde8a097010d7c6776a05e0dda676865a1eaef`；尚未合并，#28 尚未开始。
+- PR #53 已创建，固定审查基准 main `62531191d909a890394d7e922259a8e63eb80f32`、首版 head `1fbde8a097010d7c6776a05e0dda676865a1eaef`；该首评已完成修复和复审，当前已合并。
 - Standards 首评：缺少 TS／Python SDK 的新事件回放证据（P2）；接口 JSDoc 仍称 read-only（P3）；工具 query 命名不准确（P3 判断项）。后二者已修正；SDK 夹具已补齐，TS 真实进程和 Python 实际单文件运行时的刷新／回放均通过，且断言原始回执和 messageId 关联。
 - Spec 首评确认崩溃后追加工作未重新绑定 grant（P1）。新 Host 测试已 RED→GREEN：inactive 成员的 mailbox 投递先走现有 roster 恢复和重新授权。修复已提交 Harness `d5eca257c2a0a21392ae8af0ee050f28358362f6`，Ultra lock／prepare 已更新；完整 verify 已通过端到端恢复及归档测试。
 - Spec 随后撤回要求历史 turn 重放的 P1 判断：锁定 Codex 的原 RPC callback 仅保存在进程内，冷启动会将孤立 turn 标为 interrupted。保留 active-turn 校验；修正替身与证据，分别验证存活 turn 重试、Host 持久回执恢复和 Codex 冷启动中断结算。完成通知丢失的测试改为原生已落盘、传输未通知后重启。
 - GitHub 撤回受影响的第 3／4／6 项验收勾选；首次验证不能作为修复后证明。使用已确认 bot／收件人发送首次审查阻塞通知成功，日志 `/tmp/ultra-27-review-blocker-feishu.log`，不需要用户操作。
-- 验证：Harness 196 项测试通过；业务源码 100% coverage（未改动的公开 testkit 不属于此次覆盖选择）。完整 build、32 项 doc-sync、全 lint 通过；正常 push hook 正在收尾。TS SDK 日志 `/tmp/ultra-27-ts-sdk-replay.log`，Python 实际产物回放 `/tmp/ultra-27-python-sdk-replay.log`。打包后按锁恢复 workspace 开发依赖，未更改锁定版本。
+- 验证：Harness 196 项测试通过；业务源码 100% coverage（未改动的公开 testkit 不属于此次覆盖选择）。完整 build、32 项 doc-sync、全 lint 通过；正常 push hook 通过。TS SDK 日志 `/tmp/ultra-27-ts-sdk-replay.log`，Python 实际产物回放 `/tmp/ultra-27-python-sdk-replay.log`。打包后按锁恢复 workspace 开发依赖，未更改锁定版本。
 - 最终完整 `pnpm verify` 退出 0（`/tmp/ultra-27-review-final-verify.log`）：554 strict、274 项测试、八归档安装／消息／回执／终态／JSON＋SQLite 冷恢复／Web／卸载全部通过。此前补修中仅错误文案断言与嵌套 matcher lint 失败，均已修正。
-- 下一步：最终 head 双轴重审，通过全部门禁后恢复六项验收勾选、合并／关闭／通知。
+- 收尾结果：最终 head 双轴通过，六项验收已勾选，合并／关闭／通知全部完成。
 
 ## PR 与提交后评审
 

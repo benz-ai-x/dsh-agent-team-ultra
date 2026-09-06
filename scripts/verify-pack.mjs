@@ -266,11 +266,11 @@ try {
       const result = checkedRun(process.execPath, [
         join(root, 'scripts', 'probe-codex-continuity.mjs'), join(profileHome, 'profiles', 'web'), phase,
         join(temporaryRoot, `codex-queries-${backend}`), backend,
-      ], root, `installed Codex member queries (${backend}, ${phase})`, { DSH_HOME: profileHome })
+      ], root, `installed Codex member operations (${backend}, ${phase})`, { DSH_HOME: profileHome })
       process.stdout.write(result.stdout)
     }
   }
-  console.log('PASS installed Codex queries and exact member recovery with JSON and SQLite')
+  console.log('PASS installed Codex queries, task receipts, wait and exact member recovery with JSON and SQLite')
   checkedRun(
     process.execPath,
     [

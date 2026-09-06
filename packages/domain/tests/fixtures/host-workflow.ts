@@ -15,7 +15,6 @@ import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import * as JsonStorage from '@deepseek-ai/dsh-storage-json'
-import * as SqliteStorage from '@deepseek-ai/dsh-storage-sqlite'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
@@ -103,7 +102,7 @@ export async function workflow(
   await ctx.plugin(TeamService)
   await ctx.plugin(Storage)
   if (backend === 'json') await ctx.plugin(JsonStorage, { root: join(root, 'storage') })
-  else await ctx.plugin(SqliteStorage, { path: join(root, 'storage.sqlite'), journalMode: 'delete' })
+  else await ctx.plugin(await import('@deepseek-ai/dsh-storage-sqlite'), { path: join(root, 'storage.sqlite'), journalMode: 'delete' })
   await ctx.plugin(StorageDomain, { backend })
   ctx.tools.register(defineContentToolFixture({
     name: 'read', description: 'Read immutable evidence', parameters: {},
