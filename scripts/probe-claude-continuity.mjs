@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import yaml from 'js-yaml'
 import { requirePreparedHarness } from './harness-source.mjs'
+import { PROFILE_TOOL_NAMES, runPackedProfileConversation } from './probe-conversation-profile.mjs'
 import { NativeProduct } from '../packages/claude-code/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -60,7 +61,7 @@ const [
   { SessionId }, { default: Persistence }, { default: Projections }, { default: Query },
   { default: Teams }, { default: Subagents }, { default: Storage }, StorageDomain,
   JsonStorage, SqliteStorage, { default: Subprocess }, { default: TypertRegistry },
-  { default: Gateway }, { TYPERT },
+  { default: Gateway }, { TYPERT }, { LlmAdapter, createUserMessage },
 ] = await Promise.all([
   imported('@deepseek-ai/cordis'), imported('@deepseek-ai/cordis-plugin-loader'),
   harness('packages/core/agent-loop'), harness('packages/test-support/agent-loop-testkit'),
@@ -71,6 +72,7 @@ const [
   harness('packages/storage/storage-json'), harness('packages/storage/storage-sqlite'),
   imported('@deepseek-ai/dsh-subprocess'), harness('packages/typert/registry'),
   imported('@deepseek-ai/dsh-api-gateway'), imported('@benz-ai-x/dsh-agent-team-ultra/typert'),
+  harness('packages/llm/llm'),
 ])
 class UnusedSearch extends Query {
   searchSessions() { throw new Error('unused search') }
@@ -148,21 +150,48 @@ try {
     const activated = await invoke('activate', { profileId: request.profileId, revision: 1, expectedHeadRevision: 1 })
     assert.equal(activated.ok, true, JSON.stringify(activated))
   }
+  const conversationCallPrefix = teamTools ? (phase.startsWith('query-')
+    ? 'installed-profile-conversation' : 'upgraded-profile-conversation') : undefined
+  let modelLaunch
   if (phase !== 'before') {
     const profileToolNames = ctx.tools.schemas(lead.agent).map(tool => tool.name)
       .filter(name => name.startsWith('ultra_profile_')).sort()
-    assert.deepEqual(profileToolNames, ['ultra_profile_detail', 'ultra_profile_launch', 'ultra_profile_list'])
-    const listed = await ctx.tools.execute({
-      agent: lead.agent, callId: `installed-profile-list-${phase}`, name: 'ultra_profile_list', arguments: {},
-      signal: new AbortController().signal,
+    assert.deepEqual(profileToolNames, PROFILE_TOOL_NAMES)
+    if (phase === 'query-new' || phase === 'after') modelLaunch = await runPackedProfileConversation({
+      ctx, lead, LlmAdapter, createUserMessage, profileId: request.profileId,
+      assignment: request.assignment, callPrefix: conversationCallPrefix,
     })
-    assert.equal(listed.isError, false, JSON.stringify(listed))
-    assert.deepEqual(listed.value.profiles.map(profile => profile.profileId), [request.profileId])
   }
-  const launched = await invoke('spawn', request)
+  let launched
+  if (phase !== 'before') {
+    const toolResult = await ctx.tools.execute({
+      agent: lead.agent, callId: `${conversationCallPrefix}-launch`, name: 'ultra_profile_launch',
+      arguments: { profile_id: request.profileId, assignment: request.assignment }, signal: new AbortController().signal,
+    })
+    assert.equal(toolResult.isError, false, JSON.stringify(toolResult))
+    if (modelLaunch !== undefined) assert.deepEqual(toolResult.value, modelLaunch)
+    if (phase.startsWith('query-')) {
+      assert.equal(toolResult.value.ok, true, JSON.stringify(toolResult.value))
+      launched = toolResult.value
+      assert.deepEqual(await invoke('spawn', { ...request, launchRequestId: launched.value.launchRequestId }), launched)
+    } else {
+      assert.deepEqual(toolResult.value, { ok: false, error: {
+        code: 'profile-in-use', message: 'Team member name "claude-code-reviewer" is already reserved',
+      } })
+      launched = await invoke('spawn', request)
+    }
+  } else {
+    launched = await invoke('spawn', request)
+  }
   assert.equal(launched.ok, true, JSON.stringify(launched))
   assert.equal(launched.value.profileRevision, 1)
   assert.ok(launched.value.nativeRuntimeHandle)
+  if (phase !== 'before') {
+    const conversationalCalls = lead.agent.session.snapshotEvents()
+      .filter(event => event.type === 'tool/call' && event.data.callId.startsWith(conversationCallPrefix))
+      .map(event => event.data.name)
+    assert.deepEqual(conversationalCalls, ['ultra_profile_list', 'ultra_profile_detail', 'ultra_profile_launch'])
+  }
   native.complete()
   const live = await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   if (checkpoint) assert.deepEqual(identity(live.instances[0]), checkpoint.identity)
