@@ -238,10 +238,20 @@ an actual integration commit based on the fixed official comparison.
   and delivery; queued is acceptance, not work completion. Codex installs
   `team_message_send` for new threads and recovers terminal settlements from
   native history without copying commentary or full transcripts into Team or
-  Run evidence. The required native-operation event is payload 3 and the Team
-  checkpoint is version 4; explicit legacy payload-2 readers retain old logs.
-  Session 0 and Ultra v1 remain. See
+  Run evidence. The required native-operation event is payload 4 and the Team
+  checkpoint is version 5; explicit payload-3 message and legacy payload-2
+  readers retain old logs. Session 0 and Ultra v1 remain. See
   [ADR 0018](../adr/0018-persist-native-team-message-receipts.md).
+- Codex installs `team_task_update` and `team_wait` for new threads. Task writes
+  reuse shared expectedRevision, ownership, DAG, tombstone and Lead-only rules;
+  stale writes return the current revision. The task and its original compact
+  receipt commit and flush together. Identical normalized retries recover the
+  original result before CAS; changed input conflicts. Wait observes later Team
+  activity for 10 seconds to 1 hour, ends on cancellation or grant revocation,
+  and stores no receipt. Wait, claim and dependency readiness never start members
+  or acquire file locks; interruption preserves task ownership. The current
+  task UI reads authoritative Team state, and native execution permissions stay
+  fixed. See [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md).
 - The Claude Code provider qualifies only the pinned package-local Claude
   Agent SDK `0.3.241` and Claude Code `2.1.241` native payload. It never
   searches `PATH`; a missing, mismatched, or unqualified payload leaves the

@@ -27,6 +27,7 @@
     "migration:audit": "node scripts/audit-migration.mjs"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "link:./.dsh/harness/packages/experimental/client-ui-agent-team",
     "@deepseek-ai/dsh-typert-generator": "link:./.dsh/harness/packages/typert/generator",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^24.0.0",

@@ -17,6 +17,7 @@ import {
   TeammateRuntimeToolCallId,
   type NativeMemberGrant,
   type NativeMemberOperationResult,
+  type NativeMemberOperationName,
   type TeammateRuntimeMemberOperationsRequest,
   type TeammateRuntimeCreateRequest,
   type TeammateRuntimeCreateResult,
@@ -68,11 +69,24 @@ const TEAM_MEMBER_TOOLS = [
     inputSchema: { type: 'object', properties: {
       target: { type: 'string', minLength: 1 }, text: { type: 'string', minLength: 1 },
     }, required: ['target', 'text'], additionalProperties: false } },
+  { type: 'function', name: 'team_task_update', description: 'Claim a ready Team task, or update, complete, release, reopen or delete your own task. Supply its current expectedRevision; a stale write returns currentRevision. Task changes do not start work or acquire file locks. Read task details with team_tasks_get.',
+    inputSchema: { type: 'object', properties: {
+      taskId: { type: 'string', minLength: 1, maxLength: 128 },
+      expectedRevision: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+      action: { type: 'string', enum: ['claim', 'release', 'edit', 'set_dependencies', 'complete', 'reopen', 'delete'] },
+      subject: { type: 'string' }, description: { type: 'string' },
+      blockedBy: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 128 } },
+      writeScopes: { type: 'array', items: { type: 'string' } },
+    }, required: ['taskId', 'expectedRevision', 'action'], additionalProperties: false } },
+  { type: 'function', name: 'team_wait', description: 'Wait for a later Team change. Waiting only observes activity and starts no work. The result reports timedOut; interruption keeps task ownership.',
+    inputSchema: { type: 'object', properties: {
+      timeoutMs: { type: 'integer', minimum: 10_000, maximum: 3_600_000 },
+    }, required: ['timeoutMs'], additionalProperties: false } },
 ] as const
 
-const TEAM_MEMBER_OPERATIONS: Readonly<Record<string, 'members.list' | 'tasks.list' | 'tasks.get' | 'messages.send'>> = {
+const TEAM_MEMBER_OPERATIONS: Readonly<Record<string, NativeMemberOperationName>> = {
   team_members_list: 'members.list', team_tasks_list: 'tasks.list', team_tasks_get: 'tasks.get',
-  team_message_send: 'messages.send',
+  team_message_send: 'messages.send', team_task_update: 'tasks.update', team_wait: 'wait',
 }
 
 function teamOperationResponse(result: NativeMemberOperationResult) {
@@ -736,7 +750,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
   readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
-  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send'] as const
+  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly correlations = new Map<string, string>()
   private readonly creations = new Map<string, Promise<TeammateRuntimeCreateResult>>()

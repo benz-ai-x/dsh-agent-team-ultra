@@ -97,7 +97,7 @@ The nonserializable authority object issued by the Team owner after accepting or
 _Avoid_: Lead impersonation, serialized credential, model-selected Agent
 
 **Native Member Operation**:
-A bounded operation on canonical Team state under a Native Member Grant. Reads observe current state; accepted messages retain a durable receipt. The Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
+A bounded operation on canonical Team state under a Native Member Grant: reads and waits observe state, while accepted messages and task changes retain a durable receipt. The Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
 _Avoid_: Arbitrary Host RPC, native shell tool, complete collaboration capability
 
 **Native Operation Receipt**:

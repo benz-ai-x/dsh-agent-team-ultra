@@ -107,7 +107,7 @@ try {
   const view = await current()
   assert.equal(view.runtimeCatalog.backends.filter(row => row.provider === 'codex' && row.availability === 'available').length, 1)
   if (queries) assert.deepEqual(view.runtimeCatalog.backends.find(row => row.provider === 'codex').memberOperations,
-    ['members.list', 'tasks.list', 'tasks.get', 'messages.send'])
+    ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'])
   if (creating) {
     const saved = await invoke('save', { expectedHeadRevision: null, runtimeTarget: { kind: 'external-agent', provider: 'codex' }, profile: {
       id: 'codex-reviewer', employeeName: 'codex-reviewer', displayName: 'Codex reviewer', description: 'Retain the original employee.',
@@ -135,15 +135,23 @@ try {
   })
   assert.equal(sent.status, 'accepted', JSON.stringify(sent))
   let nativeToolResult
+  let taskCheckpoint
   if (queries) {
     const handle = member.externalRuntime.nativeHandle
+    const decoded = response => {
+      assert.equal(response.contentItems.length, 1)
+      assert.equal(response.contentItems[0].type, 'inputText')
+      return { success: response.success, result: JSON.parse(response.contentItems[0].text) }
+    }
     const task = {
       id: 'task-1', revision: 1, subject: 'Read installed Team', description: 'Keep the canonical task across cold recovery.',
       status: 'pending', blockedBy: [], writeScopes: [], ready: true, writeScopeWarnings: [],
     }
     nativeToolResult = await native.query(handle, 'team_tasks_list', { limit: 1 })
     assert.deepEqual(nativeToolResult, { success: true, contentItems: [{ type: 'inputText',
-      text: JSON.stringify({ ok: true, operation: 'tasks.list', value: { tasks: [task] } }) }] })
+      text: JSON.stringify({ ok: true, operation: 'tasks.list', value: {
+        tasks: [task], ...(checkpoint ? { nextCursor: task.id } : {}),
+      } }) }] })
     assert.deepEqual(await native.query(handle, 'team_tasks_get', { taskId: 'task-1' }), { success: true, contentItems: [{ type: 'inputText',
       text: JSON.stringify({ ok: true, operation: 'tasks.get', value: { task } }) }] })
     const memberResult = await native.query(handle, 'team_members_list', {})
@@ -170,6 +178,50 @@ try {
       assert.equal(matches[0].data.message.senderId, member.id)
       assert.deepEqual(matches[0].data.receipt.result, JSON.parse(sent.contentItems[0].text))
     } finally { await stored.close() }
+    if (checkpoint) {
+      assert.deepEqual(ctx.agentTeams.getTask(lead.agent, checkpoint.task.task.id), checkpoint.task.task)
+      const recovered = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+      try {
+        const facts = (await recovered.read(0)).filter(event => event.type === 'team/native-operation/committed'
+          && event.data.kind === 'task' && event.data.task.id === checkpoint.task.task.id)
+        assert.equal(facts.length, 2)
+        assert.deepEqual(facts[0].data.receipt.result, checkpoint.task.claimResult)
+      } finally { await recovered.close() }
+    }
+    const work = await ctx.agentTeams.createTask(lead.agent, {
+      subject: `Installed Codex task ${phase}`, description: 'Claim once, observe progress, then complete.',
+    })
+    const claimInput = { taskId: work.id, expectedRevision: 1, action: 'claim' }
+    const claimCorrelation = { callId: `installed-task-claim-${phase}` }
+    native.dropNextToolReply = true
+    await assert.rejects(native.query(handle, 'team_task_update', claimInput, claimCorrelation), /reply lost/)
+    const claimed = decoded(await native.query(handle, 'team_task_update', claimInput, claimCorrelation))
+    assert.deepEqual(claimed, { success: true, result: { ok: true, operation: 'tasks.update', value: {
+      task: { id: work.id, revision: 2, status: 'in_progress', ownerName: member.name, ready: false },
+    } } })
+    const changed = decoded(await native.query(handle, 'team_task_update', { ...claimInput, action: 'complete' }, claimCorrelation))
+    assert.equal(changed.result.error.code, 'TEAM_NATIVE_OPERATION_CONFLICT')
+    const stale = decoded(await native.query(handle, 'team_task_update', { ...claimInput, action: 'complete' }))
+    assert.equal(stale.result.error.code, 'TEAM_TASK_STALE_REVISION')
+    assert.equal(stale.result.error.currentRevision, 2)
+    const waiting = native.query(handle, 'team_wait', { timeoutMs: 10_000 })
+    // A subsequent tool reply on this transport is the readiness barrier for wait.
+    assert.equal((await native.query(handle, 'team_tasks_get', { taskId: work.id })).success, true)
+    assert.equal((await native.query(handle, 'team_task_update', { taskId: work.id, expectedRevision: 2, action: 'complete' })).success, true)
+    assert.deepEqual(decoded(await waiting), { success: true, result: { ok: true, operation: 'wait', value: { timedOut: false } } })
+    assert.deepEqual(decoded(await native.query(handle, 'team_task_update', claimInput, claimCorrelation)), claimed)
+    const completed = ctx.agentTeams.getTask(lead.agent, work.id)
+    assert.equal(completed.revision, 3)
+    assert.equal(completed.status, 'completed')
+    assert.equal(completed.ownerName, member.name)
+    const committed = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      const facts = (await committed.read(0)).filter(event => event.type === 'team/native-operation/committed'
+        && event.data.kind === 'task' && event.data.task.id === work.id)
+      assert.equal(facts.length, 2)
+      assert.deepEqual(facts[0].data.receipt.result, claimed.result)
+    } finally { await committed.close() }
+    taskCheckpoint = { task: completed, claimResult: claimed.result }
   }
   native.complete()
   await until(current, value => value.instances[0]?.runtimePresence === 'idle')
@@ -189,7 +241,9 @@ try {
   const thread = native.data.threads[live.instances[0].nativeRuntimeHandle]
   assert.equal(thread.turns.length, creating ? 2 : 3)
   assert.equal(native.starts, creating ? 1 : 0)
-  if (creating) writeFileSync(checkpointPath, `${JSON.stringify({ identity: identity(live.instances[0]) }, null, 2)}\n`)
+  if (creating) writeFileSync(checkpointPath, `${JSON.stringify({
+    identity: identity(live.instances[0]), ...(queries ? { task: taskCheckpoint } : {}),
+  }, null, 2)}\n`)
   await ctx.loader.remove('agent-team-codex')
   assert.equal(native.live.size, 0)
   const removed = await current()
@@ -207,7 +261,7 @@ try {
   assert.equal(native.live.size, 0)
   console.log(JSON.stringify({ phase, backend, package: runtimeEntry.name, profileRevision: 1,
     memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: thread.turns.length,
-    ...(queries ? { memberQueries: 4, nativeToolResult } : {}),
+    ...(queries ? { memberOperations: 6, taskRevision: taskCheckpoint.task.revision, nativeToolResult } : {}),
     preserved: true, registrationsReleased: true, nativeBoundary: 'controlled-app-server' }))
 } finally {
   await ctx.fiber.dispose()
