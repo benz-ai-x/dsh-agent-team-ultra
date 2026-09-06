@@ -27,10 +27,17 @@
       "types": "./lib/typert.remote-client.d.ts",
       "default": "./lib/typert.remote-client.js"
     },
+    "./compatibility": {
+      "types": "./lib/types/compatibility.d.ts",
+      "default": "./lib/compatibility.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
+    "lib/host.js",
+    "lib/compatibility.js",
+    "lib/compatibility.json",
     "lib/client.js",
     "lib/types/**/*.d.ts",
     "lib/typert.host.js",

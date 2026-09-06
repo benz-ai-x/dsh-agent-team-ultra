@@ -10,6 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const { lock, harnessRoot: harness } = requirePreparedHarness(root)
 const output = resolve(root, process.argv[2] ?? 'artifacts/agent-team-ultra')
 const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
+const checkedCli = join(root, 'scripts/compatible-dsh.mjs')
 
 if (!existsSync(join(harness, 'package.json'))) {
   throw new Error(`pack-local-overlay: pinned Harness source not found at ${harness}`)
@@ -33,6 +34,7 @@ const packageRoots = [
 ]
 const pinnedPeerRoots = [
   join(harness, 'vendor', 'cordis'),
+  join(harness, 'vendor', 'loader'),
   join(harness, 'packages', 'core', 'agent'),
   join(harness, 'packages', 'util', 'brand'),
   join(harness, 'packages', 'runtime-diagnostics', 'invariants'),
@@ -89,7 +91,7 @@ console.log(`Packed ${archives.length} local-only archives against Harness ${loc
 console.log(`Archives are available in ${output}; exact unpublished peers resolve from the pinned Harness checkout.`)
 console.log(`Install the ${archives.length} archives into a DSH Web profile with:`)
 console.log([
-  `${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web add`,
+  `${shellWord(process.execPath)} ${shellWord(checkedCli)} plugin --profile web add`,
   ...archives.map(archive => `  ${shellWord(`file:${archive}`)}`),
   ...pinnedPeerRoots.map(packageRoot => `  ${shellWord(`link:${packageRoot}`)}`),
 ].join(' \\\n'))

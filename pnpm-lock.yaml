@@ -156,6 +156,9 @@ importers:
       '@deepseek-ai/cordis-plugin-include':
         specifier: link:../../.dsh/harness/vendor/include
         version: link:../../.dsh/harness/vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: link:../../.dsh/harness/vendor/loader
+        version: link:../../.dsh/harness/vendor/loader
       '@deepseek-ai/dsh-experimental-agent-team':
         specifier: link:../../.dsh/harness/packages/experimental/agent-team
         version: link:../../.dsh/harness/packages/experimental/agent-team

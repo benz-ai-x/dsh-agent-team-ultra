@@ -20,52 +20,56 @@
     backgroundMode: one-shot
 
 - insert:
-    - id: agent-team
-      name: '@deepseek-ai/dsh-experimental-agent-team'
+    - id: agent-team-ultra-compatibility
+      name: '@benz-ai-x/dsh-agent-team-ultra-profile'
+      group: true
       config:
-        maxMembers: 8
-        maxTasks: 256
-        maxPendingMessagesPerMember: 64
-        maxMessageBytes: 65536
-        disposalTimeoutMs: 5000
+        - id: agent-team
+          name: '@deepseek-ai/dsh-experimental-agent-team'
+          config:
+            maxMembers: 8
+            maxTasks: 256
+            maxPendingMessagesPerMember: 64
+            maxMessageBytes: 65536
+            disposalTimeoutMs: 5000
 
-    - id: agent-team-codex
-      name: '@deepseek-ai/dsh-experimental-agent-team-codex'
-      config:
-        catalogOwnerService: digitalEmployees
-        sandbox: read-only
+        - id: agent-team-codex
+          name: '@deepseek-ai/dsh-experimental-agent-team-codex'
+          config:
+            catalogOwnerService: digitalEmployees
+            sandbox: read-only
 
-    - id: agent-team-claude-code
-      name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'
-      config:
-        catalogOwnerService: digitalEmployees
-        sandbox: read-only
+        - id: agent-team-claude-code
+          name: '@deepseek-ai/dsh-experimental-agent-team-claude-code'
+          config:
+            catalogOwnerService: digitalEmployees
+            sandbox: read-only
 
-    - id: tool-agent-team
-      name: '@deepseek-ai/dsh-experimental-tool-agent-team'
-      config:
-        freshProvider: spawn
-        forkProvider: fork
+        - id: tool-agent-team
+          name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+          config:
+            freshProvider: spawn
+            forkProvider: fork
 
-    - id: agent-team-ultra
-      name: '@benz-ai-x/dsh-agent-team-ultra'
-      config:
-        defaultContinuationProvider: spawn
-        maxProfiles: 64
-        maxProfileBytes: 131072
-        maxHooks: 32
-        maxAssignmentBytes: 32768
-        maxRevisionHistory: 32
-        maxDiffEntries: 512
-        maxRuns: 512
-        maxRunEvidenceItems: 512
-        maxEvalSets: 64
-        maxEvalSetBytes: 262144
-        maxEvalCases: 64
-        maxEvalRuns: 256
+        - id: agent-team-ultra
+          name: '@benz-ai-x/dsh-agent-team-ultra'
+          config:
+            defaultContinuationProvider: spawn
+            maxProfiles: 64
+            maxProfileBytes: 131072
+            maxHooks: 32
+            maxAssignmentBytes: 32768
+            maxRevisionHistory: 32
+            maxDiffEntries: 512
+            maxRuns: 512
+            maxRunEvidenceItems: 512
+            maxEvalSets: 64
+            maxEvalSetBytes: 262144
+            maxEvalCases: 64
+            maxEvalRuns: 256
 
-    - id: ui-agent-team
-      name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'
+        - id: ui-agent-team
+          name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'
 
-    - id: ui-agent-team-ultra
-      name: '@benz-ai-x/dsh-client-ui-agent-team-ultra'
+        - id: ui-agent-team-ultra
+          name: '@benz-ai-x/dsh-client-ui-agent-team-ultra'
