@@ -3,6 +3,36 @@ import type { UpdateTeamTaskRequest } from '@deepseek-ai/dsh-experimental-agent-
 import { expect, it, vi } from 'vitest'
 import { operationResult, queryWorkflow } from './fixtures/member-workflow.ts'
 
+it('recovers a committed task receipt at the turn limit while refusing new calls and conflicting retries', async () => {
+  const { ctx, lead, native, runtime, handle } = await queryWorkflow()
+  try {
+    const task = await ctx.agentTeams.createTask(lead.agent, { subject: 'Retry at budget', description: 'Commit before losing the native receipt.' })
+    for (let index = 0; index < 63; index += 1) {
+      expect(operationResult(await native.query(handle, 'team_members_list', {})).success).toBe(true)
+    }
+    const request = { taskId: task.id, expectedRevision: 1, action: 'claim' }
+    const correlation = { callId: 'last-admitted-task-call' }
+    native.dropNextToolReply = true
+    await expect(native.query(handle, 'team_task_update', request, correlation)).rejects.toThrow('reply lost')
+    const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      const facts = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed' && event.data.kind === 'task')
+      expect(facts).toHaveLength(1)
+      expect(operationResult(await native.query(handle, 'team_task_update', request, correlation)))
+        .toEqual({ success: true, result: facts[0].data.receipt.result })
+      expect(operationResult(await native.query(handle, 'team_task_update', { ...request, action: 'complete' }, correlation)))
+        .toMatchObject({ success: false, result: { error: { code: 'TEAM_NATIVE_OPERATION_CONFLICT' } } })
+      expect(operationResult(await native.query(handle, 'team_task_update', { ...request, expectedRevision: 2, action: 'complete' })))
+        .toMatchObject({ success: false, result: { error: { code: 'CODEX_TEAM_RATE_LIMIT' } } })
+      expect((await stored.read(0)).filter(event => event.type === 'team/native-operation/committed' && event.data.kind === 'task')).toHaveLength(1)
+    } finally { await stored.close() }
+    expect(ctx.agentTeams.getTask(lead.agent, task.id)).toMatchObject({ revision: 2, status: 'in_progress', ownerName: 'codex-reviewer' })
+  } finally {
+    native.complete()
+    await runtime.dispose()
+  }
+})
+
 it('applies identical task ownership, CAS, DAG and tombstone rules to DSH and Codex teammates', async () => {
   const { ctx, lead, native, runtime, handle } = await queryWorkflow()
   const peer = await ctx.agentTeams.spawnTeammate(lead.agent, {

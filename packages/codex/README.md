@@ -22,7 +22,10 @@ Operations use the Team owner's revocable member grant and canonical roster, tas
 board and mailbox. They cannot select a Team, member, role, handle, Host method or MCP server.
 The native envelope is limited to 16384 UTF-8 bytes, Host arguments to 4096,
 and the complete escaped tool result to 65536. Each native turn admits at most
-64 Team calls; a call arriving before durable acceptance waits at most five seconds.
+64 distinct Team call identities. Retries of an admitted identity still reach the
+Host for original-receipt recovery or input-conflict rejection after that limit;
+the adapter does not cache authoritative results. A call arriving before durable
+acceptance waits at most five seconds.
 Interrupt and turn completion cancel current queries; owner disposal and
 registration removal revoke the grant. Approval and sandbox restrictions remain in force.
 

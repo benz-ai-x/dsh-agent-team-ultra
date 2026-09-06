@@ -347,7 +347,7 @@ class CodexConnection {
     id?: string
     readonly completion: PromiseWithResolvers<TurnTerminal>
     readonly queries: AbortController
-    queryCount: number
+    readonly callIds: Set<ReturnType<typeof TeammateRuntimeToolCallId>>
     terminal?: TurnTerminal
   } | undefined
   private threadId: string | undefined
@@ -506,7 +506,7 @@ class CodexConnection {
       throw new Error('agent-team-codex: native thread is not ready for a new turn')
     }
     const completion = Promise.withResolvers<TurnTerminal>()
-    this.active = { completion, queries: new AbortController(), queryCount: 0 }
+    this.active = { completion, queries: new AbortController(), callIds: new Set() }
     let id: string
     try {
       const response = object(await this.guarded(this.transport.request('turn/start', {
@@ -535,7 +535,7 @@ class CodexConnection {
   resumeActiveTurn(id: string): AcceptedTurn {
     if (this.active !== undefined) throw new Error('agent-team-codex: native turn is already attached')
     const completion = Promise.withResolvers<TurnTerminal>()
-    this.active = { id, completion, queries: new AbortController(), queryCount: 0 }
+    this.active = { id, completion, queries: new AbortController(), callIds: new Set() }
     return { id, done: completion.promise }
   }
 
@@ -655,10 +655,11 @@ class CodexConnection {
     if (active === undefined || active.queries.signal.aborted) {
       return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team operation was cancelled.' } })
     }
-    if (active.queryCount >= 64) {
+    const callId = TeammateRuntimeToolCallId(string(params.callId, 'Team tool call id'))
+    if (!active.callIds.has(callId) && active.callIds.size >= 64) {
       return teamOperationResponse({ ok: false, error: { code: 'CODEX_TEAM_RATE_LIMIT', message: 'The native turn has reached its limit of 64 Team operations.' } })
     }
-    active.queryCount += 1
+    active.callIds.add(callId)
     let grant = this.memberGrant
     if (grant === undefined) {
       const deadline = new AbortController()
@@ -676,7 +677,7 @@ class CodexConnection {
     }
     const result = await grant.execute({ ...args, operation }, active.queries.signal, {
       kind: 'tool', turnId: TeammateRuntimeTurnId(string(params.turnId, 'Team tool turn id')),
-      callId: TeammateRuntimeToolCallId(string(params.callId, 'Team tool call id')),
+      callId,
     })
     if (grant.signal.aborted || this.memberGrant !== grant) {
       return teamOperationResponse({ ok: false, error: { code: 'TEAM_NATIVE_GRANT_REVOKED', message: 'This Team authorization is no longer active.' } })

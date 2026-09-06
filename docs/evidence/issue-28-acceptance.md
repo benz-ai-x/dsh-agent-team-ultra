@@ -1,9 +1,13 @@
 # Issue #28 acceptance
 
+首评发现的回执重试预算和共享诊断问题已完成 TDD 修复。相同 call 身份重试不再
+消耗新名额：第 64 次提交丢回执后恢复原结果，改输入冲突，新第 65 个调用仍被拒绝。
+共享错误提示使用业务措辞，DSH／native 均通过错误修正测试。最终审查仍须单独通过。
+
 需求：[Issue #28](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/28)，
 父 [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)。
 实现决策：[ADR 0019](../adr/0019-persist-native-task-operation-receipts.md)。
-Harness 固定为 `d02bfcdf13171e1167ece7b4ea29938900678de9`，Session 0、
+Harness 固定为 `7119c51c8d09ac56370e884e492c66a102c779af`，Session 0、
 legacy Team payload 2、native operation payload 4、Team checkpoint 5、Ultra v1。
 
 | 验收条件 | 可重跑证据与结论 |
@@ -22,16 +26,16 @@ Codex 冷恢复不会恢复已经死亡的工具 RPC callback，也不允许历�
 存活 native 工具重试、Host 持久回执重放和 Codex 冷启动中断结算分别验证；不声称
 向已死亡的 native 调用重新送达结果。相同输入以规范化 JSON 值比较，不承诺键顺序。
 
-Harness 的 [原回执重启及真实 flush 故障测试](https://github.com/benz-ai-x/deepseek-harness_x/blob/d02bfcdf13171e1167ece7b4ea29938900678de9/packages/experimental/agent-team/tests/native-member-operations.spec.ts)
-覆盖完整 Host 重建、旧 grant、持久写入失败重试及原 Revision。222 项 owning tests
+Harness 的 [原回执重启及真实 flush 故障测试](https://github.com/benz-ai-x/deepseek-harness_x/blob/7119c51c8d09ac56370e884e492c66a102c779af/packages/experimental/agent-team/tests/native-member-operations.spec.ts)
+覆盖完整 Host 重建、旧 grant、持久写入失败重试及原 Revision。224 项 owning tests
 通过，业务源码语句、分支、函数、行覆盖均为 100%；未改动的公共 testkit 不在业务源码
 覆盖选择内。真实 Loader、Host build、完整 lint、32 项 doc-sync 和正常提交／推送
 检查通过。TS SDK 真实进程与 Python 实际单文件运行时录制及回放保留新任务事实。
-两个 SDK 的格式证据基于 `7efa653185`；其后的注册名单补修没有改变持久格式。
+两个 SDK 的格式证据基于 `7efa653185`；其后的注册名单及诊断补修没有改变持久格式。
 普通 inline-image SDK 快照受机器全局技能注入影响，已在干净 #27 基线复现；未更新
 无关快照，也不将相关 SDK 定向通过表述为全部 SDK 测试通过。
 
-2026-09-06 最终完整 `pnpm verify` 退出 0：562 项 strict 检查／0 警告，281 项测试／
+2026-09-06 最终完整 `pnpm verify` 退出 0：562 项 strict 检查／0 警告，282 项测试／
 24 文件，八归档安装、任务／等待／丢回执重放、JSON／SQLite 原身份冷恢复、真实 Web
 启动及完整卸载通过。固定官方与维护 fork 的 11 组公共行为对照及拒绝导入检查通过。
 Codex／Claude 两条历史归档升级均通过 JSON／SQLite 原成员、Revision、native handle

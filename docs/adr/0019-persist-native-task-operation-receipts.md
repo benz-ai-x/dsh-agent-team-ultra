@@ -25,6 +25,10 @@ Lead-only 操作仍由业务执行器拒绝。过期写入返回冲突及当前 
 任务写入回执仅返回 id、revision、状态、所有者名称和就绪状态，避免大任务描述
 经过原生文本响应二次 JSON 转义后超限；完整详情继续通过任务读取获取。
 
+Codex 每个存活 turn 最多接受 64 个不同的可信 call 身份。同一身份重试仍交给
+Host 判断原回执或输入冲突，不消耗新的调用名额，也不在 adapter 中缓存任务结果；
+每个传输请求的大小、当前 turn 校验及取消限制仍逐次执行。
+
 现有 native-operation 事件扩展为显式消息／任务变体，payload 升至 4，Team
 checkpoint 升至 5。明确保留 payload 3 消息和 legacy payload 2 的读取分支，
 更新 codec、schema、生成事件词汇及两个 SDK 的录制回放。Session 0、Ultra v1
@@ -58,6 +62,11 @@ input conflicts; queued execution rechecks authority and cancellation. The recei
 retains validated task input, its normalized fingerprint and the original result for replay validation.
 Mutation results contain only task id, revision, status, owner name and readiness,
 so escaped native text envelopes stay bounded; task reads retain full details.
+
+Codex admits at most 64 distinct trusted call identities per live turn. Retrying an
+admitted identity reaches the Host for original-receipt recovery or input-conflict
+rejection without consuming another slot or caching task results in the adapter.
+Every request still passes transport-size, current-turn and cancellation checks.
 
 The required native-operation event gains explicit message/task variants at
 payload 4 and checkpoint 5, with explicit payload-3 and payload-2 readers.
