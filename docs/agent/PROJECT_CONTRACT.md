@@ -218,6 +218,19 @@ an actual integration commit based on the fixed official comparison.
   workspace-write sandboxing, bounded scrubbed evidence, and usage accounting.
   The shipped profile selects read-only sandboxing, approval `never`, and
   disabled network access.
+- A Native Member Grant is issued by the Team owner after durable acceptance
+  or verified recovery, bound to the exact live Lead, Team member, provider,
+  native handle and registration. Grants stay in Host memory and never enter
+  Remote, Studio, storage or model arguments. Ordinary DSH permissions still
+  require the exact live Agent; Evaluation Workers receive no production grant.
+- Codex installs member listing, task pages and task detail queries for new
+  native threads through the locked dynamic-tool protocol. Queries read the
+  canonical Team state with strict schemas, bounded requests/results and
+  cancellation. The `memberOperations` catalog field describes new native
+  sessions; resumed threads retain their installed tools. Older threads without
+  these tools preserve their handles and history. See
+  [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) for limits and
+  authorization lifetime; queries provide no arbitrary RPC, shell or MCP access.
 - The Claude Code provider qualifies only the pinned package-local Claude
   Agent SDK `0.3.241` and Claude Code `2.1.241` native payload. It never
   searches `PATH`; a missing, mismatched, or unqualified payload leaves the

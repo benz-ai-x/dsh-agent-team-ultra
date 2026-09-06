@@ -10,8 +10,8 @@ import { requirePreparedHarness } from './harness-source.mjs'
 import { NativeProduct } from '../packages/claude-code/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const { harnessRoot } = requirePreparedHarness(root)
-const [profileDirectory, phase, stateDirectory, backend = 'json'] = process.argv.slice(2)
+const [profileDirectory, phase, stateDirectory, backend = 'json', sourceDirectory = root] = process.argv.slice(2)
+const { harnessRoot } = requirePreparedHarness(resolve(sourceDirectory))
 assert.ok(profileDirectory && stateDirectory && ['before', 'after'].includes(phase))
 assert.ok(['json', 'sqlite'].includes(backend))
 mkdirSync(stateDirectory, { recursive: true })

@@ -14,10 +14,10 @@ claim that an upstream contribution was submitted or accepted.
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
 | 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a`, `0.1.2-rc.1` | 当前完整运行资格 / current complete runtime qualification |
+| 维护 fork / Maintained fork | `b4d2a731e6cdbceb42dfa1899d5e4e0369106689`, `0.1.2-rc.1` | 阶段 B 成员查询运行源 / Phase B member-query runtime source |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `2bdc220516b6fa090ca99215fd3a2ff8f5805c4bec6bd0f48e8e51fba77a8656` | 锁定文档内容 / locked documentation content |
-| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-a.v1` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
+| 文档摘要 / Documentation digest | `97da6cef14f3ce89a10f83f6b30778c54afe2a4777239506cea688643673bee3` | 锁定文档内容 / locked documentation content |
+| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.member-queries.v1` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
 | Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | `2` | 数字相同但严格 schema 不同 / same number, different strict schemas |
 | Team 投影 / Team projection | `3` | fork 增加固定路由、native handle 和回执字段 / fork adds routes, native handles, and receipt fields |
@@ -51,6 +51,8 @@ executable closure selected by Node. Neither proves valid native user login.
 | [4b60986f8c](https://github.com/benz-ai-x/deepseek-harness_x/commit/4b60986f8c) | 扩展与当时 Harness 合约对齐 / align extensions with then-current Harness contracts | 以固定 schema 与产物为准 / fixed schemas and artifacts remain authoritative | Agent Team package suites and complete Ultra archive verification | maintained compatibility adjustment |
 | [f9e8a4d0fc](https://github.com/benz-ai-x/deepseek-harness_x/commit/f9e8a4d0fc), [8b4bae0b62](https://github.com/benz-ai-x/deepseek-harness_x/commit/8b4bae0b62) | catalog owner 控制的 provider generation 注册 / catalog-owner registration | 无持久 schema 变化 / no durable schema change | `runtime-provider-mount.spec.ts`; both adapter Loader suites; [ADR 0013](../adr/0013-route-durable-runtimes-through-the-catalog-owner.md) | maintained; disposal precedes native resource cleanup |
 
+| `b4d2a731e6` | Team 所有者签发可撤销成员 grant；三项真实 roster/task 查询 / revocable member authority and three canonical reads | 无新增持久字段／版本 / no durable format change | `native-member-operations.spec.ts`, `native-member-loader.e2e.ts`; Ultra Codex query integration and installed JSON/SQLite recovery; [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) | maintained branch `fix/ultra-26-native-team-queries`; four affected source files pass 100% scoped coverage; build, Loader, docs and lint validated |
+
 表中列出可重跑的测试责任，不表示本次运行了每个上游测试或真实产品 canary。
 The test column identifies validation owners, not a claim that all those suites
 or authenticated native canaries ran in this change. Final real native product
@@ -64,7 +66,7 @@ acceptance remains mandatory in [#44](https://github.com/benz-ai-x/dsh-agent-tea
 Team payload `3`、projection `4`；descriptor `3` 在固定双方源码中一致，Ultra v1
 继续使用。native operation、发送请求和回复关联必须进入正式 schema、codec、
 生成事件词汇及投影；没有已产生的目标提交前，审计报告明确标为尚未取得运行资格。
-本次不修改 Harness 运行锁，阶段 A 完成后先进入 B。
+阶段 A 审计不改运行锁；阶段 B 按 [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) 为成员查询扩展更新锁，不提前执行阶段 C 格式迁移。
 
 The audit preserves source bytes, checks real Session projections plus JSON and
 SQLite snapshots, and reports deterministic v0/v1 retry conflicts. The accepted

@@ -14,7 +14,7 @@ export function verifyRuntimeArchiveUpgrade({ provider, baseline, probeScript, n
   const previous = process.argv[2] && resolve(process.argv[2])
   assert.ok(previous, `Pass the built, isolated predecessor checkout to verify ${provider} upgrade`)
   const { harnessRoot } = requirePreparedHarness(root)
-  requirePreparedHarness(previous)
+  const { harnessRoot: previousHarnessRoot } = requirePreparedHarness(previous)
   function run(command, args, cwd = root, env = {}) {
     const result = spawnSync(command, args, {
       cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -31,6 +31,7 @@ export function verifyRuntimeArchiveUpgrade({ provider, baseline, probeScript, n
   const retired = `@deepseek-ai/dsh-experimental-agent-team-${provider}`
   const current = `@benz-ai-x/dsh-agent-team-${provider}`
   const cli = join(harnessRoot, 'apps/cli/lib/bin.js')
+  const previousCli = join(previousHarnessRoot, 'apps/cli/lib/bin.js')
   try {
     const pack = (source, output) => {
       run(process.execPath, [join(source, 'scripts/pack-local-overlay.mjs'), output], source)
@@ -45,30 +46,34 @@ export function verifyRuntimeArchiveUpgrade({ provider, baseline, probeScript, n
     assert.ok(!after.some(pkg => pkg.name === retired))
     assert.ok(after.some(pkg => pkg.name === current))
     const archiveNames = new Set([...before, ...after].map(pkg => pkg.name))
-    const sources = new Map()
-    const categories = readdirSync(join(harnessRoot, 'packages'), { withFileTypes: true })
-      .filter(entry => entry.isDirectory()).map(entry => `packages/${entry.name}`)
-    for (const parent of ['vendor', ...categories]) {
-      for (const name of readdirSync(join(harnessRoot, parent))) {
-        const path = join(harnessRoot, parent, name)
-        if (existsSync(join(path, 'package.json'))) {
-          sources.set(JSON.parse(readFileSync(join(path, 'package.json'), 'utf8')).name, path)
+    const peersFor = source => {
+      const { harnessRoot: selected } = requirePreparedHarness(source)
+      const sources = new Map()
+      const categories = readdirSync(join(selected, 'packages'), { withFileTypes: true })
+        .filter(entry => entry.isDirectory()).map(entry => `packages/${entry.name}`)
+      for (const parent of ['vendor', ...categories]) {
+        for (const name of readdirSync(join(selected, parent))) {
+          const path = join(selected, parent, name)
+          if (existsSync(join(path, 'package.json'))) {
+            sources.set(JSON.parse(readFileSync(join(path, 'package.json'), 'utf8')).name, path)
+          }
         }
       }
+      const sourceProof = JSON.parse(readFileSync(join(source, 'packages/domain/lib/compatibility.json'), 'utf8'))
+      return Object.keys(sourceProof.packages).filter(name => !archiveNames.has(name) && sources.has(name))
+        .map(name => `link:${sources.get(name)}`)
     }
     const proof = JSON.parse(readFileSync(join(root, 'packages/domain/lib/compatibility.json'), 'utf8'))
     const retiredPackages = proof.retiredRuntimePackages.filter(name => before.some(pkg => pkg.name === name))
-    const peers = Object.keys(proof.packages).filter(name => !archiveNames.has(name) && sources.has(name))
-      .map(name => `link:${sources.get(name)}`)
     const install = (source, archives) => run(process.execPath, [
       join(source, 'scripts/compatible-dsh.mjs'), 'plugin', '--profile', 'web', 'add',
-      ...archives.map(pkg => `file:${pkg.file}`), ...peers,
+      ...archives.map(pkg => `file:${pkg.file}`), ...peersFor(source),
     ], source, environment)
     const probe = (phase, backend) => JSON.parse(run(process.execPath, [
-      join(root, 'scripts', probeScript), profileDirectory, phase, join(temporary, backend), backend,
+      join(root, 'scripts', probeScript), profileDirectory, phase, join(temporary, backend), backend, phase === 'before' ? previous : root,
     ], root, environment).trim())
     install(previous, before)
-    const oldDump = run(process.execPath, [cli, '--profile', 'web', '--dump-config'], root, environment)
+    const oldDump = run(process.execPath, [previousCli, '--profile', 'web', '--dump-config'], root, environment)
     assert.equal(oldDump.split(`id: agent-team-${provider}\n`).length - 1, 1)
     assert.ok(oldDump.includes(retired))
     const initial = ['json', 'sqlite'].map(backend => probe('before', backend))
@@ -76,7 +81,7 @@ export function verifyRuntimeArchiveUpgrade({ provider, baseline, probeScript, n
 
     // Every old runtime context has stopped. Remove retired product packages;
     // the profile, its configuration, and all business/native storage are retained.
-    run(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove',
+    run(process.execPath, [previousCli, 'plugin', '--profile', 'web', 'remove',
       '--config.offline=true', '--config.auto-install-peers=false', ...retiredPackages], root, environment)
     for (const name of retiredPackages) assert.ok(!existsSync(join(profileDirectory, 'node_modules', name)))
     install(root, after)

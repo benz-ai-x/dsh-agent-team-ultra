@@ -92,6 +92,14 @@ _Avoid_: Claude Code CLI invocation, one-shot Claude subagent
 The stable opaque provider-native identity returned after initial work is durably accepted and retained before an external Binding becomes active.
 _Avoid_: Member ID, Launch Request ID, provider process object
 
+**Native Member Grant**:
+The nonserializable authority object issued by the Team owner after accepting or verifying a durable native member. It binds the exact Team, member, provider, Native Runtime Handle, live Lead and provider registration, and is revoked when that ownership ends. Model arguments carry no authority.
+_Avoid_: Lead impersonation, serialized credential, model-selected Agent
+
+**Native Member Operation**:
+A bounded operation on canonical Team state under a Native Member Grant. The initial operations read members, task pages and task details; the Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
+_Avoid_: Arbitrary Host RPC, native shell tool, complete collaboration capability
+
 **Run**:
 The deterministic, runtime-neutral record of exactly one accepted Digital Employee work turn, owned by either an exact Team member or an isolated evaluation worker and correlated to its immutable Profile Revision and canonical evidence source.
 _Avoid_: Agent session, provider loop, tool step
