@@ -13,6 +13,7 @@ export class DigitalEmployeeHostContext {
   private accepting = false
   private storageValue: DigitalEmployeeStorage | undefined
   private mutationTail: Promise<void> = Promise.resolve()
+  private readonly isolatedEvaluationWorkers = new WeakSet<Agent>()
 
   constructor(
     readonly ctx: Context,
@@ -53,6 +54,17 @@ export class DigitalEmployeeHostContext {
   closeAdmission(): void {
     this.accepting = false
     this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
+  }
+
+  /** Exclude one isolated non-roster evaluator from production Profile tools until its scope is disposed. */
+  excludeEvaluationWorkerFromProfileTools(agent: Agent): () => void {
+    this.isolatedEvaluationWorkers.add(agent)
+    return () => { this.isolatedEvaluationWorkers.delete(agent) }
+  }
+
+  /** Whether a root-shaped Agent may receive the production conversational Profile boundary. */
+  allowsConversationProfileTools(agent: Agent): boolean {
+    return !this.isolatedEvaluationWorkers.has(agent)
   }
 
   async closeStorage(): Promise<void> {

@@ -119,6 +119,17 @@ try {
     assert.equal(activated.ok, true, JSON.stringify(activated))
     if (queries) await ctx.agentTeams.createTask(lead.agent, { subject: 'Read installed Team', description: 'Keep the canonical task across cold recovery.' })
   }
+  if (phase !== 'before') {
+    const profileToolNames = ctx.tools.schemas(lead.agent).map(tool => tool.name)
+      .filter(name => name.startsWith('ultra_profile_')).sort()
+    assert.deepEqual(profileToolNames, ['ultra_profile_detail', 'ultra_profile_launch', 'ultra_profile_list'])
+    const listed = await ctx.tools.execute({
+      agent: lead.agent, callId: `installed-profile-list-${phase}`, name: 'ultra_profile_list', arguments: {},
+      signal: new AbortController().signal,
+    })
+    assert.equal(listed.isError, false, JSON.stringify(listed))
+    assert.deepEqual(listed.value.profiles.map(profile => profile.profileId), [request.profileId])
+  }
   const launched = await invoke('spawn', request)
   assert.equal(launched.ok, true, JSON.stringify(launched))
   assert.equal(launched.value.profileRevision, 1)

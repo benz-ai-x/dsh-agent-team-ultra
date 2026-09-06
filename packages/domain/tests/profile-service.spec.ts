@@ -298,6 +298,7 @@ async function harness(options: {
       { name: 'send_message', description: 'Team message' },
     ],
     get: (name: string) => name === 'read' || name === 'bash' ? { name } : undefined,
+    register: () => () => undefined,
   } as never)
   ctx.provide('llm', {
     listProviders: () => [...new Map(llmRoutes.map(route => [route.provider, {

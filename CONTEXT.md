@@ -37,12 +37,16 @@ The durable association between an exact Team member identity and the Launch Req
 _Avoid_: Assignment, link
 
 **Launch Intent**:
-One user decision to create a Digital Employee, identified by a Client-minted canonical Launch Request ID that is reused across transport retries until a terminal business outcome.
+One user decision to create a Digital Employee, identified by a canonical Launch Request ID minted by Studio or derived from one persisted Lead tool call and reused across retries until a terminal business outcome.
 _Avoid_: Click, RPC attempt, retry token
 
 **Launch Request ID**:
 A canonical UUID whose uniqueness and replay semantics are scoped to one authoritative Team. It identifies a Launch Intent, not an individual transport attempt.
 _Avoid_: Member ID, global idempotency key
+
+**Conversation Profile Boundary**:
+The fixed Lead-only interface for inspecting existing Profile state and turning one persisted model tool call into a Launch Intent. It cannot author or release a Profile and is unavailable to teammates and Evaluation Workers.
+_Avoid_: Conversational Profile editor, teammate Profile tools, ordinary member spawn
 
 **Provisioning Phase**:
 The durable `pending | active | failed` progress of one Binding relative to Agent Team provisioning and roster reconciliation.

@@ -218,10 +218,10 @@ try {
     [
       '--input-type=module',
       '--eval',
-      `await Promise.all(${JSON.stringify(installedHostEntries)}.map(specifier => import(specifier)))`,
+      `const modules = await Promise.all(${JSON.stringify(installedHostEntries)}.map(specifier => import(specifier))); const names = [...(modules[0].ULTRA_PROFILE_TOOL_NAMES ?? [])].sort(); if (JSON.stringify(names) !== JSON.stringify(['ultra_profile_detail', 'ultra_profile_launch', 'ultra_profile_list'])) throw new Error('packed Host is missing the fixed Ultra Profile tool names')`,
     ],
     root,
-    'packed Host imports',
+    'packed Host imports and Profile tool surface',
   )
   const dump = checkedRun(
     process.execPath,
@@ -260,7 +260,7 @@ try {
     'real dsh Web startup',
     { DSH_HOME: profileHome },
   )
-  console.log('PASS real packed DSH Web profile resolves Host packages, composes both runtime families, and listens')
+  console.log('PASS real packed DSH Web profile retains the fixed Profile tool surface, composes both runtime families, and listens')
   for (const backend of ['json', 'sqlite']) {
     for (const phase of ['query-new', 'query-resume']) {
       const result = checkedRun(process.execPath, [

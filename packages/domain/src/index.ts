@@ -6,6 +6,7 @@ import { DigitalEmployeeHostContext } from './host-context.ts'
 import { ProfileLifecycle } from './profile-lifecycle.ts'
 import { EvaluationWorkflow } from './evaluation-workflow.ts'
 import { ProfileCapabilityInstaller } from './profile-capabilities.ts'
+import { ConversationProfileTools } from './conversation-profile-tools.ts'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { DomainChanged } from '@deepseek-ai/dsh-storage-domain'
@@ -76,6 +77,7 @@ export {
   requiredRuntimeCapabilitiesForProfile,
   runtimeTargetRoutingId,
 } from './runtime.ts'
+export { ULTRA_PROFILE_TOOL_NAMES } from './conversation-profile-tools.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -104,6 +106,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   private readonly launchWorkflow: LaunchWorkflow
   private readonly runWorkflow: RunWorkflow
   private readonly studioSnapshots: StudioProjection
+  private readonly conversationTools: ConversationProfileTools
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'digitalEmployees')
@@ -118,6 +121,11 @@ export class DigitalEmployeeService extends TypertRemoteService {
     this.launchWorkflow = new LaunchWorkflow(this.host, this.capabilities)
     this.runWorkflow = new RunWorkflow(this.host)
     this.studioSnapshots = new StudioProjection(this.host, this.profiles, this.evaluationWorkflow)
+    this.conversationTools = new ConversationProfileTools(this.host, {
+      view: caller => this.studioView(caller),
+      revision: (caller, request) => this.profileRevision(caller, request),
+      launch: (caller, request, signal) => this.spawnProfile(caller, request, signal),
+    })
   }
 
   /** Open durable sidecar state, then compose every matching live and future child scope. */
@@ -134,6 +142,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     let stopDomainChanged = (): void => undefined
     this.ctx.effect(() => async () => {
       this.host.closeAdmission()
+      const conversationToolDisposal = this.conversationTools.dispose()
       this.studioSnapshots.close()
       this.evaluationWorkflow.interrupt()
       const runtimeBackendDisposal = this.host.runtimeBackends.dispose()
@@ -148,6 +157,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       await this.launchWorkflow.whenSettled()
       await this.runWorkflow.whenSettled()
       await this.evaluationWorkflow.whenSettled()
+      try { await conversationToolDisposal } catch (error: unknown) { failures.push(error) }
       await this.host.whenWritesSettled()
       try { await runtimeBackendDisposal } catch (error: unknown) { failures.push(error) }
       try { await this.host.closeStorage() } catch (error: unknown) { failures.push(error) }
@@ -188,6 +198,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     this.host.restoreRuntimeGeneration()
     await this.evaluationWorkflow.repairInterrupted()
     this.host.openAdmission()
+    this.conversationTools.start()
     for (const agent of this.ctx.agents.list()) this.launchWorkflow.installBoundAgent(agent)
     await this.launchWorkflow.reconcileAvailableLeads()
     await this.runWorkflow.repairAvailableTeamRuns()
