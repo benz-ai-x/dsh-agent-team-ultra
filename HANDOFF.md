@@ -130,14 +130,14 @@
 
 ## #26 开发与验证完成
 
-- 用户最新要求“继续这个分支开发”。继续 `fix/26-authorized-codex-team-queries`，已接入 main `ce6cb39`，保留 #48–#51 的兼容性、升级驱动与只读审计修复。开发与完整验证已完成，按既有指示关闭 #26 并提交 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)。初评 Standards 两项、Spec 零项；两项已修复，独立复审固定 Ultra `04a50c9722` 与 Harness `fb03045fbe`，最终 Standards／Spec 均为 0 项未解决发现。本轮没有 PR #52 的合并授权。
+- 用户此前要求“继续这个分支开发”。继续 `fix/26-authorized-codex-team-queries`，已接入 main `ce6cb39`，保留 #48–#51 的兼容性、升级驱动与只读审计修复。开发与完整验证已完成，按既有指示关闭 #26 并提交 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)。初评 Standards 两项、Spec 零项；两项已修复，独立复审固定 Ultra `04a50c9722` 与 Harness `fb03045fbe`，最终 Standards／Spec 均为 0 项未解决发现。用户本轮明确要求 `$code-review #52`，并授权 review 通过后合并到 main；此前的无合并授权状态已失效。
 - 原 Ultra／Harness 未提交内容已完整备份到 `/tmp/ultra-26-resume-backup-3guni4th`，包含文件、SHA256 清单、二进制 diff 和 index diff。整合 main 前的 stash 仍保留，SHA 记录在 `/tmp/ultra-26-resume-stash.txt`。冲突按两边意图解决：升级入口使用 main 的固定前身和共享驱动，驱动与探针在新旧阶段分别使用各自锁定的 Harness、兼容证明和 CLI；HANDOFF／TODO 更新真实合并状态。
 - Team 所有者实现不可序列化 Native Member Grant，绑定精确 live Lead、成员、provider、native handle 与当前注册。注册、handle、Lead 释放或 inactive presence 永久撤销旧 grant；后续 presence 不能复活它。恢复验证原持久身份后重授当前权限，拒绝外部证据／身份违约及未知／重复能力声明，Evaluation Worker 不获生产权限。普通 DSH／Remote／Profile 入口仍要求精确 live Agent。
 - Codex 通过锁定 `@openai/codex@0.149.1` 的 `dynamicTools`／`item/tool/call` 调用真实 roster／task board，只允许 `members.list`、`tasks.list`、`tasks.get`。完整 native envelope 16384 字节、Host 请求 4096 字节、含 JSON 转义的完整结果 65536 字节；任务页默认 20、上限 100，单轮 64 次，首次 grant 等待最多 5 秒。严格 schema、thread／turn／call 关联、取消、返回前授权复核与原只读／approval-never／网络策略共同生效。
 - 固定 SDK 将 dynamic tools 随 thread 持久保存，resume 无补装字段。因此本版本新线程及其恢复可查询；未安装工具的旧线程保留原 handle／历史，不宣称自动获得查询工具。不得修改 SDK 私有存储或创建替代线程。正式解释见 [ADR 0017](docs/adr/0017-authorize-native-team-member-queries.md)，真实认证 native 验收仍属于 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44)。
 - 历史 TDD 证据包括未支持的 native query、模型 operation 注入、授权释放／排队取消、inactive→idle 复活旧 grant、非法 provider 声明；后两项见 `/tmp/ultra-26-presence-revival-{red,green}.log` 与 `/tmp/ultra-26-member-catalog-schema-{red,green-fixed}.log`。首次新通道完整验证为 554 strict、249 测试／22 文件及八归档安装／Web／JSON+SQLite 查询冷恢复；它只覆盖本地 `3b27b0e65e`，不作为最新整合结果。
 - 本轮 Harness 受影响 owning／consumer 测试 **246 passed、1 skipped**，4 个受影响源文件所有覆盖指标 **100%**，日志 `/tmp/ultra-26-resumed-coverage.log`；真实 Loader／built-lib 两项通过。`pnpm build`、15 项文档快速检查、32 项 doc-sync 和 16 项 hygiene 通过。完整 lint 发现测试中的两处 any 使用，已修正日志参数类型和断言；对应清理失败回归及全仓 `lint:contracts-ready` 复验均退出 0。
-- 维护源码仍位于独立 `/root/workspace/deepseek-harness-ultra-b` 分支 `fix/ultra-26-native-team-queries`；共享 `/root/workspace/deepseek-harness` 保持干净的阶段 A `8b4bae0b`。最终源码 `fb03045fbe1a2433d5cf43d766a25ebef5009094` 已通过常规提交／推送 hook 并推送至维护 fork 同名分支，docs digest 为 `f34086b46fe7e1cfdabbdc335a4ea5a8fe8beb23f0fab5a2b443d606e9b66432`。Ultra 已更新 lock，准备来源并冻结安装；Team 类型入口因增量构建保留旧时间戳，已用 TypeScript `--force` 真正重新生成，严格检查恢复通过。
+- 维护源码仍位于独立 `/root/workspace/deepseek-harness-ultra-b` 分支 `fix/ultra-26-native-team-queries`；共享 `/root/workspace/deepseek-harness` 保持干净的阶段 A `8b4bae0b`。最终源码 `fdfdbaeb0e7d06f3e2103fe2721639c115eb8dc3` 已通过常规提交／推送 hook 并推送至维护 fork 同名分支，docs digest 为 `f34086b46fe7e1cfdabbdc335a4ea5a8fe8beb23f0fab5a2b443d606e9b66432`。Ultra 已更新 lock，准备来源并冻结安装；Team 类型入口因增量构建保留旧时间戳，已用 TypeScript `--force` 真正重新生成，严格检查恢复通过。
 
 - 本轮整合后的完整 `pnpm verify` **554 strict、0 警告；263 测试／22 文件；八归档安装、Web 启动、JSON／SQLite 的 Codex 查询与原成员冷恢复、完整卸载全部通过**，日志 `/tmp/ultra-52-final-verify.log`。九项 Codex 查询集成测试使用真实 Team／Host，只有外部 app-server 进程边界受控。
 - 共享驱动对 Codex 固定前身 `debde06`、Claude Code 固定前身 `081357d` 的实际归档升级均自然退出 0，JSON／SQLite 保留成员、Revision 和 native handle，后续运行、清理、Web 和完整卸载通过；日志 `/tmp/ultra-52-final-{codex,claude}-upgrade.log`。新维护 fork 与固定官方 `d347e703` 的同一 11 组公共契约对照及不兼容来源拒绝全部通过，日志 `/tmp/ultra-52-final-comparison.log`。未执行 #44 真实认证 native 验收。
@@ -146,6 +146,9 @@
 - **PR #52 审查补修**：初评固定 Ultra `ce6cb39...dcf8ec4`、Harness `8b4bae0b...b4d2a731`。Standards 发现缺少正式记录会话（P2）及分页游标丢失 `TeamTaskId` 品牌（P3），Spec 无发现。Harness `fb03045fbe` 修复两项：扩展现有 `agent-team-profile` 记录场景，通过真实发货 headless CLI 和 provider 实际绑定的 grant 查询非空 roster／task board，记录三种查询、分页返回及后续模型上下文；类型、双语文档、生成目录同步。外部 provider 场景改用 `.mjs`，满足 Node 22 的 built Loader；未改四个已有 100% 覆盖率的运行时源文件。
 - 新记录场景先失败后刷新通过；移除 grant 绑定的 source 模式负对照确实失败，证明固定模型最终输出不能掩盖授权查询失效。最终 `DSH_EXAMPLE_MODE=lib` 回放及两项场景守卫 **3 passed**，日志 `/tmp/ultra-52-recorded-session-replay.log`、`/tmp/ultra-52-recorded-session-negative-control.log`。额外 Claude consumer **58 passed、1 skipped**；完整 build、15 项 docs quick、32 项 doc-sync、全仓 lint、261 个包公开声明类型检查通过。该源码准备及冻结安装后，Ultra 完整验证、两类升级和官方对照均重新通过。
 - **最终双轴复审通过**：两个独立代理分别检查 Harness `b4d2a731...fb03045fbe`、Ultra `dcf8ec4...04a50c9722`，结合原全量审查，Standards 规范违规／判断性异味均 0，Spec 缺失／范围扩张／错误实现均 0。原 P2／P3 均确认关闭。本记录之后仅更新 HANDOFF／TODO 的验收状态，不更改已验证的运行时、锁或测试。GitHub 未报告本 PR 的 CI checks；自动化静态复审不等于人工批准。
+
+
+- **PR #52 本轮 main 审查与限额补修（2026-09-06）**：固定 Ultra `ce6cb39...993698d`、Harness `8b4bae0b...fb03045fbe` 重新进行独立双轴审查。Spec 0；Standards 发现 `packages/AGENTS.md` 要求的精确 UTF-8 限额测试缺口（P3），未发现计数实现错误。Harness `fdfdbaeb0e` 仅新增 4 项公开 grant 用例，覆盖 ASCII／多字节请求 4096／4097 字节与完整结果 65536／65537 字节。两种临时负对照分别触发 4／2 项预期失败，源码原样恢复；拥有者测试 **48 passed**，查询模块各项覆盖率 **100%**，日志 `/tmp/ultra-pr52-boundary-coverage.log`、`/tmp/ultra-pr52-boundary-negative-{inclusive,characters}.log`。类型、Host bundle 和常规 commit／push hooks 通过。维护分支已推送，文档摘要及所有运行时源文件不变；Ultra 已更新 lock、准备来源并冻结安装。两路代理确认 Harness 补修 Standards／Spec 均 0，Ultra 最终锁／交接提交仍待增量复核。 最新锁定来源的完整 `pnpm verify` 再次通过 554 strict／0 警告、263 测试／22 文件、八归档安装／查询／冷恢复／Web／卸载；Codex／Claude Code 实际升级和 11 组官方对照也全部退出 0，日志 `/tmp/ultra-pr52-merge-{verify,codex-upgrade,claude-upgrade,comparison}.log`。
 
 ## 验证证据与限制
 
@@ -185,7 +188,7 @@
 
 - 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
 - `/root/workspace/deepseek-harness` 保持干净的 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` 和完整构建，供阶段 A 的 #25 和 #48 补修环境使用。该独立环境位于 `/tmp/ultra-25-audit-fix-vHVNjX`，已按其 lock 完成源码准备、冻结安装及完整验证；未重置共享 checkout。
-- 主工作区 #26 的 `.dsh/harness` 指向 `/root/workspace/deepseek-harness-ultra-b`，lock 为 `fb03045fbe1a2433d5cf43d766a25ebef5009094`，工作区干净且产物已重建，来源准备、冻结安装和完整验证已通过。阶段 A 的 `8b4bae0b` 独立源码及前身归档验证环境保持不变。首次或换源时先准备再安装依赖，依赖和 TypeScript 共用所选链接。
+- 主工作区 #26 的 `.dsh/harness` 指向 `/root/workspace/deepseek-harness-ultra-b`，lock 为 `fdfdbaeb0e7d06f3e2103fe2721639c115eb8dc3`，工作区干净且产物已重建，来源准备、冻结安装和完整验证已通过。阶段 A 的 `8b4bae0b` 独立源码及前身归档验证环境保持不变。首次或换源时先准备再安装依赖，依赖和 TypeScript 共用所选链接。
 - 飞书 CLI 已验证当前 user／bot 身份可用；认证阻塞、#21 缓存阻塞及恢复、#22 官方构建阻塞及恢复均已通知。不要在本文件记录凭据、用户标识或私人消息。
 - GitHub CLI 已完成设备授权登录，`gh auth status` 退出 0，Git 使用 SSH；`gh repo view` 已验证本仓库 `ADMIN` 权限。Issue／PR 的实际操作仍按任务边界和既有授权执行；无需重复询问已经授权的提交、推送和 PR 操作；对外消息仍须当前会话明确授权。不记录登录验证码或凭据。
 - 当前 `gh pr edit` 因已停用的 Projects classic GraphQL 字段报错；已通过 `gh api --method PATCH repos/benz-ai-x/dsh-agent-team-ultra/pulls/<number> --input <JSON文件>` 成功更新 #48、#51 正文。该错误与认证无关。
@@ -194,7 +197,7 @@
 ## 下一步
 
 1. PR #45–#51 已全部合并；#19–#26 保持 closed，不重复建 PR。当前 #26 的 PR #52 已创建，最新维护来源完成全部本地验证及双轴复审（Standards 0／Spec 0）；PR 保持 open。父 Spec #18 保持 open。
-2. PR #52 已通过独立复审，在当前对话通知用户人工审核；不从早先 PR 的逐项授权推断 PR #52 的合并授权。后续 #27–#44 按父 Spec 和 tracker 继续。
+2. 本轮用户已单独授权 PR #52 通过 review 后合并 main；最终验证与补修复审通过后执行，并回读远端状态。后续 #27–#44 按父 Spec 和 tracker 继续。
 3. 继续按依赖处理 #27–#44，保留阶段 C 独立集成分支、格式迁移和真实 native 验收要求。之后的新 PR 仍在提交后分别执行 Standards 和 Spec 评审。
 4. 本轮仅在当前对话通报修复、评审和合并结果；没有新的对外通知待办。
 
