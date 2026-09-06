@@ -84,3 +84,12 @@ cancellation, disposal, and cold recovery. Compatibility admission accepts the
 maintained fork and rejects unsupported official source/Team packages before
 business data exists. The comparison log is
 `/root/workspace/.ultra-checks/31-compatibility-compare.log`.
+
+Independent Standards and Spec reviewers then re-read the complete fixed diff
+from `1a74d7fe28b11b8c014e648c9bb43bf246112539` through
+`fc5582223fd9de434552e68664a9b24ea5de7b51`. Both reported zero unresolved
+findings; the Spec reviewer explicitly closed the original P2 and independently
+reran the packed gate across Codex, Claude, JSON, and SQLite. The reports are
+`/root/workspace/.ultra-checks/31-standards-final-review.md` and
+`/root/workspace/.ultra-checks/31-spec-final-review.md`. This evidence-only
+status update receives a separate exact-head review before merge.
