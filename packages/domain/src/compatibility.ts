@@ -1,8 +1,8 @@
 /** Node-only admission; this module must never import a Harness implementation. */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 interface PackageProof {
   readonly version: string
@@ -26,11 +26,35 @@ export class UltraCompatibilityError extends Error {
   }
 }
 
+function findManifest(name: string, from: string): string | undefined {
+  const start = dirname(from.startsWith('file:') ? fileURLToPath(from) : from)
+  // ESM resolves an exported package's own name from its nearest package scope.
+  let scope = start
+  while (basename(scope) !== 'node_modules') {
+    const manifest = join(scope, 'package.json')
+    if (existsSync(manifest)) {
+      const self = JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string; exports?: unknown }
+      if (self.name === name && self.exports != null) return realpathSync(manifest)
+      break
+    }
+    const parent = dirname(scope)
+    if (parent === scope) break
+    scope = parent
+  }
+  let directory = start
+  for (;;) {
+    const candidate = join(directory, 'node_modules', name, 'package.json')
+    if (basename(directory) !== 'node_modules' && existsSync(candidate)) return realpathSync(candidate)
+    const parent = dirname(directory)
+    if (parent === directory) return undefined
+    directory = parent
+  }
+}
+
 function resolveManifest(name: string, from: string): string {
-  const candidate = createRequire(from).resolve.paths(name)?.map(directory => join(directory, name, 'package.json'))
-    .find(path => existsSync(path))
-  if (!candidate) throw new Error(`required package ${name} is not installed`)
-  return realpathSync(candidate)
+  const path = findManifest(name, from)
+  if (!path) throw new Error(`required package ${name} is not installed`)
+  return path
 }
 
 /** Validate installed executable bytes before any fork-only ESM linking takes place. */

@@ -44,8 +44,11 @@ foundation, maintained fork, comparison baseline, documentation digest,
 extension API qualification, durable formats, and native SDK/payloads separately.
 Normal builds generate an executable proof and a public Host wrapper that
 checks it before dynamically importing fork-only implementation dependencies.
-The profile checks its full private package closure before Loader starts any
-child; validation follows each package's own dependency resolution. The local
+After Host, Typert, Profile, and Client builds, the proof includes every shipped
+Ultra package and its Harness dependency closure. The profile checks its private
+closure on import and the owning Loader source directory before starting or
+replacing any children; validation follows each package's own ESM dependency
+resolution and excludes `NODE_PATH`. The local
 CLI wrapper validates source before installation, actual dependencies after
 installation, and source plus installed dependencies before startup. Admission
 failure does not open Ultra or Team business storage. Native user authentication

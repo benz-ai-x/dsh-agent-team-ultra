@@ -12,7 +12,7 @@
     "context:check:strict": "node scripts/verify-dsh-context.mjs --require-source",
     "build:host": "node scripts/check-harness-source.mjs && tsc -b tsconfig.host.json && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
     "build:client": "node scripts/check-harness-source.mjs && tsc -b tsconfig.client.json && pnpm --dir packages/ui bundle",
-    "build": "pnpm run build:host && pnpm run build:client",
+    "build": "pnpm run build:host && pnpm run build:client && node scripts/generate-compatibility.mjs",
     "test": "node scripts/check-harness-source.mjs && vitest run",
     "test:watch": "node scripts/check-harness-source.mjs && vitest",
     "pack:local": "pnpm run context:check:strict && pnpm run build && node scripts/pack-local-overlay.mjs",
