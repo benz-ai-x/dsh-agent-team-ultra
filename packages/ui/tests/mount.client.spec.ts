@@ -8,6 +8,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/src/client/reg
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { DigitalEmployeeStudio, type DigitalEmployeeStudioInjected } from '../src/client/Studio.tsx'
+import { TeamMessageCenter, type TeamMessageCenterInjected } from '../src/client/TeamMessageCenter.tsx'
 import { inject, mountDigitalEmployeeStudio } from '../src/client/mount.ts'
 
 const REMOTE: TypertRemoteContribution = {
@@ -70,12 +71,22 @@ async function bench(registrationFailure = false) {
     cancelEvalRun: answer('cancelEvalRun', { ok: true, value: {} }),
     evalRun: answer('evalRun', { ok: true, value: {} }),
   } as never)
+  ctx.provide('remote.agentTeams', {
+    view: answer('team/view', { members: [], tasks: [] }),
+    listMessages: answer('team/listMessages', { items: [], committedCursor: 'cursor', complete: true }),
+    getMessage: answer('team/getMessage', {}),
+  } as never)
   ctx.provide('conversation', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
   await ctx.plugin(SlotRegistry).await()
   const disposeRoot = ctx.slots.register({
     name: 'root',
     children: { 'conversation.session.header.actions': { kind: 'list', scope: 'session' } },
+  } as never, () => null)
+  const disposeTeamOwner = ctx.slots.register({
+    name: 'conversation.session.header.actions',
+    id: 'agent-team-owner',
+    children: { 'agent-team.panel.view': { kind: 'list', scope: 'session' } },
   } as never, () => null)
   if (registrationFailure) {
     vi.spyOn(ctx.slots, 'inject').mockImplementationOnce(() => { throw new Error('slot registration failed') })
@@ -92,7 +103,9 @@ async function bench(registrationFailure = false) {
 
   const entry = () => ctx.slots.entries('conversation.session.header.actions')
     .find(candidate => candidate.component === DigitalEmployeeStudio)
-  return { ctx, fiber, activation, calls, disposeRoot, entry, remote }
+  const messageEntry = () => ctx.slots.entries('agent-team.panel.view')
+    .find(candidate => candidate.component === TeamMessageCenter)
+  return { ctx, fiber, activation, calls, disposeRoot, disposeTeamOwner, entry, messageEntry, remote }
 }
 
 describe('Digital Employee Studio mount lifecycle', () => {
@@ -102,6 +115,10 @@ describe('Digital Employee Studio mount lifecycle', () => {
     expect(runtime.remote.mount).toHaveBeenCalledWith(REMOTE)
     expect(runtime.entry()).toMatchObject({
       options: { id: 'agent-team-ultra', order: 21 },
+      locale: 'agent-team-ultra',
+    })
+    expect(runtime.messageEntry()).toMatchObject({
+      options: { id: 'messages', order: 20 },
       locale: 'agent-team-ultra',
     })
 
@@ -176,6 +193,13 @@ describe('Digital Employee Studio mount lifecycle', () => {
     })
     await actions.cancelEvalRun('lead-session', { evalRunId: EVAL_RUN_ID })
     await actions.evalRun('lead-session', { evalRunId: EVAL_RUN_ID })
+    const messageActions = (runtime.messageEntry()!.inject as unknown as () => TeamMessageCenterInjected)()
+    await messageActions.loadTeam('lead-session')
+    await messageActions.listMessages('lead-session', { limit: 20 })
+    await messageActions.getMessage('lead-session', {
+      messageId: 'message-1' as never,
+      committedCursor: 'cursor' as never,
+    })
     expect(runtime.calls).toEqual([
       { method: 'view', args: ['lead-session'] },
       { method: 'revision', args: ['lead-session', { profileId: 'reviewer', revision: 2 }] },
@@ -226,12 +250,20 @@ describe('Digital Employee Studio mount lifecycle', () => {
       },
       { method: 'cancelEvalRun', args: ['lead-session', { evalRunId: EVAL_RUN_ID }] },
       { method: 'evalRun', args: ['lead-session', { evalRunId: EVAL_RUN_ID }] },
+      { method: 'team/view', args: ['lead-session'] },
+      { method: 'team/listMessages', args: ['lead-session', { limit: 20 }] },
+      {
+        method: 'team/getMessage',
+        args: ['lead-session', { messageId: 'message-1', committedCursor: 'cursor' }],
+      },
     ])
 
     await runtime.fiber.dispose()
     expect(runtime.entry()).toBeUndefined()
+    expect(runtime.messageEntry()).toBeUndefined()
     expect(runtime.remote.disposeMount).toHaveBeenCalledOnce()
     runtime.disposeRoot()
+    runtime.disposeTeamOwner()
     await runtime.ctx.fiber.dispose()
   })
 
@@ -241,6 +273,7 @@ describe('Digital Employee Studio mount lifecycle', () => {
     expect(runtime.remote.mount).toHaveBeenCalledOnce()
     expect(runtime.remote.disposeMount).toHaveBeenCalledOnce()
     runtime.disposeRoot()
+    runtime.disposeTeamOwner()
     await runtime.ctx.fiber.dispose()
   })
 })

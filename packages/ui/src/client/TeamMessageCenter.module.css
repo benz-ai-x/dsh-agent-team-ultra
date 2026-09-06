@@ -1,0 +1,149 @@
+.root {
+  display: grid;
+  gap: 10px;
+  min-height: 260px;
+  padding-top: 10px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.heading,
+.filters,
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heading {
+  justify-content: space-between;
+}
+
+.heading h3,
+.heading p {
+  margin: 0;
+}
+
+.heading p {
+  margin-top: 3px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.heading button,
+.filters button,
+.loadMore {
+  border: 0;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.heading button,
+.filters button {
+  min-height: 30px;
+  padding: 5px 9px;
+}
+
+.filters {
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.filters label {
+  display: grid;
+  gap: 3px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.filters select {
+  min-width: 110px;
+  min-height: 30px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 6px;
+  background: var(--dsw-specific-menu);
+  color: var(--dsw-alias-label-primary);
+}
+
+.browser {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1.1fr);
+  gap: 8px;
+  min-height: 190px;
+}
+
+.list,
+.detail {
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+}
+
+.list {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.message,
+.selectedMessage {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+}
+
+.selectedMessage,
+.message:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.route {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.loadMore {
+  min-height: 28px;
+}
+
+.detail {
+  overflow-wrap: anywhere;
+}
+
+.detailHeader {
+  justify-content: space-between;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.content p {
+  margin: 8px 0;
+  white-space: pre-wrap;
+}
+
+.omitted,
+.notice {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.error {
+  color: var(--dsw-alias-status-error);
+  font-size: 12px;
+}
+
+@media (max-width: 620px) {
+  .browser {
+    grid-template-columns: 1fr;
+  }
+}

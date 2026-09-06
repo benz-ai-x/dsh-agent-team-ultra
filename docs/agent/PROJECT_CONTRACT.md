@@ -18,8 +18,8 @@ prompt, and tool surface reflect that exact active Profile Revision snapshot.
 
 - `@benz-ai-x/dsh-agent-team-ultra` is the Host service, storage-domain
   owner, generated Remote contract, and exact-Agent lifecycle composer.
-- `@benz-ai-x/dsh-client-ui-agent-team-ultra` is the browser-only UI adapter
-  and React Studio surface.
+- `@benz-ai-x/dsh-client-ui-agent-team-ultra` is the browser-only UI adapter,
+  React Studio surface, and public Agent Teams child-Slot message view.
 - `@benz-ai-x/dsh-agent-team-ultra-profile` is the bundle patch that activates
   the Host and UI rows alongside the experimental Agent Team rows, beneath a
   Loader group whose Node-only compatibility admission precedes child imports.
@@ -119,6 +119,18 @@ an actual integration commit based on the fixed official comparison.
   treats it only as an Agent lookup key, resolves the exact current live
   `Agent`, and derives Team membership from that object; Client-supplied role or
   Team claims are never used.
+- The Agent Teams Client owns one header entry, dialog, and navigation roster.
+  Its public session-scoped `agent-team.panel.view` Slot composes Ultra's stable
+  `messages` view with the exact resolved Team Session id; Ultra imports no
+  private Team UI component and mounts no second Agent Team Remote.
+- Persisted message list/detail calls use the Team owner's generated Remote and
+  require the exact live Lead before and after the durable read barrier. A
+  committed cursor binds Team, normalized member/direction/delivery filters,
+  and Session sequence cutoff. Metadata pages are bounded and body-free;
+  selected content loads on demand as literal text, detached image facts, and
+  explicit omissions. Delivery stages are acknowledgements, never read status
+  or task completion. See
+  [ADR 0023](../adr/0023-compose-persisted-team-message-reads.md).
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
 - The fixed `ultra_profile_list`, `ultra_profile_detail`, and
@@ -253,8 +265,9 @@ an actual integration commit based on the fixed official comparison.
   `team_message_send` for new threads and recovers terminal settlements from
   native history without copying commentary or full transcripts into Team or
   Run evidence. The required native-operation event is payload 4 and the Team
-  checkpoint is version 5; explicit payload-3 message and legacy payload-2
-  readers retain old logs. Session 0 and Ultra v1 remain. See
+  projection checkpoint is version 6, whose event-derived message index adds
+  stable queue/delivery sequences and times; explicit payload-3 message and
+  legacy payload-2 readers retain old logs. Session 0 and Ultra v1 remain. See
   [ADR 0018](../adr/0018-persist-native-team-message-receipts.md).
 - Codex installs `team_task_update` and `team_wait` for new threads. Task writes
   reuse shared expectedRevision, ownership, DAG, tombstone and Lead-only rules;
@@ -418,6 +431,9 @@ an actual integration commit based on the fixed official comparison.
 - The unary `view` operation and generated `watch` stream use the same
   Host-owned snapshot builder after exact live Lead authorization, roster
   reconciliation, and Run repair.
+- Studio Snapshots and the Run Index never contain persisted Team message
+  bodies. The message center reads only the Agent Team log on demand and does
+  not copy raw native history, attachment data, or credentials.
 - Every physical stream generation begins with exactly one complete baseline.
   Later frames are complete replacements, never partial entity patches.
 - Storage-domain, Runtime Backend generation, Agent roster, Team turn, approval,

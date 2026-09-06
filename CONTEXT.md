@@ -108,6 +108,22 @@ _Avoid_: Arbitrary Host RPC, native shell tool, implicit optional capability
 The authoritative acceptance result for one member's native call or work settlement, identified by that member, native session, work turn and call or settlement kind. Replaying the same normalized input returns the original result; changed input conflicts.
 _Avoid_: Transport response, delivery acknowledgement, completed task
 
+**Team Message Center**:
+The Lead-only view composed inside the Agent Teams owner panel that pages persisted Team message metadata and loads sanitized intentional content on demand through generated Remote operations.
+_Avoid_: Studio transcript, Run timeline, native history browser
+
+**Committed Message Window**:
+A fixed Team-message query identified by the Team, normalized filters, and a durable Session sequence cutoff. Continuations preserve that cutoff so later events cannot reorder rows or rewrite observed delivery facts.
+_Avoid_: Live subscription, offset page, authority token
+
+**Message Delivery Stage**:
+The Host-proven `pending | delivered | unknown` state of a persisted Team message at a committed cutoff. It records delivery acknowledgement only and never proves that the recipient read it or completed work.
+_Avoid_: Read receipt, task status, native turn result
+
+**Intentional Message Content**:
+The browser-safe part of a persisted Team message loaded on demand: literal text and detached image metadata, with reasoning, tool, provider-private, and unknown blocks explicitly omitted and completeness reported.
+_Avoid_: Raw ContentBlock, native transcript, attachment path
+
 **Run**:
 The deterministic, runtime-neutral record of exactly one accepted Digital Employee work turn, owned by either an exact Team member or an isolated evaluation worker and correlated to its immutable Profile Revision and canonical evidence source.
 _Avoid_: Agent session, provider loop, tool step

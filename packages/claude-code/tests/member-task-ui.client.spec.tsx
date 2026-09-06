@@ -9,6 +9,8 @@ import { claudeWorkflow, operationResult } from './fixtures/member-workflow.ts'
 
 afterEach(cleanup)
 
+const EMPTY_PANEL_VIEWS = [] as const
+
 async function update(client: Client, taskId: string, expectedRevision: number, action: string) {
   return operationResult(await client.callTool({
     name: 'team_task_update', arguments: { taskId, expectedRevision, action },
@@ -23,6 +25,9 @@ it('shows Claude task ownership and completion in the existing Team task UI', as
   })
   const props = {
     sessionId: lead.agent.id,
+    panelViews: { getSnapshot: () => EMPTY_PANEL_VIEWS, subscribe: () => () => {} },
+    resolveTeamSessionId: (sessionId: string) => sessionId,
+    renderSlot: () => null,
     async load(sessionId: string) {
       expect(sessionId).toBe(lead.agent.id)
       return { ok: true, value: ctx.agentTeams.remoteView(lead.agent) }

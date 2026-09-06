@@ -12,7 +12,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 
 锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
 
-当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `b85ebb3fca3da0c735cfed0b4532f926a4221e24`，以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权，以及受控的持久工作恢复读取；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `a1342a76f53fce70f5bae95cad435557d46d1411`，以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取，以及 Lead-only 持久消息分页与公开面板 Slot；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 下一版本规格
 
@@ -26,6 +26,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - 运行时：从 Host 实时目录选择并固定精确的 DSH 模型或耐久本地 Agent；目录只公开可执行的上下文、Profile 与运行能力，provider 凭据和原生对象留在 Host。
 - Codex：使用固定 `@openai/codex` `0.149.1` 包内原生载荷维护非临时 app-server thread；默认只读沙箱、拒绝审批且禁用网络，不搜索或回退到 `PATH` 中的 Codex。
 - Claude Code：使用固定 Claude Agent SDK `0.3.241` 与 Claude Code `2.1.241` 包内原生载荷维护稳定 Session；六个受控 SDK MCP 工具在当前成员授权下读取 Team、发送消息、修改共享任务和等待变化，冷恢复用 Host 持久事实校验原生 transcript，固定只读文件工具与沙箱，不搜索或回退到 `PATH` 中的 Claude。
+- 消息中心：从现有 Agent Teams 面板按成员、方向和投递阶段分页浏览持久消息；正文仅在选择后读取，私有 block 明确省略，投递不表示已读或任务完成。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
@@ -135,7 +136,7 @@ pnpm migration:audit --sessions /absolute/path/to/sessions --sqlite /absolute/pa
 
 审计区分 Session codec、Team payload、projection stateVersion、descriptor 和 Ultra Generation，核验 Profile／Revision／Binding 与 Team、固定 route、native 身份及能力需求。未知或未来业务格式拒绝读取；每个 Team 历史（含继承前缀）都经完整 payload 与状态转换检查，非继承事件必须属于当前 Session。不可用 checkpoint（含缺失或不可读的 SQLite 缓存表）基于真实日志冷重建并报告原因，源缓存保持不变；权威业务数据错误仍拒绝。v0 和 pending v1 只在内存中按现有 Host 规则投影、校验和判断重试冲突，不创建或补写目标库。SQLite 的数据库及 WAL 复制到临时目录后用只读连接检查，源 SHM 和数据库不会被 SQLite 打开或更新，临时副本在退出前清除。
 
-报告中的阶段 C 计划保留 Session、成员、Profile Revision、任务／消息、Launch Request、native handle／turn、时间与 CAS，规定 pending 目标关闭业务写入、相同记录复用、冲突拒绝、完成标记最后提交和禁止双向写入。方案见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)。当前命令只审计，**不执行格式迁移**；阶段 A 已验收；阶段 B 的成员操作与恢复扩展把运行锁更新至维护提交 `b85ebb3fca…`，持久格式不变，官方 `d347e7` 仍仅为对照与阶段 C 集成基础。
+报告中的阶段 C 计划保留 Session、成员、Profile Revision、任务／消息、Launch Request、native handle／turn、时间与 CAS，规定 pending 目标关闭业务写入、相同记录复用、冲突拒绝、完成标记最后提交和禁止双向写入。方案见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)。当前命令只审计，**不执行格式迁移**；阶段 A 已验收；阶段 B 的消息中心扩展把运行锁更新至维护提交 `a1342a76…`，Team 投影 checkpoint 升至 6，官方 `d347e7` 仍仅为对照与阶段 C 集成基础。
 
 ## 使用
 

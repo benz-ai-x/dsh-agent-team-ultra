@@ -14,13 +14,13 @@ claim that an upstream contribution was submitted or accepted.
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
 | 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `b85ebb3fca3da0c735cfed0b4532f926a4221e24`, `0.1.2-rc.1` | 阶段 B 成员操作与恢复运行源 / Phase B member-operation and recovery runtime source |
+| 维护 fork / Maintained fork | `a1342a76f53fce70f5bae95cad435557d46d1411`, `0.1.2-rc.1` | 阶段 B 持久消息读取运行源 / Phase B persisted-message read runtime source |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `b2c5a619eee8db42788479c83b94b672e64e51652d05b09a83e2e8d7dc027e84` | 锁定文档内容 / locked documentation content |
-| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.member-tasks.v1` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
+| 文档摘要 / Documentation digest | `58989b9e268c06bd46f37148b59cf9041dce6bd58e69812d3569b369616eb3ca` | 锁定文档内容 / locked documentation content |
+| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.message-center.v1` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
 | Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
-| Team 投影 / Team projection | `5` | fork 验证消息／任务原子回执、固定路由及 native handle / fork validates atomic message/task receipts, routes and native handles |
+| Team 投影 / Team projection | `6` | fork 增加事件派生的稳定消息 queue/delivery 索引 / fork adds an event-derived stable message queue/delivery index |
 | Ultra domain | `agent_team_ultra_v1`, version `1` | 独立 sidecar generation / independent sidecar generation |
 | Codex wrapper / payload / protocol | `@openai/codex@0.149.1`; `0.149.1-<platform>-<arch>`; `app-server-v2` | 具体平台 payload 由 provider 的资格检查确认 / provider qualification resolves the exact platform payload |
 | Claude SDK / payload / protocol | `@anthropic-ai/claude-agent-sdk@0.3.241`; Claude Code `2.1.241`; `claude-agent-sdk` | SDK 与 native 产品版本独立 / SDK and native product versions are separate |
@@ -57,6 +57,7 @@ executable closure selected by Node. Neither proves valid native user login.
 | [d02bfcdf13](https://github.com/benz-ai-x/deepseek-harness_x/commit/d02bfcdf13171e1167ece7b4ea29938900678de9) | 注册目录接受任务／等待声明 / admit declared task and wait operations | no format change | registration RED/GREEN, 222 owning tests / 100% product-source coverage and real Loader with all six declared operations; Ultra Codex #28 and Claude #30 integrations | same maintained branch; follows the atomic task implementation |
 | [7119c51c8d](https://github.com/benz-ai-x/deepseek-harness_x/commit/7119c51c8d09ac56370e884e492c66a102c779af) | 共享任务诊断适配所有调用者 / caller-neutral shared task diagnostics | no format change | DSH/native error correction RED/GREEN; 224 owning tests / 100% business-source coverage, Host build and real Loader | same maintained branch; PR #54 Standards follow-up |
 | [b85ebb3fca](https://github.com/benz-ai-x/deepseek-harness_x/commit/b85ebb3fca3da0c735cfed0b4532f926a4221e24) | 当前 grant 下读取精确成员的 launch、入站 delivery 与已提交 settlement，供 provider 冷恢复对账 / grant-bound Host recovery facts for provider reconciliation | no format change; existing launch/message/receipt facts only | 229 owning tests; four changed runtime files at 100% scoped coverage; build, Loader, generated catalog, docs and lint; Ultra Claude public-history JSON/SQLite recovery and Run evidence; [ADR 0020](../adr/0020-authorize-claude-team-tools.md) | maintained branch `fix/ultra-29-native-recovery-reader`; Host-only operation is not advertised as a model tool |
+| [a1342a76f5](https://github.com/benz-ai-x/deepseek-harness_x/commit/a1342a76f53fce70f5bae95cad435557d46d1411) | exact live Lead 的持久消息 metadata 分页、筛选和按需安全正文，并发布 Team owner child Slot / persisted-message metadata paging, filtering, safe on-demand content, and a Team-owner child Slot for the exact live Lead | projection 6 adds queue/delivery sequence/time index; no event or native payload change | 269 Agent Team/Client regressions; message reader at 100% scoped coverage; built-library Remote test; keyless Session replay; real browser composition; build, generated catalogs, 32 doc gates and lint; [ADR 0023](../adr/0023-compose-persisted-team-message-reads.md) | maintained branch `fix/ultra-32-team-message-read`; #33 owns writes and #36 owns live subscription |
 
 表中列出可重跑的测试责任，不表示本次运行了每个上游测试或真实产品 canary。
 The test column identifies validation owners, not a claim that all those suites

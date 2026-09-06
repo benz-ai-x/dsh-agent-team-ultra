@@ -279,6 +279,12 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: link:../../.dsh/harness/packages/client/ui-slots
         version: link:../../.dsh/harness/packages/client/ui-slots
+      '@deepseek-ai/dsh-experimental-agent-team':
+        specifier: link:../../.dsh/harness/packages/experimental/agent-team
+        version: link:../../.dsh/harness/packages/experimental/agent-team
+      '@deepseek-ai/dsh-experimental-client-ui-agent-team':
+        specifier: link:../../.dsh/harness/packages/experimental/client-ui-agent-team
+        version: link:../../.dsh/harness/packages/experimental/client-ui-agent-team
       '@deepseek-ai/dsh-session':
         specifier: link:../../.dsh/harness/packages/core/session
         version: link:../../.dsh/harness/packages/core/session
