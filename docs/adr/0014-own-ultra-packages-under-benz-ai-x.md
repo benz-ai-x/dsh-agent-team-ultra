@@ -4,9 +4,9 @@ Status: accepted — 2026-09-05
 
 ## Decision
 
-The Host package, Client package, profile bundle, and private workspace root
-use the `@benz-ai-x` scope. The pinned Harness packages keep their original
-`@deepseek-ai` identities.
+The Host package, Client package, profile bundle, Codex runtime adapter, and
+private workspace root use the `@benz-ai-x` scope. The remaining pinned Harness
+packages keep their original `@deepseek-ai` identities.
 
 ## Why
 
@@ -31,3 +31,18 @@ installs the renamed archive set into the same Profile and `DSH_HOME`, then
 restarts and refreshes its browser. Verification covers generated contracts,
 browser bundle materialization, ordinary package resolution across both scopes,
 real Web composition, and complete overlay removal.
+
+## Ownership revision — 2026-09-05, Issue #23
+
+The initial namespace change covered Host, Client, and profile. The Codex
+product adapter now moves from `@deepseek-ai/dsh-experimental-agent-team-codex`
+to `@benz-ai-x/dsh-agent-team-codex`, version `0.1.0`, and is built and packed
+by Ultra. Its exact SDK and native payload remain `0.149.1`; its runtime
+protocol and durable identity are independent of the adapter package version.
+
+The profile keeps the `agent-team-codex` row, `digitalEmployees` catalog owner,
+and `external-agent/codex` route. No Profile, Revision, Binding, member, native
+handle, or storage generation is renamed. Local upgrade removes the old Codex
+package with Web stopped and installs the new complete archive set; retaining
+both packages is an admission error, rather than an alias or second provider.
+The Claude Code move remains separate work in #24.

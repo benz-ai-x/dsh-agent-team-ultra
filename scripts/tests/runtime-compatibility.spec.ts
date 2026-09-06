@@ -197,19 +197,19 @@ describe('installed Ultra compatibility admission', () => {
 
   it('rejects a missing native adapter even when NODE_PATH exposes a qualified copy', () => {
     const root = installedPackage(join(project, 'packages/profile'))
-    rmSync(join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team-codex'))
+    rmSync(join(root, 'node_modules/@benz-ai-x/dsh-agent-team-codex'))
     const result = importHost(root, { NODE_PATH: join(project, 'packages/profile/node_modules') })
     expect(result.status, result.stderr).toBe(1)
     expect(JSON.parse(result.stdout)).toMatchObject({
       code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
-      message: expect.stringContaining('@deepseek-ai/dsh-experimental-agent-team-codex'),
+      message: expect.stringContaining('@benz-ai-x/dsh-agent-team-codex'),
     })
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
   it('rejects an unqualified native SDK version before importing an adapter', () => {
     const root = installedPackage(join(project, 'packages/profile'))
-    const codex = join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team-codex')
+    const codex = join(root, 'node_modules/@benz-ai-x/dsh-agent-team-codex')
     const isolated = installedPackage(realpathSync(codex))
     rmSync(codex)
     symlinkSync(isolated, codex, 'dir')
@@ -300,4 +300,24 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(directory, 'business-data'))).toBe(false)
   })
 
+  it('admits a complete profile with the Ultra-owned Codex package', () => {
+    const root = installedPackage(join(project, 'packages/profile'))
+    const result = importHost(root)
+    expect(result.status, result.stderr + result.stdout).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual({ ok: true })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it('rejects co-installed old and Ultra-owned Codex packages before either can register', () => {
+    const root = installedPackage(join(project, 'packages/profile'))
+    symlinkSync(join(project, '.dsh/harness/packages/experimental/agent-team-codex'),
+      join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team-codex'), 'dir')
+    const result = importHost(root)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: 'ULTRA_COMPAT_LEGACY_RUNTIME',
+      message: expect.stringContaining('@deepseek-ai/dsh-experimental-agent-team-codex'),
+    })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
 })

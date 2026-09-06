@@ -23,7 +23,7 @@ function indexPackages(parent, nested = false) {
 }
 indexPackages('vendor')
 indexPackages('packages', true)
-for (const directory of ['domain', 'ui', 'profile']) {
+for (const directory of ['domain', 'ui', 'profile', 'codex']) {
   const packageRoot = join(root, 'packages', directory)
   const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
   workspace.set(manifest.name, { packageRoot, manifest })
@@ -87,6 +87,7 @@ writeFileSync(join(output, 'compatibility.json'), `${JSON.stringify({
   schemaVersion: 1,
   maintainedFork: lock.upstream,
   ...lock.compatibility,
+  retiredRuntimePackages: ['@deepseek-ai/dsh-experimental-agent-team-codex'],
   roots,
   packages,
 }, null, 2)}\n`)

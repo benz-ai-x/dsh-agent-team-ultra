@@ -2,7 +2,14 @@
   "extends": "./.dsh/harness/tsconfig.base.json",
   "files": [],
   "references": [
-    { "path": "./packages/domain" },
-    { "path": "./packages/profile" }
+    {
+      "path": "./packages/codex"
+    },
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/profile"
+    }
   ]
 }

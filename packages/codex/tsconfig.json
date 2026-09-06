@@ -1,0 +1,33 @@
+{
+  "extends": "../../.dsh/harness/tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../.dsh/harness/vendor/cosmokit"
+    },
+    {
+      "path": "../../.dsh/harness/vendor/schemastery"
+    },
+    {
+      "path": "../../.dsh/harness/vendor/cordis"
+    },
+    {
+      "path": "../../.dsh/harness/packages/sdk/protocol"
+    },
+    {
+      "path": "../../.dsh/harness/packages/subprocess/subprocess"
+    },
+    {
+      "path": "../../.dsh/harness/packages/util/timeout"
+    },
+    {
+      "path": "../../.dsh/harness/packages/experimental/agent-team"
+    }
+  ]
+}

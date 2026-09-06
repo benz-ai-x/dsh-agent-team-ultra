@@ -7,10 +7,10 @@
 
 ## 当前任务与完成边界
 
-- 用户当前要求修复 [PR #48](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/48) 的评审发现，并已授权双轴 review 通过后合并到 `main`。开发修复在隔离工作树 `/tmp/ultra-48-fix-1dhwh7na`，分支 `fix/22-runtime-compatibility-preflight`；保留主工作区 #26 的未提交改动。
-- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 和 [#22](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/22)，中文为规范主版。父 Spec 保持 open。
-- PR #45、#46、#47 已分别合并；当前 `main` 为 `85b80c25a50c67e3833adc79417917d1398fc918`。PR #48 基于 `main`，本次修复后需推送新 head，再固定该 head 进行 Standards / Spec 独立复审。
-- GitHub CLI 已登录。#19–#25 已按用户“开发及验证完成即可关闭”的指示关闭；Issue 状态与 PR 合并状态分别追踪。后续 #23–#25 的代码位于独立的 PR #49–#51，本分支不包含这些增量；#26 在主工作区进行中。
+- 用户当前要求评审 [PR #49](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/49) 并处理与 main 的合并冲突，并已授权双轴 review 通过后合并到 `main`。开发修复在隔离工作树 `/tmp/ultra-49-review-cc6edu_i`，分支 `fix/23-ultra-codex-runtime`；保留主工作区 #26 的未提交改动。
+- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 和 [#23](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/23)，中文为规范主版。父 Spec 保持 open。
+- PR #45–#48 已合并；main 为 `debde06ce5c75658f9ad741cbfc8d535df118455`。PR #49 原 head 为 `ae2ec72`，本轮将 main 合入该分支，保留完整闭包、真实 Loader 根、模块类型诊断和 11 组共同对照，同时接入 Ultra-owned Codex 和旧包拒绝规则。
+- GitHub CLI 已登录。#19–#25 已按用户“开发及验证完成即可关闭”的指示关闭；Issue 状态与 PR 合并状态分别追踪。本分支包含 #23 的 Codex 迁移；#24–#25 的增量仍位于 PR #50–#51；#26 在主工作区进行中。
 - 本轮只在当前对话报告进度。历史通知记录不能作为本轮向外部发送消息的授权。
 
 ## #19 已实现内容
@@ -38,6 +38,19 @@
 - pnpm links、TypeScript、Vitest alias、Typert、构建、测试和打包均使用统一来源。构建入口检查实际已安装依赖；生成器在检查之后动态导入所选 Typert 实现。打包打印所选 CLI 的绝对路径。
 - pnpm lock 仅更新 link 路径；已比较确认 package resolutions、snapshots、settings 和依赖版本不变，`dsh-reference.lock.json` 未改。
 - 7 个 [CLI 集成测试](scripts/tests/locked-source.spec.ts) 覆盖 CWD、非相邻来源、重复准备、已安装依赖混用、TypeScript bases/references 混用、拒绝无效选择及保留已有目录。构建通过，strict 为 436 项通过、0 警告；完整隔离验收亦已通过，见下文。
+
+## #23 已实现内容
+
+- Codex 实现与资格校验迁入 `packages/codex`，包名为 `@benz-ai-x/dsh-agent-team-codex@0.1.0`。`src/index.ts`／`src/product.ts` 与固定 Harness 前身逐字节一致，并保留 MIT license 和来源说明；SDK／平台 payload 仍为 `0.149.1`，不搜索 PATH，不扩大沙箱或能力。
+- 保留 `agent-team-codex` Loader 行、`digitalEmployees` Catalog Owner、`external-agent/codex` 路由、native project correlation、成员、Profile Revision、Binding、native handle 及存储代际。完整 provider 仍经同一个通用 Catalog Owner 注册，目录与执行注册随 Fiber 一起释放。
+- Profile peers／workspace 依赖、TS references、Host 构建顺序、生成兼容性证明及安装／卸载清单一起调整；归档仍为八个，现为四个 Ultra 包和四个 Harness private 包。Typert 通过正常构建重新生成。pnpm lock 保留全部已有 resolutions／snapshots／settings，只增加 Codex wrapper 与六个平台载荷的七个固定条目。
+- 迁移测试发现 Node `createRequire().resolve.paths()` 会接纳 `NODE_PATH` 中的工作区副本，掩盖 ESM 实际缺包。预检现仅沿真正的 ESM `node_modules` 祖先路径查找，并保留 SDK 未导出 package.json 的读取能力；明确的 NODE_PATH 回归测试通过。
+- 新版 Profile 在子插件加载前拒绝仍可解析的旧 Codex 包，返回 `ULTRA_COMPAT_LEGACY_RUNTIME`。README、打包输出、ADR-0007、ADR-0014 和补丁清单给出停止 Web、仅移除旧 Codex、安装新八包并沿用原 DSH_HOME 的升级流程；历史归档不可用目录通配符混装。
+- 新增真实 Host catalog／Fiber 替换测试，迁入原有十条 native 产品资格校验测试，并新增完整 Profile 准入与旧新共存拒绝案例。
+- 初次实现的完整 `pnpm verify` 退出 0：**506 项 strict、0 警告；199 项测试（18 个文件）；八个真实归档安装、Web 启动和卸载全部通过**。日志 `/tmp/ultra-23-full-verify.log`。RED 日志为 `/tmp/ultra-23-{profile,catalog,admission,duplicate,pack}-red.log`。
+- [升级验证脚本](scripts/verify-codex-upgrade.mjs) 从固定前身 `61d23615bb8987e85f2397ed57b94ef23c79ade3` 的独立已构建 checkout `/tmp/ultra-23-predecessor` 重新打包并安装实际旧八包。经真实 Loader、生成 Remote、Team 与 JSON／SQLite 存储分别创建员工并完成两轮工作；停止旧 context、仅移除旧 Codex、安装新八包后，原成员／Revision／handle 保持不变，新增第三轮消息没有创建新线程。目录移除／回归、执行注册释放、升级后 Web 启动、完整卸载及无残留均通过，退出 0。最终日志 `/tmp/ultra-23-upgrade-final.log`。
+- 升级探针的 native app-server 通道是明确的外部确定性替身；实际 adapter、SDK／payload 资格校验、协议传输、Loader、Remote 和持久化均使用发货代码。没有使用用户认证或运行真实 native 模型会话；#44 的产品验收要求仍未完成。
+- 曾有一次 pnpm 11.7.0 在输出 Done 后超过四分钟不退出，已通过飞书报告并终止该隔离安装进程。带诊断观察的完整场景和不带观察器的原命令随后均自然退出 0；固定 11.7.0 的最小归档更新案例也未复现。没有修改 pnpm／Harness 版本、跳过检查或把被终止的运行当成成功；根因未证明，作为一次未稳定复现的环境限制保留。临时观察器不进入项目。
 
 ## 验证证据与限制
 
@@ -85,10 +98,9 @@
 
 ## 下一步
 
-1. 完成本次 PR #48 的完整验证、提交和推送，再固定新 head 与 `main` 做 Standards / Spec 两路独立评审。
-2. 若两路通过，按用户已有授权合并 PR #48 到 `main`，并回读远端状态；若出现新发现，先修复、补足验证和复审。
-3. 保留后续 PR #49–#51 的堆叠分支；后续集成需要处理它们与本次修复的重叠。不要因本次授权自动合并其他 PR。
-4. 主工作区 #26 的 phase B 源码、锁和未提交代码保持原样，其 strict / coverage 阻塞不属于本次 phase A 验证结果。
+1. 完成 PR #49 的 main 冲突整合、完整验证和真实前身归档升级，提交并推送。
+2. 固定当前 main 与新 head 分别执行 Standards / Spec 两路独立评审；均通过后按用户已有授权合并 PR #49。
+3. 保留 PR #50–#51 后续审核和合并边界；不要切换或提交主工作区 #26 WIP。父 Spec #18 保持 open，真实 native 验收仍属 #44。
 
 ## 权威材料与技能
 
@@ -96,3 +108,13 @@
 - 领域／历史：[CONTEXT.md](CONTEXT.md)、[领域约定](docs/agents/domain.md)、[ADRs](docs/adr/)、[历史决策](docs/decisions/)、[官方兼容性研究](docs/research/2026-09-05-official-agent-team-compatibility.md)。
 - 任务管理：[Issue tracker 约定](docs/agents/issue-tracker.md)、[triage 约定](docs/agents/triage-labels.md)；GitHub Issue 是需求源，不能用本地缓存或 TODO 替代。
 - 本轮修复使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`，复审使用 `code-review`；该技能明确要求 Standards / Spec 两路独立代理，开发没有额外委派。
+
+- 本轮 PR #49 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`；已合入 #48 的修复意图，尚待最终验证与复审。
+
+## PR #49 本轮整合验证
+
+- 已在本隔离分支合入 main `debde06`，逐项保留 #48 的完整闭包、ESM 自引用／模块类型检查、真实 Loader 根目录和公共 Team 对照；把 Codex 包加入同一生成闭包，保留旧包提前拒绝及全部入口回归。
+- 完整 `pnpm verify` 已通过：506 strict、0 警告；204 测试／18 文件；八归档真实安装、Web 启动与完整卸载。日志 `/tmp/ultra-49-merged-verify.log`。Codex `index.ts` / `product.ts` 与锁定 Harness 前身保持逐字节一致。
+- 真实归档升级的固定前身更新为当前 main `debde06ce5c75658f9ad741cbfc8d535df118455`；独立工作树 `/tmp/ultra-49-predecessor-cpcyoykc` 按其锁准备和构建。当前 main 前身的真实升级已通过，日志 `/tmp/ultra-49-current-main-upgrade.log`；同一官方／fork 11 组公共契约亦通过，日志 `/tmp/ultra-49-comparison.log`。
+
+- `e0a9ee0` 两路独立 review：Standards 0 项；Spec 发现 T-14 的 P3：升级脚本硬编码归档数量。已改为从各版本 Profile bundle 及嵌套 Loader group 读取实际贡献包名，核对真实归档 manifest 的完整身份集合。补修后真实归档升级再次通过：JSON/SQLite 原成员、Revision、native handle 连续，Catalog 移除／回归、升级 Web 与完整卸载均通过，日志 `/tmp/ultra-49-closure-upgrade.log`。此增量只改变验收脚本与交接，运行时代码仍与已通过 204 测试和完整验证的 `e0a9ee0` 相同；最终两路增量复核待完成。

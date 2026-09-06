@@ -18,6 +18,7 @@ interface CompatibilityProof {
   readonly schemaVersion: 1
   readonly packages: Readonly<Record<string, PackageProof>>
   readonly roots: Readonly<Record<'host' | 'profile', readonly string[]>>
+  readonly retiredRuntimePackages?: readonly string[]
 }
 
 export class UltraCompatibilityError extends Error {
@@ -68,6 +69,15 @@ export function assertUltraCompatibility(anchor: string, entry: 'host' | 'profil
   } catch (error) {
     throw new UltraCompatibilityError('@benz-ai-x/dsh-agent-team-ultra',
       error instanceof Error ? error.message : 'compatibility proof is unavailable', 'ULTRA_COMPAT_PROOF_INVALID')
+  }
+  if (entry === 'profile') {
+    for (const name of proof.retiredRuntimePackages ?? []) {
+      if (findManifest(name, anchor)) {
+        throw new UltraCompatibilityError(name,
+          'retired runtime is still installed; stop Web and remove this package before upgrading',
+          'ULTRA_COMPAT_LEGACY_RUNTIME')
+      }
+    }
   }
   const visited = new Set<string>()
   function verify(name: string, from: string): void {
