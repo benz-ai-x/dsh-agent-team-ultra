@@ -183,8 +183,15 @@ export function readCheckpoints(source, backend) {
     const db = new DatabaseSync(source, { readOnly: true })
     try {
       const unit = db.prepare('SELECT version FROM units WHERE name = ?').get('session_projcache')
-      if (unit) for (const row of db.prepare('SELECT key, value FROM u_session_projcache_sessions').all()) {
-        parse(row.key, unit.version, row.value)
+      if (unit) {
+        try {
+          for (const row of db.prepare('SELECT key, value FROM u_session_projcache_sessions').all()) {
+            parse(row.key, unit.version, row.value)
+          }
+        } catch {
+          records.clear()
+          unreadable = true
+        }
       }
     } finally { db.close() }
   } else {
@@ -268,10 +275,23 @@ export async function readSessions(root, harnessRoot, { records: cached = new Ma
       throw error
     }
     if (log.committedBytes !== bytes.length) refuse('AUDIT_SESSION_TAIL', 'A Session contains unreadable or incomplete records')
-    for (const event of log.events) {
-      if (event.type.startsWith('team/') && !isTeamEvent(event)) {
+    const teamHistories = new Map()
+    for (const [index, event] of log.events.entries()) {
+      if (!event.type.startsWith('team/')) continue
+      if (!isTeamEvent(event)) {
         refuse('AUDIT_TEAM_VOCABULARY', 'An unknown Team recovery event requires a matching schema, codec and projection')
       }
+      const teamId = event.data?.teamId
+      if (index >= log.inheritedEventCount && teamId !== log.meta.id) {
+        refuse('AUDIT_TEAM_IDENTITY', 'A non-inherited Team event belongs to another Session identity')
+      }
+      // Ordinary projection selects the current Team and skips foreign facts.
+      // Audit every Team history, including the exact inherited prefix, through
+      // its owner's full schema and transition checks before that selection.
+      const state = teamHistories.get(teamId) ?? teamProjectionDefinition.init({ ...log.meta, id: teamId })
+      teamProjectionDefinition.apply(state, event)
+      if (state.failure) refuse('AUDIT_TEAM_EVENT', 'A Team history cannot be replayed by the qualified projection')
+      teamHistories.set(teamId, state)
     }
     parsed.push(log)
   }

@@ -12,7 +12,8 @@ import * as JsonStorage from '@deepseek-ai/dsh-storage-json'
 import * as SqliteStorage from '@deepseek-ai/dsh-storage-sqlite'
 import { digitalEmployeeDomainSpec } from '../src/spec.ts'
 import { openDigitalEmployeeStorage } from '../src/storage.ts'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { describe, expect, it, vi } from 'vitest'
 import { profile, target, workflow } from './fixtures/host-workflow.ts'
 import * as Codex from '../../codex/lib/index.js'
@@ -243,6 +244,33 @@ describe('operator migration audit', () => {
     expect(bytes(root)).toEqual(before)
   })
 
+  it.each(['missing-table', 'unreadable-table'] as const)('rebuilds a %s SQLite cache while still refusing unsupported business data', async damage => {
+    const { root, leadId } = await created('sqlite', true)
+    const path = join(root, 'storage.sqlite')
+    const db = new DatabaseSync(path)
+    try {
+      db.exec(damage === 'missing-table'
+        ? 'DROP TABLE u_session_projcache_sessions'
+        : 'ALTER TABLE u_session_projcache_sessions RENAME COLUMN value TO unreadable_value')
+    } finally { db.close() }
+    const before = bytes(root)
+    const result = audit(root, 'sqlite')
+    expect(result.status, result.stderr + result.stdout).toBe(0)
+    expect(JSON.parse(result.stdout).checkpoints).toContainEqual({
+      sessionId: leadId, status: 'rebuild', reason: 'cache-unreadable',
+    })
+    expect(bytes(root)).toEqual(before)
+
+    const future = new DatabaseSync(path)
+    try { future.prepare('UPDATE units SET version = ? WHERE name = ?').run(999, 'agent_team_ultra_v1') }
+    finally { future.close() }
+    const unsupported = bytes(root)
+    const refused = audit(root, 'sqlite')
+    expect(refused.status, refused.stderr + refused.stdout).toBe(1)
+    expect(JSON.parse(refused.stdout)).toMatchObject({ ok: false, code: 'AUDIT_ULTRA_VERSION' })
+    expect(bytes(root)).toEqual(unsupported)
+  })
+
   it('refuses a schema-valid Profile Head that points outside its durable Revision history', async () => {
     const { root } = await created()
     const path = join(root, 'storage/agent_team_ultra_v1/profile_heads', `${profile.id}.json`)
@@ -383,6 +411,57 @@ describe('operator migration audit', () => {
     expect(result.status, result.stderr + result.stdout).toBe(1)
     expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: 'AUDIT_TEAM_VOCABULARY' })
     expect(bytes(root)).toEqual(before)
+  })
+
+  it.each(['valid', 'future', 'malformed'] as const)('refuses a %s Team payload committed under another Team identity', async payload => {
+    const { root, leadId } = await created()
+    await mutateSession(root, leadId, rows => {
+      rows.push({
+        type: 'team/task', seq: rows.length - 1, time: Date.now(),
+        data: {
+          version: payload === 'future' ? 999 : 2, teamId: 'another-team',
+          task: payload === 'malformed' ? { malformed: true } : {
+            id: 'task-1', revision: 1, subject: 'Task', description: '',
+            status: 'pending', blockedBy: [], writeScopes: [],
+          },
+        },
+      })
+    })
+    const before = bytes(root)
+    const result = audit(root)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: 'AUDIT_TEAM_IDENTITY' })
+    expect(bytes(root)).toEqual(before)
+  })
+
+  it('accepts a real inherited Team prefix but refuses its future payload without changing the source', async () => {
+    const { root, leadId } = await created()
+    const ctx = new Context()
+    const forkId = SessionId('audit-fork')
+    try {
+      await ctx.plugin(JsonlSessionPersistence, { root: join(root, 'sessions') })
+      const parent = await ctx.sessionPersistence.open(SessionId(leadId), 'read')
+      try {
+        const events = await parent.read()
+        const fork = await ctx.sessionPersistence.create({
+          ...parent.header, id: forkId, parentSession: SessionId(leadId), isSeeded: true,
+        }, { inheritedEventCount: SessionLogOffset(events.length) })
+        try { await fork.append(events) }
+        finally { await fork.close() }
+      } finally { await parent.close() }
+    } finally { await ctx.fiber.dispose() }
+    const before = bytes(root)
+    const accepted = audit(root)
+    expect(accepted.status, accepted.stderr + accepted.stdout).toBe(0)
+    expect(bytes(root)).toEqual(before)
+    await mutateSession(root, forkId, rows => {
+      rows.find(row => row.type === 'team/member').data.version = 999
+    })
+    const future = bytes(root)
+    const refused = audit(root)
+    expect(refused.status, refused.stderr + refused.stdout).toBe(1)
+    expect(JSON.parse(refused.stdout)).toMatchObject({ ok: false, code: 'AUDIT_TEAM_EVENT' })
+    expect(bytes(root)).toEqual(future)
   })
 
   it('refuses a valid child descriptor whose route conflicts with the permanent Team member', async () => {

@@ -157,4 +157,8 @@
 ## PR #51 本轮整合验证
 
 - 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`。独立工作树按锁定 Harness `8b4bae0b` 准备并冻结安装，编辑前 strict 554 项通过、0 警告。
-- 合入 main `cd15e97`，仅 HANDOFF / TODO 产生文本冲突；保留已合并 PR 的验证结果、兼容性闭包、真实 Loader 根、自引用／模块类型诊断及共享归档升级驱动，同时接入 #25 的纯存储校验与只读审计。整合后的完整 `pnpm verify` 已退出 0：554 strict、0 警告；248 测试／21 文件（30 项只读审计案例）；实际八归档安装、Web 启动和全部行／包卸载通过，日志 `/tmp/ultra-51-merged-verify.log`。两类归档升级、对照和独立评审待完成。
+- 合入 main `cd15e97`，仅 HANDOFF / TODO 产生文本冲突；保留已合并 PR 的验证结果、兼容性闭包、真实 Loader 根、自引用／模块类型诊断及共享归档升级驱动，同时接入 #25 的纯存储校验与只读审计。整合后的完整 `pnpm verify` 已退出 0：554 strict、0 警告；248 测试／21 文件（30 项只读审计案例）；实际八归档安装、Web 启动和全部行／包卸载通过，日志 `/tmp/ultra-51-merged-verify.log`。两类真实归档升级已自然退出 0：Claude 从固定 `081357d`、Codex 从固定 `debde06` 升级，JSON / SQLite 保留身份，后续工作、生命周期释放、Web 启动和全部卸载通过；日志 `/tmp/ultra-51-{claude,codex}-upgrade.log`。同一 11 组官方／fork 契约对照通过，日志 `/tmp/ultra-51-comparison.log`。
+
+- 固定 `cd15e97...21f1cb4` 首轮评审：Standards 发现 P2，SQLite 缓存表缺失／不可读时错误中断整个审计；Spec 发现 P2，投影先过滤 Team ID，导致跨 Team 的未来／无效 payload 被跳过。两轴各自记录，不用一轴结果替代另一轴。
+- 已为两项问题补充 6 条真实源回归并先确认失败（`/tmp/ultra-51-cache-red.log`、`/tmp/ultra-51-team-red.log`）。缓存局部读失败现在报告 `cache-unreadable` 并从权威日志冷重建，未知 Ultra 业务版本仍拒绝；所有 Team 历史（含精确继承前缀）使用锁定的完整 schema / projection 检查，非继承事件必须属于所在 Session。
+- 36 项完整审计案例通过，日志 `/tmp/ultra-51-audit-green.log`；既有独立跨 Team 复现现在稳定返回 `AUDIT_TEAM_IDENTITY`。README / 项目契约已更新；补修只涉及审计 CLI、测试及文档，发货 Host 和升级探针与 `21f1cb4` 相同。最终完整 `pnpm verify` 自然退出 0：554 strict、0 警告；254 测试／21 文件，八归档安装／Web 启动／完整卸载通过，日志 `/tmp/ultra-51-fixed-verify.log`。56 个本地文档链接和差异格式检查通过，双轴增量复核待完成。

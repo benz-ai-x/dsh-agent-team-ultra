@@ -91,9 +91,12 @@ real Session read handles through the locked Team projection, and correlates
 Profile revisions, Bindings, fixed routes, descriptors, native identities and
 capability requirements. The Host and audit share pure Revision normalization,
 v0 projection and immutable-reference validation. The audit never persists the
-in-memory result. JSON and SQLite v0/pending-v1 retries accept equal projected
-records and refuse divergence. Invalid checkpoints are reported for cold
-rebuilding, leaving original bytes intact.
+in-memory result. Every Team history, including inherited prefixes, passes the
+locked payload and transition checks; non-inherited Team events must belong to
+the containing Session. JSON and SQLite v0/pending-v1 retries accept equal
+projected records and refuse divergence. Invalid checkpoints, including missing
+or unreadable SQLite cache tables, are reported for cold rebuilding, leaving
+original bytes intact. Cache recovery never suppresses authoritative data errors.
 
 SQLite is read through a private database/WAL copy so even SHM creation stays
 outside the source. Source digests include sidecars and are checked again before

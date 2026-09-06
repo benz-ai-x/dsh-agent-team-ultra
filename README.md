@@ -132,7 +132,7 @@ pnpm migration:audit --sessions /absolute/path/to/sessions --sqlite /absolute/pa
 
 按实际后端选择其中一条。需要纯 JSON 输出时，使用 `node scripts/audit-migration.mjs` 加相同参数。成功退出 `0`，拒绝退出 `1` 并返回稳定的 `AUDIT_*` 原因。根目录和文件必须存在、没有符号链接；每个源文件上限 64 MiB，每个目录树上限 10,000 个文件。审计前后核对文件摘要，变化中的源须重新取得静止快照；报告只包含身份、版本、检查结果和计划，不含消息正文或 native transcript。
 
-审计区分 Session codec、Team payload、projection stateVersion、descriptor 和 Ultra Generation，核验 Profile／Revision／Binding 与 Team、固定 route、native 身份及能力需求。未知或未来业务格式拒绝读取；不可用 checkpoint 则基于真实日志冷重建并报告原因，源缓存保持不变。v0 和 pending v1 只在内存中按现有 Host 规则投影、校验和判断重试冲突，不创建或补写目标库。SQLite 的数据库及 WAL 复制到临时目录后用只读连接检查，源 SHM 和数据库不会被 SQLite 打开或更新，临时副本在退出前清除。
+审计区分 Session codec、Team payload、projection stateVersion、descriptor 和 Ultra Generation，核验 Profile／Revision／Binding 与 Team、固定 route、native 身份及能力需求。未知或未来业务格式拒绝读取；每个 Team 历史（含继承前缀）都经完整 payload 与状态转换检查，非继承事件必须属于当前 Session。不可用 checkpoint（含缺失或不可读的 SQLite 缓存表）基于真实日志冷重建并报告原因，源缓存保持不变；权威业务数据错误仍拒绝。v0 和 pending v1 只在内存中按现有 Host 规则投影、校验和判断重试冲突，不创建或补写目标库。SQLite 的数据库及 WAL 复制到临时目录后用只读连接检查，源 SHM 和数据库不会被 SQLite 打开或更新，临时副本在退出前清除。
 
 报告中的阶段 C 计划保留 Session、成员、Profile Revision、任务／消息、Launch Request、native handle／turn、时间与 CAS，规定 pending 目标关闭业务写入、相同记录复用、冲突拒绝、完成标记最后提交和禁止双向写入。方案见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)。当前命令只审计，**不执行格式迁移**；阶段 A 验收后进入 B，当前运行锁仍为维护 fork `8b4bae0b…`，官方 `d347e7` 仍仅为对照与阶段 C 集成基础。
 
