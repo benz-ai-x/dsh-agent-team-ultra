@@ -66,3 +66,10 @@ MCP transport, Team, Session and persistence. Only the external model endpoint
 is a deterministic local HTTP/SSE fixture with a dummy key. This establishes the
 repeatable SDK/native boundary required by Issue #30; authenticated product
 acceptance remains [Issue #44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44).
+
+The initial fixed-base Standards review found two P3 documentation errors in
+this evidence: it conflated DSH live-Agent authority with native grants and
+listed wait among durable receipts. Commit `774817fc487e38b041e8804d08abb7116d279d7c`
+corrects both without changing runtime behavior. Complete Standards and Spec
+re-review of that candidate reports zero unresolved findings; a subsequent
+status-only commit records that result before final exact-head confirmation.
