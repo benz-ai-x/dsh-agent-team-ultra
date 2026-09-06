@@ -13,7 +13,7 @@ const previous = process.argv[2] && resolve(process.argv[2])
 assert.ok(previous, 'Pass the built, isolated #22 checkout to verify:codex-upgrade')
 const { harnessRoot } = requirePreparedHarness(root)
 requirePreparedHarness(previous)
-const baseline = '61d23615bb8987e85f2397ed57b94ef23c79ade3'
+const baseline = 'debde06ce5c75658f9ad741cbfc8d535df118455'
 function run(command, args, cwd = root, env = {}) {
   const result = spawnSync(command, args, {
     cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,

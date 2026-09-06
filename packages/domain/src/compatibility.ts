@@ -5,6 +5,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 interface PackageProof {
+  readonly type?: string
   readonly version: string
   readonly main: string
   readonly exports: unknown
@@ -28,7 +29,21 @@ export class UltraCompatibilityError extends Error {
 }
 
 function findManifest(name: string, from: string): string | undefined {
-  let directory = dirname(from.startsWith('file:') ? fileURLToPath(from) : from)
+  const start = dirname(from.startsWith('file:') ? fileURLToPath(from) : from)
+  // ESM resolves an exported package's own name from its nearest package scope.
+  let scope = start
+  while (basename(scope) !== 'node_modules') {
+    const manifest = join(scope, 'package.json')
+    if (existsSync(manifest)) {
+      const self = JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string; exports?: unknown }
+      if (self.name === name && self.exports != null) return realpathSync(manifest)
+      break
+    }
+    const parent = dirname(scope)
+    if (parent === scope) break
+    scope = parent
+  }
+  let directory = start
   for (;;) {
     const candidate = join(directory, 'node_modules', name, 'package.json')
     if (basename(directory) !== 'node_modules' && existsSync(candidate)) return realpathSync(candidate)
@@ -71,9 +86,9 @@ export function assertUltraCompatibility(anchor: string, entry: 'host' | 'profil
       const path = resolveManifest(name, from)
       if (visited.has(path)) return
       const actual = JSON.parse(readFileSync(path, 'utf8')) as PackageProof
-      if (actual.version !== expected.version || actual.main !== expected.main
+      if (actual.type !== expected.type || actual.version !== expected.version || actual.main !== expected.main
         || JSON.stringify(actual.exports) !== JSON.stringify(expected.exports)) {
-        throw new Error('package version or exported entry points differ from the locked build')
+        throw new Error('package module type, version or exported entry points differ from the locked build')
       }
       for (const [file, digest] of Object.entries(expected.files)) {
         const bytes = readFileSync(join(dirname(path), file))
