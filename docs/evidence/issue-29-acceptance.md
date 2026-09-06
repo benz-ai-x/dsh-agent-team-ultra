@@ -40,8 +40,8 @@ first result. Assistant/tool-result continuations produce one usage occurrence.
 Invalid timestamps never become negative evidence, and unsafe cumulative
 counters are omitted while retaining the occurrence.
 
-The Claude-focused run passes 45 tests in four files. The full
-`pnpm verify` passes 562 strict context checks with zero warnings and 317 tests
+The Claude-focused run passes 46 tests in four files. The full
+`pnpm verify` passes 562 strict context checks with zero warnings and 318 tests
 in 26 files. It builds both targets, packs eight archives, boots a real packed
 Web profile, runs Codex and Claude installed new/resumed flows on JSON and
 SQLite, verifies durable messages and terminal receipts without duplicates, and
@@ -74,9 +74,11 @@ behavior groups. Compatibility admission accepts the fixed maintained fork,
 rejects unsupported source before install and unsupported Team format before
 import, and creates no business data on rejection.
 
-TDD records include the query, settlement, recovery, paging, marker, missing
-terminal, legacy delivery, API-error, file-confinement, byte-boundary, unsafe
-history, and conflicting-terminal RED/GREEN logs under
-`/root/workspace/.ultra-checks/29-*`. Standards/Spec review and merge status
-remain properties of the PR; this acceptance record does not claim review or
-merge.
+TDD records include the query, settlement, recovery, recovery-admission,
+paging, marker, missing-terminal, legacy-delivery, API-error, file-confinement,
+byte-boundary, unsafe-history, and conflicting-terminal RED/GREEN logs under
+`/root/workspace/.ultra-checks/29-*`. The first Standards and Spec reviews each
+found the same P2: a failed recovery's first delivery cleared the ordering tail,
+so a later delivery could start native work. The formal regression now proves
+every delivery waits for the current recovery result. Final review and merge
+status remain properties of the PR.

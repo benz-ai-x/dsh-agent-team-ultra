@@ -283,6 +283,35 @@ describe('Claude Code authorized Team operations', () => {
     await resumed.dispose()
   })
 
+  it('keeps later deliveries blocked while native recovery remains rejected', async () => {
+    const first = await claudeWorkflow()
+    first.native.replaceLatestTurnMarker(first.handle, '[dsh-agent-team:turn:malformed-native-identity]')
+    await first.ctx.fiber.dispose()
+
+    const second = await claudeWorkflow('json', { root: first.root, resumeLead: true })
+    await expect(second.ctx.agentTeams.readTeammateRuntimeEvidence(second.lead.agent, second.member.name, {
+      limit: 100, signal: new AbortController().signal,
+    })).rejects.toThrow(/native turn marker conflicts with Team history/)
+    const send = (text: string) => second.ctx.agentTeams.sendMessage(second.lead.agent, {
+      target: second.member.name,
+      content: [{ type: 'text', text }],
+      signal: new AbortController().signal,
+    })
+    expect(await send('First follow-up after failed recovery.')).toMatchObject({ status: 'queued' })
+    let unexpectedStarts = 0
+    second.native.onTurnStart = async () => {
+      unexpectedStarts += 1
+      second.native.complete('This work must remain blocked by failed recovery.')
+    }
+    try {
+      expect(await send('Second follow-up after failed recovery.')).toMatchObject({ status: 'queued' })
+      expect(unexpectedStarts, 'No native turn may start after recovery rejected the Session identity').toBe(0)
+      expect(second.native.data.sessions[second.handle].messages.filter(message => message.type === 'user')).toHaveLength(1)
+    } finally {
+      await second.ctx.fiber.dispose()
+    }
+  })
+
   it('keeps duplicate native terminal notifications in one bound Run with one usage occurrence and immutable Profile', async () => {
     const { ctx, lead, native, invoke } = await claudeWorkflow()
     await expect(invoke('save', { expectedHeadRevision: null, profile: { ...profile, continuationProvider: '' },

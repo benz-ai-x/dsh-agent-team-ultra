@@ -8,7 +8,7 @@
 ## 当前任务与完成边界
 
 - 当前持续目标固定为任务启动时未关闭的 **#27–#44，共 18 项**。按编号依次完成 TDD 开发、逐项验收、一个 PR、固定审查起点的 Standards／Spec 并行审查、所需检查与审批、合并 main、关闭 Issue，再进入下一项。当前用户已明确授权按已确认身份和收件人通过飞书 CLI 通知每项完成及阻塞；本条取代历史轮次的通知权限和提前关闭约定。
-- 当前主工作区分支为 `fix/29-claude-member-queries`，从最新 main `e728af1a60b7685ac622582a90429f9d639b0ee2` 建立。#27／#28 已完成并分别合并 PR #53／#54，Issue 已关闭，飞书完成通知均成功。当前锁定 `/root/workspace/deepseek-harness-ultra-29`、`b85ebb3fca3da0c735cfed0b4532f926a4221e24`；来源干净、已构建并推送。#29 的实现与本地验收完成，最终 `pnpm verify` 通过 562 strict／0 警告、317 tests／26 files 和八归档实际安装／查询／消息／回执／JSON＋SQLite 冷恢复／Web／卸载；Ultra 尚待提交、PR 和双轴审查。
+- 当前主工作区分支为 `fix/29-claude-member-queries`，从最新 main `e728af1a60b7685ac622582a90429f9d639b0ee2` 建立。#27／#28 已完成并分别合并 PR #53／#54，Issue 已关闭，飞书完成通知均成功。当前锁定 `/root/workspace/deepseek-harness-ultra-29`、`b85ebb3fca3da0c735cfed0b4532f926a4221e24`；来源干净、已构建并推送。#29 已提交首个候选 `5a88959` 并创建 PR #55；Standards／Spec 首评各发现同一项恢复准入 P2，正式 RED 已复现且修复 GREEN。修复后的完整验证、历史升级和官方对照均通过；补修提交／推送和精确 head 复审尚待完成。
 - 清单及原始正文／评论／验收快照在 `/tmp/ultra-goal-27plus-7tyh7_0l/manifest.json`。#39–#43 要求共用集成分支、最终门禁后合并，与本轮逐项合并 main 的顺序冲突；已经请求用户决策，相关操作保持待定，不影响先完成 #27–#38。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
 - #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。历史 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
@@ -22,13 +22,13 @@
 
 ## #29 验收候选与 #28 完成状态
 
-- **#29 最新进展（2026-09-07，Asia/Shanghai）**：Ultra 位于 `fix/29-claude-member-queries`，固定起点／origin/main 为 `e728af1a60b7685ac622582a90429f9d639b0ee2`。实现和本地验收已完成，当前尚未提交 Ultra、创建 PR、开展双轴审查或勾选 GitHub 的 5 项 AC。
+- **#29 最新进展（2026-09-07，Asia/Shanghai）**：Ultra 位于 `fix/29-claude-member-queries`，固定起点／origin/main 为 `e728af1a60b7685ac622582a90429f9d639b0ee2`。首个候选 `5a88959c6bee290cb493f804b36cc1fbe403fd8c` 已推送并创建 [PR #55](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/55)；GitHub 回读为 OPEN／CLEAN／MERGEABLE，远端无 CI checks，main 无 branch protection／ruleset。5 项 AC 尚未勾选。
 - 锁定 Harness 已切到干净且完成构建、提交和推送的 `/root/workspace/deepseek-harness-ultra-29`、`b85ebb3fca3da0c735cfed0b4532f926a4221e24`。它增加 Host-only `turns.recover`：当前 grant 只能读取精确成员／provider／handle 的 launch、入站 delivery id 和已提交 settlement；严格分页、限额、取消和代际核对，不向模型声明工具，也不新增持久格式。229 项 owning tests 通过，四个改动运行时文件语句／分支／函数／行覆盖均为 100%；Host／Client build、真实 Loader、生成目录、类型等价、文档同步和 lint 通过。
 - Claude 通过锁定 SDK 0.3.241／payload 2.1.241 的进程内 MCP 暴露四项工具：成员列表、任务列表、任务详情和消息发送。调用身份只取 SDK `claudecode/toolUseId`，消费当前 Host grant 和持久回执；请求／转义结果／每轮调用数／授权等待、取消和代际边界均有测试。Read／Glob／Grep 仍由原生 cwd 与符号链接约束执行，shell、写入、外网、审批、额外 MCP、任务写入／等待和 Evaluation Worker 的生产成员权限未开放。[ADR 0020](docs/adr/0020-authorize-claude-team-tools.md) 已 accepted。
 - Claude 终止结算使用原 turn 的独立持久身份。Host 已提交结果优先；没有 Host 结果时只接受可信普通 `end_turn` 或锁定 payload 的合成 API 失败，缺失终态结算为 interrupted。重复／冲突／晚到旧代际终态及有效结果后的 iterator 错误不能覆盖首个可信结果。恢复先对账 Host 事实，再读取公开 transcript；失败的 flush 保留快照并在同 provider 新 grant 上重试。canonical marker、legacy 无 turn marker、工具结果续轮、分页缩页、畸形／重复边界、非法时间和溢出用量均有回归。
-- `pnpm verify` 最终通过 **562 strict／0 警告、317 tests／26 files**，并验证八归档安装、真实 Web、Codex 与 Claude 的 JSON／SQLite 新建和冷恢复、消息／最终回执去重及完整卸载。Claude 专属目录为 45 tests／4 files；真实 SDK/native 测试仅替换外部模型为本地确定性端点，验证四工具、真实 MCP 元数据、文件约束、API-error 隔离和恢复。真实凭据产品验收仍归 #44。
+- 双轴首评各发现同一项 P2：恢复拒绝后的首次投递失败被 ordering tail 吞掉，第二次投递可绕过恢复启动 native turn。真实 Host／持久化夹具稳定复现；新增正式回归并使 `deliverOnce` 每次独立等待当前 recovery。补修后的 Claude 目录 **46 tests／4 files**、完整 `pnpm verify` **562 strict／0 警告、318 tests／26 files** 均通过，八归档安装、真实 Web、Codex 与 Claude 的 JSON／SQLite 新建和冷恢复、消息／最终回执去重及完整卸载再次通过。历史升级与官方 11 组对照也在补修源码上重跑通过。真实凭据产品验收仍归 #44。
 - 从 `081357d17f7a0535b75bb7d3133177febddee4a2` 生成的历史 Claude 归档在 JSON／SQLite 升级后保留原 member、Profile Revision 1、native handle 和单一 Session，并由 0 项变为 4 项成员操作；Web 与卸载通过。维护 fork `b85ebb3fca` 和官方 `d347e70390` 都通过同一 11 组行为契约；未授权官方源在安装／导入前拒绝，且不创建业务数据。
-- [#29 验收证据](docs/evidence/issue-29-acceptance.md)映射全部 5 项 AC。下一步是提交／推送 Ultra、创建一个 PR，以固定 main 和准确 head 并行执行 Standards／Spec 审查；解决所有发现并重新验证后，才能勾选 AC、正常合并、关闭 Issue 和发送飞书完成通知。#39–#43 分支冲突仍待用户决策，只暂停相关阶段。
+- [#29 验收证据](docs/evidence/issue-29-acceptance.md)映射全部 5 项 AC。下一步是完成修复后的全量验证、提交／推送补修，并请两位原审查者对精确新 head 复审；两轴归零后才能勾选 AC、正常合并、关闭 Issue 和发送飞书完成通知。#39–#43 分支冲突仍待用户决策，只暂停相关阶段。
 - #28 最终候选 `112042507ac25a71b1e36dc422fcb4019a320ddb` 经独立 Standards／Spec 复审均无未解决发现；[PR #54](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/54) 已合并为 `e728af1a60b7685ac622582a90429f9d639b0ee2`，Issue 关闭、5／5 AC 已回读、飞书通知成功。
 - frozen manifest 当前为 #28 complete、#29 in_progress、currentIssue 29；原 18 项范围和顺序不变。
 

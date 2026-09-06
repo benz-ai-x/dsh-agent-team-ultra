@@ -514,6 +514,8 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     request: TeammateRuntimeDeliverRequest,
   ): Promise<TeammateRuntimeDeliverResult> {
     this.assertSessionAttached(session)
+    await raceAbort(session.recovery, request.signal)
+    this.assertSessionAttached(session)
     if (session.current !== undefined) {
       await raceAbort(session.current.done.then(() => undefined), request.signal)
     }
