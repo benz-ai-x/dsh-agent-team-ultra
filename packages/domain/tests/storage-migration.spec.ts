@@ -270,6 +270,7 @@ function installAgentRuntime(
   ctx.provide('tools', {
     schemas: () => [],
     get: () => undefined,
+    register: () => () => undefined,
   } as never)
   ctx.provide('llm', {
     listProviders: () => [{ id: 'deepseek', name: 'DeepSeek' }],

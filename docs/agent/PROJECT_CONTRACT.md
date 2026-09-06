@@ -61,8 +61,8 @@ generated RPC identities move together; `digitalEmployees`, stable Loader row
 ids, and the `agent_team_ultra_v1` storage generation remain unchanged.
 
 The Host composes internal Profile lifecycle, Evaluation workflow, Profile
-capability installation, Launch/recovery, Run evidence/repair, and Studio
-projection modules around one service context. That context owns
+capability installation, Lead conversation tools, Launch/recovery, Run
+evidence/repair, and Studio projection modules around one service context. That context owns
 exact live Lead checks, public mutation admission, the serial write queue,
 runtime catalog, and storage lifetime. Generated Remote and headless methods
 delegate to the same business operations. A queued decision rechecks its caller
@@ -121,6 +121,11 @@ an actual integration commit based on the fixed official comparison.
   Team claims are never used.
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
+- The fixed `ultra_profile_list`, `ultra_profile_detail`, and
+  `ultra_profile_launch` tools exist only in each exact live Team Lead scope.
+  Teammates receive an explicit deny layer, isolated Evaluation Workers are
+  excluded before publication, and an existing visible definition with one of
+  those names refuses Ultra startup.
 - Profile Heads, immutable Profile Revisions, and Team/member Bindings are
   authoritative records in the `agent_team_ultra_v1` DSH storage generation.
   UI state is only a draft or mirror.
@@ -150,11 +155,20 @@ an actual integration commit based on the fixed official comparison.
   The active external Binding records that handle atomically with its resolved
   provider identity. The existing Agent Team Lead Session log remains
   authoritative for roster, mailbox, and task facts.
-- The Client mints one canonical UUID for a Launch Intent and reuses it across
-  transport failures or a durable `pending` result. Within one Team, identical
-  replay returns or resumes the existing Binding; changing normalized Profile
-  or assignment input returns `launch-request-conflict`. The assignment text
-  is used for initial work but only its canonical hash is persisted.
+- The Studio Client mints one canonical UUID for a Launch Intent. A Lead
+  conversation launch instead derives a canonical UUIDv8 from a fixed
+  namespace, the exact Team/Lead identity, and the persisted model tool-call
+  id. Each path reuses that ID across transport failures or a durable `pending`
+  result. Within one Team, identical replay returns or resumes the existing
+  Binding; changing normalized Profile or assignment input returns
+  `launch-request-conflict`. The assignment text is used for initial work but
+  only its canonical hash is persisted.
+- Conversation list/detail read the same bounded Studio projection and exact
+  immutable Revision operation as generated Remote. Conversation launch
+  accepts only an existing Profile ID and optional assignment, then delegates
+  to the same Host launch operation. It never creates, saves, activates,
+  rolls back, archives, or restores a Profile. The stock `spawn_teammate` path
+  remains an ordinary member launch without an Ultra Binding.
 - Each employee binds to an exact Revision, selected Runtime Target, resolved
   child or external Runtime Target, optional Native Runtime Handle, Required
   Capabilities, and immutable profile snapshot.
@@ -300,7 +314,9 @@ an actual integration commit based on the fixed official comparison.
   evaluation, evidence, and usage capability before provider work. A mismatch
   fails closed without a DSH or one-shot fallback.
 - A tool policy filters capabilities inherited from the parent preset. Team
-  tools installed in a production teammate's own scope remain available.
+  tools installed in a production teammate's own scope remain available. The
+  three Lead conversation Profile tools are reserved Team-owned names and are
+  removed from every teammate's inherited surface.
   Evaluation Workers instead intersect Profile policy, provider-enforceable
   inventory, and the Eval Set allowlist, and always exclude Team tools.
 - Context and curated memory are bounded Profile sections. A DSH employee's
@@ -425,9 +441,10 @@ provider durably accepts the initial work. After acceptance, the Team runtime
 owns terminal settlement of the continuable child or native handle.
 Service disposal may cancel validation or unaccepted provisioning, but never
 stops an unrelated child or one whose initial work is durably Team-owned.
-Ultra disposal also removes every Profile Hook listener and in-process pending
-approval correlation while leaving the stock approval service and unrelated
-provider generations intact.
+Ultra disposal also removes every Lead conversation Profile schema before
+waiting for admitted callbacks, every Profile Hook listener, and in-process
+pending approval correlation while leaving the stock approval service and
+unrelated provider generations intact.
 Startup, live Lead/roster events, and Runtime Backend generations reconcile
 Bindings against the authoritative permanent roster without provisioning a
 replacement. Provisioning Phase is durable; Runtime Availability and Runtime
@@ -530,6 +547,14 @@ normalized terminal/usage facts, source and terminal filters, lazy bounded
 detail for both source families, explicit incomplete/unavailable states, and
 the absence of raw model, tool, file, environment, credential, or provider
 payload content from storage and Studio.
+
+For Lead conversation launch, acceptance additionally requires all three fixed
+schemas in the actual model request, the persisted `tool/call` identity in the
+Lead Session, stable UUID and result replay across lost responses, cancellation
+and JSON/SQLite cold recovery, exact convergence with generated Remote and
+Studio, and absence from ordinary teammates and Evaluation Workers. Packed
+Host and Profile installation must retain the exported fixed names and the same
+service composition.
 
 For exact-call approval, acceptance additionally requires first-match Profile
 Hook ordering, stock DSH approval and Conversation UI routing, one-call-only

@@ -603,6 +603,8 @@ export class EvaluationWorkflow {
         setup: (agentCtx) => {
           const evaluator = agentCtx.agent
           if (evaluator === undefined) throw new Error('unpublished evaluation Agent is unavailable')
+          const restoreProfileToolEligibility = this.host.excludeEvaluationWorkerFromProfileTools(evaluator)
+          agentCtx.effect(() => restoreProfileToolEligibility, 'agent-team-ultra.evaluation-profile-tools')
           setSandboxMode(evaluator.session, 'read-only')
           setApprovalPolicy(evaluator.session, 'never')
           this.capabilities.install(caller, evaluator, profile)

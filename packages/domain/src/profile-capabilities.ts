@@ -8,6 +8,7 @@ import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import type { DigitalEmployeeProfile, ProfileHook, ProfileTextBlock } from './types.ts'
 import { authorityRemoteError } from './host-errors.ts'
 import { snapshotProfile } from './profile-snapshot.ts'
+import { ULTRA_PROFILE_TOOL_NAMES } from './conversation-profile-tools.ts'
 
 export const TEAM_OWN_TOOL_NAMES = new Set([
   'spawn_teammate',
@@ -21,6 +22,7 @@ export const TEAM_OWN_TOOL_NAMES = new Set([
   'team_task_get',
   'team_task_update',
   'run_code',
+  ...ULTRA_PROFILE_TOOL_NAMES,
 ])
 
 export const PLUGIN_SOURCE = { kind: 'plugin', plugin: 'agent-team-ultra' } as const

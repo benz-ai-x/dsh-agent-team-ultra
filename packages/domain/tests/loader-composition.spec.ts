@@ -120,7 +120,11 @@ async function loadComposition(): Promise<{
         inspect: async () => ({ events: [], inheritedEventCount: 0 }),
       } as never)
       ctx.provide('systemPrompt', {} as never)
-      ctx.provide('tools', { schemas: () => [], get: () => undefined } as never)
+      ctx.provide('tools', {
+        schemas: () => [],
+        get: () => undefined,
+        register: () => () => undefined,
+      } as never)
       ctx.provide('llm', {
         listProviders: () => [{ id: 'fixture-llm', name: 'Fixture LLM' }],
         listModels: async () => [{ provider: 'fixture-llm', id: 'fixture-model', name: 'Fixture Model' }],
