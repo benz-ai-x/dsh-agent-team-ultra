@@ -33,7 +33,7 @@ class SessionReader extends query.default {
 }
 
 const storage = await mkdtemp(join(tmpdir(), 'ultra-team-contract-'))
-const ctx = new cordis.Context()
+let ctx = new cordis.Context()
 const signal = new AbortController().signal
 const content = text => [{ type: 'text', text }]
 const checked = []
@@ -45,7 +45,7 @@ async function until(test) {
   }
 }
 
-try {
+async function mount() {
   await testkit.mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(projection.default)
   await ctx.plugin(persistence.default, { root: storage })
@@ -54,8 +54,19 @@ try {
   await ctx.plugin(subagents.default)
   await ctx.plugin(spawn, { providerName: 'spawn' })
   const fiber = await ctx.plugin(team.default)
-  const service = ctx.agentTeams
   ctx.llm.registerAdapter(['probe'], new ControlledModel())
+  return fiber
+}
+
+async function storedEvents(id) {
+  const reader = await ctx.sessionPersistence.open(id, 'read')
+  try { return await reader.read() }
+  finally { await reader.close() }
+}
+
+try {
+  const fiber = await mount()
+  const service = ctx.agentTeams
   const lead = await ctx.agentLoop.create(session.SessionId('contract-lead'), { provider: 'probe', model: 'probe' })
   const launch = name => service.spawnTeammate(lead, {
     name, description: `${name} responsibility`, prompt: content(`${name} work`),
@@ -110,25 +121,57 @@ try {
 
   lead.followup(llm.createUserMessage({ content: content('keep lead busy'), source: { kind: 'user' } }))
   await until(() => lead.status === 'running')
-  const accepted = await service.sendMessage(alpha, { target: 'lead', content: content('durable peer report'), signal })
-  assert.equal(accepted.status, 'accepted')
-  const reader = await ctx.sessionPersistence.open(lead.id, 'read')
+  // A public durability subscriber holds the queued flush open. Delivery must
+  // wait for every subscriber, including this one, before touching the inbox.
+  const releaseFlush = Promise.withResolvers()
+  let flushingMessage
+  const stopFlush = ctx.on('session/flush', async subject => {
+    if (subject !== lead.session || flushingMessage !== undefined) return
+    const queued = subject.snapshotEvents().find(event => event.type === 'team/message/queued')
+    if (!queued) return
+    flushingMessage = queued.data.message.id
+    await releaseFlush.promise
+  })
+  const sending = service.sendMessage(alpha, { target: 'lead', content: content('first report'), signal })
   try {
-    const events = await reader.read()
+    await until(() => flushingMessage !== undefined)
+    assert.equal(lead.inbox.nextStep.some(message => message.source.kind === 'team-message'), false)
+  } finally {
+    releaseFlush.resolve()
+    stopFlush()
+  }
+  const receipts = [await sending]
+  for (const text of ['second report', 'third report']) {
+    receipts.push(await service.sendMessage(alpha, { target: 'lead', content: content(text), signal }))
+  }
+  assert.deepEqual(receipts.map(receipt => receipt.status), ['accepted', 'accepted', 'accepted'])
+  const events = await storedEvents(lead.id)
+  const messages = events.flatMap(event => event.type === 'agent/inbox/spliced'
+    ? event.data.inserted.filter(message => message.source.kind === 'team-message') : [])
+  assert.deepEqual(messages.map(message => message.content.at(-1).text), ['first report', 'second report', 'third report'])
+  assert.deepEqual(messages.map(message => [message.source.messageId, message.source.senderId, message.source.senderName]),
+    receipts.map(receipt => [receipt.messageId, alpha.id, 'alpha']))
+  for (const receipt of receipts) {
     const edges = events.flatMap(event => {
+      if (event.type === 'team/message/queued' && event.data.message.id === receipt.messageId) return ['queued']
       if (event.type === 'agent/inbox/spliced' && event.data.inserted.some(message =>
-        message.source.kind === 'team-message' && message.source.messageId === accepted.messageId)) return ['receipt']
-      if (event.type === 'team/message/delivered' && event.data.messageId === accepted.messageId) return ['delivered']
+        message.source.kind === 'team-message' && message.source.messageId === receipt.messageId)) return ['receipt']
+      if (event.type === 'team/message/delivered' && event.data.messageId === receipt.messageId) return ['delivered']
       return []
     })
-    assert.deepEqual(edges, ['receipt', 'delivered'])
-  } finally { await reader.close() }
-  checked.push('durable-receipt-before-delivered')
+    assert.deepEqual(edges, ['queued', 'receipt', 'delivered'])
+  }
+  checked.push('queued-flush-before-delivery', 'message-order-and-sender-attribution', 'durable-receipt-before-delivered')
 
+  const owned = await service.createTask(alpha, { subject: 'retained', description: 'survives interruption and restart' })
+  const working = await service.updateTask(alpha, { taskId: owned.id, expectedRevision: owned.revision, action: 'claim' })
   service.interrupt(lead, 'alpha')
   await until(() => ctx.agents.get(alpha.id) === undefined)
   await assert.rejects(launch('alpha'), { code: 'TEAM_MEMBER_NAME_TAKEN' })
-  checked.push('permanent-member-names')
+  assert.equal(service.getTask(lead, owned.id).ownerName, 'alpha')
+  assert.equal(service.getTask(lead, owned.id).status, 'in_progress')
+  assert.equal(service.getTask(lead, owned.id).revision, working.revision)
+  checked.push('permanent-member-names', 'interrupted-task-owner-retained')
 
   const disposing = service.waitForChange(lead, 10000, signal)
   await fiber.dispose()
@@ -136,6 +179,43 @@ try {
   assert.equal(ctx.get('agentTeams'), undefined)
   assert.equal(ctx.agents.get(beta.id), undefined)
   checked.push('team-fiber-disposal')
+  await ctx.fiber.dispose()
+  ctx = new cordis.Context()
+  await mount()
+  const resumed = await ctx.agents.resume({
+    resumeSessionId: lead.id, agentOptions: { provider: 'probe', model: 'probe' },
+  })
+  const restoredLead = resumed.agent
+  const restored = ctx.agentTeams
+  assert.deepEqual(restored.listMembers(restoredLead).map(member => [member.name, member.id]),
+    [['lead', lead.id], ['alpha', alpha.id], ['beta', beta.id]])
+  assert.equal(restored.getTask(restoredLead, owned.id).ownerName, 'alpha')
+  assert.equal(restored.getTask(restoredLead, owned.id).status, 'in_progress')
+  assert.equal(restored.getTask(restoredLead, owned.id).revision, working.revision)
+  assert.equal(ctx.agents.get(alpha.id), undefined)
+  assert.equal(ctx.agents.get(beta.id), undefined)
+  const created = []
+  ctx.on('agent/created', ({ agent }) => { created.push(agent.id) })
+  assert.deepEqual(await restored.waitForChange(restoredLead, 10000, signal), { timedOut: true })
+  assert.deepEqual(created, [])
+  assert.equal(ctx.agents.get(alpha.id), undefined)
+  assert.equal(ctx.agents.get(beta.id), undefined)
+  checked.push('cold-wait-timeout-without-wake')
+
+  const wake = await restored.sendMessage(restoredLead, { target: 'alpha', content: content('resume retained work'), signal })
+  assert.equal(wake.status, 'accepted')
+  await until(() => ctx.agents.get(alpha.id)?.status === 'running')
+  const restoredAlpha = ctx.agents.get(alpha.id)
+  assert.notEqual(restoredAlpha, alpha)
+  assert.equal(restored.membership(restoredAlpha).root, restoredLead)
+  assert.deepEqual(created, [alpha.id])
+  const coldMessages = (await storedEvents(alpha.id)).flatMap(event => event.type === 'agent/inbox/spliced'
+    ? event.data.inserted.filter(message => message.source.kind === 'team-message') : [])
+  assert.deepEqual(coldMessages.map(message => [message.source.messageId, message.source.senderId,
+    message.source.senderName, message.content.at(-1).text]), [[wake.messageId, lead.id, 'lead', 'resume retained work']])
+  assert.equal(restored.getTask(restoredAlpha, owned.id).ownerName, 'alpha')
+  assert.equal(restored.getTask(restoredAlpha, owned.id).revision, working.revision)
+  checked.push('cold-restart-resume-and-task-owner-retained')
   console.log(JSON.stringify({ sessionFormat: session.SESSION_FORMAT_VERSION, checked }))
 } finally {
   try { await ctx.fiber.dispose() }

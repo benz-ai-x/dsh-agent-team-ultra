@@ -42,6 +42,41 @@ function importHost(root: string, environment: Record<string, string> = {}) {
   `], { cwd: tmpdir(), encoding: 'utf8', env: { ...process.env, ...environment, DSH_HOME: join(root, 'business-data') } })
 }
 
+function installedProfile() {
+  const profile = installedPackage(join(project, 'packages/profile'))
+  const home = mkdtempSync(join(tmpdir(), 'ultra-loader-profile-'))
+  temporary.push(home)
+  const directory = join(home, 'profiles/web')
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(join(directory, 'package.json'), JSON.stringify({ name: 'isolated-web', private: true, type: 'module' }))
+  cpSync(join(profile, 'node_modules'), join(directory, 'node_modules'), { recursive: true, verbatimSymlinks: true })
+  symlinkSync(profile, join(directory, 'node_modules/@benz-ai-x/dsh-agent-team-ultra-profile'), 'dir')
+  return { profile, home, directory }
+}
+
+function loadProfile(directory: string) {
+  return spawnSync(process.execPath, ['--expose-internals', '--input-type=module', '--eval', `
+    import { createRequire } from 'node:module'
+    import { pathToFileURL } from 'node:url'
+    const require = createRequire(${JSON.stringify(join(domain, 'package.json'))})
+    const { Context } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis')).href)
+    const { default: Loader } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis-plugin-loader')).href)
+    const ctx = new Context()
+    await ctx.plugin(Loader, { baseUrl: ${JSON.stringify(pathToFileURL(`${directory}/`).href)} })
+    try {
+      await ctx.loader.create({
+        name: '@benz-ai-x/dsh-agent-team-ultra-profile', group: true,
+        config: [{ id: 'agent-team', name: '@deepseek-ai/dsh-experimental-agent-team' }],
+      })
+      await ctx.loader.await()
+      console.log(JSON.stringify({ ok: true }))
+    } catch (error) {
+      console.log(JSON.stringify({ code: error.code, message: error.message }))
+      process.exitCode = 1
+    } finally { await ctx.fiber.dispose() }
+  `], { cwd: tmpdir(), encoding: 'utf8', env: { ...process.env, DSH_HOME: join(directory, 'business-data') }, timeout: 15000 })
+}
+
 describe('installed Ultra compatibility admission', () => {
   it('rejects an unsupported source before the install command initializes a DSH home', () => {
     const root = mkdtempSync(join(tmpdir(), 'ultra-install-preflight-'))
@@ -94,6 +129,25 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
+  it('rejects a changed dependency module type before linking the Host implementation', () => {
+    const root = installedPackage()
+    const team = join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team')
+    const copy = installedPackage(realpathSync(team))
+    rmSync(team)
+    symlinkSync(copy, team, 'dir')
+    const path = join(copy, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8'))
+    writeFileSync(path, JSON.stringify({ ...manifest, type: 'commonjs' }))
+
+    const result = importHost(root)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
+      message: expect.stringContaining('@deepseek-ai/dsh-experimental-agent-team'),
+    })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
   it('rejects a changed Session executable even when its package version and exports match', () => {
     const root = installedPackage()
     const session = join(root, 'node_modules/@deepseek-ai/dsh-session')
@@ -141,7 +195,7 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
-  it('rejects a missing native adapter even when NODE_PATH exposes a qualified workspace copy', () => {
+  it('rejects a missing native adapter even when NODE_PATH exposes a qualified copy', () => {
     const root = installedPackage(join(project, 'packages/profile'))
     rmSync(join(root, 'node_modules/@benz-ai-x/dsh-agent-team-codex'))
     const result = importHost(root, { NODE_PATH: join(project, 'packages/profile/node_modules') })
@@ -171,6 +225,79 @@ describe('installed Ultra compatibility admission', () => {
       message: expect.stringContaining('@openai/codex'),
     })
     expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it('rejects a missing Ultra UI before the profile can load any child', () => {
+    const root = installedPackage(join(project, 'packages/profile'))
+    rmSync(join(root, 'node_modules/@benz-ai-x/dsh-client-ui-agent-team-ultra'))
+
+    const result = importHost(root)
+    expect(result.status, result.stderr).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
+      message: expect.stringContaining('@benz-ai-x/dsh-client-ui-agent-team-ultra'),
+    })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it('checks the actual Loader root even when the profile package has a qualified private Team', () => {
+    const { directory } = installedProfile()
+    const team = join(directory, 'node_modules/@deepseek-ai/dsh-experimental-agent-team')
+    rmSync(team)
+    mkdirSync(team)
+    writeFileSync(join(team, 'package.json'), JSON.stringify({
+      name: '@deepseek-ai/dsh-experimental-agent-team', version: '0.1.2-rc.1', type: 'module', main: 'index.js',
+    }))
+    writeFileSync(join(team, 'index.js'), `
+      import { mkdirSync } from 'node:fs'
+      mkdirSync(process.env.DSH_HOME, { recursive: true })
+      throw new Error('unchecked Loader-root Team executed')
+    `)
+
+    const result = loadProfile(directory)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    // Loader wraps entry failures; its public diagnostic retains the compatibility code.
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      message: expect.stringContaining('ULTRA_COMPAT_ARTIFACT_MISMATCH: @deepseek-ai/dsh-experimental-agent-team'),
+    })
+    expect(existsSync(join(directory, 'business-data'))).toBe(false)
+  })
+
+  it('preflights the installed CLI profile from its Loader root before starting web', () => {
+    const { home, directory } = installedProfile()
+    rmSync(join(directory, 'node_modules/@deepseek-ai/dsh-experimental-agent-team'))
+    const result = spawnSync(process.execPath, [
+      join(project, 'scripts/compatible-dsh.mjs'), 'web', '--profile', 'web', '--dump-config',
+    ], { cwd: tmpdir(), encoding: 'utf8', env: { ...process.env, DSH_HOME: home }, timeout: 15000 })
+
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
+      message: expect.stringContaining('@deepseek-ai/dsh-experimental-agent-team'),
+    })
+    expect(existsSync(join(home, 'sessions'))).toBe(false)
+  })
+
+
+  it('rejects a Loader-root Host whose private Session differs before loading children', () => {
+    const { directory } = installedProfile()
+    const host = installedPackage()
+    const link = join(directory, 'node_modules/@benz-ai-x/dsh-agent-team-ultra')
+    rmSync(link)
+    symlinkSync(host, link, 'dir')
+    const session = join(host, 'node_modules/@deepseek-ai/dsh-session')
+    const copy = installedPackage(realpathSync(session))
+    rmSync(session)
+    symlinkSync(copy, session, 'dir')
+    const entry = join(copy, 'lib/index.js')
+    writeFileSync(entry, `${readFileSync(entry, 'utf8')}\nthrow new Error('unchecked private Session executed')\n`)
+
+    const result = loadProfile(directory)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      message: expect.stringContaining('ULTRA_COMPAT_ARTIFACT_MISMATCH: @deepseek-ai/dsh-session'),
+    })
+    expect(existsSync(join(directory, 'business-data'))).toBe(false)
   })
 
   it('admits a complete profile with both Ultra-owned native adapters', () => {

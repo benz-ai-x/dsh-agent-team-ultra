@@ -7,13 +7,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requirePreparedHarness } from './harness-source.mjs'
+import { assertProfileArchiveClosure } from './profile-archive-closure.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const previous = process.argv[2] && resolve(process.argv[2])
 assert.ok(previous, 'Pass the built, isolated #23 checkout to verify:claude-upgrade')
 const { harnessRoot } = requirePreparedHarness(root)
 requirePreparedHarness(previous)
-const baseline = 'ae2ec7258146ea14ec4895d39795221c3774e29d'
+const baseline = '081357d17f7a0535b75bb7d3133177febddee4a2'
 function run(command, args, cwd = root, env = {}) {
   const result = spawnSync(command, args, {
     cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -34,8 +35,9 @@ try {
   const pack = (source, output) => {
     run(process.execPath, [join(source, 'scripts/pack-local-overlay.mjs'), output], source)
     const archives = readdirSync(output).filter(file => file.endsWith('.tgz')).map(file => join(output, file))
-    assert.equal(archives.length, 8)
-    return archives.map(file => ({ file, ...JSON.parse(run('tar', ['-xOf', file, 'package/package.json'])) }))
+    const packages = archives.map(file => ({ file, ...JSON.parse(run('tar', ['-xOf', file, 'package/package.json'])) }))
+    assertProfileArchiveClosure(source, packages)
+    return packages
   }
   const before = pack(previous, join(temporary, 'before'))
   const after = pack(root, join(temporary, 'after'))

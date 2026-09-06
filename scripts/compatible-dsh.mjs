@@ -2,7 +2,6 @@
 /** Read-only preflight followed by the exact locked CLI's supported profile entry. */
 import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { requirePreparedHarness } from './harness-source.mjs'
@@ -55,9 +54,7 @@ async function checkInstalledProfile() {
   const { resolveDshHome } = await import(pathToFileURL(join(source.harnessRoot, 'packages/util/home-paths/lib/index.js')).href)
   const directory = join(resolveDshHome(), 'profiles', profile)
   if (!existsSync(join(directory, 'package.json'))) throw new Error(`Ultra profile ${profile} is not installed`)
-  const require = createRequire(join(directory, 'package.json'))
-  assertUltraCompatibility(pathToFileURL(require.resolve('@benz-ai-x/dsh-agent-team-ultra/package.json')).href)
-  assertUltraCompatibility(pathToFileURL(require.resolve('@benz-ai-x/dsh-agent-team-ultra-profile/package.json')).href, 'profile')
+  assertUltraCompatibility(pathToFileURL(join(directory, 'package.json')).href, 'profile')
 }
 
 function rejectInstallation(error) {
