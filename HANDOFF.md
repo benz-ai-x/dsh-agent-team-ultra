@@ -115,4 +115,6 @@
 
 - 已在本隔离分支合入 main `debde06`，逐项保留 #48 的完整闭包、ESM 自引用／模块类型检查、真实 Loader 根目录和公共 Team 对照；把 Codex 包加入同一生成闭包，保留旧包提前拒绝及全部入口回归。
 - 完整 `pnpm verify` 已通过：506 strict、0 警告；204 测试／18 文件；八归档真实安装、Web 启动与完整卸载。日志 `/tmp/ultra-49-merged-verify.log`。Codex `index.ts` / `product.ts` 与锁定 Harness 前身保持逐字节一致。
-- 真实归档升级的固定前身更新为当前 main `debde06ce5c75658f9ad741cbfc8d535df118455`；独立工作树 `/tmp/ultra-49-predecessor-cpcyoykc` 按其锁准备和构建。升级验收及新固定 head 的双轴 review 尚待完成。
+- 真实归档升级的固定前身更新为当前 main `debde06ce5c75658f9ad741cbfc8d535df118455`；独立工作树 `/tmp/ultra-49-predecessor-cpcyoykc` 按其锁准备和构建。当前 main 前身的真实升级已通过，日志 `/tmp/ultra-49-current-main-upgrade.log`；同一官方／fork 11 组公共契约亦通过，日志 `/tmp/ultra-49-comparison.log`。
+
+- `e0a9ee0` 两路独立 review：Standards 0 项；Spec 发现 T-14 的 P3：升级脚本硬编码归档数量。已改为从各版本 Profile bundle 及嵌套 Loader group 读取实际贡献包名，核对真实归档 manifest 的完整身份集合。补修后真实归档升级再次通过：JSON/SQLite 原成员、Revision、native handle 连续，Catalog 移除／回归、升级 Web 与完整卸载均通过，日志 `/tmp/ultra-49-closure-upgrade.log`。此增量只改变验收脚本与交接，运行时代码仍与已通过 204 测试和完整验证的 `e0a9ee0` 相同；最终两路增量复核待完成。

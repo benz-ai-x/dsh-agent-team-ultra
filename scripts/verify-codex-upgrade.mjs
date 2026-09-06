@@ -6,6 +6,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import yaml from 'js-yaml'
 import { requirePreparedHarness } from './harness-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -31,11 +32,27 @@ const retired = '@deepseek-ai/dsh-experimental-agent-team-codex'
 const current = '@benz-ai-x/dsh-agent-team-codex'
 const cli = join(harnessRoot, 'apps/cli/lib/bin.js')
 try {
+  const profilePackages = (source) => {
+    const directory = join(source, 'packages/profile')
+    const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
+    const patches = yaml.load(readFileSync(join(directory, manifest.dsh.bundle.patch), 'utf8'))
+    const names = new Set([manifest.name])
+    const visit = (entries) => {
+      for (const entry of entries) {
+        names.add(entry.name)
+        if (entry.group) visit(entry.config ?? [])
+      }
+    }
+    for (const patch of patches) visit(patch.insert ?? [])
+    return [...names].sort()
+  }
   const pack = (source, output) => {
     run(process.execPath, [join(source, 'scripts/pack-local-overlay.mjs'), output], source)
     const archives = readdirSync(output).filter(file => file.endsWith('.tgz')).map(file => join(output, file))
-    assert.equal(archives.length, 8)
-    return archives.map(file => ({ file, ...JSON.parse(run('tar', ['-xOf', file, 'package/package.json'])) }))
+    const packages = archives.map(file => ({ file, ...JSON.parse(run('tar', ['-xOf', file, 'package/package.json'])) }))
+    assert.deepEqual(packages.map(pkg => pkg.name).sort(), profilePackages(source),
+      'archives must contain exactly the packages contributed by this source profile')
+    return packages
   }
   const before = pack(previous, join(temporary, 'before'))
   const after = pack(root, join(temporary, 'after'))
