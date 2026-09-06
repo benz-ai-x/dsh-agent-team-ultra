@@ -73,7 +73,7 @@
 - `/tmp/ultra-48-comparison.log`：固定官方 `d347e703…` 与维护 fork `8b4bae0b…` 均通过同一 11 组公共契约，新增公共 queued flush 屏障、三条消息顺序与发送方、真实上下文冷重启、10 秒 wait 超时不创建冷 Agent、消息恢复原成员身份、中断及恢复后任务仍由原成员持有。官方源码和 Team 包仍在安装／导入前被拒绝；无业务数据写入。两个 Harness checkout 均保持干净。
 - `80464c4` 双轴复审：Spec 0 项；Standards 新发现 P2（Team manifest 只改 `type: commonjs` 时先通过 guard，再报原始 ESM 链接错误）。本次再补修将 `type` 加入生成证明和核验；公开 Host 入口 RED / GREEN 日志为 `/tmp/ultra-48-module-type-{red,green}.log`。
 - 模块类型补修后的完整 `pnpm verify` **通过 448 strict、0 警告；191 测试／16 文件；八归档安装、Web 启动及全部行与包卸载**，日志 `/tmp/ultra-48-module-type-verify.log`。同一官方／fork 11 组对照复跑日志为 `/tmp/ultra-48-module-type-comparison.log`。
-- 下一步提交／推送补修，再固定新 head 让 Standards 与 Spec 分别复核；本记录不预先宣称最终 review 或合并通过。
+- PR #48 的后续最终复核已完成：`0ccd4c0` Standards / Spec 均 0 项未解决问题，已合并为 `debde06`。上列日志保留初次及补修验证过程。
 
 
 - `dsh-reference.lock.json` 新增独立的官方基础 `76fda729…`、官方对照 `d347e703…`、扩展接口资格、Session/Team/投影/Ultra 格式及 native SDK/payload 标识；原 `upstream` 提交、版本和文档摘要保持不变。当前受支持运行时仍是完整 `8b4bae0b…` fork。
@@ -109,7 +109,7 @@
 
 ## 下一步
 
-1. 完成 PR #50 的 main 冲突整合、完整验证及两类原生归档升级，提交并推送。
+1. PR #50 已整合 main 且完整验证、两类真实归档升级通过；共享验收驱动的两条实际升级复跑也已通过，完成增量复核。
 2. 固定当前 main 与新 head 独立执行 Standards / Spec 评审；均通过后按用户已有授权合并 PR #50。
 3. 保留 PR #51 和主工作区 #26 WIP；父 Spec #18 保持 open，真实认证 native 验收仍属 #44。
 
@@ -120,7 +120,7 @@
 - 任务管理：[Issue tracker 约定](docs/agents/issue-tracker.md)、[triage 约定](docs/agents/triage-labels.md)；GitHub Issue 是需求源，不能用本地缓存或 TODO 替代。
 - 本轮修复使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`，复审使用 `code-review`；该技能明确要求 Standards / Spec 两路独立代理，开发没有额外委派。
 
-- 本轮 PR #49 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`；已合入 #48 的修复意图，尚待最终验证与复审。
+- PR #49 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`；整合、最终复审及合并均已完成，main 记录为 `081357d`。
 
 ## PR #49 本轮整合验证
 
@@ -128,13 +128,15 @@
 - 完整 `pnpm verify` 已通过：506 strict、0 警告；204 测试／18 文件；八归档真实安装、Web 启动与完整卸载。日志 `/tmp/ultra-49-merged-verify.log`。Codex `index.ts` / `product.ts` 与锁定 Harness 前身保持逐字节一致。
 - 真实归档升级的固定前身更新为当前 main `debde06ce5c75658f9ad741cbfc8d535df118455`；独立工作树 `/tmp/ultra-49-predecessor-cpcyoykc` 按其锁准备和构建。当前 main 前身的真实升级已通过，日志 `/tmp/ultra-49-current-main-upgrade.log`；同一官方／fork 11 组公共契约亦通过，日志 `/tmp/ultra-49-comparison.log`。
 
-- `e0a9ee0` 两路独立 review：Standards 0 项；Spec 发现 T-14 的 P3：升级脚本硬编码归档数量。已改为从各版本 Profile bundle 及嵌套 Loader group 读取实际贡献包名，核对真实归档 manifest 的完整身份集合。补修后真实归档升级再次通过：JSON/SQLite 原成员、Revision、native handle 连续，Catalog 移除／回归、升级 Web 与完整卸载均通过，日志 `/tmp/ultra-49-closure-upgrade.log`。此增量只改变验收脚本与交接，运行时代码仍与已通过 204 测试和完整验证的 `e0a9ee0` 相同；最终两路增量复核待完成。
+- `e0a9ee0` 两路独立 review：Standards 0 项；Spec 发现 T-14 的 P3：升级脚本硬编码归档数量。已改为从各版本 Profile bundle 及嵌套 Loader group 读取实际贡献包名，核对真实归档 manifest 的完整身份集合。补修后真实归档升级再次通过：JSON/SQLite 原成员、Revision、native handle 连续，Catalog 移除／回归、升级 Web 与完整卸载均通过，日志 `/tmp/ultra-49-closure-upgrade.log`。此增量只改变验收脚本与交接，运行时代码仍与已通过 204 测试和完整验证的 `e0a9ee0` 相同；最终两路增量复核已完成，`7ad2602` Standards / Spec 均 0 项未解决问题，随后合并为 `081357d`。
 
-- 本轮 PR #50 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`，按已确认的 Profile/归档边界同步 T-14 集合检查，尚待本轮最终验证与独立评审。
+- 本轮 PR #50 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`，按已确认的 Profile/归档边界同步 T-14 集合检查，已完成本轮完整验证与首轮独立评审，正在复核维护性补修。
 
 ## PR #50 本轮整合验证
 
 - 在 `/tmp/ultra-50-review-iylhpqml` 将 main `081357d` 合入原 PR head `d4e72b8`，解决 6 个冲突文件，保留 #48/#49 的预检闭包、自引用／模块类型、真实 Loader 根与公共对照；Claude Code 纳入完整 proof，保留两类旧包拒绝。
 - Claude Code `index.ts`、`process.ts`、`product.ts` 与锁定 Harness 前身逐字节一致；完整 `pnpm verify` **554 strict、0 警告；218 测试／20 文件；实际八归档安装、Web 启动及全部行／包卸载通过**，日志 `/tmp/ultra-50-merged-verify.log`。已有 pnpm settings / resolutions / snapshots 不变；新增 100 个 Claude 依赖记录。
 - 两类升级入口共用 `scripts/profile-archive-closure.mjs`，按对应 Profile bundle 和嵌套 Loader group 的包身份集合核对实际归档，满足 T-14 且不固定数量。Claude 升级前身改为当前 main `081357d17f7a0535b75bb7d3133177febddee4a2`，独立干净源码和构建在 `/tmp/ultra-50-predecessor-uv1f6gf8`。Codex 仍从固定 `debde06` 的 `/tmp/ultra-49-predecessor-cpcyoykc` 验证旧两类产品包移除。
-- 两类真实归档升级和新 head 的双轴独立评审正在进行；不预先宣称 review 或合并通过。升级 SDK / app-server 为明确的外部确定性边界，真实认证 native 验收仍属于 #44。
+- 两类真实归档升级均已通过，日志 `/tmp/ultra-50-claude-upgrade.log`、`/tmp/ultra-50-codex-upgrade.log`；JSON / SQLite 保留原成员、Revision 与 native handle，验证后续消息、冷恢复、provider 移除／恢复、Web 启动及完整卸载。官方／fork 的同一 11 组公共契约亦通过，日志 `/tmp/ultra-50-comparison.log`。55 个本地文档链接和差异格式检查通过。
+- `081357d...f38ee19` 首轮独立评审：Spec 0 项；Standards 硬性违规 0，发现 P3 Possible Duplicated Code：两条升级驱动几乎相同。现提取 `scripts/verify-runtime-archive-upgrade.mjs`，两入口仅保留 provider、固定前身、探针与外部验收边界参数；provider 协议探针独立。补修仅涉及验收脚本与交接，运行时代码仍为完整验证覆盖的 `f38ee19`。共享驱动的两类实际升级复跑均自然退出 0，日志 `/tmp/ultra-50-shared-claude-upgrade.log`、`/tmp/ultra-50-shared-codex-upgrade.log`；两路增量复核待完成。
+- 升级 SDK / app-server 为明确的外部确定性边界，真实认证 native 验收仍属于 #44。
