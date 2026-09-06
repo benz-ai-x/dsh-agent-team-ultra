@@ -80,5 +80,6 @@ byte-boundary, unsafe-history, and conflicting-terminal RED/GREEN logs under
 `/root/workspace/.ultra-checks/29-*`. The first Standards and Spec reviews each
 found the same P2: a failed recovery's first delivery cleared the ordering tail,
 so a later delivery could start native work. The formal regression now proves
-every delivery waits for the current recovery result. Final review and merge
-status remain properties of the PR.
+every delivery waits for the current recovery result. Both axes re-reviewed the
+complete implementation candidate `b05aa026ca4f8c263ff9c046efee7327a4bf57f7`
+with zero unresolved findings; merge status remains a property of the PR.
