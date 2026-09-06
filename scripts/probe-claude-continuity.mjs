@@ -167,20 +167,20 @@ try {
     const channel = native.channels.get(live.instances[0].nativeRuntimeHandle)
     await channel.ready
     assert.deepEqual((await channel.client.listTools()).tools.map(tool => tool.name), [
-      'team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send',
+      'team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send', 'team_task_update', 'team_wait',
     ])
     const call = (name, args, id) => channel.client.callTool({ name, arguments: args,
       _meta: { 'claudecode/toolUseId': `toolu_${phase}_${id}` } })
     const members = await call('team_members_list', {}, 'members')
     assert.equal(members.isError, false)
     assert.ok(JSON.parse(members.content[0].text).value.members.some(value => value.id === member.id))
-    const task = ctx.agentTeams.listTasks(lead.agent)[0] ?? await ctx.agentTeams.createTask(lead.agent, {
+    const visibleTask = ctx.agentTeams.listTasks(lead.agent)[0] ?? await ctx.agentTeams.createTask(lead.agent, {
       subject: 'Read the installed Claude Team', description: 'Retain the shared task across cold recovery.',
     })
     const tasks = await call('team_tasks_list', { limit: 1 }, 'tasks')
     assert.equal(tasks.isError, false)
-    assert.equal(JSON.parse(tasks.content[0].text).value.tasks[0].id, task.id)
-    assert.equal((await call('team_tasks_get', { taskId: task.id }, 'detail')).isError, false)
+    assert.equal(JSON.parse(tasks.content[0].text).value.tasks[0].id, visibleTask.id)
+    assert.equal((await call('team_tasks_get', { taskId: visibleTask.id }, 'detail')).isError, false)
     const messageRequest = { name: 'team_message_send', arguments: { target: 'lead', text: `Installed Claude message ${phase}.` },
       _meta: { 'claudecode/toolUseId': `toolu_${phase}_message` } }
     native.dropNextToolReply = true
@@ -190,6 +190,27 @@ try {
     assert.deepEqual(await channel.client.callTool(messageRequest), accepted)
     const changed = await channel.client.callTool({ ...messageRequest, arguments: { ...messageRequest.arguments, text: 'Changed input.' } })
     assert.equal(JSON.parse(changed.content[0].text).error.code, 'TEAM_NATIVE_OPERATION_CONFLICT')
+    const task = await ctx.agentTeams.createTask(lead.agent, {
+      subject: `Installed Claude task ${phase}`, description: 'Commit and recover the native task receipt.',
+    })
+    const claimRequest = { name: 'team_task_update', arguments: { taskId: task.id, expectedRevision: 1, action: 'claim' },
+      _meta: { 'claudecode/toolUseId': `toolu_${phase}_task_claim` } }
+    native.dropNextToolReply = true
+    await assert.rejects(channel.client.callTool(claimRequest, undefined, { timeout: 50 }), /timed out/i)
+    const claimed = await channel.client.callTool(claimRequest)
+    assert.equal(claimed.isError, false)
+    assert.deepEqual(await channel.client.callTool(claimRequest), claimed)
+    const claimConflict = await channel.client.callTool({ ...claimRequest,
+      arguments: { ...claimRequest.arguments, action: 'complete' } })
+    assert.equal(JSON.parse(claimConflict.content[0].text).error.code, 'TEAM_NATIVE_OPERATION_CONFLICT')
+    const waiting = call('team_wait', { timeoutMs: 10_000 }, 'wait')
+    assert.equal((await call('team_tasks_get', { taskId: task.id }, 'task_barrier')).isError, false)
+    const completed = await call('team_task_update', { taskId: task.id, expectedRevision: 2, action: 'complete' }, 'task_complete')
+    assert.equal(completed.isError, false)
+    assert.deepEqual(JSON.parse((await waiting).content[0].text), { ok: true, operation: 'wait', value: { timedOut: false } })
+    assert.equal(ctx.agentTeams.getTask(lead.agent, task.id).revision, 3)
+    assert.equal(ctx.agentTeams.getTask(lead.agent, task.id).status, 'completed')
+    assert.equal(ctx.agentTeams.getTask(lead.agent, task.id).ownerName, 'claude-code-reviewer')
   }
   native.complete(teamTools ? `Installed Claude final ${phase}.` : undefined)
   await until(current, value => value.instances[0]?.runtimePresence === 'idle')
@@ -207,6 +228,12 @@ try {
       assert.equal(messages[0].data.receipt.source.callId, `toolu_${phase}_message`)
       assert.equal(finals[0].data.receipt.source.turnId, messages[0].data.receipt.source.turnId)
       assert.equal(finals[0].data.receipt.result.value.outcome, 'completed')
+      const tasks = operations.filter(event => event.data.kind === 'task'
+        && event.data.receipt.source.callId?.startsWith(`toolu_${phase}_task_`))
+      assert.equal(tasks.length, 2)
+      assert.deepEqual(tasks.map(event => [event.data.receipt.source.callId, event.data.task.revision, event.data.task.status]), [
+        [`toolu_${phase}_task_claim`, 2, 'in_progress'], [`toolu_${phase}_task_complete`, 3, 'completed'],
+      ])
     } finally { await stored.close() }
   }
   assert.equal(Object.keys(native.data.sessions).length, 1)
@@ -249,7 +276,7 @@ try {
   await loaderFiber.dispose()
   assert.equal(native.live.size, 0)
   console.log(JSON.stringify({ phase, backend, package: runtimeEntry.name, profileRevision: 1,
-    memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: workCount(), memberOperations: teamTools ? 4 : 0,
+    memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: workCount(), memberOperations: teamTools ? 6 : 0,
     preserved: true, registrationsReleased: true, nativeBoundary: 'controlled-sdk' }))
 } finally {
   await ctx.fiber.dispose()

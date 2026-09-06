@@ -27,7 +27,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'team-task-ui',
-          include: ['packages/codex/tests/member-task-ui.client.spec.tsx'],
+          include: ['packages/*/tests/member-task-ui.client.spec.tsx'],
           environment: 'jsdom',
           // Keep real Host admission on Node file URLs in this browser scenario.
           server: { deps: { external: [/\/packages\/(?:domain|codex)\/lib\//] } },

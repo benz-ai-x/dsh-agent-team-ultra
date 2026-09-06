@@ -1,62 +1,9 @@
-import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
-import Subprocess, { type SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { TeammateLaunchRequestId } from '@deepseek-ai/dsh-experimental-agent-team'
 import { describe, expect, it, vi } from 'vitest'
-import { profile, workflow } from '../../domain/tests/fixtures/host-workflow.ts'
+import { profile } from '../../domain/tests/fixtures/host-workflow.ts'
 import type { DigitalEmployeeStudioView, SpawnDigitalEmployeeResult } from '../../domain/src/types.ts'
-import { NativeProduct } from './fixtures/native-product.mjs'
-import { claudeCodePackageBin } from '../src/product.ts'
-import * as claude from '../lib/index.js'
 import * as codex from '../../codex/lib/index.js'
-import { NativeProduct as CodexProduct } from '../../codex/tests/fixtures/native-product.mjs'
-
-const sdk = vi.hoisted(() => ({ native: undefined as NativeProduct | undefined }))
-vi.mock('@anthropic-ai/claude-agent-sdk', async (original) => ({
-  ...await original<typeof import('@anthropic-ai/claude-agent-sdk')>(),
-  query: (...args: Parameters<NativeProduct['query']>) => sdk.native!.query(...args),
-  getSessionInfo: (...args: Parameters<NativeProduct['getSessionInfo']>) => sdk.native!.getSessionInfo(...args),
-  getSessionMessages: (...args: Parameters<NativeProduct['getSessionMessages']>) => sdk.native!.getSessionMessages(...args),
-}))
-
-async function claudeWorkflow(backend: 'json' | 'sqlite' = 'json', options: { root?: string; resumeLead?: boolean } = {},
-  configure?: (native: NativeProduct, host: Awaited<ReturnType<typeof workflow>>) => void) {
-  const host = await workflow(backend, options)
-  const native = new NativeProduct(join(host.root, 'claude-native.json'), claudeCodePackageBin, { teamTools: true })
-  const codexRequire = createRequire(new URL('../../codex/package.json', import.meta.url))
-  const codexBin = resolve(dirname(codexRequire.resolve('@openai/codex/package.json')), 'bin/codex.js')
-  const codexNative = new CodexProduct(join(host.root, 'codex-native.json'), codexBin)
-  sdk.native = native
-  configure?.(native, host)
-  class NativeTransport extends Subprocess {
-    override resolveExecutable(): never { throw new Error('the adapter must not search PATH') }
-    override spawnTerminal(): never { throw new Error('the adapter must use the SDK process bridge') }
-    override spawn(spec: SubprocessSpawnSpec) {
-      return spec.argv[1] === codexBin ? codexNative.open(spec) : native.open(spec)
-    }
-  }
-  await host.ctx.plugin(NativeTransport)
-  const runtime = host.ctx.plugin(claude, { catalogOwnerService: 'digitalEmployees', cwd: host.root })
-  await runtime
-  if (options.resumeLead) {
-    await expect.poll(() => host.ctx.agentTeams.listMembers(host.lead.agent).find(member => member.name === 'claude-reviewer')?.status).toBe('idle')
-    const member = host.ctx.agentTeams.listMembers(host.lead.agent).find(member => member.name === 'claude-reviewer')!
-    return { ...host, native, codexNative, runtime, member, handle: member.externalRuntime!.nativeHandle!, client: undefined }
-  }
-  const launched = await host.ctx.agentTeams.spawnTeammate(host.lead.agent, {
-    name: 'claude-reviewer', description: 'Query the shared Team.', context: 'fresh',
-    prompt: [{ type: 'text', text: 'Read the shared task board.' }], signal: new AbortController().signal,
-    runtime: {
-      kind: 'external-agent', provider: 'claude-code', launchRequestId: TeammateLaunchRequestId('claude-query-boundary'),
-      profile: { persona: 'Be precise.', mission: 'Review source.', context: [], memory: [], toolPolicy: { mode: 'inherit', names: [] }, hooks: [] },
-      requirements: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'], runtimeCapabilities: ['sandbox'] },
-    },
-  })
-  const handle = launched.member.externalRuntime!.nativeHandle!
-  const channel = native.channels.get(handle)!
-  await channel.ready
-  return { ...host, native, codexNative, runtime, member: launched.member, handle, client: channel.client }
-}
+import { claudeWorkflow, mountClaudeRuntime } from './fixtures/member-workflow.ts'
 
 describe('Claude Code authorized Team operations', () => {
   it('enforces UTF-8 request limits and the complete escaped MCP response limit', async () => {
@@ -202,7 +149,7 @@ describe('Claude Code authorized Team operations', () => {
     expect(native.live.size).toBe(0)
     await expect(client!.callTool({ name: 'team_members_list', arguments: {},
       _meta: { 'claudecode/toolUseId': 'toolu_old_process' } })).rejects.toThrow(/closed|connected/i)
-    const replacement = ctx.plugin(claude, { catalogOwnerService: 'digitalEmployees', cwd: root })
+    const replacement = mountClaudeRuntime(ctx, { catalogOwnerService: 'digitalEmployees', cwd: root })
     await replacement
     await expect.poll(() => ctx.agentTeams.listMembers(resumed.agent).find(value => value.id === member.id)?.status).toBe('idle')
     await expect(ctx.agentTeams.sendMessage(resumed.agent, {
@@ -814,7 +761,9 @@ describe('Claude Code authorized Team operations', () => {
       { name: 'team_message_send', arguments: { target: 'lead', text: 'Impersonation.', role: 'lead' }, code: 'TEAM_NATIVE_INVALID_REQUEST', callId: 'toolu_forged' },
       { name: 'team_message_send', arguments: { target: 'lead', text: 'Impersonation.', operation: 'turns.settle' }, code: 'TEAM_NATIVE_INVALID_REQUEST', callId: 'toolu_operation' },
       { name: 'teammate_spawn', arguments: {}, code: 'CLAUDE_TEAM_UNAVAILABLE', callId: 'toolu_spawn' },
-      { name: 'team_task_update', arguments: {}, code: 'CLAUDE_TEAM_UNAVAILABLE', callId: 'toolu_task' },
+      { name: 'teammate_interrupt', arguments: { target: 'lead' }, code: 'CLAUDE_TEAM_UNAVAILABLE', callId: 'toolu_interrupt' },
+      { name: 'team_task_update', arguments: { taskId: 'task-1', expectedRevision: 1, action: 'claim', role: 'lead' },
+        code: 'TEAM_NATIVE_INVALID_REQUEST', callId: 'toolu_task' },
       { name: 'team_message_send', arguments: { target: 'lead', text: 'x'.repeat(4096) }, code: 'TEAM_NATIVE_REQUEST_LIMIT', callId: 'toolu_host_limit' },
       { name: 'team_message_send', arguments: { target: 'lead', text: 'x'.repeat(16384) }, code: 'CLAUDE_TEAM_REQUEST_LIMIT', callId: 'toolu_native_limit' },
     ]
@@ -919,7 +868,7 @@ describe('Claude Code authorized Team operations', () => {
     const { ctx, lead, client, member } = await claudeWorkflow()
     const listed = await client!.listTools()
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual([
-      'team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send',
+      'team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send', 'team_task_update', 'team_wait',
     ])
     const response = await client!.callTool({ name: 'team_members_list', arguments: {},
       _meta: { 'claudecode/toolUseId': 'toolu_members_1' } })

@@ -10,6 +10,10 @@ tool list with explicitly authorized Team queries and messages. The Team owner
 and durable receipts from [ADR 0017](0017-authorize-native-team-member-queries.md)
 and [ADR 0018](0018-persist-native-team-message-receipts.md) remain authoritative.
 
+Follow-up [ADR 0021](0021-complete-claude-task-operations.md) adds the two
+Issue #30 task mutation/wait tools while preserving this authorization,
+identity, recovery and sandbox decision.
+
 ## 中文规范
 
 锁定 Claude Agent SDK 0.3.241／payload 2.1.241，每个受控 query 配置一个进程内

@@ -261,11 +261,14 @@ an actual integration commit based on the fixed official comparison.
   resume, serializes mailbox delivery, and de-duplicates turns by their hashed
   message identity. It accepts only fresh context, inherited Profile tool
   policy with no Hooks, fixed `Read`/`Glob`/`Grep` built-ins, read-only sandboxing,
-  bounded scrubbed evidence, and usage occurrence. Issue #29's controlled
-  in-process SDK server maps member/task reads and messages onto the current
-  Native Member Grant; model arguments carry no authority. Only those MCP tools
-  have bare `allowedTools` entries. Native workspace permission checks retain
-  the read-only built-ins' access inside `cwd` and deny outside paths and symlink
+  bounded scrubbed evidence, and usage occurrence. Issues #29 and #30's
+  controlled in-process SDK server maps member/task reads, messages, task
+  mutations and waits onto the current Native Member Grant; model arguments
+  carry no authority. Only those six MCP tools have bare `allowedTools` entries.
+  Task writes reuse the Host's CAS, ownership, DAG, tombstone, Lead-only and
+  durable-receipt rules. Wait observes later Team activity without a receipt,
+  native start, file lock or owner release. Native workspace permission checks
+  retain the read-only built-ins' access inside `cwd` and deny outside paths and symlink
   escapes; automatic approval of bare Read/Glob/Grep would bypass that boundary.
   API-error SDK result text is diagnostic and never becomes a Team reply.
   Cold attach uses a Host-only member recovery reader after grant verification:
@@ -278,8 +281,9 @@ an actual integration commit based on the fixed official comparison.
   committed result, and multi-stage usage remains one safe-integer snapshot per
   turn. Recovery completes before evidence or new delivery. Pending terminal
   settlement retries only after the same provider has a current grant.
-  [ADR 0020](../adr/0020-authorize-claude-team-tools.md) records the accepted
-  extension. Task mutation/wait remain Issue #30.
+  [ADR 0020](../adr/0020-authorize-claude-team-tools.md) and
+  [ADR 0021](../adr/0021-complete-claude-task-operations.md) record the accepted
+  extensions.
 - A durable external provider registers one complete typed contract with Agent
   Team and Ultra. Its detached catalog metadata includes enforceable context,
   Profile, and operational Runtime Capabilities. Provider objects, credentials,
