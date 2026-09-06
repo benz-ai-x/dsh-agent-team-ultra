@@ -18,12 +18,15 @@ Read/Glob/Grep stay in the built-in tool list but have no bare `allowedTools`
 entries: native workspace permission checks and the denying callback must remain
 effective for paths outside `cwd`, including symlink targets.
 
-Issue #29 adds one controlled in-process SDK MCP server with member listing,
-task listing/detail and intentional Team messages. Every call uses the current
-Team-owned grant and the native `claudecode/toolUseId` metadata. Model arguments
-cannot choose caller identity or invoke arbitrary Host operations. Limits apply
-to requests, escaped results, distinct calls per turn and the startup grant wait.
-Messages return the original durable receipt on a matching retry. Final results
+Issues #29 and #30 add one controlled in-process SDK MCP server with member
+listing, task listing/detail, intentional Team messages, task mutation and
+waiting. Every call uses the current Team-owned grant and the native
+`claudecode/toolUseId` metadata. Model arguments cannot choose caller identity
+or invoke arbitrary Host operations. Limits apply to requests, escaped results,
+distinct calls per turn and the startup grant wait. Messages and task changes
+return the original durable receipt on a matching retry. Task writes retain the
+shared CAS, ownership, DAG, tombstone and Lead-only rules; wait only observes
+later activity and neither starts work nor releases ownership. Final results
 settle through the member mailbox, and new delivery prompts retain the existing
 turn id beside the original operation marker for transcript-based recovery.
 
@@ -43,8 +46,9 @@ qualification and the locked SDK/native process against a local deterministic
 model endpoint cover these boundaries. Host recovery adapts its page size when
 a complete escaped page exceeds the result limit. Invalid timestamps or unsafe
 usage counters never enter evidence.
-Task mutation/wait remain #30 and authenticated native acceptance remains #44.
-See the accepted [Team-tool decision](../../docs/adr/0020-authorize-claude-team-tools.md).
+Authenticated native acceptance remains #44. See the accepted
+[Team-tool decision](../../docs/adr/0020-authorize-claude-team-tools.md) and
+[Claude task decision](../../docs/adr/0021-complete-claude-task-operations.md).
 
 The actual native integration test requires a host supported by the locked
 payload. On Linux, install `bubblewrap` and `socat`; the test retains the required

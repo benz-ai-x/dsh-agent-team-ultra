@@ -280,7 +280,7 @@ try {
       process.stdout.write(result.stdout)
     }
   }
-  console.log('PASS installed Claude SDK MCP queries, messages, final receipts and member recovery with JSON and SQLite')
+  console.log('PASS installed Claude SDK MCP queries, messages, task receipts, wait, final receipts and member recovery with JSON and SQLite')
   checkedRun(
     process.execPath,
     [

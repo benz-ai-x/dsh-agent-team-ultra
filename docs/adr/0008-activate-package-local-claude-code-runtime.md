@@ -75,3 +75,8 @@ facts, replays settlements idempotently, treats missing native terminal state as
 interrupted, and refuses conflicting markers. No Team transcript, new durable
 format, task mutation/wait, shell, file-write, approval or evaluation authority
 is introduced by this revision.
+
+[ADR 0021](0021-complete-claude-task-operations.md) subsequently adds the two
+controlled task mutation/wait tools through the same current-grant SDK channel;
+the runtime, filesystem, shell, network, approval, Hook and evaluation limits
+in this decision remain unchanged.

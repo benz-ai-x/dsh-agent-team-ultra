@@ -20,6 +20,14 @@ it('uses the locked SDK and native process for authorized tools, durable replies
   await writeFile(join(root, 'allowed.txt'), 'INSIDE_CWD_SENTINEL')
   await symlink(join(outside, 'private.txt'), join(root, 'outside-link.txt'))
   vi.stubEnv('CLAUDE_CONFIG_DIR', configDir)
+  const dependency = await ctx.agentTeams.createTask(lead.agent, {
+    subject: 'Native prerequisite', description: 'Complete before Claude claims the dependent task.',
+  })
+  await ctx.agentTeams.updateTask(lead.agent, { taskId: dependency.id, expectedRevision: 1, action: 'claim' })
+  await ctx.agentTeams.updateTask(lead.agent, { taskId: dependency.id, expectedRevision: 2, action: 'complete' })
+  const task = await ctx.agentTeams.createTask(lead.agent, {
+    subject: 'Native Claude task', description: 'Exercise the actual SDK task channel.', blockedBy: [dependency.id],
+  })
   const tools = [
     { name: 'Read', input: { file_path: join(root, 'allowed.txt') } },
     { name: 'Read', input: { file_path: join(outside, 'private.txt') } },
@@ -29,8 +37,14 @@ it('uses the locked SDK and native process for authorized tools, durable replies
     { name: 'Grep', input: { pattern: 'OUTSIDE_CWD_SENTINEL', path: root, output_mode: 'content' } },
     { name: 'mcp__dsh_team__team_members_list', input: {} },
     { name: 'mcp__dsh_team__team_tasks_list', input: { limit: 1 } },
-    { name: 'mcp__dsh_team__team_tasks_get', input: { taskId: 'absent-task' } },
+    { name: 'mcp__dsh_team__team_tasks_get', input: { taskId: task.id } },
     { name: 'mcp__dsh_team__team_message_send', input: { target: 'lead', text: 'Native tool message.' } },
+    { name: 'mcp__dsh_team__team_task_update', input: { taskId: task.id, expectedRevision: 1, action: 'claim' } },
+    { name: 'mcp__dsh_team__team_task_update', input: {
+      taskId: task.id, expectedRevision: 2, action: 'edit', subject: 'Native Claude task reviewed',
+    } },
+    { name: 'mcp__dsh_team__team_task_update', input: { taskId: task.id, expectedRevision: 3, action: 'complete' } },
+    { name: 'mcp__dsh_team__team_wait', input: { timeoutMs: 10_000 } },
   ]
   const offered = new Set<string>()
   const replies: Array<{ tool_use_id: string; content: unknown; is_error?: boolean }> = []
@@ -113,23 +127,42 @@ it('uses the locked SDK and native process for authorized tools, durable replies
       await expect.poll(() => ctx.agentTeams.listMembers(lead.agent).find(member => member.id === launched.member.id)?.status,
         { timeout: 25_000 }).toBe('idle')
       const accepted = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
-      expect(accepted, JSON.stringify({ offered: [...offered], replies, accepted, nativeDiagnostics })).toHaveLength(2)
+      expect(accepted, JSON.stringify({ offered: [...offered], replies, accepted, nativeDiagnostics })).toHaveLength(5)
       expect([...offered].sort()).toEqual([...new Set(['Read', 'Glob', 'Grep', ...tools.map(tool => tool.name)])].sort())
       expect(replies.map(reply => reply.tool_use_id)).toEqual([
         'toolu_native_1', 'toolu_native_2', 'toolu_native_3', 'toolu_native_4', 'toolu_native_5',
         'toolu_native_6', 'toolu_native_7', 'toolu_native_8', 'toolu_native_9', 'toolu_native_10',
+        'toolu_native_11', 'toolu_native_12', 'toolu_native_13', 'toolu_native_14',
       ])
       expect(JSON.stringify(replies[0]!.content)).toContain('INSIDE_CWD_SENTINEL')
       for (const reply of replies.slice(1, 5)) expect(reply.is_error).toBe(true)
       for (const reply of replies.slice(1, 6)) expect(JSON.stringify(reply.content)).not.toContain('OUTSIDE_CWD_SENTINEL')
       expect(JSON.stringify(replies[6]!.content)).toContain('native-claude')
-      expect(JSON.stringify(replies[8]!.content)).toContain('TEAM_TASK_NOT_FOUND')
+      expect(JSON.stringify(replies[8]!.content)).toContain(task.id)
+      expect(JSON.stringify(replies[8]!.content)).toContain(dependency.id)
+      for (const reply of replies.slice(10, 13)) expect(JSON.stringify(reply.content)).toContain('tasks.update')
+      const waitContent = replies[13]!.content as Array<{ text: string }>
+      expect(JSON.parse(waitContent[0]!.text)).toEqual({ ok: true, operation: 'wait', value: { timedOut: true } })
       const events = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
-      expect(events.map(event => event.data.message.content)).toEqual([
+      expect(events.filter(event => event.data.message !== undefined).map(event => event.data.message.content)).toEqual([
         [{ type: 'text', text: 'Native tool message.' }], [{ type: 'text', text: 'Native final answer.' }],
       ])
-      expect(events[0]!.data.receipt.source).toEqual({ kind: 'tool', turnId: launched.member.externalRuntime!.initialTurnId, callId: 'toolu_native_10' })
-      expect(events.every(event => event.data.message.senderId === launched.member.id)).toBe(true)
+      expect(events.filter(event => event.data.kind === 'task').map(event => ({
+        callId: event.data.receipt.source.callId, revision: event.data.task.revision, status: event.data.task.status,
+      }))).toEqual([
+        { callId: 'toolu_native_11', revision: 2, status: 'in_progress' },
+        { callId: 'toolu_native_12', revision: 3, status: 'in_progress' },
+        { callId: 'toolu_native_13', revision: 4, status: 'completed' },
+      ])
+      expect(events.find(event => event.data.receipt.source.callId === 'toolu_native_10')!.data.receipt.source)
+        .toEqual({ kind: 'tool', turnId: launched.member.externalRuntime!.initialTurnId, callId: 'toolu_native_10' })
+      expect(events.every(event => event.data.message === undefined || event.data.message.senderId === launched.member.id)).toBe(true)
+      expect(ctx.agentTeams.getTask(lead.agent, task.id)).toMatchObject({
+        revision: 4, status: 'completed', ownerName: 'native-claude', blockedBy: [dependency.id],
+      })
+      expect(ctx.agentTeams.remoteView(lead.agent).tasks).toContainEqual(expect.objectContaining({
+        id: task.id, revision: 4, status: 'completed', ownerName: 'native-claude',
+      }))
       const history = await getSessionMessages(launched.member.externalRuntime!.nativeHandle!, { dir: root })
       expect(history.at(-1)?.message).toMatchObject({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Native final answer.' }] })
       failing = true
@@ -137,7 +170,7 @@ it('uses the locked SDK and native process for authorized tools, durable replies
         target: launched.member.name, content: [{ type: 'text', text: 'Continue the review.' }], signal: new AbortController().signal,
       })
       await expect.poll(async () => (await stored.read(0)).filter(event =>
-        event.type === 'team/native-operation/committed'), { timeout: 15_000 }).toHaveLength(3)
+        event.type === 'team/native-operation/committed'), { timeout: 15_000 }).toHaveLength(6)
       const terminal = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed').at(-1)!
       expect(terminal.data.receipt.result).toMatchObject({ operation: 'turns.settle', value: { outcome: 'failed' } })
       expect(terminal.data.message.content).toEqual([{ type: 'text', text: 'Claude Code work failed without a final response.' }])

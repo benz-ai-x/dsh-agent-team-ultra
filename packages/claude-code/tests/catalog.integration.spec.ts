@@ -18,6 +18,7 @@ describe('Ultra-owned Claude Code public package', () => {
         contextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory'],
         runtimeCapabilities: ['sandbox', 'evidence', 'usage'],
+        memberOperations: ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'],
       }),
     ])
     expect(JSON.stringify(view)).not.toMatch(/nativePath|apiKey|packageBin|CLAUDE_CONFIG_DIR/)

@@ -69,7 +69,9 @@ export class NativeProduct {
     assert.equal(options.pathToClaudeCodeExecutable, this.executable)
     assert.equal(options.permissionMode, 'dontAsk')
     assert.deepEqual(options.tools, ['Read', 'Glob', 'Grep'])
-    const toolNames = ['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send']
+    const toolNames = [
+      'team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send', 'team_task_update', 'team_wait',
+    ]
     assert.deepEqual(options.allowedTools, this.teamTools
       ? toolNames.map(name => `mcp__dsh_team__${name}`) : ['Read', 'Glob', 'Grep'])
     assert.deepEqual(options.settingSources, [])

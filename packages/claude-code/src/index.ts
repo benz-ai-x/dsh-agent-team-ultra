@@ -394,7 +394,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
   readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
-  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send'] as const
+  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly creations = new Map<string, Promise<TeammateRuntimeCreateResult>>()
   private readonly presenceListeners = new Set<(event: TeammateRuntimePresenceEvent) => void>()
