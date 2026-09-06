@@ -129,6 +129,25 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
+  it('rejects a changed dependency module type before linking the Host implementation', () => {
+    const root = installedPackage()
+    const team = join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team')
+    const copy = installedPackage(realpathSync(team))
+    rmSync(team)
+    symlinkSync(copy, team, 'dir')
+    const path = join(copy, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8'))
+    writeFileSync(path, JSON.stringify({ ...manifest, type: 'commonjs' }))
+
+    const result = importHost(root)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: 'ULTRA_COMPAT_ARTIFACT_MISMATCH',
+      message: expect.stringContaining('@deepseek-ai/dsh-experimental-agent-team'),
+    })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
   it('rejects a changed Session executable even when its package version and exports match', () => {
     const root = installedPackage()
     const session = join(root, 'node_modules/@deepseek-ai/dsh-session')

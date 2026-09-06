@@ -28,7 +28,8 @@ Compatibility admission uses a Node-only boundary before dynamically loading
 the Host implementation or the profile's child Loader entries. Build-time
 attestation supplies executable digests for the installed dependency closure;
 runtime admission checks each package's actual dependency resolution, including
-transitive copies. Matching semver is insufficient. The qualification label
+transitive copies. Module type, main, exports, and executable bytes must match;
+matching semver is insufficient. The qualification label
 `agent-team-ultra.phase-a.v1` belongs to Ultra's compatibility record, rather than
 claiming that Harness exports a version constant with that name. Generated
 proofs and public entry wrappers are regenerated after Host, Typert, Profile,

@@ -45,9 +45,11 @@
 
 - **2026-09-06 PR #48 评审修复**：生成证明移至完整构建末尾，包含 Ultra Host、UI、Profile 和各自实际依赖；Profile 导入检查私有闭包，并在 Loader 初次加载／配置替换前检查真实 source directory。CLI 从实际 profile 根检查同一闭包。ESM 查找支持包自引用和祖先 `node_modules`，忽略 `NODE_PATH`。
 - 新增缺失 UI、真实 Loader 根混用 Team、CLI 根缺失 Team、Host 私有 Session 混用四条回归，原适配器缺失测试加入合格 `NODE_PATH` 副本。真实 Loader 保留稳定诊断码于包装后的 message；直接导入和 CLI 保留结构化 code。无不兼容子项执行或业务目录写入。
-- 清除本隔离工作树的旧 `lib` 后完整 `pnpm verify` **通过：448 strict、0 警告；190 测试／16 文件；八归档真实安装、Web 启动、全部行与包卸载**。日志 `/tmp/ultra-48-fix-verify.log`；新入口用例日志 `/tmp/ultra-48-admission-tests.log`。最初失败和修复后通过的日志为 `/tmp/ultra-48-{node-path,ui-closure,loader-anchor,cli-anchor}-{red,green}.log`。
+- 清除本隔离工作树的旧 `lib` 后完整 `pnpm verify` **通过：448 strict、0 警告；190 测试／16 文件；八归档真实安装、Web 启动、全部行与包卸载**。日志 `/tmp/ultra-48-fix-verify.log`；新入口用例日志 `/tmp/ultra-48-admission-tests.log`。最初失败的日志为 `/tmp/ultra-48-{node-path,ui-closure,loader-anchor,cli-anchor}-red.log`；补修后入口集合通过记录见 `/tmp/ultra-48-cli-anchor-green.log` 和 `/tmp/ultra-48-admission-tests.log`。
 - `/tmp/ultra-48-comparison.log`：固定官方 `d347e703…` 与维护 fork `8b4bae0b…` 均通过同一 11 组公共契约，新增公共 queued flush 屏障、三条消息顺序与发送方、真实上下文冷重启、10 秒 wait 超时不创建冷 Agent、消息恢复原成员身份、中断及恢复后任务仍由原成员持有。官方源码和 Team 包仍在安装／导入前被拒绝；无业务数据写入。两个 Harness checkout 均保持干净。
-- 修复已完成验证，下一步提交／推送并固定新 head 独立复审；本记录不预先宣称 review 或合并通过。
+- `80464c4` 双轴复审：Spec 0 项；Standards 新发现 P2（Team manifest 只改 `type: commonjs` 时先通过 guard，再报原始 ESM 链接错误）。本次再补修将 `type` 加入生成证明和核验；公开 Host 入口 RED / GREEN 日志为 `/tmp/ultra-48-module-type-{red,green}.log`。
+- 模块类型补修后的完整 `pnpm verify` **通过 448 strict、0 警告；191 测试／16 文件；八归档安装、Web 启动及全部行与包卸载**，日志 `/tmp/ultra-48-module-type-verify.log`。同一官方／fork 11 组对照复跑日志为 `/tmp/ultra-48-module-type-comparison.log`。
+- 下一步提交／推送补修，再固定新 head 让 Standards 与 Spec 分别复核；本记录不预先宣称最终 review 或合并通过。
 
 
 - `dsh-reference.lock.json` 新增独立的官方基础 `76fda729…`、官方对照 `d347e703…`、扩展接口资格、Session/Team/投影/Ultra 格式及 native SDK/payload 标识；原 `upstream` 提交、版本和文档摘要保持不变。当前受支持运行时仍是完整 `8b4bae0b…` fork。

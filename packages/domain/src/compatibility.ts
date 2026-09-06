@@ -5,6 +5,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 interface PackageProof {
+  readonly type?: string
   readonly version: string
   readonly main: string
   readonly exports: unknown
@@ -75,9 +76,9 @@ export function assertUltraCompatibility(anchor: string, entry: 'host' | 'profil
       const path = resolveManifest(name, from)
       if (visited.has(path)) return
       const actual = JSON.parse(readFileSync(path, 'utf8')) as PackageProof
-      if (actual.version !== expected.version || actual.main !== expected.main
+      if (actual.type !== expected.type || actual.version !== expected.version || actual.main !== expected.main
         || JSON.stringify(actual.exports) !== JSON.stringify(expected.exports)) {
-        throw new Error('package version or exported entry points differ from the locked build')
+        throw new Error('package module type, version or exported entry points differ from the locked build')
       }
       for (const [file, digest] of Object.entries(expected.files)) {
         const bytes = readFileSync(join(dirname(path), file))

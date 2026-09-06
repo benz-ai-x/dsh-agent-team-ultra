@@ -68,7 +68,7 @@ while (pending.length) {
     files[path] = createHash('sha256').update(readFileSync(join(packageRoot, path))).digest('hex')
   }
   packages[manifest.name] = {
-    version: manifest.version, main: manifest.main, exports: manifest.exports, files,
+    type: manifest.type, version: manifest.version, main: manifest.main, exports: manifest.exports, files,
     dependencies: Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })
       .filter(name => workspace.has(name) && (manifest.name === profileManifest.name || !manifest.peerDependenciesMeta?.[name]?.optional)),
     products: Object.values(lock.compatibility.nativeProducts)
