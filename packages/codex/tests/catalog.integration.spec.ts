@@ -18,7 +18,7 @@ describe('Ultra-owned Codex public package', () => {
         contextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory'],
         runtimeCapabilities: ['sandbox', 'evidence', 'usage'],
-        memberOperations: ['members.list', 'tasks.list', 'tasks.get'],
+        memberOperations: ['members.list', 'tasks.list', 'tasks.get', 'messages.send'],
       }),
     ])
     expect(JSON.stringify(view)).not.toMatch(/nativePath|apiKey|packageBin|CODEX_HOME|memberGrant|memberBound|AbortSignal/)

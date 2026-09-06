@@ -3,12 +3,14 @@ import { dirname, join, resolve } from 'node:path'
 import Subprocess, { type SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { TeammateLaunchRequestId } from '@deepseek-ai/dsh-experimental-agent-team'
 import { expect, it } from 'vitest'
-import { workflow } from '../../domain/tests/fixtures/host-workflow.ts'
+import { profile, workflow } from '../../domain/tests/fixtures/host-workflow.ts'
+import type { DigitalEmployeeStudioView, SpawnDigitalEmployeeResult } from '../../domain/src/types.ts'
 import * as codex from '../lib/index.js'
 import { NativeProduct } from './fixtures/native-product.mjs'
 
-async function queryWorkflow(configure?: (native: NativeProduct) => void) {
-  const host = await workflow()
+async function queryWorkflow(configure?: (native: NativeProduct) => void, backend: 'json' | 'sqlite' = 'json',
+  options: { root?: string; resumeLead?: boolean } = {}) {
+  const host = await workflow(backend, options)
   const require = createRequire(import.meta.url)
   const manifestPath = require.resolve('@openai/codex/package.json')
   const native = new NativeProduct(join(host.root, 'native.json'), resolve(dirname(manifestPath), 'bin/codex.js'))
@@ -21,6 +23,12 @@ async function queryWorkflow(configure?: (native: NativeProduct) => void) {
   await host.ctx.plugin(NativeTransport)
   const runtime = host.ctx.plugin(codex, { catalogOwnerService: 'digitalEmployees', cwd: host.root, sandbox: 'read-only' })
   await runtime
+  if (options.resumeLead) {
+    const member = host.ctx.agentTeams.listMembers(host.lead.agent).find(value => value.name === 'codex-reviewer')!
+    const handle = member.externalRuntime!.nativeHandle!
+    await expect.poll(() => native.channels.has(handle)).toBe(true)
+    return { ...host, native, runtime, member, handle }
+  }
   const launched = await host.ctx.agentTeams.spawnTeammate(host.lead.agent, {
     name: 'codex-reviewer', description: 'Query the shared Team.', context: 'fresh',
     prompt: [{ type: 'text', text: 'Read the shared task board.' }], signal: new AbortController().signal,
@@ -37,6 +45,221 @@ function errorResult(code: string, message: string) {
   return { success: false, contentItems: [{ type: 'inputText', text: JSON.stringify({ ok: false, error: { code, message } }) }] }
 }
 
+it('delivers the final Codex answer through the durable member mailbox', async () => {
+  const { ctx, lead, native, runtime, handle, member } = await queryWorkflow()
+  const turnId = native.data.threads[handle].turns[0].id
+  native.complete('completed', 'The shared source has one reviewed finding.')
+  const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+  try {
+    await expect.poll(async () => (await stored.read(0)).filter(event =>
+      event.type === 'team/native-operation/committed')).toHaveLength(1)
+    const event = (await stored.read(0)).find(event => event.type === 'team/native-operation/committed')!
+    expect(event.data).toEqual(expect.objectContaining({
+      message: expect.objectContaining({ senderId: member.id, targetId: lead.agent.id,
+        content: [{ type: 'text', text: 'The shared source has one reviewed finding.' }] }),
+      receipt: expect.objectContaining({ source: { kind: 'settlement', turnId },
+        result: { ok: true, operation: 'turns.settle', value: {
+          messageId: expect.any(String), status: 'queued', outcome: 'completed',
+        } } }),
+    }))
+    expect(JSON.stringify(event)).not.toMatch(/PRIVATE_REASONING|PRIVATE_COMMENTARY/)
+  } finally {
+    await stored.close()
+  }
+  await runtime.dispose()
+  expect(native.live.size).toBe(0)
+})
+
+it.each(['failed', 'interrupted'] as const)('labels a %s Codex turn in the message received by the Lead', async outcome => {
+  const { ctx, lead, native, runtime } = await queryWorkflow()
+  native.complete(outcome, 'Partial review only.')
+  const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+  try {
+    await expect.poll(async () => (await stored.read(0)).filter(event =>
+      event.type === 'team/native-operation/committed')).toHaveLength(1)
+    const event = (await stored.read(0)).find(event => event.type === 'team/native-operation/committed')!
+    expect(event.data.message.content).toEqual([{ type: 'text', text: `Codex work ${outcome}.\n\nPartial review only.` }])
+    expect(event.data.receipt.result.value.outcome).toBe(outcome)
+  } finally { await stored.close() }
+  await runtime.dispose()
+})
+
+it('marks a large final answer as truncated within the complete Team request byte limit', async () => {
+  const { ctx, lead, native, runtime } = await queryWorkflow()
+  native.complete('completed', '审阅😀"\\\n'.repeat(1_000))
+  const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+  try {
+    await expect.poll(async () => (await stored.read(0)).filter(event =>
+      event.type === 'team/native-operation/committed')).toHaveLength(1)
+    const event = (await stored.read(0)).find(event => event.type === 'team/native-operation/committed')!
+    const text = event.data.message.content[0].text
+    expect(text).toMatch(/^审阅😀/)
+    expect(text).toMatch(/\n\[Result truncated to the Team message limit\.\]$/)
+    expect(text).not.toContain('\uFFFD')
+    expect(Buffer.byteLength(JSON.stringify({ operation: 'turns.settle', outcome: 'completed', text }), 'utf8')).toBeLessThanOrEqual(4096)
+  } finally { await stored.close() }
+  await runtime.dispose()
+})
+
+it.each(['json', 'sqlite'] as const)('recovers an offline Codex terminal once through %s Host restart', async backend => {
+  const first = await queryWorkflow(undefined, backend)
+  const turnId = first.native.data.threads[first.handle].turns[0].id
+  await first.ctx.fiber.dispose()
+  first.native.complete('completed', 'The offline review is ready.')
+  const second = await queryWorkflow(undefined, backend, { root: first.root, resumeLead: true })
+  expect(second.member.id).toBe(first.member.id)
+  expect(second.handle).toBe(first.handle)
+  expect(second.native.starts).toBe(0)
+  const stored = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
+  try {
+    await expect.poll(async () => (await stored.read(0)).filter(event =>
+      event.type === 'team/native-operation/committed')).toHaveLength(1)
+    const event = (await stored.read(0)).find(event => event.type === 'team/native-operation/committed')!
+    expect(event.data).toEqual(expect.objectContaining({
+      message: expect.objectContaining({ content: [{ type: 'text', text: 'The offline review is ready.' }] }),
+      receipt: expect.objectContaining({ source: { kind: 'settlement', turnId } }),
+    }))
+  } finally { await stored.close() }
+  await second.ctx.fiber.dispose()
+  const third = await queryWorkflow(undefined, backend, { root: first.root, resumeLead: true })
+  const replay = await third.ctx.sessionPersistence.open(third.lead.agent.id, 'read')
+  try {
+    expect((await replay.read(0)).filter(event => event.type === 'team/native-operation/committed')).toHaveLength(1)
+  } finally { await replay.close() }
+  await third.ctx.fiber.dispose()
+  expect(third.native.live.size).toBe(0)
+})
+
+it('replays a lost native tool receipt after a full Host restart without a second message', async () => {
+  const first = await queryWorkflow()
+  const input = { target: 'lead', text: 'One durable progress message.' }
+  const correlation = { callId: 'lost-native-reply' }
+  first.native.dropNextToolReply = true
+  await expect(first.native.query(first.handle, 'team_message_send', input, correlation)).rejects.toThrow('reply lost')
+  const before = await first.ctx.sessionPersistence.open(first.lead.agent.id, 'read')
+  let receipt: unknown
+  try {
+    const events = (await before.read(0)).filter(event => event.type === 'team/native-operation/committed')
+    expect(events).toHaveLength(1)
+    receipt = events[0].data.receipt.result
+  } finally { await before.close() }
+  await first.ctx.fiber.dispose()
+  const second = await queryWorkflow(undefined, 'json', { root: first.root, resumeLead: true })
+  const response = await second.native.query(second.handle, 'team_message_send', input, correlation)
+  expect(response.success).toBe(true)
+  expect(JSON.parse(response.contentItems[0].text)).toEqual(receipt)
+  const conflict = await second.native.query(second.handle, 'team_message_send', { ...input, text: 'Changed input.' }, correlation)
+  expect(JSON.parse(conflict.contentItems[0].text).error.code).toBe('TEAM_NATIVE_OPERATION_CONFLICT')
+  const after = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
+  try {
+    expect((await after.read(0)).filter(event => event.type === 'team/native-operation/committed')).toHaveLength(1)
+  } finally { await after.close() }
+  expect(second.member.id).toBe(first.member.id)
+  expect(second.native.starts).toBe(0)
+  await second.ctx.fiber.dispose()
+})
+
+it('keeps multiple native Team calls and the final result in one bound employee Run', async () => {
+  const { ctx, invoke, native, runtime, lead } = await queryWorkflow()
+  await expect(invoke('save', { expectedHeadRevision: null, profile: { ...profile, continuationProvider: '' },
+    runtimeTarget: { kind: 'external-agent', provider: 'codex' } })).resolves.toMatchObject({ ok: true })
+  await expect(invoke('activate', { profileId: profile.id, revision: 1, expectedHeadRevision: 1 })).resolves.toMatchObject({ ok: true })
+  const launched = await invoke('spawn', {
+    launchRequestId: '77777777-7777-4777-8777-777777777777', profileId: profile.id,
+  }) as SpawnDigitalEmployeeResult
+  expect(launched.ok).toBe(true)
+  if (!launched.ok || !launched.value.nativeRuntimeHandle) throw new Error('native employee must launch')
+  const handle = launched.value.nativeRuntimeHandle
+  for (const text of ['First deliberate progress.', 'Second deliberate progress.']) {
+    expect((await native.query(handle, 'team_message_send', { target: 'lead', text })).success).toBe(true)
+  }
+  expect((await native.query(handle, 'team_tasks_list', {})).success).toBe(true)
+  native.complete('completed', 'INTENTIONAL_FINAL_RESULT')
+  await expect.poll(() => ctx.agentTeams.listMembers(lead.agent).find(member => member.id === launched.value.memberId)?.status).toBe('idle')
+  const view = await invoke('view') as DigitalEmployeeStudioView
+  expect(view.runs).toHaveLength(1)
+  expect(view.runs[0]).toMatchObject({
+    canonicalTurnId: native.data.threads[handle].turns[0].id, profileRevision: 1,
+  })
+  const detail = await invoke('run', { runId: view.runs[0].runId })
+  expect(detail).toMatchObject({ ok: true, value: { run: {
+    terminal: 'completed', usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+  } } })
+  expect(JSON.stringify([view, detail])).not.toMatch(/INTENTIONAL_FINAL_RESULT|deliberate progress|PRIVATE_REASONING|PRIVATE_COMMENTARY/)
+  await runtime.dispose()
+  expect(native.live.size).toBe(0)
+  await ctx.fiber.dispose()
+})
+
+it('exchanges attributed messages with a DSH peer while keeping the same native thread', async () => {
+  const { ctx, lead, native, runtime, handle, member } = await queryWorkflow()
+  const peer = await ctx.agentTeams.spawnTeammate(lead.agent, {
+    name: 'dsh-peer', description: 'A DSH review peer.', provider: 'spawn', context: 'fresh',
+    prompt: [{ type: 'text', text: 'Review the shared source.' }],
+    agentOptions: { provider: 'workflow', model: 'reviewer' }, signal: new AbortController().signal,
+  })
+  const result = await native.query(handle, 'team_message_send', { target: 'dsh-peer', text: 'Please verify my finding.' })
+  expect(result.success).toBe(true)
+  const messageId = JSON.parse(result.contentItems[0].text).value.messageId
+  const stored = await ctx.sessionPersistence.open(peer.member.id, 'read')
+  try {
+    await expect.poll(async () => (await stored.read(0)).filter(event => event.type === 'user/message'
+      && event.data.source?.kind === 'team-message' && event.data.source.messageId === messageId)).toHaveLength(1)
+    const message = (await stored.read(0)).find(event => event.type === 'user/message'
+      && event.data.source?.kind === 'team-message' && event.data.source.messageId === messageId)!
+    expect(message.data.source).toMatchObject({ senderId: member.id, senderName: 'codex-reviewer' })
+  } finally { await stored.close() }
+  native.complete()
+  await expect.poll(() => ctx.agentTeams.listMembers(lead.agent).find(value => value.id === member.id)?.status).toBe('idle')
+  await expect.poll(() => ctx.agents.get(peer.member.id)).toBeUndefined()
+  const resumedPeer = await ctx.agents.resume({ resumeSessionId: peer.member.id, agentOptions: { provider: 'workflow', model: 'reviewer' } })
+  await expect(ctx.agentTeams.sendMessage(resumedPeer.agent, {
+    target: 'codex-reviewer', content: [{ type: 'text', text: 'The finding is verified.' }], signal: new AbortController().signal,
+  })).resolves.toMatchObject({ status: 'accepted' })
+  expect(Object.keys(native.data.threads)).toEqual([handle])
+  expect(native.data.threads[handle].turns).toHaveLength(2)
+  expect((await native.query(handle, 'team_message_send', { target: 'lead', text: 'Peer verification is complete.' })).success).toBe(true)
+  native.complete()
+  await resumedPeer.dispose()
+  await runtime.dispose()
+  expect(native.live.size).toBe(0)
+})
+
+it('persists a Codex member message before returning its original receipt on replay', async () => {
+  const { ctx, lead, native, runtime, handle, member } = await queryWorkflow()
+  const input = { target: 'lead', text: 'I am reviewing the shared source.' }
+  const correlation = { callId: 'durable-progress-call' }
+  const response = await native.query(handle, 'team_message_send', input, correlation)
+  expect(response.success).toBe(true)
+  const receipt = JSON.parse(response.contentItems[0].text)
+  expect(receipt).toEqual({ ok: true, operation: 'messages.send', value: { messageId: expect.any(String), status: 'queued' } })
+  expect(await native.query(handle, 'team_message_send', { text: input.text, target: ' lead ' }, correlation)).toEqual(response)
+  const conflict = await native.query(handle, 'team_message_send', { ...input, text: 'Different input.' }, correlation)
+  expect(conflict.success).toBe(false)
+  expect(JSON.parse(conflict.contentItems[0].text).error.code).toBe('TEAM_NATIVE_OPERATION_CONFLICT')
+  const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+  try {
+    const operations = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
+    expect(operations).toHaveLength(1)
+    expect(operations[0]?.data).toEqual(expect.objectContaining({
+      version: 3,
+      message: expect.objectContaining({
+        id: receipt.value.messageId, senderId: member.id, senderName: 'codex-reviewer', targetId: lead.agent.id,
+        content: [{ type: 'text', text: input.text }],
+      }),
+      receipt: expect.objectContaining({
+        memberId: member.id, provider: 'codex', nativeHandle: handle, result: receipt,
+        source: { kind: 'tool', turnId: native.data.threads[handle].turns[0].id, callId: correlation.callId },
+      }),
+    }))
+  } finally {
+    await stored.close()
+  }
+  native.complete()
+  await runtime.dispose()
+  expect(native.live.size).toBe(0)
+})
+
 it('answers a Codex dynamic tool call with the actual Team task board', async () => {
   const { ctx, lead, observer, native, runtime, handle } = await queryWorkflow()
   await ctx.agentTeams.createTask(lead.agent, { subject: 'Review source', description: 'Inspect the shared source.' })
@@ -49,7 +272,7 @@ it('answers a Codex dynamic tool call with the actual Team task board', async ()
     }] },
   }) }] })
   expect(native.data.threads[handle].dynamicTools.map((tool: { name: string }) => tool.name))
-    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get'])
+    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send'])
   expect(JSON.stringify(response)).not.toContain('Private elsewhere')
   native.complete()
   await runtime.dispose()
@@ -165,7 +388,7 @@ it('revokes a disposed Lead and restores the same native member with a new live 
   expect(native.starts).toBe(1)
   expect(Object.keys(native.data.threads)).toEqual([handle])
   expect(native.data.threads[handle].dynamicTools.map((tool: { name: string }) => tool.name))
-    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get'])
+    .toEqual(['team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send'])
   native.complete()
   await replacement.dispose()
   await resumed.dispose()

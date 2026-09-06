@@ -337,6 +337,11 @@ export async function readSessions(root, harnessRoot, { records: cached = new Ma
     for (const id of cached.keys()) if (!sessions.has(id)) checkpoints.push({ sessionId: id, status: 'rebuild', reason: 'missing-session' })
     const nativeCorrelations = []
     for (const [teamId, session] of sessions) {
+      for (const receipt of session.team.nativeOperations) {
+        nativeCorrelations.push({ teamId, memberId: receipt.memberId, provider: receipt.provider,
+          nativeRuntimeHandle: receipt.nativeHandle, nativeTurnId: receipt.source.turnId,
+          operationId: receipt.id, messageId: receipt.result.value.messageId, kind: receipt.source.kind })
+      }
       for (const member of session.team.members) {
         if (member.externalRuntime?.initialTurnId !== undefined) {
           if (member.externalRuntime.nativeHandle === undefined) refuse('AUDIT_NATIVE_CORRELATION', 'A native initial turn has no committed runtime handle')

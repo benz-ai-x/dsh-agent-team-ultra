@@ -97,8 +97,12 @@ The nonserializable authority object issued by the Team owner after accepting or
 _Avoid_: Lead impersonation, serialized credential, model-selected Agent
 
 **Native Member Operation**:
-A bounded operation on canonical Team state under a Native Member Grant. The initial operations read members, task pages and task details; the Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
+A bounded operation on canonical Team state under a Native Member Grant. Reads observe current state; accepted messages retain a durable receipt. The Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
 _Avoid_: Arbitrary Host RPC, native shell tool, complete collaboration capability
+
+**Native Operation Receipt**:
+The authoritative acceptance result for one member's native call or work settlement, identified by that member, native session, work turn and call or settlement kind. Replaying the same normalized input returns the original result; changed input conflicts.
+_Avoid_: Transport response, delivery acknowledgement, completed task
 
 **Run**:
 The deterministic, runtime-neutral record of exactly one accepted Digital Employee work turn, owned by either an exact Team member or an isolated evaluation worker and correlated to its immutable Profile Revision and canonical evidence source.

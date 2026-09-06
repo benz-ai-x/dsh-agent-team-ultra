@@ -14,6 +14,7 @@ import {
   TeammateRuntimeEvidenceId,
   TeammateRuntimeHandle,
   TeammateRuntimeTurnId,
+  TeammateRuntimeToolCallId,
   type NativeMemberGrant,
   type NativeMemberOperationResult,
   type TeammateRuntimeMemberOperationsRequest,
@@ -63,10 +64,15 @@ const TEAM_QUERY_TOOLS = [
   { type: 'function', name: 'team_tasks_get', description: 'Read the current details of one task in your Team.',
     inputSchema: { type: 'object', properties: { taskId: { type: 'string', minLength: 1, maxLength: 128 } },
       required: ['taskId'], additionalProperties: false } },
+  { type: 'function', name: 'team_message_send', description: 'Send a text message to a Team member by name, or to lead. A queued receipt means the Team stored the message; it does not mean delivery or completed work.',
+    inputSchema: { type: 'object', properties: {
+      target: { type: 'string', minLength: 1 }, text: { type: 'string', minLength: 1 },
+    }, required: ['target', 'text'], additionalProperties: false } },
 ] as const
 
-const TEAM_QUERY_OPERATIONS: Readonly<Record<string, 'members.list' | 'tasks.list' | 'tasks.get'>> = {
+const TEAM_QUERY_OPERATIONS: Readonly<Record<string, 'members.list' | 'tasks.list' | 'tasks.get' | 'messages.send'>> = {
   team_members_list: 'members.list', team_tasks_list: 'tasks.list', team_tasks_get: 'tasks.get',
+  team_message_send: 'messages.send',
 }
 
 function teamQueryResponse(result: NativeMemberOperationResult) {
@@ -140,6 +146,7 @@ interface TurnTerminal {
   readonly id: string
   readonly outcome: TurnOutcome
   readonly timestamp: number
+  readonly text: string
 }
 
 function object(value: unknown, label: string): JsonObject {
@@ -251,6 +258,39 @@ function terminalOutcome(value: unknown): TurnOutcome {
   throw new Error('agent-team-codex: invalid terminal turn status')
 }
 
+function boundedTerminalText(outcome: TurnOutcome, text: string): string {
+  const encodedBytes = (value: string) => Buffer.byteLength(JSON.stringify({ operation: 'turns.settle', outcome, text: value }), 'utf8')
+  if (encodedBytes(text) <= 4_096) return text
+  const suffix = '\n[Result truncated to the Team message limit.]'
+  let remaining = 4_096 - encodedBytes(suffix)
+  let prefix = ''
+  for (const character of text) {
+    const bytes = Buffer.byteLength(JSON.stringify(character), 'utf8') - 2
+    if (bytes > remaining) break
+    prefix += character
+    remaining -= bytes
+  }
+  return prefix + suffix
+}
+
+function terminalTurn(turn: JsonObject): TurnTerminal {
+  const items: unknown[] = Array.isArray(turn.items) ? turn.items : []
+  let text: string | undefined
+  for (const raw of items) {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const item = raw as JsonObject
+    if (item.type === 'agentMessage' && (item.phase === 'final_answer' || item.phase == null)
+      && typeof item.text === 'string' && item.text.length > 0) text = item.text
+  }
+  const outcome = terminalOutcome(turn.status)
+  return {
+    id: string(turn.id, 'terminal turn id'), outcome,
+    timestamp: typeof turn.completedAt === 'number' ? Math.trunc(turn.completedAt * 1_000) : Date.now(),
+    text: boundedTerminalText(outcome, text === undefined ? `Codex work ${outcome} without a final response.`
+      : outcome === 'completed' ? text : `Codex work ${outcome}.\n\n${text}`),
+  }
+}
+
 function threadPresence(status: unknown): 'running' | 'idle' {
   if (status !== null && typeof status === 'object' && !Array.isArray(status)
     && (status as JsonObject).type === 'active') return 'running'
@@ -332,6 +372,13 @@ class CodexConnection {
     }
     this.memberGrant = grant
     this.memberBound.resolve(grant)
+  }
+
+  async settleTurn(terminal: TurnTerminal): Promise<void> {
+    const grant = this.memberGrant ?? await this.guarded(this.memberBound.promise, new AbortController().signal)
+    const result = await grant.execute({ operation: 'turns.settle', outcome: terminal.outcome, text: terminal.text },
+      grant.signal, { kind: 'settlement', turnId: TeammateRuntimeTurnId(terminal.id) })
+    if (!result.ok) throw new TeammateRuntimeError('Codex terminal result is awaiting Team acceptance', 'TEAM_RUNTIME_UNAVAILABLE')
   }
 
   async initialize(signal: AbortSignal): Promise<void> {
@@ -471,6 +518,13 @@ class CodexConnection {
     return { id, done: completion.promise }
   }
 
+  resumeActiveTurn(id: string): AcceptedTurn {
+    if (this.active !== undefined) throw new Error('agent-team-codex: native turn is already attached')
+    const completion = Promise.withResolvers<TurnTerminal>()
+    this.active = { id, completion, queries: new AbortController(), queryCount: 0 }
+    return { id, done: completion.promise }
+  }
+
   interrupt(): void {
     this.active?.queries.abort()
     const turnId = this.active?.id
@@ -606,7 +660,10 @@ class CodexConnection {
         clearTimeout(timer)
       }
     }
-    const result = await grant.execute({ ...args, operation }, active.queries.signal)
+    const result = await grant.execute({ ...args, operation }, active.queries.signal, {
+      kind: 'tool', turnId: TeammateRuntimeTurnId(string(params.turnId, 'Team tool turn id')),
+      callId: TeammateRuntimeToolCallId(string(params.callId, 'Team tool call id')),
+    })
     if (grant.signal.aborted || this.memberGrant !== grant) {
       return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_GRANT_REVOKED', message: 'This Team authorization is no longer active.' } })
     }
@@ -637,13 +694,7 @@ class CodexConnection {
     }
     if (method !== 'turn/completed') return
     const turn = object(params.turn, 'turn/completed turn')
-    const terminal: TurnTerminal = {
-      id: string(turn.id, 'turn/completed turn id'),
-      outcome: terminalOutcome(turn.status),
-      timestamp: typeof turn.completedAt === 'number'
-        ? Math.trunc(turn.completedAt * 1_000)
-        : Date.now(),
-    }
+    const terminal = terminalTurn(turn)
     if (this.active === undefined) return
     if (this.active.id === undefined) {
       this.active.id = terminal.id
@@ -671,6 +722,8 @@ interface NativeSession {
   readonly recoveredInputs: Map<string, string>
   readonly deliveries: Map<string, ReturnType<typeof TeammateRuntimeTurnId>>
   readonly evidence: TeammateRuntimeEvidenceItem[]
+  readonly settlements: Set<Promise<void>>
+  readonly recoveredTerminals: TurnTerminal[]
   presence: 'running' | 'idle'
   current: AcceptedTurn | undefined
   disposing?: Promise<void>
@@ -683,7 +736,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
   readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
-  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get'] as const
+  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly correlations = new Map<string, string>()
   private readonly creations = new Map<string, Promise<TeammateRuntimeCreateResult>>()
@@ -700,7 +753,9 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   }
 
   bindMemberOperations(request: TeammateRuntimeMemberOperationsRequest): void {
-    this.session(request.nativeHandle).connection.bindMemberOperations(request.grant)
+    const session = this.session(request.nativeHandle)
+    session.connection.bindMemberOperations(request.grant)
+    for (const terminal of session.recoveredTerminals.splice(0)) this.queueSettlement(session, terminal)
   }
 
   async create(request: TeammateRuntimeCreateRequest): Promise<TeammateRuntimeCreateResult> {
@@ -950,7 +1005,9 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     connection: CodexConnection,
   ): NativeSession {
     const inputs = recoveredInputs(thread.turns)
-    return {
+    const ownedTurns = new Set([...inputs].filter(([id]) => id.startsWith('dsh-launch:') || id.startsWith('dsh-delivery:'))
+      .map(([, turnId]) => turnId))
+    const session: NativeSession = {
       handle: TeammateRuntimeHandle(thread.id),
       correlationKey: key,
       projectId,
@@ -959,10 +1016,21 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       recoveredInputs: inputs,
       deliveries: recoveredDeliveries(inputs),
       evidence: [],
+      settlements: new Set(),
+      recoveredTerminals: thread.turns.filter(turn => typeof turn.id === 'string' && ownedTurns.has(turn.id)
+        && (turn.status === 'completed' || turn.status === 'failed' || turn.status === 'interrupted')).map(terminalTurn),
       presence: threadPresence(thread.status),
       current: undefined,
       disposed: false,
     }
+    const active = thread.turns.filter(turn => turn.status === 'inProgress')
+    if (active.length > 1) throw new Error('agent-team-codex: native thread has conflicting active turns')
+    if (active[0] !== undefined) {
+      const id = string(active[0].id, 'recovered active turn id')
+      if (!ownedTurns.has(id)) throw new Error('agent-team-codex: active turn has no Team work correlation')
+      this.observeTurn(session, connection.resumeActiveTurn(id))
+    }
+    return session
   }
 
   private observeTurn(session: NativeSession, turn: AcceptedTurn): void {
@@ -981,12 +1049,21 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
         })
         session.presence = 'idle'
         this.emitPresence(session, 'idle')
+        this.queueSettlement(session, terminal)
       },
       () => {
         if (session.current !== turn || session.disposed) return
         this.retireSession(session)
       },
     )
+  }
+
+  private queueSettlement(session: NativeSession, terminal: TurnTerminal): void {
+    const settlement = session.connection.settleTurn(terminal)
+    session.settlements.add(settlement)
+    void settlement.catch(() => {
+      this.ctx.logger.warn('agent-team-codex: terminal result awaits Team acceptance after resume')
+    }).finally(() => { session.settlements.delete(settlement) })
   }
 
   private recordItem(session: NativeSession, params: JsonObject): void {
@@ -1139,7 +1216,9 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     }
     session.disposed = true
     session.connection.interrupt()
-    const disposal = this.disposeProcess(session.connection, session.child).finally(() => {
+    const disposal = this.disposeProcess(session.connection, session.child).then(async () => {
+      await Promise.allSettled([...session.settlements])
+    }).finally(() => {
       this.sessions.delete(session.handle)
       if (!preserveCorrelation && this.correlations.get(session.correlationKey) === session.handle) {
         this.correlations.delete(session.correlationKey)

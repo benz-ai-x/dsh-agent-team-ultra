@@ -108,7 +108,9 @@ try {
   if (before !== digest(sourcePaths())) refuse('AUDIT_SOURCE_CHANGED', 'The source changed during audit; retry against a quiescent snapshot')
   console.log(JSON.stringify({
     ok: true,
-    sourceFormats: { session: 0, teamEvent: 2, teamProjection: 3, ultraDomain: observedV1 ? 'agent_team_ultra_v1' : v0 ? 'agent_team_ultra' : null, ultraVersion: observedV1 ? 1 : v0 ? 0 : null },
+    sourceFormats: { session: lock.compatibility.formats.session, teamEvent: lock.compatibility.formats.teamEvent,
+      teamProjection: lock.compatibility.formats.teamProjection, nativeOperation: lock.compatibility.formats.nativeOperation,
+      ultraDomain: observedV1 ? 'agent_team_ultra_v1' : v0 ? 'agent_team_ultra' : null, ultraVersion: observedV1 ? 1 : v0 ? 0 : null },
     sourceDigest: before,
     sourceCompatibility: {
       repository: proof.repository, commit: proof.commit, version: proof.version, docsDigest: proof.docsDigest,

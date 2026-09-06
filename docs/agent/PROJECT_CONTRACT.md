@@ -231,6 +231,17 @@ an actual integration commit based on the fixed official comparison.
   these tools preserve their handles and history. See
   [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) for limits and
   authorization lifetime; queries provide no arbitrary RPC, shell or MCP access.
+- Native messages and terminal settlements atomically retain the message and
+  its replayable receipt in the authoritative Team log. Current grants determine
+  attribution; trusted member/session/turn/call identity selects the original
+  receipt and changed normalized input conflicts. Flush precedes confirmation
+  and delivery; queued is acceptance, not work completion. Codex installs
+  `team_message_send` for new threads and recovers terminal settlements from
+  native history without copying commentary or full transcripts into Team or
+  Run evidence. The required native-operation event is payload 3 and the Team
+  checkpoint is version 4; explicit legacy payload-2 readers retain old logs.
+  Session 0 and Ultra v1 remain. See
+  [ADR 0018](../adr/0018-persist-native-team-message-receipts.md).
 - The Claude Code provider qualifies only the pinned package-local Claude
   Agent SDK `0.3.241` and Claude Code `2.1.241` native payload. It never
   searches `PATH`; a missing, mismatched, or unqualified payload leaves the

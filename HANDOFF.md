@@ -7,12 +7,31 @@
 
 ## 当前任务与完成边界
 
-- 用户要求从 [#19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19) 开始逐项实现全部 open issue：新分支、TDD、创建 PR、提交 PR 后使用 code-review，最后通知用户人工审核。历史轮次曾通过飞书通知；本轮在当前对话报告修复和合并结果，不从历史交接推断新的对外消息授权。
+- 当前持续目标固定为任务启动时未关闭的 **#27–#44，共 18 项**。按编号依次完成 TDD 开发、逐项验收、一个 PR、固定审查起点的 Standards／Spec 并行审查、所需检查与审批、合并 main、关闭 Issue，再进入下一项。当前用户已明确授权按已确认身份和收件人通过飞书 CLI 通知每项完成及阻塞；本条取代历史轮次的通知权限和提前关闭约定。
+- 当前主工作区分支为 `fix/27-codex-durable-team-messages`，从最新 main `6253119` 建立。既有 HANDOFF／TODO 改动已备份并保留；#27 尚无完成验收项。Harness 在独立 `/root/workspace/deepseek-harness-ultra-27`、分支 `fix/ultra-27-native-team-messages` 开发，起点 `fdfdbaeb0e`；本轮已提交并推送 `9649602da9` 到维护 fork 的 `ultra` 远端。当前 Ultra 来源链接和 lock 已切换到干净、已构建的 `deepseek-harness-ultra-27`，冻结安装和 554 项 strict 通过。
+- 清单及原始正文／评论／验收快照在 `/tmp/ultra-goal-27plus-7tyh7_0l/manifest.json`。#39–#43 要求共用集成分支、最终门禁后合并，与本轮逐项合并 main 的顺序冲突；已经请求用户决策，相关操作保持待定，不影响先完成 #27–#38。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
 - #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。当前 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
-- **用户指示：Issue 在开发和验证完成后即可关闭，不等待 PR 或人工审核。#19–#26 已实际关闭。PR #45–#51 已按用户逐项授权合并；PR #48 的评审发现和额外模块类型漏检已修复，最终 Standards / Spec 均为 0 项未解决发现。PR #51 已完成 main 整合，修复缓存与 Team 历史审计两项 P2，通过完整验证和双轴复审后合并。** 用户已完成 `gh` 设备授权登录，本仓库权限为 `ADMIN`。此前的认证阻塞已经解决，不能继续将其列为未完成原因。
-- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#51 已合并。远端 main 为 `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并提交 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27–#44 尚未实现。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
+- **历史轮次按当时指示在开发和验证后关闭 #19–#26；本轮 #27 起须在 PR 验收、评审和合并后关闭。PR #45–#52 已按用户逐项授权合并；PR #48 的评审发现和额外模块类型漏检已修复，最终 Standards / Spec 均为 0 项未解决发现。PR #51 已完成 main 整合，修复缓存与 Team 历史审计两项 P2，通过完整验证和双轴复审后合并。** 用户已完成 `gh` 设备授权登录，本仓库权限为 `ADMIN`。此前的认证阻塞已经解决，不能继续将其列为未完成原因。
+- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。远端 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27–#44 尚未实现。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
 - 本轮先按用户指示创建 #19 的 PR，再依照“继续”按顺序创建 #20–#25 的 PR、评审并关闭已完成 Issue。评审使用各自固定提交的独立工作区，未把 #26 WIP 混入 PR。#25 的补修在 `/tmp/ultra-25-audit-fix-vHVNjX` 完成，其锁定 Harness 与主工作区 #26 的来源分别验证。
+
+- **#19–#26 Acceptance criteria 已同步**：按用户要求，以 main `6253119`、PR #45–#52 的实际合并记录、逐项代码／测试断言和既有验证日志重新审计 39 项验收条件。已实际将 GitHub #19／#20／#21 各 4 项，#22／#23／#24 各 5 项，#25／#26 各 6 项全部勾选，并逐项回读确认；仅改变该小节的复选框，正文与 closed 状态保留。#25 的完成范围是只读审计和迁移设计，#26 为授权查询，阶段 C 迁移及 #44 真实认证 native 验收仍是后续任务。本轮 strict 554 项／0 警告通过，未重复运行既有通过的完整测试；逐项证据及更新前后快照在 `/tmp/ultra-19-26-acceptance-audit/audit.json`。
+
+- **再次回读核对 #19–#26（最新：2026-09-06 14:30，Asia/Shanghai）**：GitHub main 仍为 `6253119`，39 项验收文字与逐项审计一致且均已勾选；8 个对应合并提交都在当前 main 中。最终完整验证记录中的 112 个输入 SHA-256 与现有文件全部一致，锁定 Harness `fdfdbaeb0e` 工作区干净。本次重新运行 strict，554 项／0 警告通过；既有运行时验证仍适用，未重复运行完整测试，也无需重复写入 GitHub 正文。最新回读快照和证据映射保存在 `/tmp/ultra-19-26-latest-recheck.json`，严格检查日志为 `/tmp/ultra-19-26-latest-strict.log`；前次记录保留于 `/tmp/ultra-19-26-recheck-9heliuay/recheck.json`。
+
+## #27 本轮进展（2026-09-06 16:56，Asia/Shanghai）
+
+- 继续范围为冻结的 #27–#44；最新 main 回读仍为 `6253119`。GitHub #27 正文、评论与六项验收已重新读取；没有 PR，也尚未勾选验收条件或关闭 Issue。全部 Issue 最新正文和评论另存 `/tmp/ultra-27plus-current-issues.json`，不是权威需求替代品。
+- Harness `9649602da984ff1f3aeb8f3b30dc4ad0d6d32391` 已推送至 `ultra/fix/ultra-27-native-team-messages`。`origin` 是官方仓库，首次误向 origin 推送因权限失败；改用已配置的维护 fork 远端成功，无需用户处理。共享旧 checkout 未修改。
+- Harness 原有消息与回执 TDD、真实 flush 故障、冷重启、旧 grant 撤销、schema／projection 拒绝、真实 Loader 和 authored recorded-session 已核对。199 项 owning tests、相关源码 100% coverage（`/tmp/ultra-27-team-coverage-final.log`）；recorded replay 3 项通过；built Loader 1 项通过，负对照证据 `/tmp/ultra-27-recorded-negative-control.json`。
+- 本轮补跑并确认终态：Harness build 退出 0（`/tmp/ultra-27-harness-build-resumed.log`）、doc-sync 32 项通过（`/tmp/ultra-27-doc-sync-resumed.log`）、全 lint 通过、正常 push hook 类型检查通过。pre-commit 后声明时间落后于源码，强制重新生成 Session／Team 声明后 Ultra strict 恢复 554 项／0 警告；没有弱化校验或手改生成产物。
+- Ultra 已实现 `team_message_send`，可信 turn/call 单独传入 grant；最终 agent message 与 failed/interrupted 通知经 `turns.settle` 进入 Lead mailbox，冷恢复重放原 settlement。恢复进行中的 native turn 可重试丢失回执。大结果按完整 JSON 的 4096 UTF-8 字节限额截断并明确标记；不拷贝 commentary／reasoning／完整 transcript。
+- 新 TDD 通过在线结果、JSON／SQLite 离线完成恢复与重复重启、丢 native 回执后的完整 Host 重启重放及改输入冲突、失败／中断状态与大结果多字节限额。Codex↔DSH 往返已通过；普通 DSH 成员会自动退出驻留，测试通过真实 Session resume 获取当前 live Agent 再回信。多个 Team 工具调用仍是一个 bound employee Run，公开按需 `run` 入口证明 completed 和 7 Tokens，Studio／Run 不含消息正文。
+- 新 [ADR 0018](docs/adr/0018-persist-native-team-message-receipts.md)、领域词汇、项目契约、补丁表及 Codex README 已更新。lock 保留 Session 0、legacy Team payload 2，新增 nativeOperation 3、projection 4；完整 Phase C 联合迁移仍待 #39–#43。只读 audit 新增脱敏 operation／settlement 关联，使用当前锁定格式；4 项审计回归通过（`/tmp/ultra-27-audit-native-green.log`）。
+- 已扩充真实归档 probe 的成员消息、同调用重放、改输入冲突和终止通知断言。最终完整 `pnpm verify` 退出 0：554 项 strict、273 项测试／22 文件、八归档安装、成员消息／回执／结果断言、JSON／SQLite 冷恢复、真实 Web 启动和完整卸载通过；日志 `/tmp/ultra-27-final-verify.log`。此前两次完整测试的新验收测试假设已修正，不使用失败运行作为完成证据。
+- 下一步：核对完整 verify（尤其真实 archive install／message／cold resume／Web／uninstall）；检查老线程工具不补装、provider 代际和结算清理等风险。逐项完成 #27 六项验收后才勾选、提交一个 Ultra PR。PR 创建后固定当时 origin/main SHA，按 code-review 并行 Standards／Spec 审查 Ultra 和新增 Harness 提交，修复后复验；满足全部门禁再合并、关闭 #27、飞书通知，然后才开始 #28。
+- 本轮技能：tdd、dsh-plugin-dev、domain-modeling、writing-for-agents；维护 Harness 另遵循 dsh-pre-push-checks／dsh-ci-test-reliability。code-review 已读取但 #27 的 PR 尚未创建，不能宣称已审查。飞书 lark-im／lark-shared 及发送／身份／输出参考已读取，当前用户明确授权按已确认身份和收件人通知；本轮尚无 Issue 完成通知。
 
 ## PR 与提交后评审
 
@@ -25,6 +44,7 @@
 | #23 | [#49](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/49)，已合并 | `main` | 0 项未解决 | T-14 补修后 0 项未解决 |
 | #24 | [#50](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/50)，已合并 | `main` | 共享升级驱动补修后 0 项未解决 | 0 项未解决 |
 | #25 | [#51](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/51)，已合并 | `main` | 本轮 P2 修复后 0 项未解决 | 本轮 P2 修复后 0 项未解决 |
+| #26 | [#52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，已合并 | `main` | 限额测试 P3 补修后 0 项未解决 | 0 项未解决 |
 
 - #48 历史评审发现 NODE_PATH、私包闭包、Loader 根目录和 T-04 对照覆盖缺口；本轮以 `80464c4` 修复，再以 `0ccd4c0` 补齐 Standards 新发现的模块类型诊断。最终两轴均通过，见下方 #22 验证与合并记录。
 - #51 初评发现丢弃 schema 规范化结果，以及损坏旧布局 checkpoint 会中止审计。`b72fef9` 已修复，新增三条真实 CLI 回归；修复后 Standards 与 Spec 分别复核，均无新增或未解决问题。详见下方 #25 证据。
@@ -150,6 +170,8 @@
 
 - **PR #52 本轮 main 审查与限额补修（2026-09-06）**：固定 Ultra `ce6cb39...993698d`、Harness `8b4bae0b...fb03045fbe` 重新进行独立双轴审查。Spec 0；Standards 发现 `packages/AGENTS.md` 要求的精确 UTF-8 限额测试缺口（P3），未发现计数实现错误。Harness `fdfdbaeb0e` 仅新增 4 项公开 grant 用例，覆盖 ASCII／多字节请求 4096／4097 字节与完整结果 65536／65537 字节。两种临时负对照分别触发 4／2 项预期失败，源码原样恢复；拥有者测试 **48 passed**，查询模块各项覆盖率 **100%**，日志 `/tmp/ultra-pr52-boundary-coverage.log`、`/tmp/ultra-pr52-boundary-negative-{inclusive,characters}.log`。类型、Host bundle 和常规 commit／push hooks 通过。维护分支已推送，文档摘要及所有运行时源文件不变；Ultra 已更新 lock、准备来源并冻结安装。两路代理已完成 Harness `fdfdbaeb0e` 与 Ultra `0f0a83310f` 的最终复审，Standards 规范违规／判断性异味均 0，Spec 缺失／范围扩张／错误实现均 0，P3 已确认关闭。 最新锁定来源的完整 `pnpm verify` 再次通过 554 strict／0 警告、263 测试／22 文件、八归档安装／查询／冷恢复／Web／卸载；Codex／Claude Code 实际升级和 11 组官方对照也全部退出 0，日志 `/tmp/ultra-pr52-merge-{verify,codex-upgrade,claude-upgrade,comparison}.log`。
 
+- **PR #52 合并完成**：补修与复审通过后，再次确认 base/head 和 CLEAN／MERGEABLE，以 `--match-head-commit a7f98069e7274095414c153ac89a7eabc065749b` 于 **2026-09-06 13:09:42（Asia/Shanghai）** 合并到 main。GitHub 回读 PR 为 MERGED，合并提交 `62531191d909a890394d7e922259a8e63eb80f32`，结果树与已验证 head 一致；源分支保留。#26 保持 closed，父 #18 保持 open。最终证据 `/tmp/ultra-pr52-main-review-verification.json`。本次合并回读只更新本地 HANDOFF／TODO，尚未提交这两份结果记录。
+
 ## 验证证据与限制
 
 ### #22 安装／导入前兼容性诊断
@@ -196,10 +218,10 @@
 
 ## 下一步
 
-1. PR #45–#51 已全部合并；#19–#26 保持 closed，不重复建 PR。当前 #26 的 PR #52 已创建，最新维护来源完成全部本地验证及双轴复审（Standards 0／Spec 0）；PR 保持 open。父 Spec #18 保持 open。
-2. 本轮用户已单独授权 PR #52 通过 review 后合并 main；最终验证与补修复审均通过，执行合并并回读远端状态。后续 #27–#44 按父 Spec 和 tracker 继续。
+1. PR #45–#52 已全部合并；#19–#26 保持 closed，不重复建 PR。main 为 `62531191d909a890394d7e922259a8e63eb80f32`；父 Spec #18 保持 open。
+2. PR #52 的补修、最终验证、独立复审和合并回读均已完成。下一次开发提交时一并保存本地 HANDOFF／TODO 的合并结果记录；后续 #27–#44 按父 Spec 和 tracker 继续。
 3. 继续按依赖处理 #27–#44，保留阶段 C 独立集成分支、格式迁移和真实 native 验收要求。之后的新 PR 仍在提交后分别执行 Standards 和 Spec 评审。
-4. 本轮仅在当前对话通报修复、评审和合并结果；没有新的对外通知待办。
+4. 按本轮用户授权，通过已确认身份与收件人发送每项完成／合并结果及阻塞飞书通知；发送失败必须在当前会话明确报告。
 
 ## 权威材料与技能
 
