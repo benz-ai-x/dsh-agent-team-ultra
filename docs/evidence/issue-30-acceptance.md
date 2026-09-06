@@ -2,8 +2,10 @@
 
 Claude Code now exposes the complete six-operation native member collaboration
 surface through its pinned SDK MCP channel. Task writes and waits delegate to
-the same provider-neutral Host grant used by Codex and DSH members; the adapter
-adds no task store, authority identity, receipt cache, or persistence format.
+the same provider-neutral Host operations and Team state used by Codex and DSH
+members. Claude and Codex enter through native grants while DSH retains exact
+live-Agent authority; the adapter adds no task store, authority identity,
+receipt cache, or persistence format.
 
 Requirement: [Issue #30](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/30);
 parent [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18).
@@ -47,7 +49,8 @@ The final `pnpm verify` passes 562 strict context checks with zero warnings,
 builds Host and Client targets, and passes 327 tests in 28 files. Its pack gate
 creates and installs all eight archives, boots the real Web profile, executes
 Codex and Claude new/resumed work on JSON and SQLite, verifies Claude message,
-task, wait and terminal receipts, then removes every package and Loader row.
+task and terminal receipts plus wait behavior, then removes every package and
+Loader row.
 
 Historical archives from
 `081357d17f7a0535b75bb7d3133177febddee4a2` upgrade on JSON and SQLite while
