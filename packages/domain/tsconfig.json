@@ -1,21 +1,21 @@
 {
-  "extends": "../../../deepseek-harness/tsconfig.base.json",
+  "extends": "../../.dsh/harness/tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
   },
   "include": ["src"],
   "references": [
-    { "path": "../../../deepseek-harness/vendor/cordis" },
-    { "path": "../../../deepseek-harness/vendor/schemastery" },
-    { "path": "../../../deepseek-harness/packages/core/agent" },
-    { "path": "../../../deepseek-harness/packages/llm/llm" },
-    { "path": "../../../deepseek-harness/packages/core/session" },
-    { "path": "../../../deepseek-harness/packages/storage/storage-domain" },
-    { "path": "../../../deepseek-harness/packages/subagent/subagent" },
-    { "path": "../../../deepseek-harness/packages/core/system-prompt" },
-    { "path": "../../../deepseek-harness/packages/core/tools" },
-    { "path": "../../../deepseek-harness/packages/typert/protocol" },
-    { "path": "../../../deepseek-harness/packages/experimental/agent-team" }
+    { "path": "../../.dsh/harness/vendor/cordis" },
+    { "path": "../../.dsh/harness/vendor/schemastery" },
+    { "path": "../../.dsh/harness/packages/core/agent" },
+    { "path": "../../.dsh/harness/packages/llm/llm" },
+    { "path": "../../.dsh/harness/packages/core/session" },
+    { "path": "../../.dsh/harness/packages/storage/storage-domain" },
+    { "path": "../../.dsh/harness/packages/subagent/subagent" },
+    { "path": "../../.dsh/harness/packages/core/system-prompt" },
+    { "path": "../../.dsh/harness/packages/core/tools" },
+    { "path": "../../.dsh/harness/packages/typert/protocol" },
+    { "path": "../../.dsh/harness/packages/experimental/agent-team" }
   ]
 }

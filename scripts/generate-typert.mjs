@@ -2,7 +2,6 @@
 
 import {
   cpSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -13,18 +12,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { WorkspaceTypertGenerator } from '@deepseek-ai/dsh-typert-generator'
+import { requirePreparedHarness } from './harness-source.mjs'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const projectRoot = resolve(scriptDirectory, '..')
-const lock = JSON.parse(readFileSync(join(projectRoot, 'dsh-reference.lock.json'), 'utf8'))
-const harnessRoot = resolve(
-  process.env.DSH_HARNESS_ROOT ?? join(projectRoot, '..', 'deepseek-harness'),
-)
-
-if (!existsSync(join(harnessRoot, 'tsconfig.base.json'))) {
-  throw new Error(`generate-typert: pinned Harness source not found at ${harnessRoot}`)
-}
+const { lock, harnessRoot } = requirePreparedHarness(projectRoot)
+const { WorkspaceTypertGenerator } = await import('@deepseek-ai/dsh-typert-generator')
 
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'dsh-agent-team-ultra-typert-'))
 

@@ -57,14 +57,19 @@ flowchart LR
 
 ## 开发与验证
 
-前置条件：相邻目录存在已构建的 `deepseek-harness` checkout，且与 `dsh-reference.lock.json` 完全一致；也可以用 `DSH_HARNESS_ROOT` 指向它。
+前置条件：准备一份已构建且与 `dsh-reference.lock.json` 完全一致的 Harness checkout。首次准备默认选择相邻 `../deepseek-harness`；也可以指定任意隔离目录：
 
 ```sh
+DSH_HARNESS_ROOT=/absolute/path/to/locked-harness pnpm prepare:harness
 pnpm install
 pnpm verify
 ```
 
-`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；八包本地归档的干净安装及两类原生运行时解析；真实 DSH Web profile 的组合/启动；最后卸载并检查 Loader 与包残留。
+`prepare:harness` 先核验 commit、文档摘要和源码状态，再建立仓库内忽略跟踪的 `.dsh/harness` 链接，并输出实际源码路径及来源证明。后续命令沿用这份选择；相对 `DSH_HARNESS_ROOT` 始终从 Ultra 仓库根目录解析，与执行目录无关。切换选择时重新执行准备和依赖安装，准备过程只调整本仓库链接，不切换 Harness checkout，也不访问应用的 `DSH_HOME`。
+
+依赖链接、TypeScript、Vitest 的源码别名、Typert 生成和打包均使用这份选择。检查器同时核对声明路径与 `node_modules` 实际解析；混入其他来源会报告实际路径并拒绝继续。需要并行验证其他源码时，先建立独立 Ultra checkout，再在其中执行相同准备步骤。
+
+`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要、源码来源和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；八包本地归档的干净安装及两类原生运行时解析；真实 DSH Web profile 的组合/启动；最后卸载并检查 Loader 与包残留。
 
 ## 安装到本地 DSH Web
 

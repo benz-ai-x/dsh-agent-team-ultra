@@ -36,7 +36,8 @@
 - [ ] Deliver [vNext Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) through its A/B/C phases and all acceptance criteria; specification publication does not mark implementation complete.
 - [ ] [A01 / #19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19): shared Host context, Profile release, isolated evaluation, and capability installation consolidation implemented on `fix/19-host-profile-evaluation`. Full `pnpm verify` passes 164 tests and eight-archive install/boot/uninstall; PR creation awaits GitHub CLI authentication, followed by post-submission review and manual review.
 - [ ] [A02 / #20](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/20): Launch/recovery, Run repair, and Studio projection consolidated on `fix/20-host-launch-recovery`, based on A01. Full `pnpm verify` passes 171 tests and eight-archive install/boot/uninstall; seven new generated-Remote cases cover stale authority, fixed-route cold recovery on JSON/SQLite, index rebuilding, cancellation ownership, and disposal. PR creation and post-submission review await GitHub CLI authentication.
-- [ ] Continue open implementation issues #20–#44 in order after A01, preserving their dependency and integration-branch requirements. Leave Spec #18 open for the final acceptance audit.
+- [ ] [A03 / #21](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/21): source preparation and shared attestation implemented on `fix/21-locked-source-preparation`, based on A02. An isolated checkout with spaces and no adjacent Harness passes frozen dependency install, 436 strict checks, full `pnpm verify` with 178 tests, eight-archive install/boot/uninstall, and standalone packing. PR creation and post-submission review await GitHub CLI authentication.
+- [ ] Continue open implementation issues #22–#44 in order after A03, preserving their dependency and integration-branch requirements. Leave Spec #18 open for the final acceptance audit.
 
 ## Later
 

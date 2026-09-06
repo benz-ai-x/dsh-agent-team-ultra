@@ -1,5 +1,5 @@
 {
-  "extends": "../../../deepseek-harness/tsconfig.base.client.json",
+  "extends": "../../.dsh/harness/tsconfig.base.client.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
@@ -7,14 +7,14 @@
   "include": ["src"],
   "references": [
     { "path": "../domain" },
-    { "path": "../../../deepseek-harness/vendor/cordis" },
-    { "path": "../../../deepseek-harness/packages/api/remotes/tsconfig.client.json" },
-    { "path": "../../../deepseek-harness/packages/client/locale" },
-    { "path": "../../../deepseek-harness/packages/client/ui-conversation" },
-    { "path": "../../../deepseek-harness/packages/client/ui-primitives" },
-    { "path": "../../../deepseek-harness/packages/client/ui-renderer" },
-    { "path": "../../../deepseek-harness/packages/client/ui-slots" },
-    { "path": "../../../deepseek-harness/packages/core/session" },
-    { "path": "../../../deepseek-harness/packages/typert/protocol" }
+    { "path": "../../.dsh/harness/vendor/cordis" },
+    { "path": "../../.dsh/harness/packages/api/remotes/tsconfig.client.json" },
+    { "path": "../../.dsh/harness/packages/client/locale" },
+    { "path": "../../.dsh/harness/packages/client/ui-conversation" },
+    { "path": "../../.dsh/harness/packages/client/ui-primitives" },
+    { "path": "../../.dsh/harness/packages/client/ui-renderer" },
+    { "path": "../../.dsh/harness/packages/client/ui-slots" },
+    { "path": "../../.dsh/harness/packages/core/session" },
+    { "path": "../../.dsh/harness/packages/typert/protocol" }
   ]
 }

@@ -55,6 +55,14 @@ Studio projection owns the shared instance DTO builder and complete snapshot
 feed. The public service composes their startup, event subscriptions, and drain
 order without wrapping or replacing the authoritative Agent Teams service.
 
+Source preparation attests the selected locked Harness before creating the
+repository-local `.dsh/harness` link. Dependencies, TypeScript bases/references,
+test aliases, protocol generation, and packaging resolve that selection;
+relative environment selections are anchored at the Ultra repository root.
+Build and test entry points reject disagreement between configured links,
+installed Node resolution, and TypeScript inputs before loading Harness modules.
+Preparation preserves the selected checkout and application data directories.
+
 ## Authority and state
 
 - The Client sends a Session id through the generated Typert contract. The Host

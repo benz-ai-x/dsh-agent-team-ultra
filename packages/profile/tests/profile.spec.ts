@@ -30,10 +30,10 @@ describe('Agent Team Ultra profile overlay', () => {
     })
     expect(Object.values(manifest.peerDependenciesMeta ?? {}).every(meta => meta.optional === true)).toBe(true)
     expect(manifest.devDependencies?.['@deepseek-ai/dsh-experimental-agent-team-codex']).toBe(
-      'link:../../../deepseek-harness/packages/experimental/agent-team-codex',
+      'link:../../.dsh/harness/packages/experimental/agent-team-codex',
     )
     expect(manifest.devDependencies?.['@deepseek-ai/dsh-experimental-agent-team-claude-code']).toBe(
-      'link:../../../deepseek-harness/packages/experimental/agent-team-claude-code',
+      'link:../../.dsh/harness/packages/experimental/agent-team-claude-code',
     )
 
     const patches = yaml.load(

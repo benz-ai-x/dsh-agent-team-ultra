@@ -39,7 +39,7 @@
     "lib/typert.remote-client.d.ts"
   ],
   "scripts": {
-    "bundle": "tsdown && node ../../scripts/generate-typert.mjs"
+    "bundle": "node ../../scripts/check-harness-source.mjs && tsdown && node ../../scripts/generate-typert.mjs"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "3.18.2",
@@ -62,32 +62,32 @@
     "@deepseek-ai/dsh-user-approval": "0.1.2-rc.1"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "link:../../../deepseek-harness/vendor/cordis",
-    "@deepseek-ai/cordis-plugin-include": "link:../../../deepseek-harness/vendor/include",
-    "@deepseek-ai/cordis-plugin-loader": "link:../../../deepseek-harness/vendor/loader",
-    "@deepseek-ai/dsh-agent": "link:../../../deepseek-harness/packages/core/agent",
-    "@deepseek-ai/dsh-agent-loop": "link:../../../deepseek-harness/packages/core/agent-loop",
-    "@deepseek-ai/dsh-agent-loop-testkit": "link:../../../deepseek-harness/packages/test-support/agent-loop-testkit",
-    "@deepseek-ai/dsh-api-gateway": "link:../../../deepseek-harness/packages/api/gateway",
-    "@deepseek-ai/dsh-brand": "link:../../../deepseek-harness/packages/util/brand",
-    "@deepseek-ai/dsh-experimental-agent-team": "link:../../../deepseek-harness/packages/experimental/agent-team",
-    "@deepseek-ai/dsh-llm": "link:../../../deepseek-harness/packages/llm/llm",
-    "@deepseek-ai/dsh-sandbox-policy": "link:../../../deepseek-harness/packages/sandbox/sandbox-policy",
-    "@deepseek-ai/dsh-session": "link:../../../deepseek-harness/packages/core/session",
-    "@deepseek-ai/dsh-session-persistence": "link:../../../deepseek-harness/packages/session/session-persistence",
-    "@deepseek-ai/dsh-session-persistence-jsonl": "link:../../../deepseek-harness/packages/session/session-persistence-jsonl",
-    "@deepseek-ai/dsh-session-projection": "link:../../../deepseek-harness/packages/session/session-projection",
-    "@deepseek-ai/dsh-session-query": "link:../../../deepseek-harness/packages/session-query/session-query",
-    "@deepseek-ai/dsh-storage": "link:../../../deepseek-harness/packages/storage/storage",
-    "@deepseek-ai/dsh-storage-domain": "link:../../../deepseek-harness/packages/storage/storage-domain",
-    "@deepseek-ai/dsh-storage-json": "link:../../../deepseek-harness/packages/storage/storage-json",
-    "@deepseek-ai/dsh-storage-sqlite": "link:../../../deepseek-harness/packages/storage/storage-sqlite",
-    "@deepseek-ai/dsh-subagent": "link:../../../deepseek-harness/packages/subagent/subagent",
-    "@deepseek-ai/dsh-subagent-spawn-in-process": "link:../../../deepseek-harness/packages/subagent/subagent-spawn-in-process",
-    "@deepseek-ai/dsh-system-prompt": "link:../../../deepseek-harness/packages/core/system-prompt",
-    "@deepseek-ai/dsh-tools": "link:../../../deepseek-harness/packages/core/tools",
-    "@deepseek-ai/dsh-typert-protocol": "link:../../../deepseek-harness/packages/typert/protocol",
-    "@deepseek-ai/dsh-typert-registry": "link:../../../deepseek-harness/packages/typert/registry",
-    "@deepseek-ai/dsh-user-approval": "link:../../../deepseek-harness/packages/interaction/user-approval"
+    "@deepseek-ai/cordis": "link:../../.dsh/harness/vendor/cordis",
+    "@deepseek-ai/cordis-plugin-include": "link:../../.dsh/harness/vendor/include",
+    "@deepseek-ai/cordis-plugin-loader": "link:../../.dsh/harness/vendor/loader",
+    "@deepseek-ai/dsh-agent": "link:../../.dsh/harness/packages/core/agent",
+    "@deepseek-ai/dsh-agent-loop": "link:../../.dsh/harness/packages/core/agent-loop",
+    "@deepseek-ai/dsh-agent-loop-testkit": "link:../../.dsh/harness/packages/test-support/agent-loop-testkit",
+    "@deepseek-ai/dsh-api-gateway": "link:../../.dsh/harness/packages/api/gateway",
+    "@deepseek-ai/dsh-brand": "link:../../.dsh/harness/packages/util/brand",
+    "@deepseek-ai/dsh-experimental-agent-team": "link:../../.dsh/harness/packages/experimental/agent-team",
+    "@deepseek-ai/dsh-llm": "link:../../.dsh/harness/packages/llm/llm",
+    "@deepseek-ai/dsh-sandbox-policy": "link:../../.dsh/harness/packages/sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-session": "link:../../.dsh/harness/packages/core/session",
+    "@deepseek-ai/dsh-session-persistence": "link:../../.dsh/harness/packages/session/session-persistence",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "link:../../.dsh/harness/packages/session/session-persistence-jsonl",
+    "@deepseek-ai/dsh-session-projection": "link:../../.dsh/harness/packages/session/session-projection",
+    "@deepseek-ai/dsh-session-query": "link:../../.dsh/harness/packages/session-query/session-query",
+    "@deepseek-ai/dsh-storage": "link:../../.dsh/harness/packages/storage/storage",
+    "@deepseek-ai/dsh-storage-domain": "link:../../.dsh/harness/packages/storage/storage-domain",
+    "@deepseek-ai/dsh-storage-json": "link:../../.dsh/harness/packages/storage/storage-json",
+    "@deepseek-ai/dsh-storage-sqlite": "link:../../.dsh/harness/packages/storage/storage-sqlite",
+    "@deepseek-ai/dsh-subagent": "link:../../.dsh/harness/packages/subagent/subagent",
+    "@deepseek-ai/dsh-subagent-spawn-in-process": "link:../../.dsh/harness/packages/subagent/subagent-spawn-in-process",
+    "@deepseek-ai/dsh-system-prompt": "link:../../.dsh/harness/packages/core/system-prompt",
+    "@deepseek-ai/dsh-tools": "link:../../.dsh/harness/packages/core/tools",
+    "@deepseek-ai/dsh-typert-protocol": "link:../../.dsh/harness/packages/typert/protocol",
+    "@deepseek-ai/dsh-typert-registry": "link:../../.dsh/harness/packages/typert/registry",
+    "@deepseek-ai/dsh-user-approval": "link:../../.dsh/harness/packages/interaction/user-approval"
   }
 }
