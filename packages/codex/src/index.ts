@@ -14,6 +14,9 @@ import {
   TeammateRuntimeEvidenceId,
   TeammateRuntimeHandle,
   TeammateRuntimeTurnId,
+  type NativeMemberGrant,
+  type NativeMemberOperationResult,
+  type TeammateRuntimeMemberOperationsRequest,
   type TeammateRuntimeCreateRequest,
   type TeammateRuntimeCreateResult,
   type TeammateRuntimeDeliverRequest,
@@ -48,6 +51,31 @@ export const inject = ['agentTeams', 'subprocess']
 const DEFAULT_PROVIDER_NAME = 'codex'
 const DEFAULT_DISPOSE_GRACE_MS = 3_000
 const DEFAULT_MAX_EVIDENCE_ITEMS = 512
+
+const TEAM_QUERY_TOOLS = [
+  { type: 'function', name: 'team_members_list', description: 'List the members of your current Team.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { type: 'function', name: 'team_tasks_list', description: 'Read a page of your Team shared tasks. Use a smaller limit if the result is too large.',
+    inputSchema: { type: 'object', properties: {
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+      cursor: { type: 'string', minLength: 1, maxLength: 128 },
+    }, additionalProperties: false } },
+  { type: 'function', name: 'team_tasks_get', description: 'Read the current details of one task in your Team.',
+    inputSchema: { type: 'object', properties: { taskId: { type: 'string', minLength: 1, maxLength: 128 } },
+      required: ['taskId'], additionalProperties: false } },
+] as const
+
+const TEAM_QUERY_OPERATIONS: Readonly<Record<string, 'members.list' | 'tasks.list' | 'tasks.get'>> = {
+  team_members_list: 'members.list', team_tasks_list: 'tasks.list', team_tasks_get: 'tasks.get',
+}
+
+function teamQueryResponse(result: NativeMemberOperationResult) {
+  const response = { success: result.ok, contentItems: [{ type: 'inputText', text: JSON.stringify(result) }] }
+  if (Buffer.byteLength(JSON.stringify(response), 'utf8') <= 65_536) return response
+  return { success: false, contentItems: [{ type: 'inputText', text: JSON.stringify({ ok: false, error: {
+    code: 'CODEX_TEAM_RESULT_LIMIT', message: 'The native Team tool result exceeds 65536 UTF-8 bytes; request a smaller task page.',
+  } }) }] }
+}
 
 type JsonObject = Record<string, unknown>
 type SandboxMode = 'read-only' | 'workspace-write'
@@ -264,9 +292,13 @@ class CodexConnection {
   private active: {
     id?: string
     readonly completion: PromiseWithResolvers<TurnTerminal>
+    readonly queries: AbortController
+    queryCount: number
     terminal?: TurnTerminal
   } | undefined
   private threadId: string | undefined
+  private memberGrant: NativeMemberGrant | undefined
+  private readonly memberBound = Promise.withResolvers<NativeMemberGrant>()
   private closed = false
 
   constructor(
@@ -292,6 +324,14 @@ class CodexConnection {
 
   start(): void {
     this.transport.start()
+  }
+
+  bindMemberOperations(grant: NativeMemberGrant): void {
+    if (this.closed || grant.identity.nativeHandle !== this.threadId) {
+      throw new Error('agent-team-codex: member authorization does not match this connection')
+    }
+    this.memberGrant = grant
+    this.memberBound.resolve(grant)
   }
 
   async initialize(signal: AbortSignal): Promise<void> {
@@ -350,6 +390,7 @@ class CodexConnection {
       approvalPolicy: 'never',
       sandbox: config.sandbox,
       developerInstructions: instructions,
+      dynamicTools: TEAM_QUERY_TOOLS,
       ...config.model === undefined ? {} : { model: config.model },
     }, signal), signal), 'thread/start response')
     this.assertEffectivePolicy(response, config)
@@ -404,7 +445,7 @@ class CodexConnection {
       throw new Error('agent-team-codex: native thread is not ready for a new turn')
     }
     const completion = Promise.withResolvers<TurnTerminal>()
-    this.active = { completion }
+    this.active = { completion, queries: new AbortController(), queryCount: 0 }
     let id: string
     try {
       const response = object(await this.guarded(this.transport.request('turn/start', {
@@ -421,6 +462,7 @@ class CodexConnection {
       const early = this.active.terminal
       if (early !== undefined) this.finishTurn(early)
     } catch (error: unknown) {
+      this.active?.queries.abort()
       this.active = undefined
       completion.reject(error)
       void completion.promise.catch(() => {})
@@ -430,6 +472,7 @@ class CodexConnection {
   }
 
   interrupt(): void {
+    this.active?.queries.abort()
     const turnId = this.active?.id
     if (this.closed || this.threadId === undefined || turnId === undefined) return
     void this.transport.request('turn/interrupt', {
@@ -441,6 +484,8 @@ class CodexConnection {
   close(): void {
     if (this.closed) return
     this.closed = true
+    this.active?.queries.abort()
+    this.fatal.reject(new Error('agent-team-codex: native connection closed'))
     this.input.off('error', this.onInputError)
     this.input.off('end', this.onInputEnd)
     this.transport.close()
@@ -468,6 +513,7 @@ class CodexConnection {
   private fail(error: unknown): void {
     const normalized = error instanceof Error ? error : new Error('agent-team-codex: protocol failure')
     this.fatal.reject(normalized)
+    this.active?.queries.abort()
     this.active?.completion.reject(normalized)
     this.active = undefined
   }
@@ -487,6 +533,8 @@ class CodexConnection {
 
   private handleRequest(method: string, params: JsonObject): Promise<unknown> {
     switch (method) {
+      case 'item/tool/call':
+        return this.handleTeamQuery(params)
       case 'item/commandExecution/requestApproval':
       case 'item/fileChange/requestApproval': {
         this.validateRequest(params)
@@ -506,6 +554,66 @@ class CodexConnection {
       default:
         return Promise.reject(new Error('agent-team-codex: unsupported native request'))
     }
+  }
+
+  private async handleTeamQuery(params: JsonObject): Promise<unknown> {
+    if (Buffer.byteLength(JSON.stringify(params), 'utf8') > 16_384) {
+      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_REQUEST_LIMIT', message: 'The native Team tool request exceeds 16384 UTF-8 bytes.' } })
+    }
+    try {
+      if (Object.keys(params).some(key => !['threadId', 'turnId', 'callId', 'tool', 'arguments', 'namespace'].includes(key))
+        || typeof params.callId !== 'string' || params.callId.length === 0 || Buffer.byteLength(params.callId, 'utf8') > 200
+        || typeof params.tool !== 'string' || params.tool.length === 0
+        || (params.namespace !== undefined && params.namespace !== null && params.namespace !== '')) {
+        throw new Error('invalid tool envelope')
+      }
+      this.validateRequest(params)
+    } catch {
+      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_INVALID_REQUEST', message: 'The native Team tool request is invalid.' } })
+    }
+    const operation = typeof params.tool === 'string' && Object.hasOwn(TEAM_QUERY_OPERATIONS, params.tool)
+      ? TEAM_QUERY_OPERATIONS[params.tool] : undefined
+    if (operation === undefined) {
+      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_UNAVAILABLE', message: 'This Team query is unavailable.' } })
+    }
+    let args: JsonObject
+    try {
+      args = object(params.arguments, 'Team query arguments')
+      if (Object.hasOwn(args, 'operation')) throw new Error('model-supplied operation')
+    } catch {
+      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_INVALID_REQUEST', message: 'The Team query arguments are invalid.' } })
+    }
+    const active = this.active
+    if (active === undefined || active.queries.signal.aborted) {
+      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team query was cancelled.' } })
+    }
+    if (active.queryCount >= 64) {
+      return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_RATE_LIMIT', message: 'The native turn has reached its limit of 64 Team queries.' } })
+    }
+    active.queryCount += 1
+    let grant = this.memberGrant
+    if (grant === undefined) {
+      const deadline = new AbortController()
+      const timer = setTimeout(() => { deadline.abort() }, 5_000)
+      try {
+        grant = await this.guarded(this.memberBound.promise, AbortSignal.any([deadline.signal, active.queries.signal]))
+      } catch {
+        if (active.queries.signal.aborted) {
+          return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team query was cancelled.' } })
+        }
+        return teamQueryResponse({ ok: false, error: { code: 'CODEX_TEAM_UNAVAILABLE', message: 'This Team query is unavailable.' } })
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+    const result = await grant.execute({ ...args, operation }, active.queries.signal)
+    if (grant.signal.aborted || this.memberGrant !== grant) {
+      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_GRANT_REVOKED', message: 'This Team authorization is no longer active.' } })
+    }
+    if (active.queries.signal.aborted || this.active !== active) {
+      return teamQueryResponse({ ok: false, error: { code: 'TEAM_NATIVE_CANCELLED', message: 'The Team query was cancelled.' } })
+    }
+    return teamQueryResponse(result)
   }
 
   private handleNotification(method: string, params: JsonObject): void {
@@ -549,6 +657,7 @@ class CodexConnection {
     const active = this.active
     if (active === undefined || active.id !== terminal.id) return
     this.active = undefined
+    active.queries.abort()
     active.completion.resolve(terminal)
   }
 }
@@ -574,6 +683,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
   readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
+  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly correlations = new Map<string, string>()
   private readonly creations = new Map<string, Promise<TeammateRuntimeCreateResult>>()
@@ -587,6 +697,10 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   onPresenceChanged(listener: (event: TeammateRuntimePresenceEvent) => void): () => void {
     this.presenceListeners.add(listener)
     return () => { this.presenceListeners.delete(listener) }
+  }
+
+  bindMemberOperations(request: TeammateRuntimeMemberOperationsRequest): void {
+    this.session(request.nativeHandle).connection.bindMemberOperations(request.grant)
   }
 
   async create(request: TeammateRuntimeCreateRequest): Promise<TeammateRuntimeCreateResult> {

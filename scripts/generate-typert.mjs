@@ -123,6 +123,7 @@ try {
   paths['@deepseek-ai/dsh-session/types'] = [join(sessionRoot, 'src', 'types.ts')]
   paths['@deepseek-ai/dsh-agent'] = [join(agentRoot, 'src', 'index.ts')]
   paths['@deepseek-ai/dsh-agent/types'] = [join(agentRoot, 'src', 'index.ts')]
+  paths['@deepseek-ai/dsh-experimental-agent-team/types'] = [join(harnessRoot, 'packages', 'experimental', 'agent-team', 'src', 'types.ts')]
 
   writeJson(join(temporaryRoot, 'tsconfig.host.json'), {
     extends: join(harnessRoot, 'tsconfig.base.json'),

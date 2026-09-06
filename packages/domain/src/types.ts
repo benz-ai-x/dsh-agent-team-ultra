@@ -1,6 +1,7 @@
 /** Browser-safe public values for Digital Employee profiles and instances. */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import type { NativeMemberOperationName } from '@deepseek-ai/dsh-experimental-agent-team/types'
 import type {} from '@deepseek-ai/dsh-typert-protocol'
 
 /** Stable metadata for Studio authorization failures transported by Typert. */
@@ -266,6 +267,8 @@ export interface DigitalEmployeeDshModelBackend extends DigitalEmployeeRuntimeBa
 export interface DigitalEmployeeExternalAgentBackend extends DigitalEmployeeRuntimeBackendBase {
   readonly family: 'external-agent'
   readonly provider: string
+  /** Queries installed for newly created native sessions; resumed threads retain their installed tools. */
+  readonly memberOperations?: readonly NativeMemberOperationName[]
 }
 
 /** Migration-only diagnostic for a historical Revision without a proven route. */

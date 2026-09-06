@@ -261,6 +261,16 @@ try {
     { DSH_HOME: profileHome },
   )
   console.log('PASS real packed DSH Web profile resolves Host packages, composes both runtime families, and listens')
+  for (const backend of ['json', 'sqlite']) {
+    for (const phase of ['query-new', 'query-resume']) {
+      const result = checkedRun(process.execPath, [
+        join(root, 'scripts', 'probe-codex-continuity.mjs'), join(profileHome, 'profiles', 'web'), phase,
+        join(temporaryRoot, `codex-queries-${backend}`), backend,
+      ], root, `installed Codex member queries (${backend}, ${phase})`, { DSH_HOME: profileHome })
+      process.stdout.write(result.stdout)
+    }
+  }
+  console.log('PASS installed Codex queries and exact member recovery with JSON and SQLite')
   checkedRun(
     process.execPath,
     [

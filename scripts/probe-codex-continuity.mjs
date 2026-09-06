@@ -10,10 +10,12 @@ import { requirePreparedHarness } from './harness-source.mjs'
 import { NativeProduct } from '../packages/codex/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const { harnessRoot } = requirePreparedHarness(root)
-const [profileDirectory, phase, stateDirectory, backend = 'json'] = process.argv.slice(2)
-assert.ok(profileDirectory && stateDirectory && ['before', 'after'].includes(phase))
+const [profileDirectory, phase, stateDirectory, backend = 'json', sourceDirectory = root] = process.argv.slice(2)
+const { harnessRoot } = requirePreparedHarness(resolve(sourceDirectory))
+assert.ok(profileDirectory && stateDirectory && ['before', 'after', 'query-new', 'query-resume'].includes(phase))
 assert.ok(['json', 'sqlite'].includes(backend))
+const creating = phase === 'before' || phase === 'query-new'
+const queries = phase.startsWith('query-')
 mkdirSync(stateDirectory, { recursive: true })
 const installed = createRequire(join(profileDirectory, 'package.json'))
 const imported = name => import(pathToFileURL(installed.resolve(name)).href)
@@ -64,7 +66,7 @@ const identity = instance => Object.fromEntries([
 ].map(key => [key, instance[key]]))
 const request = { launchRequestId: '55555555-5555-4555-8555-555555555555', profileId: 'codex-reviewer', assignment: 'Review this immutable change.' }
 const checkpointPath = join(stateDirectory, 'checkpoint.json')
-const checkpoint = phase === 'after' ? JSON.parse(readFileSync(checkpointPath, 'utf8')) : undefined
+const checkpoint = creating ? undefined : JSON.parse(readFileSync(checkpointPath, 'utf8'))
 async function until(read, check) {
   const deadline = Date.now() + 10000
   for (;;) {
@@ -87,7 +89,7 @@ try {
     backend === 'json' ? { root: join(stateDirectory, 'storage') } : { path: join(stateDirectory, 'storage.sqlite'), journalMode: 'delete' })
   await ctx.plugin(StorageDomain, { backend })
   await ctx.plugin(NativeTransport)
-  const lead = phase === 'before'
+  const lead = creating
     ? await ctx.agents.create({ sessionId: SessionId('codex-upgrade-lead') })
     : await ctx.agents.resume({ resumeSessionId: SessionId('codex-upgrade-lead') })
   const loaderFiber = ctx.plugin(Loader, { baseUrl: pathToFileURL(join(profileDirectory, 'package.json')).href })
@@ -104,7 +106,9 @@ try {
   const current = () => invoke('view')
   const view = await current()
   assert.equal(view.runtimeCatalog.backends.filter(row => row.provider === 'codex' && row.availability === 'available').length, 1)
-  if (phase === 'before') {
+  if (queries) assert.deepEqual(view.runtimeCatalog.backends.find(row => row.provider === 'codex').memberOperations,
+    ['members.list', 'tasks.list', 'tasks.get'])
+  if (creating) {
     const saved = await invoke('save', { expectedHeadRevision: null, runtimeTarget: { kind: 'external-agent', provider: 'codex' }, profile: {
       id: 'codex-reviewer', employeeName: 'codex-reviewer', displayName: 'Codex reviewer', description: 'Retain the original employee.',
       continuationProvider: '', contextMode: 'fresh', persona: 'Review carefully.', mission: 'Report findings.',
@@ -113,6 +117,7 @@ try {
     assert.equal(saved.ok, true, JSON.stringify(saved))
     const activated = await invoke('activate', { profileId: request.profileId, revision: 1, expectedHeadRevision: 1 })
     assert.equal(activated.ok, true, JSON.stringify(activated))
+    if (queries) await ctx.agentTeams.createTask(lead.agent, { subject: 'Read installed Team', description: 'Keep the canonical task across cold recovery.' })
   }
   const launched = await invoke('spawn', request)
   assert.equal(launched.ok, true, JSON.stringify(launched))
@@ -129,13 +134,35 @@ try {
     signal: new AbortController().signal,
   })
   assert.equal(sent.status, 'accepted', JSON.stringify(sent))
+  let nativeToolResult
+  if (queries) {
+    const handle = member.externalRuntime.nativeHandle
+    const task = {
+      id: 'task-1', revision: 1, subject: 'Read installed Team', description: 'Keep the canonical task across cold recovery.',
+      status: 'pending', blockedBy: [], writeScopes: [], ready: true, writeScopeWarnings: [],
+    }
+    nativeToolResult = await native.query(handle, 'team_tasks_list', { limit: 1 })
+    assert.deepEqual(nativeToolResult, { success: true, contentItems: [{ type: 'inputText',
+      text: JSON.stringify({ ok: true, operation: 'tasks.list', value: { tasks: [task] } }) }] })
+    assert.deepEqual(await native.query(handle, 'team_tasks_get', { taskId: 'task-1' }), { success: true, contentItems: [{ type: 'inputText',
+      text: JSON.stringify({ ok: true, operation: 'tasks.get', value: { task } }) }] })
+    const memberResult = await native.query(handle, 'team_members_list', {})
+    assert.equal(memberResult.success, true)
+    assert.deepEqual(JSON.parse(memberResult.contentItems[0].text).value.members.map(row => ({ id: row.id, name: row.name, role: row.role })), [
+      { id: lead.agent.id, name: 'lead', role: 'lead' },
+      { id: member.id, name: 'codex-reviewer', role: 'teammate' },
+    ])
+    assert.deepEqual(await native.query(handle, 'team_members_list', { role: 'lead' }), { success: false, contentItems: [{ type: 'inputText',
+      text: '{"ok":false,"error":{"code":"TEAM_NATIVE_INVALID_REQUEST","message":"The Team query arguments are invalid."}}' }] })
+    assert.equal(native.calls.size, 0)
+  }
   native.complete()
   await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   assert.equal(Object.keys(native.data.threads).length, 1)
   const thread = native.data.threads[live.instances[0].nativeRuntimeHandle]
-  assert.equal(thread.turns.length, phase === 'before' ? 2 : 3)
-  assert.equal(native.starts, phase === 'before' ? 1 : 0)
-  if (phase === 'before') writeFileSync(checkpointPath, `${JSON.stringify({ identity: identity(live.instances[0]) }, null, 2)}\n`)
+  assert.equal(thread.turns.length, creating ? 2 : 3)
+  assert.equal(native.starts, creating ? 1 : 0)
+  if (creating) writeFileSync(checkpointPath, `${JSON.stringify({ identity: identity(live.instances[0]) }, null, 2)}\n`)
   await ctx.loader.remove('agent-team-codex')
   assert.equal(native.live.size, 0)
   const removed = await current()
@@ -153,6 +180,7 @@ try {
   assert.equal(native.live.size, 0)
   console.log(JSON.stringify({ phase, backend, package: runtimeEntry.name, profileRevision: 1,
     memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: thread.turns.length,
+    ...(queries ? { memberQueries: 4, nativeToolResult } : {}),
     preserved: true, registrationsReleased: true, nativeBoundary: 'controlled-app-server' }))
 } finally {
   await ctx.fiber.dispose()

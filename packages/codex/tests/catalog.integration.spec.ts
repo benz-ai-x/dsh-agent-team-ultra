@@ -18,9 +18,10 @@ describe('Ultra-owned Codex public package', () => {
         contextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory'],
         runtimeCapabilities: ['sandbox', 'evidence', 'usage'],
+        memberOperations: ['members.list', 'tasks.list', 'tasks.get'],
       }),
     ])
-    expect(JSON.stringify(view)).not.toMatch(/nativePath|apiKey|packageBin|CODEX_HOME/)
+    expect(JSON.stringify(view)).not.toMatch(/nativePath|apiKey|packageBin|CODEX_HOME|memberGrant|memberBound|AbortSignal/)
     await first.dispose()
     const removed = await invoke('view') as DigitalEmployeeStudioView
     expect(removed.runtimeCatalog.backends.filter(backend => backend.provider === 'codex'))

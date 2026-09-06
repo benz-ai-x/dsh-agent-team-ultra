@@ -167,6 +167,9 @@ function freezeBackend<T extends DigitalEmployeeRuntimeBackend>(backend: T): T {
     ...(backend.evaluationTools === undefined
       ? {}
       : { evaluationTools: Object.freeze([...backend.evaluationTools]) }),
+    ...(backend.family !== 'external-agent' || backend.memberOperations === undefined
+      ? {}
+      : { memberOperations: Object.freeze([...backend.memberOperations]) }),
   }) as unknown as T
 }
 
@@ -181,6 +184,7 @@ function externalBackend(metadata: ExternalRuntimeMetadata): DigitalEmployeeRunt
     profileCapabilities: metadata.profileCapabilities,
     runtimeCapabilities: metadata.runtimeCapabilities,
     ...(metadata.evaluationTools === undefined ? {} : { evaluationTools: metadata.evaluationTools }),
+    ...(metadata.memberOperations === undefined ? {} : { memberOperations: metadata.memberOperations }),
   })
 }
 
