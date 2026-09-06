@@ -1,6 +1,6 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-06（Asia/Shanghai）。用户使用中文。
+交接日期：2026-09-07（Asia/Shanghai）。用户使用中文。
 
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
@@ -8,19 +8,31 @@
 ## 当前任务与完成边界
 
 - 当前持续目标固定为任务启动时未关闭的 **#27–#44，共 18 项**。按编号依次完成 TDD 开发、逐项验收、一个 PR、固定审查起点的 Standards／Spec 并行审查、所需检查与审批、合并 main、关闭 Issue，再进入下一项。当前用户已明确授权按已确认身份和收件人通过飞书 CLI 通知每项完成及阻塞；本条取代历史轮次的通知权限和提前关闭约定。
-- 当前主工作区分支为 `fix/28-codex-task-operations`，从最新 main `25684448723ffa83e6aeb5c37a42f65df1461682` 建立。#27 已完成、PR #53 已合并、Issue 已关闭且飞书完成通知成功。初始来源为 Harness #27；当前锁定 `/root/workspace/deepseek-harness-ultra-28`、`7119c51c8d09ac56370e884e492c66a102c779af`，源码干净并已构建。修复后完整 `pnpm verify` 通过 562 项 strict／0 警告、282 项测试／24 文件及八归档实际安装／任务／等待／冷恢复／Web／卸载。
+- 当前主工作区分支为 `fix/29-claude-member-queries`，从最新 main `e728af1a60b7685ac622582a90429f9d639b0ee2` 建立。#27／#28 已完成并分别合并 PR #53／#54，Issue 已关闭，飞书完成通知均成功。当前锁定 `/root/workspace/deepseek-harness-ultra-29`、`b85ebb3fca3da0c735cfed0b4532f926a4221e24`；来源干净、已构建并推送。#29 的补修候选 `b05aa026` 已推送到 PR #55；完整验证、历史升级、官方对照均通过，Standards／Spec 完整复审均为 0 项未解决发现。验收勾选、合并／关闭与飞书通知尚待完成。
 - 清单及原始正文／评论／验收快照在 `/tmp/ultra-goal-27plus-7tyh7_0l/manifest.json`。#39–#43 要求共用集成分支、最终门禁后合并，与本轮逐项合并 main 的顺序冲突；已经请求用户决策，相关操作保持待定，不影响先完成 #27–#38。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
 - #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。历史 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
 - **历史轮次按当时指示在开发和验证后关闭 #19–#26；本轮 #27 起须在 PR 验收、评审和合并后关闭。PR #45–#52 已按用户逐项授权合并；PR #48 的评审发现和额外模块类型漏检已修复，最终 Standards / Spec 均为 0 项未解决发现。PR #51 已完成 main 整合，修复缓存与 Team 历史审计两项 P2，通过完整验证和双轴复审后合并。** 用户已完成 `gh` 设备授权登录，本仓库权限为 `ADMIN`。此前的认证阻塞已经解决，不能继续将其列为未完成原因。
-- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。该阶段 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27 已完成，#28 开发中，#29–#44 待处理。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
+- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。该阶段 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27／#28 已完成，#29 开始，#30–#44 待处理。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
 - 本轮先按用户指示创建 #19 的 PR，再依照“继续”按顺序创建 #20–#25 的 PR、评审并关闭已完成 Issue。评审使用各自固定提交的独立工作区，未把 #26 WIP 混入 PR。#25 的补修在 `/tmp/ultra-25-audit-fix-vHVNjX` 完成，其锁定 Harness 与主工作区 #26 的来源分别验证。
 
 - **#19–#26 Acceptance criteria 已同步**：按用户要求，以 main `6253119`、PR #45–#52 的实际合并记录、逐项代码／测试断言和既有验证日志重新审计 39 项验收条件。已实际将 GitHub #19／#20／#21 各 4 项，#22／#23／#24 各 5 项，#25／#26 各 6 项全部勾选，并逐项回读确认；仅改变该小节的复选框，正文与 closed 状态保留。#25 的完成范围是只读审计和迁移设计，#26 为授权查询，阶段 C 迁移及 #44 真实认证 native 验收仍是后续任务。本轮 strict 554 项／0 警告通过，未重复运行既有通过的完整测试；逐项证据及更新前后快照在 `/tmp/ultra-19-26-acceptance-audit/audit.json`。
 
 - **再次回读核对 #19–#26（最新：2026-09-06 14:30，Asia/Shanghai）**：GitHub main 仍为 `6253119`，39 项验收文字与逐项审计一致且均已勾选；8 个对应合并提交都在当前 main 中。最终完整验证记录中的 112 个输入 SHA-256 与现有文件全部一致，锁定 Harness `fdfdbaeb0e` 工作区干净。本次重新运行 strict，554 项／0 警告通过；既有运行时验证仍适用，未重复运行完整测试，也无需重复写入 GitHub 正文。最新回读快照和证据映射保存在 `/tmp/ultra-19-26-latest-recheck.json`，严格检查日志为 `/tmp/ultra-19-26-latest-strict.log`；前次记录保留于 `/tmp/ultra-19-26-recheck-9heliuay/recheck.json`。
 
-## #27 完成与 #28 接续
+## #29 验收候选与 #28 完成状态
+
+- **#29 最新进展（2026-09-07，Asia/Shanghai）**：Ultra 位于 `fix/29-claude-member-queries`，固定起点／origin/main 为 `e728af1a60b7685ac622582a90429f9d639b0ee2`。[PR #55](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/55) 的实现候选为 `b05aa026ca4f8c263ff9c046efee7327a4bf57f7`；GitHub 回读为 OPEN／CLEAN／MERGEABLE，远端无 CI checks，main 无 branch protection／ruleset。5 项 AC 尚未勾选。
+- 锁定 Harness 已切到干净且完成构建、提交和推送的 `/root/workspace/deepseek-harness-ultra-29`、`b85ebb3fca3da0c735cfed0b4532f926a4221e24`。它增加 Host-only `turns.recover`：当前 grant 只能读取精确成员／provider／handle 的 launch、入站 delivery id 和已提交 settlement；严格分页、限额、取消和代际核对，不向模型声明工具，也不新增持久格式。229 项 owning tests 通过，四个改动运行时文件语句／分支／函数／行覆盖均为 100%；Host／Client build、真实 Loader、生成目录、类型等价、文档同步和 lint 通过。
+- Claude 通过锁定 SDK 0.3.241／payload 2.1.241 的进程内 MCP 暴露四项工具：成员列表、任务列表、任务详情和消息发送。调用身份只取 SDK `claudecode/toolUseId`，消费当前 Host grant 和持久回执；请求／转义结果／每轮调用数／授权等待、取消和代际边界均有测试。Read／Glob／Grep 仍由原生 cwd 与符号链接约束执行，shell、写入、外网、审批、额外 MCP、任务写入／等待和 Evaluation Worker 的生产成员权限未开放。[ADR 0020](docs/adr/0020-authorize-claude-team-tools.md) 已 accepted。
+- Claude 终止结算使用原 turn 的独立持久身份。Host 已提交结果优先；没有 Host 结果时只接受可信普通 `end_turn` 或锁定 payload 的合成 API 失败，缺失终态结算为 interrupted。重复／冲突／晚到旧代际终态及有效结果后的 iterator 错误不能覆盖首个可信结果。恢复先对账 Host 事实，再读取公开 transcript；失败的 flush 保留快照并在同 provider 新 grant 上重试。canonical marker、legacy 无 turn marker、工具结果续轮、分页缩页、畸形／重复边界、非法时间和溢出用量均有回归。
+- 双轴首评各发现同一项 P2：恢复拒绝后的首次投递失败被 ordering tail 吞掉，第二次投递可绕过恢复启动 native turn。真实 Host／持久化夹具稳定复现；新增正式回归并使 `deliverOnce` 每次独立等待当前 recovery。补修后的 Claude 目录 **46 tests／4 files**、完整 `pnpm verify` **562 strict／0 警告、318 tests／26 files** 均通过，八归档安装、真实 Web、Codex 与 Claude 的 JSON／SQLite 新建和冷恢复、消息／最终回执去重及完整卸载再次通过。历史升级与官方 11 组对照也在补修源码上重跑通过。真实凭据产品验收仍归 #44。
+- 从 `081357d17f7a0535b75bb7d3133177febddee4a2` 生成的历史 Claude 归档在 JSON／SQLite 升级后保留原 member、Profile Revision 1、native handle 和单一 Session，并由 0 项变为 4 项成员操作；Web 与卸载通过。维护 fork `b85ebb3fca` 和官方 `d347e70390` 都通过同一 11 组行为契约；未授权官方源在安装／导入前拒绝，且不创建业务数据。
+- [#29 验收证据](docs/evidence/issue-29-acceptance.md)映射全部 5 项 AC。首评 Standards／Spec 各 1 项 P2，修复后完整复审均为 0 项未解决发现；独立报告为 `/root/workspace/.ultra-checks/29-{standards,spec}-final-review.md`，定向验证分别通过 7 项和 2 项。下一步是核对最终状态文档 head、勾选 AC、正常合并、关闭 Issue 和发送飞书完成通知。#39–#43 分支冲突仍待用户决策，只暂停相关阶段。
+- #28 最终候选 `112042507ac25a71b1e36dc422fcb4019a320ddb` 经独立 Standards／Spec 复审均无未解决发现；[PR #54](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/54) 已合并为 `e728af1a60b7685ac622582a90429f9d639b0ee2`，Issue 关闭、5／5 AC 已回读、飞书通知成功。
+- frozen manifest 当前为 #28 complete、#29 in_progress、currentIssue 29；原 18 项范围和顺序不变。
+
+## #27–#28 过程记录（已完成）
 
 - **18:11 OOM 中断后的恢复核对**：内核于 2026-09-06 18:11:42 杀掉 `tsgolint`（PID 1048467，anon RSS 2917116 KiB），原 tmux 窗格 scope 同时以 `oom-kill` 结束，峰值 7.2 GiB；当前 tmux 于 18:12:56 新建。`/tmp` 为 tmpfs、占用约 6.5 GiB，其中 `/tmp/.pnpm-store` 约 4 GiB；`vm.swappiness=0`，事发时 4 GiB swap 全部空闲。当前 scope 为 `OOMPolicy=stop`／`KillMode=control-group`，与 OOM 导致整组终止、最后窗格消失后 tmux 退出的链路一致；没有重演主机 OOM，也没有更改系统配置或删除临时数据。已确认旧 lint／doc-sync 进程结束，全部 WIP 保留。恢复后 strict 554 项／0 警告通过，GitHub main 仍为 `2568444`、#27 closed／PR #53 merged；#28 open、无评论。
 - OOM 恢复后验证完成：最终全 lint、32／32 doc-sync（439.31 秒）、真实 Loader、TS SDK `agent-team-external` 回放通过。Python 单文件打包先触及独立 3 GiB scope 上限，随后单独使用 5 GiB scope 构建 251.8 MB 实际可执行文件，refresh／只读 replay 均通过。开发依赖已按 frozen lock 恢复。重型命令使用 `/root/workspace/.ultra-checks/tmp` 磁盘目录及独立 systemd scope；Go 限制 `GOMEMLIMIT=768MiB`／`GOMAXPROCS=2`，文档门禁串行。全仓 force 声明生成触及 Node 堆上限，改用 Session／Agent Team 两个实际 `tsc -p` 编译及独立 tsBuildInfo 后解决 freshness 失败；没有触摸时间戳或弱化检查。OOM 飞书通知成功，日志 `/tmp/ultra-28-oom-feishu.log`。

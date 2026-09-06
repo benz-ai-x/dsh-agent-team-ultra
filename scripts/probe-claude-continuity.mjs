@@ -12,8 +12,10 @@ import { NativeProduct } from '../packages/claude-code/tests/fixtures/native-pro
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const [profileDirectory, phase, stateDirectory, backend = 'json', sourceDirectory = root] = process.argv.slice(2)
 const { harnessRoot } = requirePreparedHarness(resolve(sourceDirectory))
-assert.ok(profileDirectory && stateDirectory && ['before', 'after'].includes(phase))
+assert.ok(profileDirectory && stateDirectory && ['before', 'after', 'query-new', 'query-resume'].includes(phase))
 assert.ok(['json', 'sqlite'].includes(backend))
+const initial = phase === 'before' || phase === 'query-new'
+const teamTools = phase !== 'before'
 mkdirSync(stateDirectory, { recursive: true })
 const installed = createRequire(join(profileDirectory, 'package.json'))
 const imported = name => import(pathToFileURL(installed.resolve(name)).href)
@@ -36,7 +38,7 @@ const libcSuffix = process.platform === 'linux'
 const nativePackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${libcSuffix}`
 const nativeManifest = createRequire(sdkEntry).resolve(`${nativePackage}/package.json`)
 const native = new NativeProduct(join(stateDirectory, 'native.json'),
-  join(dirname(nativeManifest), process.platform === 'win32' ? 'claude.exe' : 'claude'))
+  join(dirname(nativeManifest), process.platform === 'win32' ? 'claude.exe' : 'claude'), { teamTools })
 // Replace only the external SDK API in this isolated probe process. Qualification
 // still reads the real installed SDK and executable, and the adapter is unmodified.
 const boundaryKey = Symbol.for('ultra-test-claude-sdk')
@@ -49,6 +51,7 @@ const sdkHook = registerHooks({
       export const query = request => boundary.query(request)
       export const getSessionInfo = (...args) => boundary.getSessionInfo(...args)
       export const getSessionMessages = (...args) => boundary.getSessionMessages(...args)
+      export { createSdkMcpServer } from ${JSON.stringify(`${pathToFileURL(sdkEntry).href}?actual-sdk-helpers`)}
     ` }
   },
 })
@@ -85,7 +88,7 @@ const identity = instance => Object.fromEntries([
 ].map(key => [key, instance[key]]))
 const request = { launchRequestId: '55555555-5555-4555-8555-555555555555', profileId: 'claude-code-reviewer', assignment: 'Review this immutable change.' }
 const checkpointPath = join(stateDirectory, 'checkpoint.json')
-const checkpoint = phase === 'after' ? JSON.parse(readFileSync(checkpointPath, 'utf8')) : undefined
+const checkpoint = initial ? undefined : JSON.parse(readFileSync(checkpointPath, 'utf8'))
 async function until(read, check) {
   const deadline = Date.now() + 10000
   for (;;) {
@@ -108,7 +111,7 @@ try {
     backend === 'json' ? { root: join(stateDirectory, 'storage') } : { path: join(stateDirectory, 'storage.sqlite'), journalMode: 'delete' })
   await ctx.plugin(StorageDomain, { backend })
   await ctx.plugin(NativeTransport)
-  const lead = phase === 'before'
+  const lead = initial
     ? await ctx.agents.create({ sessionId: SessionId('claude-code-upgrade-lead') })
     : await ctx.agents.resume({ resumeSessionId: SessionId('claude-code-upgrade-lead') })
   const loaderFiber = ctx.plugin(Loader, { baseUrl: pathToFileURL(join(profileDirectory, 'package.json')).href })
@@ -130,7 +133,7 @@ try {
     continuationProvider: '', contextMode: 'fresh', persona: 'Review carefully.', mission: 'Report findings.',
     toolPolicy: { mode: 'inherit', names: [] }, context: [], memory: [], hooks: [],
   }
-  if (phase === 'before') {
+  if (initial) {
     const unsupported = await invoke('save', {
       expectedHeadRevision: null, runtimeTarget: { kind: 'external-agent', provider: 'claude-code' },
       profile: { ...profile, contextMode: 'fork' },
@@ -160,13 +163,58 @@ try {
     signal: new AbortController().signal,
   })
   assert.equal(sent.status, 'accepted', JSON.stringify(sent))
-  native.complete()
+  if (teamTools) {
+    const channel = native.channels.get(live.instances[0].nativeRuntimeHandle)
+    await channel.ready
+    assert.deepEqual((await channel.client.listTools()).tools.map(tool => tool.name), [
+      'team_members_list', 'team_tasks_list', 'team_tasks_get', 'team_message_send',
+    ])
+    const call = (name, args, id) => channel.client.callTool({ name, arguments: args,
+      _meta: { 'claudecode/toolUseId': `toolu_${phase}_${id}` } })
+    const members = await call('team_members_list', {}, 'members')
+    assert.equal(members.isError, false)
+    assert.ok(JSON.parse(members.content[0].text).value.members.some(value => value.id === member.id))
+    const task = ctx.agentTeams.listTasks(lead.agent)[0] ?? await ctx.agentTeams.createTask(lead.agent, {
+      subject: 'Read the installed Claude Team', description: 'Retain the shared task across cold recovery.',
+    })
+    const tasks = await call('team_tasks_list', { limit: 1 }, 'tasks')
+    assert.equal(tasks.isError, false)
+    assert.equal(JSON.parse(tasks.content[0].text).value.tasks[0].id, task.id)
+    assert.equal((await call('team_tasks_get', { taskId: task.id }, 'detail')).isError, false)
+    const messageRequest = { name: 'team_message_send', arguments: { target: 'lead', text: `Installed Claude message ${phase}.` },
+      _meta: { 'claudecode/toolUseId': `toolu_${phase}_message` } }
+    native.dropNextToolReply = true
+    await assert.rejects(channel.client.callTool(messageRequest, undefined, { timeout: 50 }), /timed out/i)
+    const accepted = await channel.client.callTool(messageRequest)
+    assert.equal(accepted.isError, false)
+    assert.deepEqual(await channel.client.callTool(messageRequest), accepted)
+    const changed = await channel.client.callTool({ ...messageRequest, arguments: { ...messageRequest.arguments, text: 'Changed input.' } })
+    assert.equal(JSON.parse(changed.content[0].text).error.code, 'TEAM_NATIVE_OPERATION_CONFLICT')
+  }
+  native.complete(teamTools ? `Installed Claude final ${phase}.` : undefined)
   await until(current, value => value.instances[0]?.runtimePresence === 'idle')
+  if (teamTools) {
+    const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      const events = await until(() => stored.read(0), events => events.some(event => event.type === 'team/native-operation/committed'
+        && event.data.message?.content[0]?.text === `Installed Claude final ${phase}.`))
+      const operations = events.filter(event => event.type === 'team/native-operation/committed')
+      const messages = operations.filter(event => event.data.message?.content[0]?.text === `Installed Claude message ${phase}.`)
+      const finals = operations.filter(event => event.data.message?.content[0]?.text === `Installed Claude final ${phase}.`)
+      assert.equal(messages.length, 1)
+      assert.equal(finals.length, 1)
+      assert.equal(messages[0].data.message.senderId, member.id)
+      assert.equal(messages[0].data.receipt.source.callId, `toolu_${phase}_message`)
+      assert.equal(finals[0].data.receipt.source.turnId, messages[0].data.receipt.source.turnId)
+      assert.equal(finals[0].data.receipt.result.value.outcome, 'completed')
+    } finally { await stored.close() }
+  }
   assert.equal(Object.keys(native.data.sessions).length, 1)
   const session = native.data.sessions[live.instances[0].nativeRuntimeHandle]
-  assert.equal(session.messages.length, phase === 'before' ? 2 : 4)
-  assert.equal(native.starts, phase === 'before' ? 1 : 0)
-  if (phase === 'before') writeFileSync(checkpointPath, `${JSON.stringify({ identity: identity(live.instances[0]) }, null, 2)}\n`)
+  const workCount = () => session.messages.filter(message => message.type === 'user').length
+  assert.equal(workCount(), initial ? 2 : 4)
+  assert.equal(native.starts, initial ? 1 : 0)
+  if (initial) writeFileSync(checkpointPath, `${JSON.stringify({ identity: identity(live.instances[0]) }, null, 2)}\n`)
   const pending = await ctx.agentTeams.sendMessage(lead.agent, {
     target: 'claude-code-reviewer', content: [{ type: 'text', text: `Work during ${phase} provider removal.` }],
     signal: new AbortController().signal,
@@ -186,11 +234,22 @@ try {
   const restored = await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   assert.deepEqual(identity(restored.instances[0]), identity(live.instances[0]))
   assert.equal(Object.keys(native.data.sessions).length, 1)
-  assert.equal(session.messages.length, phase === 'before' ? 3 : 5)
+  assert.equal(workCount(), initial ? 3 : 5)
+  if (teamTools) {
+    const stored = await ctx.sessionPersistence.open(lead.agent.id, 'read')
+    try {
+      const operations = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
+      for (const originalPhase of phase === 'query-resume' ? ['query-new', phase] : [phase]) {
+        for (const kind of ['message', 'final']) {
+          assert.equal(operations.filter(event => event.data.message?.content[0]?.text === `Installed Claude ${kind} ${originalPhase}.`).length, 1)
+        }
+      }
+    } finally { await stored.close() }
+  }
   await loaderFiber.dispose()
   assert.equal(native.live.size, 0)
   console.log(JSON.stringify({ phase, backend, package: runtimeEntry.name, profileRevision: 1,
-    memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: session.messages.length,
+    memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: workCount(), memberOperations: teamTools ? 4 : 0,
     preserved: true, registrationsReleased: true, nativeBoundary: 'controlled-sdk' }))
 } finally {
   await ctx.fiber.dispose()

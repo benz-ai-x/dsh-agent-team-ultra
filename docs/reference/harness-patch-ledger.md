@@ -14,9 +14,9 @@ claim that an upstream contribution was submitted or accepted.
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
 | 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `7119c51c8d09ac56370e884e492c66a102c779af`, `0.1.2-rc.1` | 阶段 B 成员任务运行源 / Phase B member-task runtime source |
+| 维护 fork / Maintained fork | `b85ebb3fca3da0c735cfed0b4532f926a4221e24`, `0.1.2-rc.1` | 阶段 B 成员操作与恢复运行源 / Phase B member-operation and recovery runtime source |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `6daca9531f0e98ac6b09bfe768cd6db008f39381c93d692b116ac75af46c2d53` | 锁定文档内容 / locked documentation content |
+| 文档摘要 / Documentation digest | `b2c5a619eee8db42788479c83b94b672e64e51652d05b09a83e2e8d7dc027e84` | 锁定文档内容 / locked documentation content |
 | 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.member-tasks.v1` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
 | Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
@@ -56,6 +56,7 @@ executable closure selected by Node. Neither proves valid native user login.
 | [7efa653185](https://github.com/benz-ai-x/deepseek-harness_x/commit/7efa653185a9986a46f52727f49a70d2c147a659) | native 任务变更与原回执原子提交，复用任务规则与等待 / atomic task receipts, shared task transitions and activity observation | required payload 4 message/task variants; Team checkpoint 5; explicit payload-3 message and payload-2 readers | 222 owning tests / 100% product-source coverage; built Loader; TS SDK and actual single-executable Python SDK replay; full lint and 32 doc-sync gates; [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md) | maintained branch `fix/ultra-28-native-task-operations`; Ultra integration and authenticated #44 acceptance are separate |
 | [d02bfcdf13](https://github.com/benz-ai-x/deepseek-harness_x/commit/d02bfcdf13171e1167ece7b4ea29938900678de9) | 注册目录接受任务／等待声明 / admit declared task and wait operations | no format change | registration RED/GREEN, 222 owning tests / 100% product-source coverage and real Loader with all six declared operations | same maintained branch; follows the atomic task implementation |
 | [7119c51c8d](https://github.com/benz-ai-x/deepseek-harness_x/commit/7119c51c8d09ac56370e884e492c66a102c779af) | 共享任务诊断适配所有调用者 / caller-neutral shared task diagnostics | no format change | DSH/native error correction RED/GREEN; 224 owning tests / 100% business-source coverage, Host build and real Loader | same maintained branch; PR #54 Standards follow-up |
+| [b85ebb3fca](https://github.com/benz-ai-x/deepseek-harness_x/commit/b85ebb3fca3da0c735cfed0b4532f926a4221e24) | 当前 grant 下读取精确成员的 launch、入站 delivery 与已提交 settlement，供 provider 冷恢复对账 / grant-bound Host recovery facts for provider reconciliation | no format change; existing launch/message/receipt facts only | 229 owning tests; four changed runtime files at 100% scoped coverage; build, Loader, generated catalog, docs and lint; Ultra Claude public-history JSON/SQLite recovery and Run evidence; [ADR 0020](../adr/0020-authorize-claude-team-tools.md) | maintained branch `fix/ultra-29-native-recovery-reader`; Host-only operation is not advertised as a model tool |
 
 表中列出可重跑的测试责任，不表示本次运行了每个上游测试或真实产品 canary。
 The test column identifies validation owners, not a claim that all those suites
