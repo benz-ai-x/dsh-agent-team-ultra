@@ -7,11 +7,11 @@
 
 ## 当前任务与完成边界
 
-- 用户当前要求评审 [PR #50](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/50) 并处理与 main 的合并冲突，并已授权双轴 review 通过后合并到 `main`。开发修复在隔离工作树 `/tmp/ultra-50-review-iylhpqml`，分支 `fix/24-ultra-claude-code-runtime`；保留主工作区 #26 的未提交改动。
-- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 和 [#24](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/24)，中文为规范主版。父 Spec 保持 open。
-- PR #45–#49 已合并；main 为 `081357d17f7a0535b75bb7d3133177febddee4a2`。本轮将 main 合入 PR #50 原 head `d4e72b8`，保留 #48/#49 的完整闭包、真实 Loader 根与模块类型诊断，并纳入 Ultra-owned Claude Code。
-- GitHub CLI 已登录。#19–#25 已按用户“开发及验证完成即可关闭”的指示关闭；Issue 状态与 PR 合并状态分别追踪。本分支包含 #23 / #24 的两类原生适配器迁移；#25 的增量仍位于 PR #51；#26 在主工作区进行中。
-- 本轮只在当前对话报告进度。历史通知记录不能作为本轮向外部发送消息的授权。
+- 用户当前要求按 `code-review` 评审 [PR #51](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/51)，并已授权双轴 review 通过后合并到 `main`。整合和验证在隔离工作树 `/tmp/ultra-51-review-jjko946m` 的 `review/pr51-main` 分支进行，随后更新原 PR 分支；保留主工作区 #26 WIP。
+- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 和 [#25](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/25)，中文为规范主版。父 Spec 保持 open；本次只读审计不执行阶段 C 迁移。
+- PR #45–#50 已合并，main 为 `cd15e97993b2d3ee43aefa3daed4ef3f4d9742de`。本轮把 main 合入 PR #51 原 head `b72fef9`，保留 #48/#49 兼容性检查与 #50 的共享升级驱动。
+- GitHub CLI 已登录；#19–#25 已按用户“开发及验证完成即可关闭”的指示关闭，Issue 状态与 PR 合并分别追踪。#26 仍在主工作区进行中，#27–#44 未完成。
+- 本轮在当前对话报告，不从历史通知记录推断新的对外消息授权。
 
 ## #19 已实现内容
 
@@ -63,6 +63,19 @@
 - 本次首轮升级在 pnpm 安装新包时超过 120 秒，被外层超时中止，退出 124，未算通过。带输出观察的复跑及不带观察器的原命令随后均自然退出 0；未证明卡住的根因，没有更改 pnpm／Harness 或绕过检查。已飞书通知阻塞，临时观察器与超时遗留隔离目录已清理，日志保留。
 - [Codex 升级验证](scripts/verify-codex-upgrade.mjs) 现在从旧八包中识别并移除所有已退役产品包，以支持 #22 前身同时含旧 Codex 和 Claude 的升级。更新后的完整升级验证已退出 0，日志 `/tmp/ultra-24-codex-upgrade.log`；原 Codex 成员／handle 与两轮到三轮连续性保留。ADR-0008、ADR-0014、README、领域词汇与补丁清单明确修订归属；后续 Team 工具仍由 #29／#30 单独追踪。
 
+## #25 已实现内容与阶段 A 验收
+
+- 新增 `pnpm migration:audit --sessions <root> --json <storage>`／`--sqlite <database>`。CLI 从完整源文件、正式 schema、真实 Session read handle 和锁定 Team 投影读取；不打开会迁移／写入的 Ultra Domain。JSON per-record envelope、整体 unit、SQLite 物理版本及 Ultra Generation 在业务读取前检查，未来格式和未知布局不当作空库。
+- 审计区分 Session `0`、Team payload `2`、projection `3`、descriptor `3`、Ultra v0/v1；核验 Profile Head／Revision／fingerprint、Binding、Team 成员、descriptor、固定 route、native handle／Launch Request 与实际能力需求。Host 与审计复用纯 Revision 补全、v0 投影及不可变关系校验；审计结果仅在内存中生成。
+- checkpoint 使用真实 cache schema、Session identity、投影版本、日志游标和冷重建状态核验。匹配报告 reusable，不匹配报告 rebuild 及原因，源文件保留。v0 和实际中断的 pending v1 均可重复审计，相同记录复用、不同目标拒绝，不创建迁移目标或提交完成标记。
+- SQLite 的数据库／WAL 复制到私有临时目录，再以只读连接读取，避免创建或修改源 SHM；报告摘要包含全部旁文件并在成功前复核，临时副本退出时清除。RED 复现了只摘要主文件会漏掉 WAL 已提交变更的问题；修正后保持源数据库和旁文件字节不变。Session Zstd 解码逐帧复制上游复用的 buffer，SQLite 表检查使用完整 unit/table 集合区分 v0/v1 前缀。
+- [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md) 接受阶段 C 的 Session `2`、Team payload `3`、projection `4`、descriptor `3` 方案，规定 native operation／发送请求／回复关联进入正式 schema、codec、生成词汇和投影，业务提交与操作回执同批持久化。迁移保留源、关闭 pending 目标写入、幂等复用并拒绝分歧、最后提交 manifest；禁止双向写入。包归属变化不触发 Ultra 新代际。当前运行锁不变，阶段 A 完成后进入 B，执行迁移与新 fork 资格仍由阶段 C 交付。
+- 初次实现的完整 `pnpm verify` 已退出 0：**554 项 strict、0 警告；240 项测试（21 个文件），其中新增审计集成测试 27 项；八个归档真实安装、Web 启动及无残留卸载通过**。日志 `/tmp/ultra-25-final-verify.log`。关键 RED 日志 `/tmp/ultra-25-{descriptor,formats,revision,wal,native-requirements,native-turn}-red.log`；所有最终用例以完整验证为准。
+- Codex `61d2361`→当前归档、Claude Code `ae2ec72`→当前归档的 JSON／SQLite 升级均自然退出 0，保留原成员／Revision／native handle，后续工作、运行中卸载、注册释放、Web 启动和无残留移除通过。日志 `/tmp/ultra-25-codex-upgrade.log`、`/tmp/ultra-25-claude-upgrade.log`。外部 native SDK／进程为明确的确定性替身，真实认证产品验收仍由 #44 完成。
+- 最后新增 native turn 关联检查，拒绝把 native 回执附在 DSH 成员上；报告列出有界的初始轮／消息轮关联。#25 后续已关闭并创建 PR #51；此前认证阻塞已解决。
+
+- PR 初次复审后的 `b72fef9` 补修保留共享 schema 的规范化结果，兼容旧 v1 Binding 的 provider／phase 和缺省能力；无法解析的旧缓存从权威 Session 冷重建。JSON / SQLite 三条回归验证源数据不变；补修后的完整验证为 554 strict、243 测试／21 文件和完整八归档安装／启动／卸载。当前 main 整合后的验证另行记录。
+
 ## 验证证据与限制
 
 ### #22 安装／导入前兼容性诊断
@@ -109,9 +122,9 @@
 
 ## 下一步
 
-1. PR #50 已整合 main 且完整验证、两类真实归档升级通过；共享验收驱动的两条实际升级复跑也已通过，完成增量复核。
-2. 固定当前 main 与新 head 独立执行 Standards / Spec 评审；均通过后按用户已有授权合并 PR #50。
-3. 保留 PR #51 和主工作区 #26 WIP；父 Spec #18 保持 open，真实认证 native 验收仍属 #44。
+1. 完成 PR #51 与当前 main 的整合，运行完整验证、两类实际归档升级和公共契约对照。
+2. 固定当前 main 与整合后的 head，按技能要求独立执行 Standards / Spec 评审；通过后按用户已有授权合并 PR #51。
+3. 保留主工作区 #26 WIP 和 #27–#44 的依赖；真实认证 native 验收仍属 #44，父 Spec #18 保持 open。
 
 ## 权威材料与技能
 
@@ -138,5 +151,14 @@
 - Claude Code `index.ts`、`process.ts`、`product.ts` 与锁定 Harness 前身逐字节一致；完整 `pnpm verify` **554 strict、0 警告；218 测试／20 文件；实际八归档安装、Web 启动及全部行／包卸载通过**，日志 `/tmp/ultra-50-merged-verify.log`。已有 pnpm settings / resolutions / snapshots 不变；新增 100 个 Claude 依赖记录。
 - 两类升级入口共用 `scripts/profile-archive-closure.mjs`，按对应 Profile bundle 和嵌套 Loader group 的包身份集合核对实际归档，满足 T-14 且不固定数量。Claude 升级前身改为当前 main `081357d17f7a0535b75bb7d3133177febddee4a2`，独立干净源码和构建在 `/tmp/ultra-50-predecessor-uv1f6gf8`。Codex 仍从固定 `debde06` 的 `/tmp/ultra-49-predecessor-cpcyoykc` 验证旧两类产品包移除。
 - 两类真实归档升级均已通过，日志 `/tmp/ultra-50-claude-upgrade.log`、`/tmp/ultra-50-codex-upgrade.log`；JSON / SQLite 保留原成员、Revision 与 native handle，验证后续消息、冷恢复、provider 移除／恢复、Web 启动及完整卸载。官方／fork 的同一 11 组公共契约亦通过，日志 `/tmp/ultra-50-comparison.log`。55 个本地文档链接和差异格式检查通过。
-- `081357d...f38ee19` 首轮独立评审：Spec 0 项；Standards 硬性违规 0，发现 P3 Possible Duplicated Code：两条升级驱动几乎相同。现提取 `scripts/verify-runtime-archive-upgrade.mjs`，两入口仅保留 provider、固定前身、探针与外部验收边界参数；provider 协议探针独立。补修仅涉及验收脚本与交接，运行时代码仍为完整验证覆盖的 `f38ee19`。共享驱动的两类实际升级复跑均自然退出 0，日志 `/tmp/ultra-50-shared-claude-upgrade.log`、`/tmp/ultra-50-shared-codex-upgrade.log`；两路增量复核待完成。
+- `081357d...f38ee19` 首轮独立评审：Spec 0 项；Standards 硬性违规 0，发现 P3 Possible Duplicated Code：两条升级驱动几乎相同。现提取 `scripts/verify-runtime-archive-upgrade.mjs`，两入口仅保留 provider、固定前身、探针与外部验收边界参数；provider 协议探针独立。补修仅涉及验收脚本与交接，运行时代码仍为完整验证覆盖的 `f38ee19`。共享驱动的两类实际升级复跑均自然退出 0，日志 `/tmp/ultra-50-shared-claude-upgrade.log`、`/tmp/ultra-50-shared-codex-upgrade.log`；两路增量复核已完成：`ef3ecde` Standards / Spec 均 0 项未解决问题，PR #50 随后合并为 `cd15e97`。
 - 升级 SDK / app-server 为明确的外部确定性边界，真实认证 native 验收仍属于 #44。
+
+## PR #51 本轮整合验证
+
+- 使用 `code-review`、`resolving-merge-conflicts`、`dsh-plugin-dev`。独立工作树按锁定 Harness `8b4bae0b` 准备并冻结安装，编辑前 strict 554 项通过、0 警告。
+- 合入 main `cd15e97`，仅 HANDOFF / TODO 产生文本冲突；保留已合并 PR 的验证结果、兼容性闭包、真实 Loader 根、自引用／模块类型诊断及共享归档升级驱动，同时接入 #25 的纯存储校验与只读审计。整合后的完整 `pnpm verify` 已退出 0：554 strict、0 警告；248 测试／21 文件（30 项只读审计案例）；实际八归档安装、Web 启动和全部行／包卸载通过，日志 `/tmp/ultra-51-merged-verify.log`。两类真实归档升级已自然退出 0：Claude 从固定 `081357d`、Codex 从固定 `debde06` 升级，JSON / SQLite 保留身份，后续工作、生命周期释放、Web 启动和全部卸载通过；日志 `/tmp/ultra-51-{claude,codex}-upgrade.log`。同一 11 组官方／fork 契约对照通过，日志 `/tmp/ultra-51-comparison.log`。
+
+- 固定 `cd15e97...21f1cb4` 首轮评审：Standards 发现 P2，SQLite 缓存表缺失／不可读时错误中断整个审计；Spec 发现 P2，投影先过滤 Team ID，导致跨 Team 的未来／无效 payload 被跳过。两轴各自记录，不用一轴结果替代另一轴。
+- 已为两项问题补充 6 条真实源回归并先确认失败（`/tmp/ultra-51-cache-red.log`、`/tmp/ultra-51-team-red.log`）。缓存局部读失败现在报告 `cache-unreadable` 并从权威日志冷重建，未知 Ultra 业务版本仍拒绝；所有 Team 历史（含精确继承前缀）使用锁定的完整 schema / projection 检查，非继承事件必须属于所在 Session。
+- 36 项完整审计案例通过，日志 `/tmp/ultra-51-audit-green.log`；既有独立跨 Team 复现现在稳定返回 `AUDIT_TEAM_IDENTITY`。README / 项目契约已更新；补修只涉及审计 CLI、测试及文档，发货 Host 和升级探针与 `21f1cb4` 相同。最终完整 `pnpm verify` 自然退出 0：554 strict、0 警告；254 测试／21 文件，八归档安装／Web 启动／完整卸载通过，日志 `/tmp/ultra-51-fixed-verify.log`。56 个本地文档链接和差异格式检查通过，双轴增量复核待完成。

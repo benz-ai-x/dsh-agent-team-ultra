@@ -56,6 +56,22 @@ The test column identifies validation owners, not a claim that all those suites
 or authenticated native canaries ran in this change. Final real native product
 acceptance remains mandatory in [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44).
 
+## 迁移方案 / Migration plan
+
+[#25](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/25) 的
+[ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) 与
+`pnpm migration:audit` 区分当前源格式和未来目标资格。阶段 C 方案为 Session `2`、
+Team payload `3`、projection `4`；descriptor `3` 在固定双方源码中一致，Ultra v1
+继续使用。native operation、发送请求和回复关联必须进入正式 schema、codec、
+生成事件词汇及投影；没有已产生的目标提交前，审计报告明确标为尚未取得运行资格。
+本次不修改 Harness 运行锁，阶段 A 完成后先进入 B。
+
+The audit preserves source bytes, checks real Session projections plus JSON and
+SQLite snapshots, and reports deterministic v0/v1 retry conflicts. The accepted
+format plan is implemented in Phase C, with pending-target writes closed until
+the final completion marker. Package ownership moves alone require no new Ultra
+generation and provide no permission for dual writing.
+
 ## 共用行为探针 / Shared behavior probe
 
 对分别构建的两个源码目录运行同一个脚本：

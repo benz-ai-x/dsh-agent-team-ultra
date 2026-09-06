@@ -636,7 +636,8 @@ function profileDraft(profile: LegacyDigitalEmployeeProfile): DigitalEmployeePro
   })
 }
 
-function revisionRecord(
+/** Pure legacy projection shared by migration writes and the read-only audit. */
+export function projectLegacyProfileRevision(
   profile: LegacyDigitalEmployeeProfile,
   runtimeTarget: MigratedRuntimeTarget = legacyInheritLeadRuntimeTarget,
 ): DigitalEmployeeProfileRevision {
@@ -655,7 +656,8 @@ function revisionRecord(
   })
 }
 
-function migratedHead(profile: LegacyDigitalEmployeeProfile): DigitalEmployeeProfileHead {
+/** Preserve the legacy active Revision and historical timestamps in its Head. */
+export function projectLegacyProfileHead(profile: LegacyDigitalEmployeeProfile): DigitalEmployeeProfileHead {
   return Object.freeze({
     schemaVersion: 1,
     profileId: profile.id,
@@ -704,7 +706,8 @@ function bindingLaunchFields(binding: DigitalEmployeeBindingV1): Pick<
   }
 }
 
-function bindingRecord(
+/** Preserve a Binding and any already-established route without writing storage. */
+export function projectLegacyBinding(
   binding: DigitalEmployeeBinding | DigitalEmployeeBindingV1,
   fallbackTarget: MigratedRuntimeTarget = legacyInheritLeadRuntimeTarget,
 ): DigitalEmployeeBindingV1 {
@@ -769,39 +772,48 @@ function completeRevision(record: StoredDigitalEmployeeProfileRevisionV1): Digit
   return record as DigitalEmployeeProfileRevision
 }
 
+/** Validate and normalize one historical Revision without writing its source. */
+export function projectDigitalEmployeeProfileRevision(
+  key: string,
+  stored: StoredDigitalEmployeeProfileRevisionV1,
+): DigitalEmployeeProfileRevision {
+  if (key !== profileRevisionKey(stored.profileId, stored.revision)
+    || stored.profile.id !== stored.profileId) {
+    throw new DigitalEmployeeMigrationError(
+      `Profile Revision ${JSON.stringify(key)} has inconsistent key or Profile identity`,
+      'target-inconsistent',
+    )
+  }
+  const canonicalRequiredCapabilities = requiredCapabilitiesForProfile(stored.profile)
+  if (stored.requiredCapabilities !== undefined
+    && !isDeepStrictEqual(stored.requiredCapabilities, canonicalRequiredCapabilities)) {
+    throw new DigitalEmployeeMigrationError(
+      `Profile Revision ${stored.profileId}@${stored.revision} has non-canonical required capabilities`,
+      'target-inconsistent',
+    )
+  }
+  const requiredCapabilities = stored.requiredCapabilities ?? canonicalRequiredCapabilities
+  const fingerprint = profileContentFingerprint(stored.profile, stored.runtimeTarget, requiredCapabilities)
+  const transitionalFingerprint = legacyProfileContentFingerprint(stored.profile, stored.runtimeTarget)
+  if (stored.fingerprint !== undefined
+    && stored.fingerprint !== fingerprint
+    && !(stored.requiredCapabilities === undefined && stored.fingerprint === transitionalFingerprint)) {
+    throw new DigitalEmployeeMigrationError(
+      `Profile Revision ${stored.profileId}@${stored.revision} has a non-canonical fingerprint`,
+      'target-inconsistent',
+    )
+  }
+  return stored.fingerprint === fingerprint && stored.requiredCapabilities !== undefined
+    ? stored as DigitalEmployeeProfileRevision
+    : deepFreeze({ ...stored, requiredCapabilities, fingerprint })
+}
+
 /** Enrich transitional v1 records from Issues #3/#4 before any mutation is admitted. */
 async function ensureRevisionContracts(v1: DigitalEmployeeV1Domain): Promise<void> {
   const revisions = v1.table('profile_revisions')
   for (const [key, stored] of revisions.entries()) {
-    if (key !== profileRevisionKey(stored.profileId, stored.revision)
-      || stored.profile.id !== stored.profileId) {
-      throw new DigitalEmployeeMigrationError(
-        `Profile Revision ${JSON.stringify(key)} has inconsistent key or Profile identity`,
-        'target-inconsistent',
-      )
-    }
-    const canonicalRequiredCapabilities = requiredCapabilitiesForProfile(stored.profile)
-    if (stored.requiredCapabilities !== undefined
-      && !isDeepStrictEqual(stored.requiredCapabilities, canonicalRequiredCapabilities)) {
-      throw new DigitalEmployeeMigrationError(
-        `Profile Revision ${stored.profileId}@${stored.revision} has non-canonical required capabilities`,
-        'target-inconsistent',
-      )
-    }
-    const requiredCapabilities = stored.requiredCapabilities ?? canonicalRequiredCapabilities
-    const fingerprint = profileContentFingerprint(stored.profile, stored.runtimeTarget, requiredCapabilities)
-    const transitionalFingerprint = legacyProfileContentFingerprint(stored.profile, stored.runtimeTarget)
-    if (stored.fingerprint !== undefined
-      && stored.fingerprint !== fingerprint
-      && !(stored.requiredCapabilities === undefined && stored.fingerprint === transitionalFingerprint)) {
-      throw new DigitalEmployeeMigrationError(
-        `Profile Revision ${stored.profileId}@${stored.revision} has a non-canonical fingerprint`,
-        'target-inconsistent',
-      )
-    }
-    if (stored.fingerprint !== fingerprint || stored.requiredCapabilities === undefined) {
-      await revisions.put(key, deepFreeze({ ...stored, requiredCapabilities, fingerprint }))
-    }
+    const projected = projectDigitalEmployeeProfileRevision(key, stored)
+    if (projected !== stored) await revisions.put(key, projected)
   }
 }
 
@@ -823,7 +835,7 @@ async function migrateV0(
         'source-inconsistent',
       )
     }
-    const revision = revisionRecord(profile)
+    const revision = projectLegacyProfileRevision(profile)
     await putImmutable(
       revisions,
       'profile_revisions',
@@ -832,7 +844,7 @@ async function migrateV0(
       state,
       hooks,
     )
-    await putImmutable(heads, 'profile_heads', profile.id, migratedHead(profile), state, hooks)
+    await putImmutable(heads, 'profile_heads', profile.id, projectLegacyProfileHead(profile), state, hooks)
   }
 
   for (const [key, binding] of [...v0.table('bindings').entries()].sort(([left], [right]) => left.localeCompare(right))) {
@@ -857,7 +869,7 @@ async function migrateV0(
       bindings,
       'bindings',
       migratedKey,
-      bindingRecord(binding, target),
+      projectLegacyBinding(binding, target),
       state,
       hooks,
     )
@@ -866,9 +878,29 @@ async function migrateV0(
   assertV1Consistency(v1)
 }
 
+/** Detached read views accepted by both Host admission and the operator audit. */
+export type DigitalEmployeeV1TableSnapshot = {
+  readonly [Table in keyof typeof digitalEmployeeV1DomainSpec.tables]: ReadonlyMap<
+    string,
+    z.infer<(typeof digitalEmployeeV1DomainSpec.tables)[Table]['valueSchema']>
+  >
+}
+
 function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
-  const revisions = v1.table('profile_revisions')
-  for (const [key, head] of v1.table('profile_heads').entries()) {
+  assertDigitalEmployeeV1Consistency({
+    profile_heads: new Map(v1.table('profile_heads').entries()),
+    profile_revisions: new Map(v1.table('profile_revisions').entries()),
+    bindings: new Map(v1.table('bindings').entries()),
+    run_index: new Map(v1.table('run_index').entries()),
+    eval_sets: new Map(v1.table('eval_sets').entries()),
+    eval_runs: new Map(v1.table('eval_runs').entries()),
+  })
+}
+
+/** Validate immutable references and fingerprints without opening or mutating a domain. */
+export function assertDigitalEmployeeV1Consistency(records: DigitalEmployeeV1TableSnapshot): void {
+  const revisions = records.profile_revisions
+  for (const [key, head] of records.profile_heads.entries()) {
     if (key !== head.profileId) {
       throw new DigitalEmployeeMigrationError(
         `Profile Head key ${JSON.stringify(key)} does not match id ${JSON.stringify(head.profileId)}`,
@@ -909,7 +941,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
   }
   const launchRequests = new Set<string>()
   const externalHandles = new Set<string>()
-  for (const [key, binding] of v1.table('bindings').entries()) {
+  for (const [key, binding] of records.bindings.entries()) {
     if (key !== digitalEmployeeBindingKey(binding.teamId, binding.memberName)
       || binding.profile.id !== binding.profileId
       || binding.profile.revision !== binding.profileRevision) {
@@ -968,7 +1000,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       }
     }
   }
-  for (const [key, run] of v1.table('run_index').entries()) {
+  for (const [key, run] of records.run_index.entries()) {
     if (key !== run.runId) {
       throw new DigitalEmployeeMigrationError(
         `Run index key ${JSON.stringify(key)} does not match Run identity ${JSON.stringify(run.runId)}`,
@@ -976,7 +1008,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       )
     }
   }
-  const evalSets = v1.table('eval_sets')
+  const evalSets = records.eval_sets
   for (const [key, record] of evalSets.entries()) {
     if ('headRevision' in record) {
       if (key !== evalSetHeadKey(record.evalSetId)) {
@@ -1001,7 +1033,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       )
     }
   }
-  for (const [, head] of v1.table('profile_heads').entries()) {
+  for (const [, head] of records.profile_heads.entries()) {
     if (head.requiredEvalSet === undefined) continue
     const required = evalSets.get(evalSetRevisionKey(
       head.requiredEvalSet.evalSetId,
@@ -1014,7 +1046,7 @@ function assertV1Consistency(v1: DigitalEmployeeV1Domain): void {
       )
     }
   }
-  for (const [key, run] of v1.table('eval_runs').entries()) {
+  for (const [key, run] of records.eval_runs.entries()) {
     if (key !== run.evalRunId) {
       throw new DigitalEmployeeMigrationError(
         `Eval Run key ${JSON.stringify(key)} does not match Eval Run identity ${JSON.stringify(run.evalRunId)}`,
@@ -1219,7 +1251,7 @@ export class DigitalEmployeeStorage {
   }
 
   putBinding(key: string, binding: DigitalEmployeeBinding | DigitalEmployeeBindingV1): Promise<void> {
-    const record = bindingRecord(binding)
+    const record = projectLegacyBinding(binding)
     const operation = this.bindingWriteTail.then(async () => {
       const bindings = this.domain.table('bindings')
       if (record.runtimeTarget.kind === 'external-agent' && record.nativeRuntimeHandle !== undefined) {
