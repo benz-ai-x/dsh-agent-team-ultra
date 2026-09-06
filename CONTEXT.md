@@ -85,7 +85,7 @@ The Ultra-owned `@benz-ai-x/dsh-agent-team-codex` durable external provider back
 _Avoid_: Codex CLI invocation, one-shot Codex task
 
 **Claude Code Runtime Backend**:
-The durable external provider backed only by the audited package-local Claude Agent SDK/native payload, with one deterministic native Session per teammate and exact transcript-verified resume.
+The Ultra-owned `@benz-ai-x/dsh-agent-team-claude-code` durable external provider backed only by the audited package-local Claude Agent SDK/native payload, with one deterministic native Session per teammate and exact transcript-verified resume. Its package name is separate from its stable `claude-code` provider route and Native Runtime Handle.
 _Avoid_: Claude Code CLI invocation, one-shot Claude subagent
 
 **Native Runtime Handle**:

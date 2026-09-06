@@ -3,6 +3,9 @@
   "files": [],
   "references": [
     {
+      "path": "./packages/claude-code"
+    },
+    {
       "path": "./packages/codex"
     },
     {
