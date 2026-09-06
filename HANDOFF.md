@@ -130,7 +130,7 @@
 
 ## #26 开发与验证完成
 
-- 用户最新要求“继续这个分支开发”。继续 `fix/26-authorized-codex-team-queries`，已接入 main `ce6cb39`，保留 #48–#51 的兼容性、升级驱动与只读审计修复。开发与完整验证已完成，按既有指示关闭 #26 并提交 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)。初评 Standards 两项、Spec 零项；两项已修复，正在固定补修提交独立复审。本轮没有 PR #52 的合并授权。
+- 用户最新要求“继续这个分支开发”。继续 `fix/26-authorized-codex-team-queries`，已接入 main `ce6cb39`，保留 #48–#51 的兼容性、升级驱动与只读审计修复。开发与完整验证已完成，按既有指示关闭 #26 并提交 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)。初评 Standards 两项、Spec 零项；两项已修复，独立复审固定 Ultra `04a50c9722` 与 Harness `fb03045fbe`，最终 Standards／Spec 均为 0 项未解决发现。本轮没有 PR #52 的合并授权。
 - 原 Ultra／Harness 未提交内容已完整备份到 `/tmp/ultra-26-resume-backup-3guni4th`，包含文件、SHA256 清单、二进制 diff 和 index diff。整合 main 前的 stash 仍保留，SHA 记录在 `/tmp/ultra-26-resume-stash.txt`。冲突按两边意图解决：升级入口使用 main 的固定前身和共享驱动，驱动与探针在新旧阶段分别使用各自锁定的 Harness、兼容证明和 CLI；HANDOFF／TODO 更新真实合并状态。
 - Team 所有者实现不可序列化 Native Member Grant，绑定精确 live Lead、成员、provider、native handle 与当前注册。注册、handle、Lead 释放或 inactive presence 永久撤销旧 grant；后续 presence 不能复活它。恢复验证原持久身份后重授当前权限，拒绝外部证据／身份违约及未知／重复能力声明，Evaluation Worker 不获生产权限。普通 DSH／Remote／Profile 入口仍要求精确 live Agent。
 - Codex 通过锁定 `@openai/codex@0.149.1` 的 `dynamicTools`／`item/tool/call` 调用真实 roster／task board，只允许 `members.list`、`tasks.list`、`tasks.get`。完整 native envelope 16384 字节、Host 请求 4096 字节、含 JSON 转义的完整结果 65536 字节；任务页默认 20、上限 100，单轮 64 次，首次 grant 等待最多 5 秒。严格 schema、thread／turn／call 关联、取消、返回前授权复核与原只读／approval-never／网络策略共同生效。
@@ -145,6 +145,7 @@
 
 - **PR #52 审查补修**：初评固定 Ultra `ce6cb39...dcf8ec4`、Harness `8b4bae0b...b4d2a731`。Standards 发现缺少正式记录会话（P2）及分页游标丢失 `TeamTaskId` 品牌（P3），Spec 无发现。Harness `fb03045fbe` 修复两项：扩展现有 `agent-team-profile` 记录场景，通过真实发货 headless CLI 和 provider 实际绑定的 grant 查询非空 roster／task board，记录三种查询、分页返回及后续模型上下文；类型、双语文档、生成目录同步。外部 provider 场景改用 `.mjs`，满足 Node 22 的 built Loader；未改四个已有 100% 覆盖率的运行时源文件。
 - 新记录场景先失败后刷新通过；移除 grant 绑定的 source 模式负对照确实失败，证明固定模型最终输出不能掩盖授权查询失效。最终 `DSH_EXAMPLE_MODE=lib` 回放及两项场景守卫 **3 passed**，日志 `/tmp/ultra-52-recorded-session-replay.log`、`/tmp/ultra-52-recorded-session-negative-control.log`。额外 Claude consumer **58 passed、1 skipped**；完整 build、15 项 docs quick、32 项 doc-sync、全仓 lint、261 个包公开声明类型检查通过。该源码准备及冻结安装后，Ultra 完整验证、两类升级和官方对照均重新通过。
+- **最终双轴复审通过**：两个独立代理分别检查 Harness `b4d2a731...fb03045fbe`、Ultra `dcf8ec4...04a50c9722`，结合原全量审查，Standards 规范违规／判断性异味均 0，Spec 缺失／范围扩张／错误实现均 0。原 P2／P3 均确认关闭。本记录之后仅更新 HANDOFF／TODO 的验收状态，不更改已验证的运行时、锁或测试。GitHub 未报告本 PR 的 CI checks；自动化静态复审不等于人工批准。
 
 ## 验证证据与限制
 
@@ -192,8 +193,8 @@
 
 ## 下一步
 
-1. PR #45–#51 已全部合并；#19–#26 保持 closed，不重复建 PR。当前 #26 的 PR #52 已创建，最新维护来源完成全部本地验证；完成补修提交的双轴复审。父 Spec #18 保持 open。
-2. 根据 PR #52 的 Standards／Spec 补修复审处理具体发现；通过后在当前对话通知用户人工审核，不从早先 PR 的逐项授权推断 PR #52 的合并授权。
+1. PR #45–#51 已全部合并；#19–#26 保持 closed，不重复建 PR。当前 #26 的 PR #52 已创建，最新维护来源完成全部本地验证及双轴复审（Standards 0／Spec 0）；PR 保持 open。父 Spec #18 保持 open。
+2. PR #52 已通过独立复审，在当前对话通知用户人工审核；不从早先 PR 的逐项授权推断 PR #52 的合并授权。后续 #27–#44 按父 Spec 和 tracker 继续。
 3. 继续按依赖处理 #27–#44，保留阶段 C 独立集成分支、格式迁移和真实 native 验收要求。之后的新 PR 仍在提交后分别执行 Standards 和 Spec 评审。
 4. 本轮仅在当前对话通报修复、评审和合并结果；没有新的对外通知待办。
 
