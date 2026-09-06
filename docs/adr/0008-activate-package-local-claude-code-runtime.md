@@ -57,3 +57,21 @@ complete uninstall. The SDK API uses a controlled external boundary; this does
 not replace the authenticated native-product acceptance in Issue #44.
 Controlled Team query, mailbox and task tools remain separate work in Issues
 #29 and #30; this ownership move grants none of those capabilities.
+
+## Collaboration revision — 2026-09-07, Issue #29
+
+[ADR 0020](0020-authorize-claude-team-tools.md) formally extends the fixed
+native surface with four controlled Team query/message tools under the current
+member grant. `Read`/`Glob`/`Grep` remain built-ins but are no longer bare
+`allowedTools` entries, because the locked native product would then bypass the
+workspace permission callback. Only the four named in-process MCP tools are
+pre-authorized; their handlers recheck the Host grant and trusted native call
+identity. The read-only sandbox, cwd confinement, external-network denial,
+interactive-permission denial and evaluation restrictions remain unchanged.
+
+Cold resume now combines the verified native transcript with Host-owned launch,
+delivery and terminal facts. The adapter derives canonical turns from those
+facts, replays settlements idempotently, treats missing native terminal state as
+interrupted, and refuses conflicting markers. No Team transcript, new durable
+format, task mutation/wait, shell, file-write, approval or evaluation authority
+is introduced by this revision.

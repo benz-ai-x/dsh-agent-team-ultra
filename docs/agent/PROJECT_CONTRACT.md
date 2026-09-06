@@ -260,8 +260,26 @@ an actual integration commit based on the fixed official comparison.
   verifies the hashed launch identity against the native transcript before
   resume, serializes mailbox delivery, and de-duplicates turns by their hashed
   message identity. It accepts only fresh context, inherited Profile tool
-  policy with no Hooks, fixed `Read`/`Glob`/`Grep` tools, read-only sandboxing,
-  bounded scrubbed evidence, and usage occurrence.
+  policy with no Hooks, fixed `Read`/`Glob`/`Grep` built-ins, read-only sandboxing,
+  bounded scrubbed evidence, and usage occurrence. Issue #29's controlled
+  in-process SDK server maps member/task reads and messages onto the current
+  Native Member Grant; model arguments carry no authority. Only those MCP tools
+  have bare `allowedTools` entries. Native workspace permission checks retain
+  the read-only built-ins' access inside `cwd` and deny outside paths and symlink
+  escapes; automatic approval of bare Read/Glob/Grep would bypass that boundary.
+  API-error SDK result text is diagnostic and never becomes a Team reply.
+  Cold attach uses a Host-only member recovery reader after grant verification:
+  launch, inbound delivery and committed settlement facts are paged for the exact
+  member/provider/handle, and canonical turn ids are recomputed rather than read
+  from model-controlled input. Only matching top-level transcript boundaries are
+  eligible. A Host settlement is authoritative; otherwise the first qualified
+  native terminal settles once, and absent terminal state becomes interrupted.
+  Conflicting/duplicate identities fail closed, late terminals cannot replace a
+  committed result, and multi-stage usage remains one safe-integer snapshot per
+  turn. Recovery completes before evidence or new delivery. Pending terminal
+  settlement retries only after the same provider has a current grant.
+  [ADR 0020](../adr/0020-authorize-claude-team-tools.md) records the accepted
+  extension. Task mutation/wait remain Issue #30.
 - A durable external provider registers one complete typed contract with Agent
   Team and Ultra. Its detached catalog metadata includes enforceable context,
   Profile, and operational Runtime Capabilities. Provider objects, credentials,

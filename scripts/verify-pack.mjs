@@ -271,6 +271,16 @@ try {
     }
   }
   console.log('PASS installed Codex queries, task receipts, wait and exact member recovery with JSON and SQLite')
+  for (const backend of ['json', 'sqlite']) {
+    for (const phase of ['query-new', 'query-resume']) {
+      const result = checkedRun(process.execPath, [
+        join(root, 'scripts', 'probe-claude-continuity.mjs'), join(profileHome, 'profiles', 'web'), phase,
+        join(temporaryRoot, `claude-queries-${backend}`), backend,
+      ], root, `installed Claude member operations (${backend}, ${phase})`, { DSH_HOME: profileHome })
+      process.stdout.write(result.stdout)
+    }
+  }
+  console.log('PASS installed Claude SDK MCP queries, messages, final receipts and member recovery with JSON and SQLite')
   checkedRun(
     process.execPath,
     [

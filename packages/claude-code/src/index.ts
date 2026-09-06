@@ -21,6 +21,9 @@ import {
   TeammateRuntimeEvidenceId,
   TeammateRuntimeHandle,
   TeammateRuntimeTurnId,
+  type NativeMemberGrant,
+  type NativeMemberRecoveryItem,
+  type TeammateRuntimeMemberOperationsRequest,
   type TeammateRuntimeCreateRequest,
   type TeammateRuntimeCreateResult,
   type TeammateRuntimeDeliverRequest,
@@ -50,6 +53,7 @@ import {
   claudeSpawnSpec,
   ManagedClaudeCodeProcess,
 } from './process.ts'
+import { createTeamToolTurn, teamToolNames } from './team-tools.ts'
 
 export {
   claudeCodePackageBin,
@@ -85,11 +89,13 @@ function claudeUsage(value: unknown): TeammateRuntimeEvidenceItem['usage'] {
   }
   const cacheReadTokens = optional('cache_read_input_tokens')
   const cacheWriteTokens = optional('cache_creation_input_tokens')
+  const totalTokens = (inputTokens as number) + (outputTokens as number)
+    + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
+  if (!Number.isSafeInteger(totalTokens)) return undefined
   return Object.freeze({
     inputTokens: inputTokens as number,
     outputTokens: outputTokens as number,
-    totalTokens: (inputTokens as number) + (outputTokens as number)
-      + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0),
+    totalTokens,
     ...(cacheReadTokens === undefined ? {} : { cacheReadTokens }),
     ...(cacheWriteTokens === undefined ? {} : { cacheWriteTokens }),
   })
@@ -133,10 +139,22 @@ interface ResolvedConfig {
 }
 
 interface NativeSession {
+  grant: NativeMemberGrant | undefined
+  readonly memberBound: PromiseWithResolvers<NativeMemberGrant>
+  readonly ownership: AbortController
+  readonly recoveries: Set<Promise<void>>
+  readonly settlements: Set<Promise<void>>
+  readonly pendingTerminals: Map<ReturnType<typeof TeammateRuntimeTurnId>, TurnTerminal>
+  readonly settlementOperations: Map<ReturnType<typeof TeammateRuntimeTurnId>, Promise<void>>
   readonly handle: ReturnType<typeof TeammateRuntimeHandle>
+  readonly launchRequestId: string
+  readonly memberId: string
   readonly evidence: TeammateRuntimeEvidenceItem[]
   readonly deliveries: Map<string, ReturnType<typeof TeammateRuntimeTurnId>>
   readonly deliveryOperations: Map<string, Promise<TeammateRuntimeDeliverResult>>
+  recoveryMessages: readonly SessionMessage[] | undefined
+  recoveryIncomplete: boolean
+  recovery: Promise<void>
   deliveryTail: Promise<void>
   presence: 'running' | 'idle'
   current: ActiveTurn | undefined
@@ -145,6 +163,7 @@ interface NativeSession {
 }
 
 interface ActiveTurn {
+  readonly teamTools: ReturnType<typeof createTeamToolTurn>
   readonly id: ReturnType<typeof TeammateRuntimeTurnId>
   readonly accepted: Promise<void>
   readonly done: Promise<TurnTerminal>
@@ -154,11 +173,24 @@ interface ActiveTurn {
 interface TurnTerminal {
   readonly outcome: TurnOutcome
   readonly timestamp: number
+  readonly text: string
 }
 
 interface NativeInspection {
   readonly exists: boolean
   readonly messages: readonly SessionMessage[]
+}
+
+interface NativeRecoveryWork {
+  readonly kind: 'launch' | 'delivery'
+  readonly id: ReturnType<typeof TeammateRuntimeTurnId>
+  readonly marker: string
+  readonly deliveryId?: string
+}
+
+interface NativeRecoveryTranscript {
+  readonly work: NativeRecoveryWork
+  readonly messages: SessionMessage[]
 }
 
 function abortError(signal: AbortSignal): Error {
@@ -276,21 +308,31 @@ function messageSessionId(message: SDKMessage): string | undefined {
   return typeof value.session_id === 'string' ? value.session_id : undefined
 }
 
-function containsMarker(value: unknown, marker: string, budget: { remaining: number }, depth = 0): boolean {
-  if (budget.remaining <= 0 || depth > 8) return false
-  budget.remaining -= 1
-  if (typeof value === 'string') return value.includes(marker)
-  if (Array.isArray(value)) {
-    return value.some(item => containsMarker(item, marker, budget, depth + 1))
-  }
-  if (value === null || typeof value !== 'object') return false
-  return Object.values(value).some(item => containsMarker(item, marker, budget, depth + 1))
+function sessionMessageText(entry: SessionMessage): string {
+  if (entry.message === null || typeof entry.message !== 'object' || Array.isArray(entry.message)) return ''
+  const content = (entry.message as Record<string, unknown>).content
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.filter(block => block !== null && typeof block === 'object' && !Array.isArray(block)
+    && (block as Record<string, unknown>).type === 'text'
+    && typeof (block as Record<string, unknown>).text === 'string')
+    .map(block => (block as Record<string, unknown>).text as string).join('\n')
 }
 
 function transcriptContains(messages: readonly SessionMessage[], marker: string): boolean {
-  const budget = { remaining: 16_384 }
   return messages.some(message => message.type === 'user'
-    && containsMarker(message.message, marker, budget))
+    && message.parent_tool_use_id == null && message.parent_agent_id == null
+    && sessionMessageText(message).split('\n', 1)[0] === marker)
+}
+
+function isToolResultContinuation(entry: SessionMessage): boolean {
+  if (entry.message === null || typeof entry.message !== 'object' || Array.isArray(entry.message)) return false
+  const content = (entry.message as Record<string, unknown>).content
+  return Array.isArray(content) && content.length > 0 && content.every(raw => {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return false
+    const block = raw as Record<string, unknown>
+    return block.type === 'tool_result' && typeof block.tool_use_id === 'string' && block.tool_use_id.length > 0
+  })
 }
 
 function assertRequirements(requirements: TeammateRuntimeRequirements): void {
@@ -328,12 +370,31 @@ function safeToolName(value: unknown): string | undefined {
   return undefined
 }
 
+function terminalText(outcome: TurnOutcome, finalText: string): string {
+  const text = outcome === 'completed' && finalText.trim()
+    ? finalText
+    : `Claude Code work ${outcome}${finalText.trim() ? `.\n\n${finalText}` : ' without a final response.'}`
+  const encodedBytes = (value: string) => Buffer.byteLength(JSON.stringify({ operation: 'turns.settle', outcome, text: value }), 'utf8')
+  if (encodedBytes(text) <= 4_096) return text
+  const suffix = '\n[Result truncated to the Team message limit.]'
+  let remaining = 4_096 - encodedBytes(suffix)
+  let prefix = ''
+  for (const character of text) {
+    const bytes = Buffer.byteLength(JSON.stringify(character), 'utf8') - 2
+    if (bytes > remaining) break
+    prefix += character
+    remaining -= bytes
+  }
+  return prefix + suffix
+}
+
 class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly id: string
   readonly displayName = 'Claude Code'
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
   readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
+  readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly creations = new Map<string, Promise<TeammateRuntimeCreateResult>>()
   private readonly presenceListeners = new Set<(event: TeammateRuntimePresenceEvent) => void>()
@@ -347,6 +408,25 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
   onPresenceChanged(listener: (event: TeammateRuntimePresenceEvent) => void): () => void {
     this.presenceListeners.add(listener)
     return () => { this.presenceListeners.delete(listener) }
+  }
+
+  bindMemberOperations(request: TeammateRuntimeMemberOperationsRequest): void {
+    this.assertOpen()
+    const session = this.session(request.nativeHandle)
+    if (request.grant.identity.nativeHandle !== session.handle || request.grant.identity.provider !== this.id
+      || request.grant.identity.memberId !== session.memberId) {
+      throw new TeammateRuntimeError('Claude Code Team grant targets another native Session', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+    }
+    const previous = session.grant
+    session.grant = request.grant
+    session.memberBound.resolve(request.grant)
+    if (previous !== undefined && previous !== request.grant) {
+      if (session.pendingTerminals.size > 0) this.retryPendingSettlements(session)
+      if (session.recoveryIncomplete && session.recoveryMessages !== undefined) {
+        const recovery = this.queueRecovery(session, session.recoveryMessages, session.deliveryTail)
+        session.deliveryTail = recovery
+      }
+    }
   }
 
   async create(request: TeammateRuntimeCreateRequest): Promise<TeammateRuntimeCreateResult> {
@@ -396,7 +476,8 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
           'TEAM_RUNTIME_IDENTITY_CONFLICT',
         )
       }
-      const session = this.attachSession(expected)
+      const session = this.attachSession(expected, request.launchRequestId, request.memberId)
+      session.deliveryTail = this.queueRecovery(session, inspection.messages)
       return this.result(session, turnId(expected, request.launchRequestId))
     } catch (error: unknown) {
       if (error instanceof TeammateRuntimeError) throw error
@@ -453,6 +534,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     }
     const id = turnId(session.handle, request.deliveryId)
     if (transcriptContains(inspection.messages, marker)) {
+      await this.queueRecovery(session, inspection.messages)
       session.deliveries.set(request.deliveryId, id)
       return { turnId: id, presence: session.presence }
     }
@@ -477,10 +559,13 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     return { previousStatus }
   }
 
-  evidence(request: TeammateRuntimeEvidenceRequest): Promise<TeammateRuntimeEvidenceResult> {
-    return Promise.resolve().then(() => {
-      this.operationSignal(request.signal)
-      const session = this.session(request.nativeHandle)
+  async evidence(request: TeammateRuntimeEvidenceRequest): Promise<TeammateRuntimeEvidenceResult> {
+    const signal = this.operationSignal(request.signal)
+    const session = this.session(request.nativeHandle)
+    await raceAbort(session.recovery, signal)
+    return await Promise.resolve().then(() => {
+      signal.throwIfAborted()
+      this.assertSessionAttached(session)
       const offset = request.cursor === undefined ? 0 : Number(request.cursor)
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > session.evidence.length) {
         throw new TeammateRuntimeError(
@@ -530,7 +615,8 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     try {
       const inspection = await this.inspect(handle, request.signal)
       if (transcriptContains(inspection.messages, marker)) {
-        session = this.attachSession(handle)
+        session = this.attachSession(handle, request.launchRequestId, request.memberId)
+        session.deliveryTail = this.queueRecovery(session, inspection.messages)
         return this.result(session, turnId(handle, request.launchRequestId))
       }
       if (inspection.exists) {
@@ -540,7 +626,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         )
       }
       const work = textInput(request.initialWork)
-      session = this.attachSession(handle)
+      session = this.attachSession(handle, request.launchRequestId, request.memberId)
       const id = turnId(handle, request.launchRequestId)
       const turn = await this.startTurn(
         session,
@@ -566,6 +652,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     requestSignal: AbortSignal,
   ): Promise<ActiveTurn> {
     const controller = new AbortController()
+    const teamTools = createTeamToolTurn(id, controller.signal, () => session.grant, session.memberBound.promise)
     const accepted = Promise.withResolvers<void>()
     void accepted.promise.catch(() => {})
     let acceptedValue = false
@@ -605,8 +692,11 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     else requestSignal.addEventListener('abort', interrupt, { once: true })
     try {
       query = officialQuery({
-        prompt,
-        options: this.queryOptions(session.handle, mode, controller, capture),
+        // Preserve the existing launch/delivery marker and canonical turn id.
+        // New transcripts can recover follow-up turn identity without reversing
+        // the hashed delivery marker or replacing any historical identity.
+        prompt: `${prompt.slice(0, prompt.indexOf('\n'))}\n[dsh-agent-team:turn:${id}]${prompt.slice(prompt.indexOf('\n'))}`,
+        options: this.queryOptions(session.handle, mode, controller, capture, teamTools),
       })
       if (child === undefined || child.pid <= 0) {
         throw new Error('agent-team-claude-code: SDK did not publish a controllable process')
@@ -615,6 +705,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       removeRequestAbort()
       const failure = this.failure('query-start', error)
       controller.abort(failure)
+      await teamTools.close()
       try {
         await this.disposeStartedProcess(query, child)
       } catch {
@@ -626,9 +717,10 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     const publishedQuery = query
     const publishedChild = child
     const active: ActiveTurn = {
+      teamTools,
       id,
       accepted: accepted.promise,
-      done: Promise.resolve({ outcome: 'failed', timestamp: Date.now() }),
+      done: Promise.resolve({ outcome: 'failed', timestamp: Date.now(), text: '' }),
       interrupt,
     }
     session.current = active
@@ -662,6 +754,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
   ): Promise<TurnTerminal> {
     let outcome: TurnOutcome = 'failed'
     let sawResult = false
+    let finalText = ''
     let failure: unknown
     try {
       for await (const message of query) {
@@ -670,25 +763,36 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
           throw new Error('agent-team-claude-code: SDK returned a different Session')
         }
         if (nativeId !== undefined) markAccepted()
+        if (sawResult) continue
         const terminal = this.recordMessage(session, turn.id, message)
         if (terminal !== undefined) {
           sawResult = true
           outcome = terminal
+          if (message.type === 'result' && message.subtype === 'success') {
+            finalText = message.is_error === false && typeof message.result === 'string' ? message.result : ''
+          }
         }
       }
       if (!accepted()) throw new Error('agent-team-claude-code: SDK ended before accepting work')
       if (!sawResult) outcome = controller.signal.aborted ? 'interrupted' : 'failed'
     } catch (error: unknown) {
       failure = error
-      outcome = controller.signal.aborted ? 'interrupted' : 'failed'
+      if (!sawResult) outcome = controller.signal.aborted ? 'interrupted' : 'failed'
       if (!accepted()) rejectAccepted(this.failure('query-run', error))
     } finally {
       removeRequestAbort()
       try {
+        await turn.teamTools.close()
+      } catch (error: unknown) {
+        failure ??= error
+        if (!sawResult) outcome = 'failed'
+        if (!accepted()) rejectAccepted(this.failure('teardown', error))
+      }
+      try {
         await this.disposeStartedProcess(query, child)
       } catch (error: unknown) {
         failure ??= error
-        outcome = 'failed'
+        if (!sawResult) outcome = 'failed'
         if (!accepted()) rejectAccepted(this.failure('teardown', error))
       }
     }
@@ -702,7 +806,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         outcome: controller.signal.aborted ? 'interrupted' : 'failed',
       })
     }
-    return { outcome, timestamp: Date.now() }
+    return { outcome, timestamp: Date.now(), text: terminalText(outcome, finalText) }
   }
 
   private queryOptions(
@@ -710,6 +814,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     mode: 'new' | 'resume',
     controller: AbortController,
     spawn: (options: SpawnOptions) => ManagedClaudeCodeProcess,
+    teamTools: ReturnType<typeof createTeamToolTurn>,
   ): Options {
     return {
       abortController: controller,
@@ -721,11 +826,11 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       pathToClaudeCodeExecutable: claudeCodePackageBin,
       permissionMode: 'dontAsk',
       tools: [...FIXED_TOOLS],
-      allowedTools: [...FIXED_TOOLS],
+      allowedTools: [...teamToolNames],
       settingSources: [],
       skills: [],
       plugins: [],
-      mcpServers: {},
+      mcpServers: { dsh_team: teamTools.server },
       strictMcpConfig: true,
       sandbox: {
         enabled: true,
@@ -774,9 +879,12 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       })
     }
     if (value.type !== 'result') return undefined
+    if (typeof value.uuid !== 'string' || value.uuid.length === 0 || value.uuid.length > 200) {
+      throw new Error('agent-team-claude-code: SDK result has no stable identity')
+    }
     const usage = claudeUsage(value.usage)
     this.addEvidence(session, {
-      id: evidenceId('usage', session.handle, id, String(session.evidence.length)),
+      id: evidenceId('usage', session.handle, id),
       kind: 'usage',
       timestamp: Date.now(),
       turnId: id,
@@ -789,6 +897,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     session: NativeSession,
     id: ReturnType<typeof TeammateRuntimeTurnId>,
     message: Record<string, unknown>,
+    timestamp = Date.now(),
   ): void {
     const carrier = message.message
     if (carrier === null || typeof carrier !== 'object' || Array.isArray(carrier)) return
@@ -804,7 +913,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       this.addEvidence(session, {
         id: evidenceId('tool', session.handle, id, nativeId),
         kind: 'tool',
-        timestamp: Date.now(),
+        timestamp,
         turnId: id,
         name,
         outcome: 'unknown',
@@ -825,10 +934,316 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       })
       session.presence = 'idle'
       this.emitPresence(session, 'idle')
+      this.queueSettlement(session, turn.id, terminal)
     })
   }
 
+  private queueSettlement(session: NativeSession, id: ReturnType<typeof TeammateRuntimeTurnId>, terminal: TurnTerminal): Promise<void> {
+    const pending = session.pendingTerminals.get(id)
+    if (pending !== undefined && (pending.outcome !== terminal.outcome || pending.text !== terminal.text)) {
+      const conflict = Promise.reject(new TeammateRuntimeError(
+        'Claude Code terminal result conflicts with its pending turn',
+        'TEAM_RUNTIME_IDENTITY_CONFLICT',
+      ))
+      void conflict.catch(() => {
+        this.ctx.logger.warn('agent-team-claude-code: conflicting terminal result was refused')
+      })
+      return conflict
+    }
+    const active = session.settlementOperations.get(id)
+    if (active !== undefined) return active
+    session.pendingTerminals.set(id, pending ?? terminal)
+    const settle = async (): Promise<void> => {
+      const signal = AbortSignal.any([this.lifecycle.signal, session.ownership.signal])
+      const grant = session.grant ?? await raceAbort(session.memberBound.promise, signal)
+      signal.throwIfAborted()
+      const result = await grant.execute({ operation: 'turns.settle', outcome: terminal.outcome, text: terminal.text },
+        signal, { kind: 'settlement', turnId: id })
+      if (!result.ok) throw new TeammateRuntimeError('Claude Code terminal result awaits Team acceptance', 'TEAM_RUNTIME_UNAVAILABLE')
+    }
+    const settlement = settle()
+    session.settlements.add(settlement)
+    session.settlementOperations.set(id, settlement)
+    void settlement.then(
+      () => {
+        const current = session.pendingTerminals.get(id)
+        if (current?.outcome === terminal.outcome && current.text === terminal.text) session.pendingTerminals.delete(id)
+      },
+      () => { this.ctx.logger.warn('agent-team-claude-code: terminal result awaits Team acceptance after resume') },
+    ).finally(() => {
+      session.settlements.delete(settlement)
+      if (session.settlementOperations.get(id) === settlement) session.settlementOperations.delete(id)
+    })
+    return settlement
+  }
+
+  private retryPendingSettlements(session: NativeSession): void {
+    const active = [...session.settlements]
+    const recovery = Promise.allSettled(active).then(async () => {
+      for (const [id, terminal] of [...session.pendingTerminals]) {
+        if (session.disposed) return
+        await this.queueSettlement(session, id, terminal)
+      }
+    })
+    session.recoveries.add(recovery)
+    void recovery.then(
+      () => { session.recoveries.delete(recovery) },
+      () => {
+        session.recoveries.delete(recovery)
+        if (!session.disposed) this.ctx.logger.warn('agent-team-claude-code: pending terminal retry did not complete')
+      },
+    )
+  }
+
+  private queueRecovery(
+    session: NativeSession,
+    messages: readonly SessionMessage[],
+    after: Promise<unknown> = Promise.resolve(),
+  ): Promise<void> {
+    const snapshot = structuredClone(messages)
+    session.recoveryMessages = snapshot
+    session.recoveryIncomplete = true
+    const prior = session.recovery
+    const operation = after.catch(() => undefined)
+      .then(() => prior.catch(() => undefined))
+      .then(async () => {
+        const signal = AbortSignal.any([this.lifecycle.signal, session.ownership.signal])
+        const grant = session.grant ?? await raceAbort(session.memberBound.promise, signal)
+        signal.throwIfAborted()
+        await this.recoverNativeSession(session, snapshot, grant, signal)
+      })
+    session.recovery = operation
+    session.recoveries.add(operation)
+    void operation.then(
+      () => {
+        session.recoveries.delete(operation)
+        if (session.recovery === operation) {
+          session.recoveryIncomplete = false
+          session.recoveryMessages = undefined
+        }
+      },
+      () => {
+        session.recoveries.delete(operation)
+        if (!session.disposed) this.ctx.logger.warn('agent-team-claude-code: native recovery awaits a later provider generation')
+      },
+    )
+    return operation
+  }
+
+  private async readNativeRecovery(grant: NativeMemberGrant, signal: AbortSignal): Promise<NativeMemberRecoveryItem[]> {
+    const items: NativeMemberRecoveryItem[] = []
+    const seen = new Map<string, string>()
+    let offset = 0
+    let limit = 100
+    while (true) {
+      signal.throwIfAborted()
+      const result = await grant.execute({ operation: 'turns.recover', offset, limit }, signal)
+      if (!result.ok) {
+        if (result.error.code === 'TEAM_NATIVE_RESULT_LIMIT' && limit > 1) {
+          limit = Math.max(1, Math.floor(limit / 2))
+          continue
+        }
+        throw new TeammateRuntimeError('Claude Code native recovery facts are unavailable', 'TEAM_RUNTIME_UNAVAILABLE')
+      }
+      if (result.operation !== 'turns.recover') {
+        throw new TeammateRuntimeError('Claude Code native recovery facts conflict', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+      }
+      for (const item of result.value.items) {
+        const key = item.kind === 'launch' ? `launch:${item.launchRequestId}`
+          : item.kind === 'delivery' ? `delivery:${item.deliveryId}` : `settlement:${item.turnId}`
+        const encoded = JSON.stringify(item)
+        const known = seen.get(key)
+        if (known !== undefined) {
+          if (known !== encoded) {
+            throw new TeammateRuntimeError('Claude Code native recovery facts conflict', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+          }
+          continue
+        }
+        seen.set(key, encoded)
+        items.push(structuredClone(item))
+      }
+      const next = result.value.nextOffset
+      if (next === undefined) return items
+      if (!Number.isSafeInteger(next) || next <= offset) {
+        throw new TeammateRuntimeError('Claude Code native recovery cursor did not advance', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+      }
+      offset = next
+    }
+  }
+
+  private recoveryTranscripts(
+    messages: readonly SessionMessage[],
+    workByMarker: ReadonlyMap<string, NativeRecoveryWork>,
+  ): Map<string, NativeRecoveryTranscript> {
+    const accepted = new Map<string, NativeRecoveryTranscript>()
+    let current: NativeRecoveryTranscript | undefined
+    for (const entry of messages) {
+      if (entry.parent_tool_use_id != null || entry.parent_agent_id != null) continue
+      if (entry.type === 'user') {
+        const lines = sessionMessageText(entry).split('\n', 2)
+        const work = workByMarker.get(lines[0] ?? '')
+        if (work === undefined) {
+          if (current !== undefined && isToolResultContinuation(entry)) continue
+          current = undefined
+          continue
+        }
+        const turnMarker = lines[1] ?? ''
+        const stored = /^\[dsh-agent-team:turn:(claude-turn:[0-9a-f]{64})\]$/.exec(turnMarker)?.[1]
+        if ((turnMarker !== '' && stored === undefined)
+          || (stored !== undefined && stored !== work.id)) {
+          throw new TeammateRuntimeError('Claude Code native turn marker conflicts with Team history', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+        }
+        if (accepted.has(work.id)) {
+          throw new TeammateRuntimeError('Claude Code native Session repeats a Team work marker', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+        }
+        current = { work, messages: [] }
+        accepted.set(work.id, current)
+      } else if (entry.type === 'assistant' && current !== undefined) {
+        current.messages.push(entry)
+      }
+    }
+    return accepted
+  }
+
+  private async recoverNativeSession(
+    session: NativeSession,
+    messages: readonly SessionMessage[],
+    grant: NativeMemberGrant,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (grant.identity.provider !== this.id || grant.identity.nativeHandle !== session.handle
+      || grant.identity.memberId !== session.memberId) {
+      throw new TeammateRuntimeError('Claude Code Team grant targets another native Session', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+    }
+    const facts = await this.readNativeRecovery(grant, signal)
+    if (grant.signal.aborted || session.grant !== grant) {
+      throw new TeammateRuntimeError(
+        'Claude Code native recovery authority changed before reconciliation',
+        'TEAM_RUNTIME_UNAVAILABLE',
+      )
+    }
+    const launchFacts = facts.filter((item): item is Extract<NativeMemberRecoveryItem, { kind: 'launch' }> => item.kind === 'launch')
+    if (launchFacts.length !== 1 || launchFacts[0]!.launchRequestId !== session.launchRequestId) {
+      throw new TeammateRuntimeError('Claude Code launch recovery identity conflicts with Team history', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+    }
+    const launchId = turnId(session.handle, session.launchRequestId)
+    if (launchFacts[0]!.turnId !== undefined && launchFacts[0]!.turnId !== launchId) {
+      throw new TeammateRuntimeError('Claude Code launch turn conflicts with Team history', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+    }
+    const workByTurn = new Map<string, NativeRecoveryWork>()
+    const launchWork: NativeRecoveryWork = {
+      kind: 'launch', id: launchId,
+      marker: operationMarker('launch', this.id, session.launchRequestId, session.memberId),
+    }
+    workByTurn.set(launchId, launchWork)
+    for (const item of facts) {
+      if (item.kind !== 'delivery') continue
+      const id = turnId(session.handle, item.deliveryId)
+      workByTurn.set(id, {
+        kind: 'delivery', id, deliveryId: item.deliveryId,
+        marker: operationMarker('delivery', session.handle, item.deliveryId),
+      })
+    }
+    const settlements = new Map<string, Extract<NativeMemberRecoveryItem, { kind: 'settlement' }>>()
+    for (const item of facts) {
+      if (item.kind !== 'settlement') continue
+      if (!workByTurn.has(item.turnId)) {
+        throw new TeammateRuntimeError('Claude Code settlement recovery identity conflicts with Team history', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+      }
+      settlements.set(item.turnId, item)
+    }
+    const workByMarker = new Map([...workByTurn.values()].map(work => [work.marker, work]))
+    const transcripts = this.recoveryTranscripts(messages, workByMarker)
+    if (!transcripts.has(launchId)) {
+      throw new TeammateRuntimeError('Claude Code native Session lost its launch history', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+    }
+    for (const work of workByTurn.values()) {
+      const transcript = transcripts.get(work.id)
+      const committed = settlements.get(work.id)
+      if (transcript === undefined && committed === undefined) continue
+      if (work.deliveryId !== undefined) session.deliveries.set(work.deliveryId, work.id)
+      let timestamp = Date.now()
+      let nativeTerminal: TurnTerminal | undefined
+      let inputTokens = 0
+      let outputTokens = 0
+      let cacheReadTokens = 0
+      let cacheWriteTokens = 0
+      let sawUsage = false
+      let validUsage = true
+      for (const entry of transcript?.messages ?? []) {
+        const raw = entry as unknown as Record<string, unknown>
+        if (entry.message === null || typeof entry.message !== 'object' || Array.isArray(entry.message)) continue
+        const parsedTimestamp = typeof raw.timestamp === 'string' ? Date.parse(raw.timestamp) : Number.NaN
+        const message = entry.message as Record<string, unknown>
+        const assistant = message.role === 'assistant'
+        const normalModel = assistant && typeof message.model === 'string'
+          && message.model.trim().length > 0 && message.model !== '<synthetic>'
+        const recoveredText = sessionMessageText(entry)
+        const terminalOutcome: TurnOutcome | undefined = assistant
+          && message.model === '<synthetic>' && message.stop_reason === 'stop_sequence'
+          ? 'failed'
+          : normalModel && message.stop_reason === 'end_turn' && Array.isArray(message.content)
+            ? 'completed'
+            : undefined
+        if (committed !== undefined && terminalOutcome !== undefined && terminalOutcome !== committed.outcome) break
+        if (Number.isSafeInteger(parsedTimestamp) && parsedTimestamp >= 0) timestamp = parsedTimestamp
+        this.recordAssistantTools(session, work.id, raw, timestamp)
+        const usage = claudeUsage(message.usage)
+        if (message.usage !== undefined) sawUsage = true
+        if (message.usage !== undefined && usage === undefined) validUsage = false
+        if (usage !== undefined && validUsage) {
+          const next: [number, number, number, number] = [
+            inputTokens + usage.inputTokens,
+            outputTokens + usage.outputTokens,
+            cacheReadTokens + (usage.cacheReadTokens ?? 0),
+            cacheWriteTokens + (usage.cacheWriteTokens ?? 0),
+          ]
+          if (next.every(Number.isSafeInteger) && Number.isSafeInteger(next.reduce((sum, value) => sum + value, 0))) {
+            inputTokens = next[0]
+            outputTokens = next[1]
+            cacheReadTokens = next[2]
+            cacheWriteTokens = next[3]
+          } else {
+            validUsage = false
+          }
+        }
+        // Public SDK history omits the outer API-error flag; the locked
+        // payload's synthetic model and stop reason remain a stable failure proof.
+        if (terminalOutcome === 'failed') {
+          nativeTerminal = { outcome: 'failed', timestamp, text: terminalText('failed', '') }
+          break
+        } else if (terminalOutcome === 'completed') {
+          nativeTerminal = { outcome: 'completed', timestamp,
+            text: terminalText('completed', recoveredText) }
+          break
+        }
+      }
+      const terminal: TurnTerminal = committed === undefined
+        ? nativeTerminal ?? { outcome: 'interrupted', timestamp, text: terminalText('interrupted', '') }
+        : { outcome: committed.outcome, timestamp, text: committed.text }
+      await this.queueSettlement(session, work.id, terminal)
+      if (sawUsage) {
+        const usage = validUsage ? Object.freeze({
+          inputTokens, outputTokens,
+          totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens,
+          ...(cacheReadTokens === 0 ? {} : { cacheReadTokens }),
+          ...(cacheWriteTokens === 0 ? {} : { cacheWriteTokens }),
+        }) : undefined
+        this.addEvidence(session, {
+          id: evidenceId('usage', session.handle, work.id),
+          kind: 'usage', timestamp, turnId: work.id,
+          ...(usage === undefined ? {} : { usage }),
+        })
+      }
+      this.addEvidence(session, {
+        id: evidenceId('turn', session.handle, work.id),
+        kind: 'turn', timestamp: terminal.timestamp, turnId: work.id, outcome: terminal.outcome,
+      })
+    }
+  }
+
   private addEvidence(session: NativeSession, item: TeammateRuntimeEvidenceItem): void {
+    if (session.evidence.some(known => known.id === item.id)) return
     session.evidence.push(Object.freeze(item))
     if (session.evidence.length > this.config.maxEvidenceItems) session.evidence.shift()
   }
@@ -854,14 +1269,31 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     return { exists: info !== undefined || messages.length > 0, messages }
   }
 
-  private attachSession(handle: string): NativeSession {
+  private attachSession(handle: string, launchRequestId: string, memberId: string): NativeSession {
     const attached = this.sessions.get(handle)
-    if (attached !== undefined && !attached.disposed) return attached
+    if (attached !== undefined && !attached.disposed) {
+      if (attached.launchRequestId !== launchRequestId || attached.memberId !== memberId) {
+        throw new TeammateRuntimeError('Claude Code native Session is attached to another member', 'TEAM_RUNTIME_IDENTITY_CONFLICT')
+      }
+      return attached
+    }
     const session: NativeSession = {
+      grant: undefined,
+      memberBound: Promise.withResolvers<NativeMemberGrant>(),
+      ownership: new AbortController(),
+      recoveries: new Set(),
+      settlements: new Set(),
+      pendingTerminals: new Map(),
+      settlementOperations: new Map(),
       handle: TeammateRuntimeHandle(handle),
+      launchRequestId,
+      memberId,
       evidence: [],
       deliveries: new Map(),
       deliveryOperations: new Map(),
+      recoveryMessages: undefined,
+      recoveryIncomplete: false,
+      recovery: Promise.resolve(),
       deliveryTail: Promise.resolve(),
       presence: 'idle',
       current: undefined,
@@ -927,10 +1359,13 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       return
     }
     session.disposed = true
+    session.ownership.abort()
     session.current?.interrupt()
     const disposal = Promise.allSettled([
       session.current?.done ?? Promise.resolve(),
+      ...session.recoveries,
       session.deliveryTail,
+      ...session.settlements,
     ]).then(() => {
       this.removeSession(session)
       this.emitPresence(session, 'inactive')
@@ -945,6 +1380,10 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     session.evidence.splice(0)
     session.deliveries.clear()
     session.deliveryOperations.clear()
+    session.recoveryMessages = undefined
+    session.recoveryIncomplete = false
+    session.pendingTerminals.clear()
+    session.settlementOperations.clear()
   }
 
   private async disposeStartedProcess(

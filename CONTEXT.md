@@ -85,7 +85,7 @@ The Ultra-owned `@benz-ai-x/dsh-agent-team-codex` durable external provider back
 _Avoid_: Codex CLI invocation, one-shot Codex task
 
 **Claude Code Runtime Backend**:
-The Ultra-owned `@benz-ai-x/dsh-agent-team-claude-code` durable external provider backed only by the audited package-local Claude Agent SDK/native payload, with one deterministic native Session per teammate and exact transcript-verified resume. Its package name is separate from its stable `claude-code` provider route and Native Runtime Handle.
+The Ultra-owned `@benz-ai-x/dsh-agent-team-claude-code` durable external provider backed only by the audited package-local Claude Agent SDK/native payload, with one deterministic native Session per teammate, four grant-backed Team read/message tools, and Host-fact/transcript reconciliation before resumed evidence or delivery. Its package name is separate from its stable `claude-code` provider route and Native Runtime Handle.
 _Avoid_: Claude Code CLI invocation, one-shot Claude subagent
 
 **Native Runtime Handle**:
@@ -97,7 +97,7 @@ The nonserializable authority object issued by the Team owner after accepting or
 _Avoid_: Lead impersonation, serialized credential, model-selected Agent
 
 **Native Member Operation**:
-A bounded operation on canonical Team state under a Native Member Grant: reads and waits observe state, while accepted messages and task changes retain a durable receipt. The Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
+A bounded operation on canonical Team state under a Native Member Grant: reads and waits observe state, while accepted messages and task changes retain a durable receipt. A Host-only recovery read returns the exact member's launch, inbound-delivery, and committed-settlement correlations without becoming a model tool. The Runtime Backend catalog describes operations installed for new native sessions, while resumed threads retain their existing native tools.
 _Avoid_: Arbitrary Host RPC, native shell tool, complete collaboration capability
 
 **Native Operation Receipt**:
