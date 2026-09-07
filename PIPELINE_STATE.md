@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T03:15:47+08:00（Asia/Shanghai）
+最后更新：2026-09-08T03:17:42+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -364,6 +364,7 @@
 - 2026-09-08T03:04:43+08:00：Batch 3A开工对账完成。`git fetch origin --prune`成功，`origin/main` 与本地`main`均为`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`；PR #60仍是唯一open PR，#37仍OPEN且`updatedAt=2026-09-05T03:35:23Z`，6项AC均未勾，#30/#31/#32再次实测均CLOSED。为在保留blocked Batch 2分支的同时遵守“从最新main建分支”，用独立临时index以`origin/main`为直接父提交创建了仅同步`PIPELINE_STATE.md`的`092ed0f`，随后从该提交创建`feat/batch-3-studio-recovery`；产品基线仍精确为最新main，未携带Batch 2产品diff。Batch 2 Ultra/Harness分支均保留未动。
 - 2026-09-08T03:07:10+08:00：Batch 3A分支首次`pnpm context:check:strict`完整执行后仅2项失败/0 warning：当前`.dsh/harness`仍指向为Batch 2保留的Harness工作树HEAD `503ad563…`，而最新main锁精确要求`d2d870fbe40bc0e968abdac854a3aae495162bec`及对应docs digest；其余580项检查通过。这是被保留熔断分支与新Batch源选择的预期隔离问题，不是Batch 3A产品测试或local-gate红轮。不切换/重置被保留的Harness工作树；为#37从锁定`d2d870f…`建立独立Harness worktree，再用官方`prepare:harness`+`pnpm install`恢复strict绿灯。
 - 2026-09-08T03:15:47+08:00：已从锁定提交`d2d870fbe40bc0e968abdac854a3aae495162bec`建立独立Harness工作树`/root/workspace/deepseek-harness-ultra-37`与分支`fix/ultra-37-studio-capabilities`，没有切换、重置或修改Batch 2保留工作树`/root/workspace/deepseek-harness-ultra-29`（仍为`503ad563ff226c2afc77608c432af3a80aae3279`）。`DSH_HARNESS_ROOT=/root/workspace/deepseek-harness-ultra-37 pnpm prepare:harness`及Ultra `pnpm install`均自然退出0；首次post-prepare strict的114项失败全部是全新Harness工作树尚无built main/types entry，属正式开发前来源构建准备态，不是产品测试或local-gate红轮。随后在该Harness工作树运行`pnpm install && pnpm run build:lib`自然退出0，再次运行Ultra `pnpm context:check:strict`通过582 checks / 0 warnings；两份Harness工作树均clean，Ultra仅有本状态文件变更。
+- 2026-09-08T03:17:42+08:00：Batch 3A developing状态提交`a60b902a2d280ab0e47a72fd6f62c4a10420c142`（`chore: start Batch 3A`）已通过HTTPS推送到`feat/batch-3-studio-recovery`，显式HTTPS `ls-remote`回读精确匹配。随后再次实时读取#37：仍OPEN、`updatedAt=2026-09-05T03:35:23Z`且6项AC均未勾；依赖#30/#31/#32仍全部CLOSED；PR #60仍为唯一open PR。可以把这一固定输入交给全新隔离开发上下文。
 
 ## AC 进度
 
@@ -427,6 +428,5 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 提交并HTTPS推送Batch 3A developing状态，显式`ls-remote`对账远端分支。
-2. 启动一个全新隔离开发上下文，输入仅为用户主流程、Batch 3A条目和#37实时全文；该上下文必须完整读`tdd`与`dsh-plugin-dev`并按RED→GREEN推进，#37至少一个独立提交。
-3. 开发完成后按主循环创建PR、跑隔离`/code-review`与完整闸门；#37终态后先统一重试PR #60，不直接开工#38。
+1. 启动一个全新隔离开发上下文，输入仅为用户主流程、Batch 3A条目和#37实时全文；该上下文必须完整读`tdd`与`dsh-plugin-dev`并按RED→GREEN推进，#37至少一个独立提交。
+2. 开发完成后按主循环创建PR、跑隔离`/code-review`与完整闸门；#37终态后先统一重试PR #60，不直接开工#38。
