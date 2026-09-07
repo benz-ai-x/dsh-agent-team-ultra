@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T02:49:32+08:00（Asia/Shanghai）
+最后更新：2026-09-08T02:58:30+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -28,14 +28,14 @@
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
-| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
-| #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
-| #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
-| #40 | 把双 native 与协作面板迁移到新 Harness 契约 | Codex/Claude/UI migration | L | #39 | planned（Batch 4） |
-| #41 | 迁移完整 Session、Team 与 Ultra 数据并可中断恢复 | migration/schema/codec/storage | L | #40 | planned（Batch 4） |
-| #42 | 按 v2 Session 事实修正 Run 用量与完整性 | Session v2/Run evidence | L | #39 | planned（Batch 4） |
-| #43 | 锁定新 fork 并完成真实归档升级与卸载 | lock/package/upgrade/removal | L | #41、#42 | planned（Batch 4） |
-| #44 | 用真实 Codex 与 Claude Code 完成产品验收 | credentialed product acceptance | L | #43 | planned（Batch 5） |
+| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3A，当前唯一可执行项） |
+| #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | dependency-paused：等Batch 2统一重试解锁#36（Batch 3B） |
+| #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | dependency-paused：等#38（Batch 4） |
+| #40 | 把双 native 与协作面板迁移到新 Harness 契约 | Codex/Claude/UI migration | L | #39 | dependency-paused：等#39（Batch 4） |
+| #41 | 迁移完整 Session、Team 与 Ultra 数据并可中断恢复 | migration/schema/codec/storage | L | #40 | dependency-paused：等#40（Batch 4） |
+| #42 | 按 v2 Session 事实修正 Run 用量与完整性 | Session v2/Run evidence | L | #39 | dependency-paused：等#39（Batch 4） |
+| #43 | 锁定新 fork 并完成真实归档升级与卸载 | lock/package/upgrade/removal | L | #41、#42 | dependency-paused：等#41/#42（Batch 4） |
+| #44 | 用真实 Codex 与 Claude Code 完成产品验收 | credentialed product acceptance | L | #43 | dependency-paused：等#43（Batch 5） |
 
 所有 issue 启动时均带 `ready-for-agent`，无人指派，无评论。#33–#44 的 AC 与依赖已逐项通过 `gh issue view` 实时读取；后续每批开工和勾选 AC 前必须重读对应正文。
 
@@ -45,7 +45,8 @@
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | planned | 0 | 0 | 未创建 |
+| Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
 
@@ -405,7 +406,8 @@
 - 2026-09-07：Batch 3 仅含两个 L issue；若并入 Batch 2 会形成五个跨 Studio/Team/provider 的 L issue，超过一次 review 可消化上限，故记录为体量例外。
 - 2026-09-07：#18 记 skipped，不关闭、不修改；这是 #44 的显式 AC，不是遗漏。
 - 2026-09-07T13:43:19+08:00：Batch 1 实际新增 public `agentTeams/sendMessage` Remote 与 required persistent event/projection schema，命中“公开接口或 schema 的首个基建 PR”人工合并清单；PR #59 标记“需人工合并”。先完成隔离 review 与本地闸门，再飞书【需决策】通知并等待确认，不自动合并。
-- 2026-09-08T02:49:32+08:00：Batch 2 review 连续失败3轮，PR #60 正式熔断为blocked；分支保留，不执行第4轮修复/评审，等全部可执行PR结束后按用户规则统一重试一轮。熔断原因为2项high，其余4项medium记为follow-up并纳入后续统一重试。local-gate历史红1、当前连续红0。飞书【需决策】待发送，发送失败也不阻塞依赖审计。
+- 2026-09-08T02:49:32+08:00：Batch 2 review 连续失败3轮，PR #60 正式熔断为blocked；分支保留，不执行第4轮修复/评审，等全部可执行PR结束后按用户规则统一重试一轮。熔断原因为2项high，其余4项medium记为follow-up并纳入后续统一重试。local-gate历史红1、当前连续红0。GitHub实时body已仅撤回#34.1/#34.3、#35.2/#35.3、#36.1/#36.4六个marker，三项均OPEN 3/5，其余字节不变；PR #60回读为OPEN/clean/head `fc870ed…`、3个`Refs`/0个`Closes`。飞书【需决策】已用bot发送成功，message=`om_x100b66c4dcb3cca0c43fca95364b4ea`，无待补发。
+- 2026-09-08T02:58:30+08:00：实时读取#37–#44最新OPEN正文并复核依赖：#37仅blocked by #30/#31/#32，三者实测均CLOSED，因此Batch 2熔断并未阻塞全部剩余工作，不触发整体停机。#38硬依赖#36/#37，#39→#38，#40→#39，#41→#40，#42→#39，#43→#41/#42，#44→#43；故把冻结Batch 3记录拆为当前可执行Batch 3A #37和依赖暂停Batch 3B #38。这是PR熔断造成的真实依赖变化，不重新规划已完成部分；#37终态后即进入用户规定的Batch 2统一重试，再决定#38–#44。
 
 ## 待下轮清单
 
@@ -413,6 +415,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 以GitHub最新body对#34/#35/#36执行checkbox-only撤回：#34.1/#34.3、#35.2/#35.3、#36.1/#36.4；PR #60正文改为3个`Refs`，保持OPEN，写明review-3熔断与保留分支。
-2. 通过`lark-im`向冻结群聊发送飞书【需决策】：PR #60已熔断、2 high + 4 medium、未合并、分支保留；请求决定后续重试方向。记录回执或待补发。
-3. 实时读取#37–#44依赖，判定PR #60是否阻塞全部剩余工作；若#37独立可执行，记录冻结规划调整理由后只推进#37，否则按“被熔断PR阻塞全部剩余工作”整体停机并通知。
+1. 在blocked Batch 2分支提交并HTTPS推送本次GitHub/飞书/依赖审计状态，该Ultra/Harness分支随后保留不动。
+2. Batch 3A #37开工对账：`git fetch origin`，重读#37全文/6项AC并确认#30–#32仍closed，从最新`origin/main`创建`feat/batch-3-studio-recovery`并置developing。
+3. 用全新隔离开发上下文对#37跑`/tdd`，按原主循环完成提交、评审、闸门和合并；#37终态后不直接开工#38，先对blocked PR #60执行全部可执行PR结束后的唯一统一重试。
