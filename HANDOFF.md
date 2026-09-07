@@ -284,7 +284,7 @@
 ## 下一步
 
 1. 从 [pipeline state](PIPELINE_STATE.md) 回读 #34–#36 的 Harness/Ultra commits、GitHub checkbox与PR head/body实测；两仓分支均应已push且与`ls-remote`精确一致，不要merge PR #60。
-2. 以完成后的 Ultra/Harness exact heads开启隔离 code-review round 2，只复核固定 review 1 findings A–H 与 #34/#35/#36 AC；blocking/high 为零后才能进入人工合并判断。
+2. 开启隔离 code-review round 2：Ultra 固定 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..60b44de5fd0eeffa3d7566c0441a75393aba2f9f`，Harness 固定 `d2d870fbe40bc0e968abdac854a3aae495162bec..41291bc9779ba954b774880c634fe90c9945b966`；只复核 review 1 findings A–H 与 #34/#35/#36 AC，blocking/high 为零后才能进入人工合并判断。
 3. #37+ 与 #44 真实凭据不纳入本 Batch；不得在本分支提前实现 Studio capability truth、cold provider generation replacement或v2迁移。
 
 ## 权威材料与技能

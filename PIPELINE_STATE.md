@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T00:10:27+08:00（Asia/Shanghai）
+最后更新：2026-09-08T00:13:03+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（review 1 修复） | 1 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review（review 2 待执行） | 1 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -338,6 +338,7 @@
 - 2026-09-08T00:01:25+08:00：review-fix 完整 `pnpm verify` 首次即自然退出0：582 strict checks / 0 warnings；Host/Client、Typert与compatibility正式构建；30 files / 356 tests 全绿；8 archives 安装、production Team list/DAG/dependency CAS/message page/watch、真实Web、Codex/Claude JSON+SQLite cold recovery、registration release与完整uninstall全绿。本次没有新增 local-gate 红轮，连续红保持0；历史红灯次数保持表中1。下一步同次最新读取 #34/#35/#36 GitHub 正文，以 checkbox-only patch 勾选已满足 AC 并证明其余字节不变，然后收口PR正文与review 2交接。
 - 2026-09-08T00:06:05+08:00：AC 勾选前在同一脚本/同一次操作内通过 GitHub API 实时重读 #34/#35/#36 最新 OPEN 正文，仅将 #34.3、#35.1/#35.3、#36.1–#36.4 的精确 marker 从`[ ]`改为`[x]`。PATCH后立即再读均为5 checked / 0 unchecked，且将目标marker归一为`[ ]`后与各自PATCH前正文逐字节相等；其余字节 SHA-256分别为 #34 `8f9317b158ca9e2b4a3170cbfc7cf91262cbe3bececa24358b9d6c5e25942461`、#35 `f85bb3d47863841ef79e095d93691817d3c1563ad96931d82b00b9c15535b2f8`、#36 `9a4bb6a9724a3f4fc2967d71d3bd4947d960df39dd1754b468deff624f2e7a8d`。下一步把 PR #60 三个`Refs`恢复为`Closes`，写入review-fix摘要与新增验证。
 - 2026-09-08T00:10:27+08:00：Ultra 验收/契约/交接文档已更新至 Harness `41291bc9…`、docs digest `358deaf0…`、owning 22/22 与full 356 tests；只读 changed-Markdown checker 验证10文件/100个本地target全存在，`git diff --check`退出0。PR #60 操作前实时回读仍为OPEN/head `2e3638c…`；正文已精确更新为3个`Closes`、0个`Refs`，记录review fixes A–H、Harness/Ultra提交、snapshot/catalog/owning/full gates及历史red=1/连续red=0，PATCH后再读逐字节一致。下一步最终diff/状态审计后提交这些文档，HTTPS push Ultra 并以`ls-remote`精确核对，然后将Batch 2转为in-review并固定review 2范围。
+- 2026-09-08T00:13:03+08:00：Ultra 验收/状态文档门复跑通过：10 changed Markdown files / 100 local targets，`git diff --check` green；形成`60b44de5fd0eeffa3d7566c0441a75393aba2f9f`（`docs: record Batch 2 review fixes (#34 #35 #36)`）。随后HTTPS push Ultra从`2e3638c…` fast-forward至`60b44de…`，`ls-remote` 与本地精确一致。Batch 2现转为`in-review`，review轮数仍为1，local-gate历史红仍为1/连续红0。下一步固定为隔离review 2：Ultra仅审`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..60b44de5fd0eeffa3d7566c0441a75393aba2f9f`，Harness仅审`d2d870fbe40bc0e968abdac854a3aae495162bec..41291bc9779ba954b774880c634fe90c9945b966`，对照#34/#35/#36实时AC与review 1 findings A–H；本状态提交只记录交接，不扩大review diff。
 
 ## AC 进度
 
