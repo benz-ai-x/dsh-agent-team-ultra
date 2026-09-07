@@ -190,6 +190,13 @@ export function TeamMessageCenter({
   const watchGeneration = useRef(0)
   const teamGeneration = useRef(0)
   const listGeneration = useRef(0)
+  const pageReplacementRef = useRef<Promise<void> | null>(null)
+  const queuedPageReplacementRef = useRef<Readonly<{
+    requestedSession: SessionId
+    filters: TeamMessageFilters | undefined
+  }> | null>(null)
+  const rosterReloadRef = useRef<Promise<void> | null>(null)
+  const queuedRosterReloadRef = useRef<SessionId | null>(null)
   const detailGeneration = useRef(0)
   const submissionGeneration = useRef(0)
   const submitting = useRef(false)
@@ -207,7 +214,7 @@ export function TeamMessageCenter({
     setDetailError(null)
   }, [])
 
-  const loadPage = useCallback(async (
+  const loadPageOnce = useCallback(async (
     requestedSession: SessionId,
     filters: TeamMessageFilters | undefined,
     mode: 'replace' | 'append',
@@ -237,7 +244,38 @@ export function TeamMessageCenter({
     })
   }, [listMessages, t])
 
-  const loadRoster = useCallback(async (requestedSession: SessionId): Promise<void> => {
+  const loadPage = useCallback((
+    requestedSession: SessionId,
+    filters: TeamMessageFilters | undefined,
+    mode: 'replace' | 'append',
+    cursor?: TeamMessageCursor,
+  ): Promise<void> => {
+    if (mode === 'append') {
+      if (pageReplacementRef.current !== null) return Promise.resolve()
+      return loadPageOnce(requestedSession, filters, mode, cursor)
+    }
+    const start = (session: SessionId, nextFilters: TeamMessageFilters | undefined): Promise<void> => {
+      const request = loadPageOnce(session, nextFilters, 'replace')
+      pageReplacementRef.current = request
+      const complete = (): void => {
+        if (pageReplacementRef.current !== request) return
+        pageReplacementRef.current = null
+        const queued = queuedPageReplacementRef.current
+        queuedPageReplacementRef.current = null
+        if (queued !== null) void start(queued.requestedSession, queued.filters)
+      }
+      void request.then(complete, complete)
+      return request
+    }
+    if (pageReplacementRef.current !== null) {
+      listGeneration.current += 1
+      queuedPageReplacementRef.current = { requestedSession, filters }
+      return Promise.resolve()
+    }
+    return start(requestedSession, filters)
+  }, [loadPageOnce])
+
+  const loadRosterOnce = useCallback(async (requestedSession: SessionId): Promise<void> => {
     const generation = ++teamGeneration.current
     const result = await loadTeam(requestedSession)
     if (sessionRef.current !== requestedSession || teamGeneration.current !== generation) return
@@ -249,6 +287,27 @@ export function TeamMessageCenter({
       setRosterError(failureText(t('messageLoadError'), result.error))
     }
   }, [loadTeam, t])
+
+  const loadRoster = useCallback((requestedSession: SessionId): Promise<void> => {
+    const start = (session: SessionId): Promise<void> => {
+      const request = loadRosterOnce(session)
+      rosterReloadRef.current = request
+      const complete = (): void => {
+        if (rosterReloadRef.current !== request) return
+        rosterReloadRef.current = null
+        const queued = queuedRosterReloadRef.current
+        queuedRosterReloadRef.current = null
+        if (queued !== null) void start(queued)
+      }
+      void request.then(complete, complete)
+      return request
+    }
+    if (rosterReloadRef.current !== null) {
+      queuedRosterReloadRef.current = requestedSession
+      return Promise.resolve()
+    }
+    return start(requestedSession)
+  }, [loadRosterOnce])
 
   useEffect(() => {
     const requestedSession = teamSessionId
@@ -295,6 +354,12 @@ export function TeamMessageCenter({
     void loadPage(requestedSession, appliedFiltersRef.current, 'replace')
     void loadRoster(requestedSession)
     return () => {
+      listGeneration.current += 1
+      pageReplacementRef.current = null
+      queuedPageReplacementRef.current = null
+      teamGeneration.current += 1
+      rosterReloadRef.current = null
+      queuedRosterReloadRef.current = null
       submissionGeneration.current += 1
       interruptedSubmission.current = submitting.current
       submitting.current = false
@@ -672,7 +737,7 @@ export function TeamMessageCenter({
               <button
                 type="button"
                 className={css.loadMore}
-                disabled={loadingMore}
+                disabled={loading || loadingMore}
                 onClick={() => { void loadPage(teamSessionId, appliedFilters, 'append', page.nextCursor) }}
               >
                 {loadingMore ? t('loadingOlderMessages') : t('loadOlderMessages')}

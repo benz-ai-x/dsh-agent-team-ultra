@@ -136,10 +136,10 @@ describe('TeamMessageCenter', () => {
     await waitFor(() => { expect(watch).toHaveBeenCalledWith(LEAD, expect.any(Object)) })
     expect(start).toHaveBeenCalledOnce()
     act(() => { sink?.replace(team) })
-    expect(await screen.findByText('baseline sender → worker')).toBeTruthy()
-
+    expect(listMessages).toHaveBeenCalledOnce()
     opening.resolve({ ok: true, value: page })
-    await Promise.resolve()
+    expect(await screen.findByText('baseline sender → worker')).toBeTruthy()
+    expect(listMessages).toHaveBeenCalledTimes(2)
     expect(screen.queryByText('lead → worker')).toBeNull()
     act(() => { sink?.invalidated() })
     expect(await screen.findByText('live sender → worker')).toBeTruthy()
@@ -226,6 +226,154 @@ describe('TeamMessageCenter', () => {
     expect(sendMessage).not.toHaveBeenCalled()
   })
 
+  it('rejects an old committed cursor append while a live replacement is in flight', async () => {
+    type WatchSink = Parameters<TeamMessageCenterInjected['watch']>[1]
+    const replacement = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>>()
+    const oldAppend = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>>()
+    const livePage: TeamMessagePage = {
+      ...page,
+      items: [{
+        ...page.items[0]!,
+        id: 'replacement-head' as TeamMessageId,
+        sender: { id: WORKER, name: 'replacement head' },
+      }],
+      committedCursor: 'replacement-window' as TeamMessageCursor,
+      nextCursor: undefined,
+    }
+    const listMessages = vi.fn()
+      .mockImplementationOnce(() => ok(page))
+      .mockImplementationOnce(() => replacement.promise)
+      .mockImplementationOnce(() => oldAppend.promise)
+    let sink: WatchSink | undefined
+    render(<TeamMessageCenter {...props(actions({
+      listMessages,
+      watch: (_sessionId, nextSink) => {
+        sink = nextSink
+        return { start() {}, dispose: () => Promise.resolve() }
+      },
+    }))} />)
+    await screen.findByText('lead → worker')
+
+    act(() => { sink?.invalidated() })
+    await waitFor(() => { expect(listMessages).toHaveBeenCalledTimes(2) })
+    fireEvent.click(screen.getByRole('button', { name: 'Load older messages' }))
+    expect(listMessages).toHaveBeenCalledTimes(2)
+
+    replacement.resolve({ ok: true, value: livePage })
+    expect(await screen.findByText('replacement head → worker')).toBeTruthy()
+    expect(screen.queryByText('lead → worker')).toBeNull()
+  })
+
+  it('does not publish an older filter generation before its queued replacement', async () => {
+    type WatchSink = Parameters<TeamMessageCenterInjected['watch']>[1]
+    type PageResult = Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>
+    const oldReplacement = Promise.withResolvers<PageResult>()
+    const filteredReplacement = Promise.withResolvers<PageResult>()
+    const oldPage: TeamMessagePage = {
+      ...page,
+      items: [{
+        ...page.items[0]!,
+        id: 'old-filter-generation' as TeamMessageId,
+        sender: { id: LEAD, name: 'old filter generation' },
+      }],
+    }
+    const filteredPage: TeamMessagePage = {
+      ...page,
+      items: [{
+        ...page.items[0]!,
+        id: 'current-filter-generation' as TeamMessageId,
+        sender: { id: WORKER, name: 'current filter generation' },
+      }],
+    }
+    const listMessages = vi.fn()
+      .mockImplementationOnce(() => ok(page))
+      .mockImplementationOnce(() => oldReplacement.promise)
+      .mockImplementationOnce(() => filteredReplacement.promise)
+    let sink: WatchSink | undefined
+    render(<TeamMessageCenter {...props(actions({
+      listMessages,
+      watch: (_sessionId, nextSink) => {
+        sink = nextSink
+        return { start() {}, dispose: () => Promise.resolve() }
+      },
+    }))} />)
+    await screen.findByText('lead → worker')
+
+    act(() => { sink?.invalidated() })
+    await waitFor(() => { expect(listMessages).toHaveBeenCalledTimes(2) })
+    fireEvent.change(screen.getByLabelText('Delivery'), { target: { value: 'delivered' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+
+    oldReplacement.resolve({ ok: true, value: oldPage })
+    await waitFor(() => { expect(listMessages).toHaveBeenCalledTimes(3) })
+    expect(screen.queryByText('old filter generation → worker')).toBeNull()
+
+    filteredReplacement.resolve({ ok: true, value: filteredPage })
+    expect(await screen.findByText('current filter generation → worker')).toBeTruthy()
+    expect(listMessages).toHaveBeenLastCalledWith(LEAD, {
+      limit: 20,
+      filters: { delivery: 'delivered' },
+    })
+  })
+
+  it('coalesces message and roster invalidation bursts into one trailing authority reload each', async () => {
+    type WatchSink = Parameters<TeamMessageCenterInjected['watch']>[1]
+    type PageResult = Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>
+    type TeamResult = Awaited<ReturnType<TeamMessageCenterInjected['loadTeam']>>
+    const firstPage = Promise.withResolvers<PageResult>()
+    const trailingPage = Promise.withResolvers<PageResult>()
+    const firstTeam = Promise.withResolvers<TeamResult>()
+    const trailingTeam = Promise.withResolvers<TeamResult>()
+    const listMessages = vi.fn()
+      .mockImplementationOnce(() => ok(page))
+      .mockImplementationOnce(() => firstPage.promise)
+      .mockImplementationOnce(() => trailingPage.promise)
+      .mockImplementation(() => new Promise<PageResult>(() => {}))
+    const loadTeam = vi.fn()
+      .mockImplementationOnce(() => ok(team))
+      .mockImplementationOnce(() => firstTeam.promise)
+      .mockImplementationOnce(() => trailingTeam.promise)
+      .mockImplementation(() => new Promise<TeamResult>(() => {}))
+    let sink: WatchSink | undefined
+    render(<TeamMessageCenter {...props(actions({
+      listMessages,
+      loadTeam,
+      watch: (_sessionId, nextSink) => {
+        sink = nextSink
+        return { start() {}, dispose: () => Promise.resolve() }
+      },
+    }))} />)
+    await screen.findByText('lead → worker')
+
+    act(() => {
+      sink?.invalidated()
+      sink?.invalidated()
+      sink?.invalidated()
+      sink?.invalidated()
+    })
+    expect(listMessages).toHaveBeenCalledTimes(2)
+    expect(loadTeam).toHaveBeenCalledTimes(2)
+
+    firstPage.resolve({ ok: true, value: page })
+    firstTeam.resolve({ ok: true, value: team })
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenCalledTimes(3)
+      expect(loadTeam).toHaveBeenCalledTimes(3)
+    })
+    trailingPage.resolve({ ok: true, value: {
+      ...page,
+      items: [{
+        ...page.items[0]!,
+        id: 'trailing-message' as TeamMessageId,
+        sender: { id: WORKER, name: 'trailing sender' },
+      }],
+    } })
+    trailingTeam.resolve({ ok: true, value: team })
+    expect(await screen.findByText('trailing sender → worker')).toBeTruthy()
+    expect(listMessages).toHaveBeenCalledTimes(3)
+    expect(loadTeam).toHaveBeenCalledTimes(3)
+  })
+
   it('retains stale messages and disposes replaced or unmounted watch generations', async () => {
     type WatchSink = Parameters<TeamMessageCenterInjected['watch']>[1]
     let firstSink: WatchSink | undefined
@@ -301,7 +449,7 @@ describe('TeamMessageCenter', () => {
       sink?.replace(team)
       sink?.stale()
     })
-    expect(screen.getByText('连接已断开，正在显示可能过期的 Team 消息。')).toBeTruthy()
+    expect(screen.getByText('连接已断开，正在显示可能陈旧的 Team 消息。')).toBeTruthy()
     act(() => { sink?.failed(new Error('不可用')) })
     expect(screen.getByText('Team 消息实时更新不可用；已保留最后一次权威消息页。')).toBeTruthy()
 

@@ -571,7 +571,7 @@ export const zh = {
   messageAcceptedDelivered: '已接受并完成投递。',
   messageAcceptedUnknown: '已接受；投递状态未知。',
   loadingMessages: '正在加载持久消息…',
-  messageStreamStale: '连接已断开，正在显示可能过期的 Team 消息。',
+  messageStreamStale: '连接已断开，正在显示可能陈旧的 Team 消息。',
   messageStreamDisconnected: 'Team 消息实时连接已断开，正在等待重连。',
   messageStreamUnavailable: 'Team 消息实时更新不可用；已保留最后一次权威消息页。',
   messageLoadError: '无法加载持久消息',
