@@ -1,0 +1,562 @@
+#!/usr/bin/env node
+
+import { createServer } from 'node:http'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { JSDOM } from 'jsdom'
+import React, { createElement, useSyncExternalStore } from 'react'
+import { createRoot } from 'react-dom/client'
+import { act } from 'react-dom/test-utils'
+
+const [ultraClientFile, teamClientFile, teamPackageRoot, rawHarnessRoot] = process.argv.slice(2)
+if ([ultraClientFile, teamClientFile, teamPackageRoot, rawHarnessRoot].some(value => value === undefined)) {
+  throw new Error('usage: probe-packed-message-center <ultra-client.js> <team-client.js> <team-package-root> <harness-root>')
+}
+
+const harnessRoot = resolve(rawHarnessRoot)
+const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-packed-message-center-'))
+const leadId = 'packed-message-lead'
+const members = {
+  dsh: { id: 'packed-dsh-worker', name: 'dsh-worker', provider: 'spawn' },
+  codex: { id: 'packed-codex-worker', name: 'codex-worker', provider: 'codex' },
+  claude: { id: 'packed-claude-worker', name: 'claude-worker', provider: 'claude-code' },
+}
+const codexMessageId = 'message-codex'
+
+const fileUrl = path => pathToFileURL(resolve(path)).href
+const harnessUrl = path => fileUrl(join(harnessRoot, path))
+const teamUrl = path => fileUrl(join(resolve(teamPackageRoot), path))
+const cordis = await import(harnessUrl('vendor/cordis/lib/index.js'))
+const clientStore = await import(harnessUrl('packages/client/store/lib/index.js'))
+const harnessRequire = createRequire(join(harnessRoot, 'package.json'))
+const WebSocketBase = harnessRequire('ws')
+let websocketCookie = ''
+
+class AuthenticatedWebSocket extends WebSocketBase {
+  constructor(url, protocols) {
+    super(url, protocols ?? [], { headers: { cookie: websocketCookie } })
+  }
+}
+
+const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+  pretendToBeVisual: true,
+  url: 'http://127.0.0.1/',
+})
+Object.assign(globalThis, {
+  window: dom.window,
+  document: dom.window.document,
+  location: dom.window.location,
+  HTMLElement: dom.window.HTMLElement,
+  Event: dom.window.Event,
+  MouseEvent: dom.window.MouseEvent,
+  IS_REACT_ACT_ENVIRONMENT: true,
+})
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: dom.window.navigator,
+})
+globalThis.WebSocket = AuthenticatedWebSocket
+window.WebSocket = AuthenticatedWebSocket
+globalThis.requestAnimationFrame = callback => dom.window.requestAnimationFrame(callback)
+globalThis.cancelAnimationFrame = handle => dom.window.cancelAnimationFrame(handle)
+
+const nativeFetch = globalThis.fetch
+const handoffs = new Map()
+window.__ModuleLoader__ = {
+  load(handoff) {
+    handoffs.set(handoff.id, handoff)
+  },
+}
+
+function loadClientBundle(path) {
+  const code = readFileSync(resolve(path), 'utf8')
+  new Function(code)()
+}
+
+for (const path of [
+  join(harnessRoot, 'packages/typert/registry/lib/client.js'),
+  join(harnessRoot, 'packages/client/connection/lib/client.js'),
+  join(harnessRoot, 'packages/api/gateway/lib/client.js'),
+  join(harnessRoot, 'packages/api/remotes/lib/client.js'),
+  join(harnessRoot, 'packages/client/ui-renderer/lib/client.js'),
+  join(harnessRoot, 'packages/client/locale/lib/client.js'),
+  resolve(teamClientFile),
+  resolve(ultraClientFile),
+]) loadClientBundle(path)
+
+const uiSlots = await import(harnessUrl('packages/client/ui-slots/lib/index.js'))
+const ReactDom = await import('react-dom')
+const ReactDomClient = await import('react-dom/client')
+const jsxRuntime = await import('react/jsx-runtime')
+const Primitive = props => createElement('span', props)
+const primitives = new Proxy({}, { get: () => Primitive })
+
+function instantiate(id, extra = {}) {
+  const handoff = handoffs.get(id)
+  if (handoff === undefined) throw new Error(`missing Client bundle handoff ${id}`)
+  const modules = {
+    '@deepseek-ai/cordis': cordis,
+    '@deepseek-ai/dsh-client-ui-primitives': primitives,
+    '@deepseek-ai/dsh-client-ui-slots': uiSlots,
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+    'react-dom': ReactDom,
+    'react-dom/client': ReactDomClient,
+    ...extra,
+  }
+  return handoff.factory(specifier => {
+    if (!(specifier in modules)) throw new Error(`${id}: unexpected Client external ${specifier}`)
+    return modules[specifier]
+  })
+}
+
+const registryClient = instantiate('@deepseek-ai/dsh-typert-registry')
+const connectionClient = instantiate('@deepseek-ai/dsh-client-connection')
+const gatewayClient = instantiate('@deepseek-ai/dsh-api-gateway')
+const remotesClient = instantiate('@deepseek-ai/dsh-api-remotes')
+const rendererClient = instantiate('@deepseek-ai/dsh-client-ui-renderer')
+const localeClient = instantiate('@deepseek-ai/dsh-client-locale', {
+  '@deepseek-ai/dsh-client-store': clientStore,
+})
+const teamClient = instantiate('@deepseek-ai/dsh-experimental-client-ui-agent-team')
+const ultraClient = instantiate('@benz-ai-x/dsh-client-ui-agent-team-ultra', {
+  '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
+})
+
+function agentFor(host, session) {
+  return {
+    id: session.id,
+    options: { provider: 'probe', model: 'probe' },
+    session,
+    ctx: host.extend(),
+    status: 'idle',
+    acceptsNextStep: false,
+    send() {},
+    updateInbox() { return 'not-found' },
+    followup() {},
+    steer() { return { outcome: Promise.resolve({ status: 'rejected' }) } },
+    inject(input) { session.append('user/message', input, { surfaceOp: 'append' }) },
+    reserveTurnAdmission() {},
+    cancel() {},
+    whenIdle() { return Promise.resolve() },
+  }
+}
+
+function appendMember(session, TeamId, SessionId, member) {
+  const base = {
+    id: SessionId(member.id),
+    name: member.name,
+    description: `${member.name} runtime`,
+    provider: member.provider,
+    context: 'fresh',
+    phase: 'provisioning',
+  }
+  for (const snapshot of [base, { ...base, phase: 'active' }]) {
+    session.append('team/member', { version: 2, teamId: TeamId(leadId), member: snapshot })
+  }
+}
+
+function appendMessage(session, TeamId, TeamMessageId, SessionId, input) {
+  const message = {
+    id: TeamMessageId(input.id),
+    senderId: SessionId(input.senderId),
+    senderName: input.senderName,
+    targetId: SessionId(input.targetId),
+    content: [{ type: 'text', text: input.body }],
+  }
+  session.append('team/message/queued', { version: 2, teamId: TeamId(leadId), message })
+  if (input.delivered === true) {
+    session.append('team/message/delivered', {
+      version: 2,
+      teamId: TeamId(leadId),
+      messageId: message.id,
+      targetId: message.targetId,
+    })
+  }
+  return message
+}
+
+async function startHost(resume) {
+  const { Context } = cordis
+  const { default: AgentRegistry } = await import(harnessUrl('packages/core/agent/lib/index.js'))
+  const connectionHost = await import(harnessUrl('packages/client/connection/lib/index.js'))
+  const { default: TypertRemoteService } = await import(harnessUrl('packages/api/gateway/lib/index.js'))
+  const remotesHost = await import(harnessUrl('packages/api/remotes/lib/index.js'))
+  const { default: SessionStore, SessionId } = await import(harnessUrl('packages/core/session/lib/index.js'))
+  const { default: SessionProjectionRegistry } = await import(harnessUrl('packages/session/session-projection/lib/index.js'))
+  const { default: JsonlSessionPersistence } = await import(harnessUrl('packages/session/session-persistence-jsonl/lib/index.js'))
+  const { default: TypertRegistry } = await import(harnessUrl('packages/typert/registry/lib/index.js'))
+  const { default: TeamService, TeamId, TeamMessageId } = await import(teamUrl('lib/index.js'))
+  const { TYPERT } = await import(teamUrl('lib/typert.host.js'))
+
+  const routes = []
+  const upgradeRoutes = []
+  const credentials = new Map()
+  const host = new Context()
+  host.provide('webServer', {
+    register(route) {
+      routes.push(route)
+      return () => { routes.splice(routes.indexOf(route), 1) }
+    },
+    registerUpgrade(route) {
+      upgradeRoutes.push(route)
+      return () => { upgradeRoutes.splice(upgradeRoutes.indexOf(route), 1) }
+    },
+    tapIndex() { return () => {} },
+    port: 0,
+  })
+  host.provide('credentials', {
+    readRecord(key) { return Promise.resolve(credentials.get(key)) },
+    async modifyRecord(key, mutate) {
+      const next = await mutate(credentials.get(key))
+      if (next !== undefined) credentials.set(key, next)
+      return next ?? credentials.get(key)
+    },
+  })
+  host.provide('subagents', {})
+  await host.plugin({ inject: connectionHost.inject, apply: connectionHost.apply })
+  await host.plugin(TypertRegistry)
+  await host.plugin(SessionStore)
+  await host.plugin(AgentRegistry)
+  await host.plugin(SessionProjectionRegistry)
+  await host.plugin(JsonlSessionPersistence, { root: storageRoot })
+  await host.plugin(TypertRemoteService)
+  await host.plugin({ inject: remotesHost.inject, apply: remotesHost.apply })
+  await host.plugin(TeamService)
+  host.typert.register(TYPERT)
+
+  let session
+  let persistenceHandle
+  if (!resume) {
+    session = host.sessions.create(SessionId(leadId))
+    persistenceHandle = await host.sessionPersistence.create(session.header)
+    for (const member of Object.values(members)) appendMember(session, TeamId, SessionId, member)
+    for (let index = 0; index < 19; index += 1) {
+      appendMessage(session, TeamId, TeamMessageId, SessionId, {
+        id: `message-filler-${String(index).padStart(2, '0')}`,
+        senderId: leadId,
+        senderName: 'lead',
+        targetId: members.dsh.id,
+        body: `DSH durable filler ${index}`,
+      })
+    }
+    appendMessage(session, TeamId, TeamMessageId, SessionId, {
+      id: 'message-dsh', senderId: leadId, senderName: 'lead', targetId: members.dsh.id,
+      body: 'DSH durable body',
+    })
+    appendMessage(session, TeamId, TeamMessageId, SessionId, {
+      id: codexMessageId, senderId: members.codex.id, senderName: members.codex.name, targetId: leadId,
+      body: 'Codex durable body', delivered: true,
+    })
+    appendMessage(session, TeamId, TeamMessageId, SessionId, {
+      id: 'message-claude', senderId: members.claude.id, senderName: members.claude.name, targetId: leadId,
+      body: 'Claude durable body',
+    })
+    await host.sessions.flush(session)
+  } else {
+    const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
+    const seed = structuredClone(await stored.read())
+    const header = structuredClone(stored.header)
+    const inheritedEventCount = stored.inheritedEventCount
+    await stored.close()
+    session = host.sessions.create(SessionId(leadId), {
+      seed,
+      inheritedEventCount,
+      meta: {
+        ...(header.cwd === undefined ? {} : { cwd: header.cwd }),
+        ...(header.parentSession === undefined ? {} : { parentSession: header.parentSession }),
+        createdAt: header.createdAt,
+        isSeeded: header.isSeeded,
+        ...(header.origin === undefined ? {} : { origin: header.origin }),
+        ...(header.delegationDepth === undefined ? {} : { delegationDepth: header.delegationDepth }),
+        ...(header.agentPreset === undefined ? {} : { agentPreset: header.agentPreset }),
+      },
+    })
+    persistenceHandle = await host.sessionPersistence.open(SessionId(leadId), 'write')
+  }
+
+  const lead = agentFor(host, session)
+  host.agents.register(lead)
+  if (routes.length !== 1 || routes[0].path !== '/api') throw new Error('Host did not expose one /api route')
+  if (upgradeRoutes.length !== 1 || upgradeRoutes[0].path !== '/api/remote.mux') {
+    throw new Error('Host did not expose one /api/remote.mux upgrade route')
+  }
+  const server = createServer((request, response) => {
+    if ((request.url ?? '/').startsWith('/?')) {
+      if (host.connection.authorizeIndex(request, response)) {
+        response.writeHead(200, { 'content-type': 'text/html' })
+        response.end('<body>shell</body>')
+      }
+      return
+    }
+    void routes[0].handler(request, response)
+  })
+  server.on('upgrade', (request, socket, head) => {
+    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+    const route = upgradeRoutes.find(candidate => candidate.path === path)
+    if (route === undefined) {
+      socket.destroy()
+      return
+    }
+    route.handler(request, socket, head)
+  })
+  await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen))
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Host has no TCP address')
+  const origin = `http://127.0.0.1:${address.port}`
+  const login = await nativeFetch(host.connection.authenticatedUrl(origin), { redirect: 'manual' })
+  const setCookie = login.headers.get('set-cookie')
+  if (login.status !== 303 || setCookie === null) throw new Error('Host authentication exchange failed')
+  const cookie = setCookie.split(';', 1)[0]
+
+  return {
+    origin,
+    cookie,
+    async dispose() {
+      await new Promise((resolveClose, rejectClose) => server.close(error => {
+        if (error === undefined) resolveClose()
+        else rejectClose(error)
+      }))
+      await host.fiber.dispose()
+      await persistenceHandle.close().catch(() => {})
+    },
+  }
+}
+
+async function startClient(host) {
+  dom.reconfigure({ url: host.origin })
+  globalThis.location = dom.window.location
+  websocketCookie = host.cookie
+  globalThis.fetch = (input, init = {}) => {
+    const headers = new Headers(init.headers)
+    headers.set('cookie', host.cookie)
+    return nativeFetch(input, { ...init, headers })
+  }
+
+  const client = new cordis.Context()
+  for (const plugin of [registryClient, connectionClient, gatewayClient, remotesClient]) {
+    await client.plugin({ inject: plugin.inject, apply: plugin.apply }).await()
+  }
+  let current = leadId
+  client.provide('sessions', {
+    list: { getSnapshot: () => ({ current }) },
+    binding: () => undefined,
+    refreshSubagents: () => Promise.resolve(),
+    openSubagent: id => { current = id },
+  })
+  const locale = new localeClient.LocaleRuntime(client)
+  client.provide('locale', locale)
+  await client.plugin(rendererClient.SlotRegistry).await()
+  client.slots.installLocale(locale)
+  const disposeRootSlot = client.slots.register({
+    name: 'root',
+    children: { 'conversation.session.header.actions': { kind: 'list', scope: 'session' } },
+  }, () => null)
+  const teamFiber = client.plugin({ inject: teamClient.inject, apply: teamClient.apply })
+  await teamFiber.await()
+  const ultraFiber = client.plugin({ inject: ultraClient.inject, apply: ultraClient.apply })
+  await ultraFiber.await()
+
+  const parentEntry = client.slots.entries('conversation.session.header.actions')
+    .find(entry => entry.options.id === 'agent-team')
+  const childEntry = client.slots.entries('agent-team.panel.view')
+    .find(entry => entry.options.id === 'messages')
+  if (parentEntry === undefined || childEntry === undefined) throw new Error('packed Team owner/message entries are missing')
+  const childActions = childEntry.inject()
+
+  return {
+    childActions,
+    async renderPanel() {
+      const container = document.createElement('div')
+      document.body.replaceChildren(container)
+      const root = createRoot(container)
+      const injected = parentEntry.inject()
+      const { hooks, ...plain } = injected
+      const usePanelViews = selector => useSyncExternalStore(
+        listener => hooks.panelViews.subscribe(listener),
+        () => selector(hooks.panelViews.getSnapshot()),
+      )
+      const renderSlot = (_name, owner, options) => {
+        if (options?.only !== 'messages') return null
+        return createElement(childEntry.component, {
+          sessionId: leadId,
+          ...owner,
+          ...childActions,
+          t: locale.bind(childEntry.locale),
+        })
+      }
+      await act(async () => {
+        root.render(createElement(parentEntry.component, {
+          sessionId: leadId,
+          ...plain,
+          usePanelViews,
+          renderSlot,
+          t: locale.bind(parentEntry.locale),
+        }))
+      })
+      return {
+        container,
+        async dispose() {
+          await act(async () => { root.unmount() })
+        },
+      }
+    },
+    async dispose() {
+      disposeRootSlot()
+      await client.fiber.dispose()
+    },
+  }
+}
+
+async function waitUntil(assertion, label) {
+  const deadline = Date.now() + 10_000
+  let lastError
+  while (Date.now() < deadline) {
+    try {
+      const value = assertion()
+      if (value !== false && value !== undefined && value !== null) return value
+    } catch (error) {
+      lastError = error
+    }
+    await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 10)) })
+  }
+  throw new Error(`${label} did not become true${lastError === undefined ? '' : `: ${String(lastError)}`}`)
+}
+
+function button(container, label) {
+  const found = [...container.querySelectorAll('button')].find(candidate => candidate.textContent?.trim() === label)
+  if (found === undefined) throw new Error(`button ${JSON.stringify(label)} is missing`)
+  return found
+}
+
+async function click(element) {
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+}
+
+async function select(container, label, value) {
+  const field = [...container.querySelectorAll('label')]
+    .find(candidate => candidate.firstChild?.textContent?.trim() === label)?.querySelector('select')
+  if (field === undefined) throw new Error(`select ${JSON.stringify(label)} is missing`)
+  field.value = value
+  await act(async () => { field.dispatchEvent(new Event('change', { bubbles: true })) })
+}
+
+function messageButtons(container) {
+  const list = container.querySelector('[aria-label="Persisted Team messages"]')
+  if (list === null) return []
+  return [...list.querySelectorAll(':scope > button')]
+    .filter(candidate => candidate.textContent?.trim() !== 'Load older messages')
+}
+
+async function openMessages(panel) {
+  const teamTab = await waitUntil(
+    () => button(panel.container, 'Agent Team'),
+    'packed Agent Team tab',
+  ).catch((error) => {
+    throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
+  })
+  await click(teamTab)
+  await waitUntil(() => button(panel.container, 'Messages'), 'packed Messages tab')
+  await click(button(panel.container, 'Messages'))
+  await waitUntil(() => panel.container.textContent?.includes('Persisted messages'), 'packed message center')
+  await waitUntil(() => messageButtons(panel.container).length > 0, 'packed message rows')
+}
+
+async function filterCodex(panel) {
+  await select(panel.container, 'Member', members.codex.id)
+  await select(panel.container, 'Direction', 'sent')
+  await select(panel.container, 'Delivery', 'delivered')
+  await click(button(panel.container, 'Apply filters'))
+  await waitUntil(() => {
+    const rows = messageButtons(panel.container)
+    return rows.length === 1 && rows[0].textContent.includes('codex-worker → lead')
+  }, 'filtered Codex row')
+}
+
+function requireRemoteSuccess(result, label) {
+  if (result?.ok !== true) throw new Error(`${label} failed: ${JSON.stringify(result)}`)
+  return result.value
+}
+
+let firstHost
+let firstClient
+let firstPanel
+let secondHost
+let secondClient
+let secondPanel
+try {
+  firstHost = await startHost(false)
+  firstClient = await startClient(firstHost)
+  firstPanel = await firstClient.renderPanel()
+  await openMessages(firstPanel)
+  for (const route of ['lead → dsh-worker', 'codex-worker → lead', 'claude-worker → lead']) {
+    if (!firstPanel.container.textContent.includes(route)) throw new Error(`packed first page is missing ${route}`)
+  }
+  if (messageButtons(firstPanel.container).length !== 20) throw new Error('packed first page is not bounded to 20 rows')
+  await click(button(firstPanel.container, 'Load older messages'))
+  await waitUntil(() => messageButtons(firstPanel.container).length === 22, 'packed second page')
+
+  await filterCodex(firstPanel)
+  if (firstPanel.container.textContent.includes('Codex durable body')) {
+    throw new Error('packed message list fetched content before row selection')
+  }
+  await click(messageButtons(firstPanel.container)[0])
+  await waitUntil(() => firstPanel.container.textContent.includes('Codex durable body'), 'packed Codex detail')
+  if (!firstPanel.container.textContent.includes(codexMessageId)) throw new Error('packed detail omitted the stable message id')
+
+  const filters = { memberId: members.codex.id, direction: 'sent', delivery: 'delivered' }
+  const beforeRestart = requireRemoteSuccess(await firstClient.childActions.listMessages(leadId, {
+    limit: 1,
+    filters,
+  }), 'pre-restart packed UI list')
+  const beforeDetail = requireRemoteSuccess(await firstClient.childActions.getMessage(leadId, {
+    messageId: codexMessageId,
+    committedCursor: beforeRestart.committedCursor,
+  }), 'pre-restart packed UI detail')
+  if (beforeDetail.content.parts[0]?.text !== 'Codex durable body') throw new Error('pre-restart detail body mismatch')
+
+  await firstPanel.dispose()
+  firstPanel = undefined
+  await firstClient.dispose()
+  firstClient = undefined
+  await firstHost.dispose()
+  firstHost = undefined
+
+  secondHost = await startHost(true)
+  secondClient = await startClient(secondHost)
+  const afterRestart = requireRemoteSuccess(await secondClient.childActions.listMessages(leadId, {
+    limit: 1,
+    filters,
+    cursor: beforeRestart.committedCursor,
+  }), 'recovered packed UI list')
+  if (afterRestart.items[0]?.id !== codexMessageId) throw new Error('recovered cursor returned a different message')
+  const recoveredDetail = requireRemoteSuccess(await secondClient.childActions.getMessage(leadId, {
+    messageId: codexMessageId,
+    committedCursor: afterRestart.committedCursor,
+  }), 'recovered packed UI detail')
+  if (recoveredDetail.content.parts[0]?.text !== 'Codex durable body') throw new Error('recovered detail body mismatch')
+
+  secondPanel = await secondClient.renderPanel()
+  await openMessages(secondPanel)
+  await filterCodex(secondPanel)
+  await click(messageButtons(secondPanel.container)[0])
+  await waitUntil(() => secondPanel.container.textContent.includes('Codex durable body'), 'recovered packed detail')
+  if (!secondPanel.container.textContent.includes(codexMessageId)) throw new Error('recovered packed detail omitted message id')
+
+  console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
+} finally {
+  await secondPanel?.dispose().catch(() => {})
+  await secondClient?.dispose().catch(() => {})
+  await secondHost?.dispose().catch(() => {})
+  await firstPanel?.dispose().catch(() => {})
+  await firstClient?.dispose().catch(() => {})
+  await firstHost?.dispose().catch(() => {})
+  globalThis.fetch = nativeFetch
+  dom.window.close()
+  rmSync(storageRoot, { recursive: true, force: true })
+}

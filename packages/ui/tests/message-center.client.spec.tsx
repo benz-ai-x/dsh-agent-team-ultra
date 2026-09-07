@@ -92,6 +92,7 @@ describe('TeamMessageCenter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /lead → worker/u }))
     expect(await screen.findByText('<img src=x onerror=alert(1)> visible')).toBeTruthy()
+    expect(screen.getByText(MESSAGE)).toBeTruthy()
     expect(document.querySelector('img')).toBeNull()
     expect(screen.getByText('Some private or unsupported content was omitted.')).toBeTruthy()
     expect(screen.getByText('Image · image/png · 3×4 · 12 B')).toBeTruthy()
@@ -162,5 +163,57 @@ describe('TeamMessageCenter', () => {
     expect(screen.getByRole('alert').textContent).toBe(
       'Unable to load persisted messages: detail offline (gateway/unavailable)',
     )
+  })
+
+  it('clears an invalidated detail loading state on refresh and filter replacement', async () => {
+    for (const trigger of ['refresh', 'filters'] as const) {
+      const pendingDetail = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['getMessage']>>>()
+      render(<TeamMessageCenter {...props(actions({ getMessage: () => pendingDetail.promise }))} />)
+      fireEvent.click(await screen.findByRole('button', { name: /lead → worker/u }))
+      expect(await screen.findByText('Loading message content…')).toBeTruthy()
+
+      if (trigger === 'refresh') {
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh messages' }))
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+      }
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading message content…')).toBeNull()
+        expect(screen.getByText('Select a message to load its content.')).toBeTruthy()
+      })
+      cleanup()
+    }
+  })
+
+  it('keeps roster failures independent and retries the roster on refresh', async () => {
+    const firstTeam = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['loadTeam']>>>()
+    const firstPage = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>>()
+    const loadTeam = vi.fn()
+      .mockImplementationOnce(() => firstTeam.promise)
+      .mockImplementationOnce(() => ok(team))
+    const listMessages = vi.fn()
+      .mockImplementationOnce(() => firstPage.promise)
+      .mockImplementation(() => ok(page))
+    render(<TeamMessageCenter {...props(actions({ loadTeam, listMessages }))} />)
+
+    firstTeam.resolve({
+      ok: false,
+      error: { code: 'gateway/unavailable', message: 'roster offline' } as never,
+    })
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Unable to load persisted messages: roster offline (gateway/unavailable)',
+    )
+    firstPage.resolve({ ok: true, value: page })
+    expect(await screen.findByText('lead → worker')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('roster offline')
+    expect(screen.queryByRole('option', { name: 'worker' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh messages' }))
+    await waitFor(() => {
+      expect(loadTeam).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('option', { name: 'worker' })).toBeTruthy()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
   })
 })

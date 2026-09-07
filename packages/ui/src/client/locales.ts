@@ -274,6 +274,7 @@ export const en = {
   messageContentPartial: 'Some private or unsupported content was omitted.',
   messagePartOmitted: 'Private or unsupported content omitted',
   messageImage: 'Image',
+  messageId: 'Message ID',
 } satisfies Record<string, string>
 
 export type UltraKey = keyof typeof en
@@ -550,4 +551,5 @@ export const zh = {
   messageContentPartial: '部分私有或不支持的内容已省略。',
   messagePartOmitted: '已省略私有或不支持的内容',
   messageImage: '图片',
+  messageId: '消息 ID',
 } satisfies Record<UltraKey, string>

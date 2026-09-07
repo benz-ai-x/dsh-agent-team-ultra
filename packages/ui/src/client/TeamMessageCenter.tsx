@@ -67,7 +67,9 @@ export function TeamMessageCenter({
   const [appliedFilters, setAppliedFilters] = useState<TeamMessageFilters | undefined>()
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [rosterError, setRosterError] = useState<string | null>(null)
+  const [listError, setListError] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<TeamMessageDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -77,6 +79,15 @@ export function TeamMessageCenter({
   const listGeneration = useRef(0)
   const detailGeneration = useRef(0)
   sessionRef.current = teamSessionId
+
+  const resetDetail = useCallback((): void => {
+    detailGeneration.current += 1
+    setSelectedId(null)
+    setDetail(null)
+    setDetailLoading(false)
+    setDetailUnavailable(false)
+    setDetailError(null)
+  }, [])
 
   const loadPage = useCallback(async (
     requestedSession: SessionId,
@@ -92,10 +103,10 @@ export function TeamMessageCenter({
     setLoading(false)
     setLoadingMore(false)
     if (!result.ok) {
-      setError(failureText(t('messageLoadError'), result.error))
+      setListError(failureText(t('messageLoadError'), result.error))
       return
     }
-    setError(null)
+    setListError(null)
     setPage((current) => {
       if (mode === 'replace' || current === null) return result.value
       const seen = new Set(current.items.map(item => item.id))
@@ -107,35 +118,37 @@ export function TeamMessageCenter({
     })
   }, [listMessages, t])
 
+  const loadRoster = useCallback(async (requestedSession: SessionId): Promise<void> => {
+    const generation = ++teamGeneration.current
+    const result = await loadTeam(requestedSession)
+    if (sessionRef.current !== requestedSession || teamGeneration.current !== generation) return
+    if (result.ok) {
+      setTeam(result.value)
+      setRosterError(null)
+    } else {
+      setRosterError(failureText(t('messageLoadError'), result.error))
+    }
+  }, [loadTeam, t])
+
   useEffect(() => {
     const requestedSession = teamSessionId
-    const generation = ++teamGeneration.current
-    detailGeneration.current += 1
     setTeam(null)
     setPage(null)
     setDraft(EMPTY_FILTERS)
     setAppliedFilters(undefined)
-    setSelectedId(null)
-    setDetail(null)
-    setDetailLoading(false)
-    setDetailUnavailable(false)
-    setError(null)
+    setLoadingMore(false)
+    setRosterError(null)
+    setListError(null)
+    resetDetail()
     void loadPage(requestedSession, undefined, 'replace')
-    void loadTeam(requestedSession).then((result) => {
-      if (sessionRef.current !== requestedSession || teamGeneration.current !== generation) return
-      if (result.ok) setTeam(result.value)
-      else setError(failureText(t('messageLoadError'), result.error))
-    })
-  }, [loadPage, loadTeam, t, teamSessionId])
+    void loadRoster(requestedSession)
+  }, [loadPage, loadRoster, resetDetail, teamSessionId])
 
   const applyFilters = (): void => {
     const filters = filtersOf(draft)
     setAppliedFilters(filters)
     setPage(null)
-    setSelectedId(null)
-    setDetail(null)
-    setDetailUnavailable(false)
-    detailGeneration.current += 1
+    resetDetail()
     void loadPage(teamSessionId, filters, 'replace')
   }
 
@@ -146,6 +159,7 @@ export function TeamMessageCenter({
     setSelectedId(messageId)
     setDetail(null)
     setDetailUnavailable(false)
+    setDetailError(null)
     setDetailLoading(true)
     const result = await getMessage(requestedSession, {
       messageId: messageId as TeamMessageDetail['id'],
@@ -155,10 +169,10 @@ export function TeamMessageCenter({
     setDetailLoading(false)
     if (result.ok) {
       setDetail(result.value)
-      setError(null)
+      setDetailError(null)
     } else {
       setDetailUnavailable(true)
-      setError(failureText(t('messageLoadError'), result.error))
+      setDetailError(failureText(t('messageLoadError'), result.error))
     }
   }
 
@@ -179,11 +193,9 @@ export function TeamMessageCenter({
         </div>
         <button type="button" onClick={() => {
           setPage(null)
-          setSelectedId(null)
-          setDetail(null)
-          setDetailUnavailable(false)
-          detailGeneration.current += 1
+          resetDetail()
           void loadPage(teamSessionId, appliedFilters, 'replace')
+          void loadRoster(teamSessionId)
         }}>{t('refreshMessages')}</button>
       </div>
 
@@ -226,7 +238,9 @@ export function TeamMessageCenter({
         <button type="button" onClick={applyFilters}>{t('applyMessageFilters')}</button>
       </div>
 
-      {error !== null && <div className={css.error} role="alert">{error}</div>}
+      {rosterError !== null && <div className={css.error} role="alert">{rosterError}</div>}
+      {listError !== null && <div className={css.error} role="alert">{listError}</div>}
+      {detailError !== null && <div className={css.error} role="alert">{detailError}</div>}
       {loading && page === null && <div className={css.notice}>{t('loadingMessages')}</div>}
       {!loading && page !== null && page.items.length === 0 && (
         <div className={css.notice}>{t('emptyMessages')}</div>
@@ -264,7 +278,10 @@ export function TeamMessageCenter({
             {detail !== null && (
               <>
                 <div className={css.detailHeader}>
-                  <strong>{detail.sender.name} → {detail.recipient.name}</strong>
+                  <div>
+                    <strong>{detail.sender.name} → {detail.recipient.name}</strong>
+                    <div className={css.messageId}>{t('messageId')}: <code>{detail.id}</code></div>
+                  </div>
                   <span>{stageText(detail.delivery.stage)}</span>
                 </div>
                 <div className={css.content}>

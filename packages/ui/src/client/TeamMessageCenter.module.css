@@ -126,6 +126,11 @@
   font-size: 11px;
 }
 
+.messageId {
+  margin-top: 3px;
+  font-size: 10px;
+}
+
 .content p {
   margin: 8px 0;
   white-space: pre-wrap;

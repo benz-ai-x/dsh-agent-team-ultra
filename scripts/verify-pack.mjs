@@ -187,6 +187,20 @@ try {
   )
   console.log(`PASS complete archive set: ${completeArchiveSet.length} archive(s), including Codex and Claude Code, install and resolve`)
   console.log(`PASS private archive content: ${archives.length - ultraArchives.length} local-only archive(s) packed`)
+  const consumerModules = join(consumer, 'node_modules')
+  const packedMessageProbe = checkedRun(
+    process.execPath,
+    [
+      join(root, 'scripts', 'probe-packed-message-center.mjs'),
+      join(consumerModules, '@benz-ai-x', 'dsh-client-ui-agent-team-ultra', 'lib', 'client.js'),
+      join(consumerModules, '@deepseek-ai', 'dsh-experimental-client-ui-agent-team', 'lib', 'client.js'),
+      join(consumerModules, '@deepseek-ai', 'dsh-experimental-agent-team'),
+      harness,
+    ],
+    root,
+    'packed Team message-center generated-Remote integration',
+  )
+  process.stdout.write(packedMessageProbe.stdout)
 
   const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
   const checkedCli = join(root, 'scripts', 'compatible-dsh.mjs')
