@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T02:58:30+08:00（Asia/Shanghai）
+最后更新：2026-09-08T03:15:47+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -28,7 +28,7 @@
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
-| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3A，当前唯一可执行项） |
+| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | developing（Batch 3A，当前唯一可执行项） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | dependency-paused：等Batch 2统一重试解锁#36（Batch 3B） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | dependency-paused：等#38（Batch 4） |
 | #40 | 把双 native 与协作面板迁移到新 Harness 契约 | Codex/Claude/UI migration | L | #39 | dependency-paused：等#39（Batch 4） |
@@ -45,10 +45,10 @@
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | planned | 0 | 0 | 未创建 |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing | 0 | 0 | 未创建 |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
-| Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
-| Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
+| Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | dependency-paused；需人工合并 | 0 | 0 | 未创建 |
+| Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | dependency-paused | 0 | 0 | 未创建 |
 
 规划冻结。调整只能因 issue 外部关闭、AC 更新、无法剥离的 issue 级阻塞、review 体量或真实依赖变化，并须在“调整/异常记录”写明原因和时间。
 
@@ -361,6 +361,9 @@
 - 2026-09-08T02:03:30+08:00：review2修复证据已同步到#34/#35/#36 direct acceptance、Harness patch ledger、TODO、HANDOFF与本状态：最终Harness `503ad563ff…`/digest `d4028c4f…`，owner 60+36+13=109 tests，Ultra owning 25/25与full 359 tests；下一步固定为review3。docs-only复核`pnpm context:check:strict`自然退出0（582/0），7个changed Markdown共77个本地target全部存在，`git diff --check`绿。下一步形成docs/state提交并HTTPS push Ultra，再更新PR正文与最终review3 head。
 - 2026-09-08T02:07:10+08:00：Ultra review2产品提交`ec9980a`与证据提交`9f43f3f189cffd3b00e60fda8e2933d124c05992`已通过HTTPS推送，显式`ls-remote`精确返回`9f43f3f…`。PR #60即时回读/原子更新后为OPEN，head=`9f43f3f…`，正文精确3个`Closes #34/#35/#36`、0个`Refs`，记录Harness `503ad563ff…`、Ultra full 359 tests及review3固定产品/证据范围；PATCH后逐字节回读一致。Batch2转为in-review，review失败轮数仍2、local-gate历史红1/连续红0。本状态提交只记录交接，不扩大固定review3实质范围：Ultra `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..9f43f3f189cffd3b00e60fda8e2933d124c05992`，Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..503ad563ff226c2afc77608c432af3a80aae3279`。
 - 2026-09-08T02:49:32+08:00：Batch 2 全新隔离 `fork_turns=none` 的 code-review 第3轮失败，触发“review连续3轮不通过”PR级熔断；PR #60置为 blocked，Ultra `feat/batch-2-task-dag-live` 与 Harness `fix/ultra-34-36-task-dag-live` 均保留，不再修复或合并。固定范围结论为0 blocking、2 high、4 medium、0 low，AC映射9 PASS / 6 FAIL / 0 NOT PROVEN。High：F1 冲突后显式再保存永远携带旧revision，且reload失败被误报为已重载（#35.3/#36.4）；F2 DAG Client虽限制权威请求数，但每invalidation追加Promise/resolver waiter，慢读期数量无界（#36.1）。Medium：implemented Agent Note与实际edit-base/reload语义不一致；blocker文案展示全部历史依赖而非未完成项（#34.1/#35.2/#36.4）；fit-to-view最小0.5导致普通5节点DAG裁剪（#34.3）；并发删除后依赖草稿中的旧ID不可见也无法取消（#35.3）。评审只读验证Ultra targeted 25/25 + strict 582/0、Harness targeted 109/109 + built-lib 1/1，两仓`diff --check`与工作树均干净。受线程上限约束，该全新reviewer在同一隔离上下文中分轴完成Standards/Spec，无独立reviewer一致性背书；不影响2项high触发用户明定熔断。
+- 2026-09-08T03:04:43+08:00：Batch 3A开工对账完成。`git fetch origin --prune`成功，`origin/main` 与本地`main`均为`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`；PR #60仍是唯一open PR，#37仍OPEN且`updatedAt=2026-09-05T03:35:23Z`，6项AC均未勾，#30/#31/#32再次实测均CLOSED。为在保留blocked Batch 2分支的同时遵守“从最新main建分支”，用独立临时index以`origin/main`为直接父提交创建了仅同步`PIPELINE_STATE.md`的`092ed0f`，随后从该提交创建`feat/batch-3-studio-recovery`；产品基线仍精确为最新main，未携带Batch 2产品diff。Batch 2 Ultra/Harness分支均保留未动。
+- 2026-09-08T03:07:10+08:00：Batch 3A分支首次`pnpm context:check:strict`完整执行后仅2项失败/0 warning：当前`.dsh/harness`仍指向为Batch 2保留的Harness工作树HEAD `503ad563…`，而最新main锁精确要求`d2d870fbe40bc0e968abdac854a3aae495162bec`及对应docs digest；其余580项检查通过。这是被保留熔断分支与新Batch源选择的预期隔离问题，不是Batch 3A产品测试或local-gate红轮。不切换/重置被保留的Harness工作树；为#37从锁定`d2d870f…`建立独立Harness worktree，再用官方`prepare:harness`+`pnpm install`恢复strict绿灯。
+- 2026-09-08T03:15:47+08:00：已从锁定提交`d2d870fbe40bc0e968abdac854a3aae495162bec`建立独立Harness工作树`/root/workspace/deepseek-harness-ultra-37`与分支`fix/ultra-37-studio-capabilities`，没有切换、重置或修改Batch 2保留工作树`/root/workspace/deepseek-harness-ultra-29`（仍为`503ad563ff226c2afc77608c432af3a80aae3279`）。`DSH_HARNESS_ROOT=/root/workspace/deepseek-harness-ultra-37 pnpm prepare:harness`及Ultra `pnpm install`均自然退出0；首次post-prepare strict的114项失败全部是全新Harness工作树尚无built main/types entry，属正式开发前来源构建准备态，不是产品测试或local-gate红轮。随后在该Harness工作树运行`pnpm install && pnpm run build:lib`自然退出0，再次运行Ultra `pnpm context:check:strict`通过582 checks / 0 warnings；两份Harness工作树均clean，Ultra仅有本状态文件变更。
 
 ## AC 进度
 
@@ -397,6 +400,15 @@
 - [ ] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
 - [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
+### #37
+
+- [ ] Host Snapshot 依据权威 roster 与 Binding 显示普通/绑定身份、不可变 Revision、选定/实际 Runtime Target。
+- [ ] 完整协作与 fresh/fork、工具策略、Hooks、审批、评测、文件写入分别显示并按真实可执行能力校验。
+- [ ] 保留 Provisioning Phase、Runtime Availability、Runtime Presence 及 baseline/替换/stale/业务冲突边界。
+- [ ] 通过公开导航链接指定成员，不引入另一个 Team 面板；构建兼容性信息只放运维诊断。
+- [ ] Snapshot、错误和 Run Index 不含授权、配置路径或 native 原始内容；消息详情继续独立授权分页读取。
+- [ ] 验证档案 CAS/门禁、隔离 Evaluation Worker 和 Exact-call Approval 回归，不能因新协作能力自动放宽。
+
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
 
 ## 调整、异常与熔断记录
@@ -415,6 +427,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 在blocked Batch 2分支提交并HTTPS推送本次GitHub/飞书/依赖审计状态，该Ultra/Harness分支随后保留不动。
-2. Batch 3A #37开工对账：`git fetch origin`，重读#37全文/6项AC并确认#30–#32仍closed，从最新`origin/main`创建`feat/batch-3-studio-recovery`并置developing。
-3. 用全新隔离开发上下文对#37跑`/tdd`，按原主循环完成提交、评审、闸门和合并；#37终态后不直接开工#38，先对blocked PR #60执行全部可执行PR结束后的唯一统一重试。
+1. 提交并HTTPS推送Batch 3A developing状态，显式`ls-remote`对账远端分支。
+2. 启动一个全新隔离开发上下文，输入仅为用户主流程、Batch 3A条目和#37实时全文；该上下文必须完整读`tdd`与`dsh-plugin-dev`并按RED→GREEN推进，#37至少一个独立提交。
+3. 开发完成后按主循环创建PR、跑隔离`/code-review`与完整闸门；#37终态后先统一重试PR #60，不直接开工#38。
