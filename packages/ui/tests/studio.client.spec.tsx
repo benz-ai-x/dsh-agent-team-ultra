@@ -1372,7 +1372,7 @@ describe('standalone Client bundle', () => {
       return modules.get(specifier)
     })
     expect(exports?.apply).toBeTypeOf('function')
-    expect(exports?.inject).toEqual(['remote', 'slots', 'locale'])
+    expect(exports?.inject).toEqual(['remote', 'slots', 'locale', 'agentTeamPanelNavigation'])
     const cssModules = () => [...document.querySelectorAll<HTMLStyleElement>('style[data-plugin-css]')]
       .map(node => node.dataset.pluginCss).sort()
     expect(cssModules()).toEqual([

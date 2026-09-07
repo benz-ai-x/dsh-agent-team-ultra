@@ -12,6 +12,9 @@ const EMPTY_PANEL_VIEWS = [] as const
 const usePanelViews = ((selector: (views: typeof EMPTY_PANEL_VIEWS) => unknown) => (
   selector(EMPTY_PANEL_VIEWS)
 )) as TeamActionProps['usePanelViews']
+const usePanelNavigation = ((selector: (request: null) => unknown) => (
+  selector(null)
+)) as TeamActionProps['usePanelNavigation']
 
 it('shows Codex task ownership and completion in the existing Team task UI', async () => {
   const { ctx, lead, native, runtime, handle } = await queryWorkflow()
@@ -19,6 +22,8 @@ it('shows Codex task ownership and completion in the existing Team task UI', asy
   const props = {
     sessionId: lead.agent.id,
     usePanelViews,
+    usePanelNavigation,
+    consumePanelNavigation: () => {},
     resolveTeamSessionId: (sessionId: string) => sessionId,
     renderSlot: () => null,
     async load(sessionId: string) {
