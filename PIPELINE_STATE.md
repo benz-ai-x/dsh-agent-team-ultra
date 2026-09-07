@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T18:08:21+08:00（Asia/Shanghai）
+最后更新：2026-09-07T18:11:39+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -176,6 +176,7 @@
 - 2026-09-07T18:04:08+08:00：#34 Ultra 文档与候选 gate 收口完成：ADR 0025 记录同一权威 task board 的 owner UI 投影边界，acceptance evidence 将 5 条 AC 映射到 Harness/packed 真实证据；CONTEXT、PROJECT_CONTRACT、README、patch ledger、TODO 与 HANDOFF 已同步精确 `709f96c5…` / digest，并明确 #35/#36 未实现。四项验证均自然退出 0：packed probe `node --check`，9 个 changed Markdown / 100 个本地链接，`pnpm context:check:strict` 582 checks / 0 warnings，`git diff --check`。下一步只审核精确 diff/staged set 并形成 #34 Ultra 独立 commit，不 push；随后实时重读 #34 正文，仅在 5/5 仍成立时精确 patch checkbox。
 - 2026-09-07T18:06:08+08:00：#34 提交前精确 diff 自审完成：用旧 archive 形成 RED 时曾临时延后 message child Slot 检查，获得有效失败点后已恢复原严格 owner+child 前置 guard，不把基线兼容绕过留入最终探针。该等价收紧后 `node --check` 与 `git diff --check` 再次 exit 0；已通过的 current archive GREEN 在 child 存在时走相同路径。现形成 Ultra #34 独立 commit。
 - 2026-09-07T18:08:21+08:00：#34 Ultra 独立提交 `dfd55e07999abdf845df89be39e64bc021d86ad8`（`feat: qualify shared task dependency graph (#34)`）已形成，11 个预期 lock/probe/直接 docs/evidence 文件，未 push。提交后实时 `gh issue view 34` 确认 title/body/state 未发生外部更新，5 条 AC 仍与已验证行为逐项一致；程序只将这 5 个 `- [ ]` 改为 `- [x]`，回读 `checked=5`、除 checkbox marker 外 before/after 字节相同，GitHub `updatedAt=2026-09-07T10:08:21Z`，Issue 按 Batch PR 流程保持 OPEN。Harness #34 提交仍为已推送且 remote 精确核对的 `709f96c5a16ff3e34c385ba79f45dd4435d8418c`。下一步以 clean 工作树进入 #35 首个 dependency-selector/concurrent-draft RED，不提前开始 #36。
+- 2026-09-07T18:11:39+08:00：#34 完成飞书【仅知会】由主 agent 发送成功，回执 `ok=true`、message `om_x100b66dc937eb4a4c07e3ccf8571ba1`，无待补发通知。最终对账仍为 #34 5/5 checked 且 OPEN，Harness `709f96c5…` remote 精确/clean，Ultra 实现 `dfd55e0…` 及状态 `c30ddde…`，均未 push Ultra。下一开发项固定为 #35。
 
 ## AC 进度
 
