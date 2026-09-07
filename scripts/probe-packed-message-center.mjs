@@ -7,8 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { JSDOM } from 'jsdom'
-import React, { createElement, useSyncExternalStore } from 'react'
-import { createRoot } from 'react-dom/client'
+import React, { createElement } from 'react'
 import { act } from 'react-dom/test-utils'
 
 const [ultraClientFile, teamClientFile, teamPackageRoot, rawHarnessRoot] = process.argv.slice(2)
@@ -349,16 +348,41 @@ async function startClient(host) {
   })
   const locale = new localeClient.LocaleRuntime(client)
   client.provide('locale', locale)
-  await client.plugin(rendererClient.SlotRegistry).await()
+  await client.plugin({ inject: rendererClient.inject, apply: rendererClient.apply }).await()
   client.slots.installLocale(locale)
+  const sessionBinding = {
+    key: leadId,
+    ctx: client,
+    hooks: {},
+    keyedHooks: {},
+    props: { sessionId: leadId },
+  }
+  const sessionSource = {
+    getSnapshot: () => sessionBinding,
+    subscribe: () => () => {},
+  }
+  client.slots.installScope('session', {
+    current: sessionSource,
+    resolve: key => key === leadId ? sessionBinding : undefined,
+    renderArea: (_binding, { children }) => children,
+  })
+  const RootFrame = ({ renderSlot, SessionProvider }) => createElement(
+    SessionProvider,
+    null,
+    renderSlot('conversation.session.header.actions', {}),
+  )
   const disposeRootSlot = client.slots.register({
     name: 'root',
     children: { 'conversation.session.header.actions': { kind: 'list', scope: 'session' } },
-  }, () => null)
+  }, RootFrame)
   const teamFiber = client.plugin({ inject: teamClient.inject, apply: teamClient.apply })
   await teamFiber.await()
   const ultraFiber = client.plugin({ inject: ultraClient.inject, apply: ultraClient.apply })
   await ultraFiber.await()
+  await waitUntil(
+    () => client.get('connection').state.getSnapshot() === 'connected',
+    'packed Remote connection',
+  )
 
   const parentEntry = client.slots.entries('conversation.session.header.actions')
     .find(entry => entry.options.id === 'agent-team')
@@ -372,35 +396,14 @@ async function startClient(host) {
     async renderPanel() {
       const container = document.createElement('div')
       document.body.replaceChildren(container)
-      const root = createRoot(container)
-      const injected = parentEntry.inject()
-      const { hooks, ...plain } = injected
-      const usePanelViews = selector => useSyncExternalStore(
-        listener => hooks.panelViews.subscribe(listener),
-        () => selector(hooks.panelViews.getSnapshot()),
-      )
-      const renderSlot = (_name, owner, options) => {
-        if (options?.only !== 'messages') return null
-        return createElement(childEntry.component, {
-          sessionId: leadId,
-          ...owner,
-          ...childActions,
-          t: locale.bind(childEntry.locale),
-        })
-      }
+      let unmount
       await act(async () => {
-        root.render(createElement(parentEntry.component, {
-          sessionId: leadId,
-          ...plain,
-          usePanelViews,
-          renderSlot,
-          t: locale.bind(parentEntry.locale),
-        }))
+        unmount = client.uiRenderer.mount(container)
       })
       return {
         container,
         async dispose() {
-          await act(async () => { root.unmount() })
+          await act(async () => { unmount() })
         },
       }
     },

@@ -22,7 +22,7 @@ from 5 to 6 so older checkpoints rebuild the event-derived message index.
 | Resolve the exact live Lead in Host and reject forged sender, stale identity, and cross-Team cursor/query | Each list/detail operation resolves the caller through the live Team roster before the transaction, again before the durable Session flush, and after it. Teammates, disposed or replaced Leads, and stale objects fail closed. The projection reader resolves both participants against the current Host roster and rejects a persisted sender label that differs from the roster. Cursor decoding rejects malformed envelopes and payloads, bad checksums, unknown fields, future sequence cutoffs, another Team, and changed filters. Tests exercise all of those cases, a forged sender, a nonparticipant target, inconsistent message indexes and delivery facts, and disposal while a read is waiting at the flush barrier. |
 | Show sender, recipient, time, intentional content, and Host-proven state while keeping pending/delivered/unknown distinct from read or task completion | Page and detail DTOs contain Host-resolved sender/recipient identities, event-owned queue time, and delivery as of the committed cutoff. `pending` means no acknowledgement is committed in that window; `delivered` includes the event-owned acknowledgement time; `unknown` remains an explicit browser-safe contract value when the Host cannot prove a current fact. The English and Chinese panel copy states that delivery is neither read status nor task completion. UI tests render pending and unknown states separately, and the reader test proves that a later acknowledgement cannot rewrite an older committed window. |
 | Keep message bodies out of global Studio Snapshot and Run Index, and do not copy raw native history or credentials | Message bodies remain only in the authoritative Agent Team Session log. The new Team projection index stores message id plus queue/delivery sequence and time; list DTOs and cursors contain no content. Ultra adds no message field to its storage schema, Studio snapshot, Run index, or watch frame. Detail sanitizes the selected Team-log content directly and never reads or persists a native transcript. The existing Studio/Run schemas and packed JSON/SQLite recovery tests remain green, while migration audit now requires projection 6 and confirms Session 0 and Ultra v1 are unchanged. |
-| Provide English/Chinese empty, loading, error, and unavailable behavior; keep the Client browser-safe and clean Remote/locale/Slot registrations with the Fiber | [locales.ts](../../packages/ui/src/client/locales.ts) defines paired English and Chinese strings for navigation, filters, delivery, loading, empty, error context, partial content, unavailable content, and the visible stable message id. The panel uses generation and Team Session guards to discard stale list/detail settlements after navigation. Client tests cover loading, empty, unavailable, stale-session, pagination, filters, literal rendering and all visible delivery variants. Mount tests verify generated Remote calls and child-Slot disposal; the Harness browser test boots real Client composition and confirms the owner Slot and locale listeners clean up. The packed gate installs the actual archive closure, renders the actual Team owner and Ultra child through their generated bundles, reads two pages containing DSH, Codex, and Claude routes through authenticated HTTP, loads one detail on demand, then restarts Host storage and reuses the committed cursor and stable id. Ultra's browser bundle builds without Node imports, and the packed gate also starts the real DSH Web profile. |
+| Provide English/Chinese empty, loading, error, and unavailable behavior; keep the Client browser-safe and clean Remote/locale/Slot registrations with the Fiber | [locales.ts](../../packages/ui/src/client/locales.ts) defines paired English and Chinese strings for navigation, filters, delivery, loading, empty, error context, partial content, unavailable content, and the visible stable message id. The panel uses generation and Team Session guards to discard stale list/detail settlements after navigation. Client tests cover loading, empty, unavailable, stale-session, pagination, filters, literal rendering and all visible delivery variants. Mount tests verify generated Remote calls and child-Slot disposal; the Harness browser test boots real Client composition and confirms the owner Slot and locale listeners clean up. The packed gate installs the actual archive closure, mounts the generated Team owner and Ultra child bundles through the production renderer's root, session scope, injected hooks, and child Slot, reads two pages containing DSH, Codex, and Claude routes through authenticated HTTP, loads one detail on demand, then restarts Host storage and reuses the committed cursor and stable id. Ultra's browser bundle builds without Node imports, and the packed gate also starts the real DSH Web profile. |
 
 The TDD RED run first failed eight Harness behaviors because no reader or
 message index existed; it is recorded in
@@ -49,8 +49,16 @@ and the stable id was not visible. The corrected component isolates all three
 failure channels, resets invalidated detail state, retries both reads, and shows
 the stable id. The first final run then exposed two downstream Client fixtures
 that still supplied the retired raw owner props; their focused regressions pass
-after moving them to the public injected selector hook. The repeated final
-`pnpm verify` passes 582 strict context checks with zero warnings, builds Host,
+after moving them to the public injected selector hook. The next fixed-head
+rereview proved the initial packed probe had hand-wired the renderer's hook and
+child dispatch: replacing production `renderSlot` with a throwing fault still
+let that probe pass. The corrected gate installs the production renderer,
+session scope, and root Slot, then mounts the application through its public
+`uiRenderer` service. The same fault now exits nonzero with the expected
+renderer error, while the real path passes before and after Host recovery.
+README and the Harness patch ledger now also pin `c2940ac503` and record both
+hardening commits. The repeated final `pnpm verify` passes 582 strict context
+checks with zero warnings, builds Host,
 generated Typert, and Client targets, and passes 340 tests in 30 files. It packs
 all eight archives, imports the installed closure,
 boots real DSH Web, exercises Codex and Claude through new and resumed JSON and
@@ -60,7 +68,8 @@ SQLite archives, and removes every package and Loader row. The logs are
 `/root/workspace/.ultra-checks/32-review-fixes-downstream-ui-green.log`,
 `/root/workspace/.ultra-checks/32-packed-message-center-attempt.log`,
 `/root/workspace/.ultra-checks/32-verify-pack-attempt.log`,
-and `/root/workspace/.ultra-checks/32-review-fixes-ultra-final-verify.log`.
+`/root/workspace/.ultra-checks/32-packed-renderer-{negative-control-red,negative-control-green,real-green}.log`,
+and `/root/workspace/.ultra-checks/32-second-review-final-verify.log`.
 
 The maintained Harness `c2940ac5039b744f962d2b264c03a6e9fb33af07` and fixed
 official comparison `d347e703908d0406b7a7ef80e3a0e594d86b2215` pass the same
