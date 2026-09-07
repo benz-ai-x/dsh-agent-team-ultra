@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T15:15:18+08:00（Asia/Shanghai）
+最后更新：2026-09-07T15:31:08+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -43,7 +43,7 @@
 
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
-| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；需人工合并 | 1 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
+| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；闸门绿；等待人工合并 | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | planned | 0 | 0 | 未创建 |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
@@ -120,6 +120,9 @@
 - 2026-09-07T15:07:48+08:00：评审修复后的完整 `pnpm verify` 自然退出 0：strict 582/0，Host/Client/Typert/compatibility build 全绿，Vitest 30 files / 346 tests 全绿，八归档 install/resolve、production lost-response deadline/recovery、Web、Codex/Claude JSON/SQLite recovery 与完整 uninstall 全绿。仅出现既有 SQLite experimental 和 Claude allowlist diagnostic，无失败；仍不增加 local-gate 红灯轮数。下一步把精确数字写回 evidence/TODO/HANDOFF，复核最终 diff 后提交 Ultra（不 push）。
 - 2026-09-07T15:10:30+08:00：精确验证数字与新恢复入口已写回 evidence/TODO/HANDOFF；最终 `git diff --check` 再次退出 0，8 份 changed Markdown 的 91 个本地链接再次通过。Harness HEAD/upstream 均为 `d2d870fbe40bc0e968abdac854a3aae495162bec`、0 ahead/behind 且 clean。Ultra 13 个预期文件（包含主 agent 原有 `PIPELINE_STATE.md` findings）准备形成一个本地 review-fix commit，明确不 push，随后由主 agent双轴复审。
 - 2026-09-07T15:15:18+08:00：Ultra review-fix 提交 `cf9ab192586ee5aa0aaef0e06c81de6a6956a334` 已形成并由主 agent 推送；fetch 后 `origin/main` 仍为 `08585631ea6e618a3adbf7143046d00fde00f5d7`，PR 分支相对 main 0 behind / 3 ahead。GitHub PR #59 head 已回读为 `cf9ab192…`、mergeable/CLEAN、无 checks；PR 描述已更新为 Harness `d2d870f…`、第 1 轮修复和 48/346 最新验证数字。#33 仍 open、6/6 AC 保持勾选，无启动快照后新增 issue。
+- 2026-09-07T15:27:21+08:00：PR #59 第 2 轮在两个全新隔离会话对固定 Ultra `08585631…df534403` 与 Harness `c2940ac…d2d870fb` 完成复审。Standards：0 blocking / 0 high / 0 medium / 0 low，确认双 SDK recorded-session、projection v7 文案与 Agent Note partial-supersession 已补齐。Spec：0 finding，六条 AC 全部 PASS，独立确认 deadline/late-settle、storage fail-closed、exact authority/idempotency、provider/restart、codec/projection 与 packed 负控。review 轮数记为 2，本轮通过，无未解决 blocking/high。
+- 2026-09-07T15:30:19+08:00：复审后再次 fetch，`origin/main` 未前进，PR head 为 `df534403…`，#33 仍 open 且无新增 issue；正式 local gate `pnpm verify` 自然退出 0：strict 582/0、build/Typert/compatibility 通过，Vitest 30 files / 346 tests，通过八 archive、真实丢回执 deadline/exact retry、Web、Codex/Claude JSON/SQLite recovery 与 uninstall。仓库无 CI；local-gate 红灯轮数保持 0，PR #59 满足全部自动闸门。
+- 2026-09-07T15:31:08+08:00：因 public Remote 与 persistent event/projection schema 命中人工合并规则，已按 `lark-im` 以 bot 向既定群聊发送【需决策】通知，回执 `ok: true`，message `om_x100b66d2cd703104c44a760eec861ed`；请求按冻结 merge commit 方式确认合并 PR #59。发送成功，无待补发通知。
 
 ## AC 进度
 
@@ -149,6 +152,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 提交并推送本次 PR head/验证状态更新，使第 2 轮固定 diff 包含唯一进度索引。
-2. 主 agent 对新固定 Ultra head（含 `cf9ab192…`）及 Harness `d2d870fb…` 重跑 Standards／Spec 两个全新隔离 review 轴；任何 blocking/high 继续修复并使 review 轮数 +1，连续第 3 轮不通过才熔断。
-3. 无 blocking/high finding 后再 fetch main，若未前进则执行独立完整 `pnpm verify` local gate；通过后发送飞书【需决策】人工合并通知并等待确认。不得自动合并，也不得在 #33 合并关闭前开始 #34。
+1. 提交/push 本次 review 2、正式 local gate 与飞书回执状态更新，并核对 PR #59 head/mergeability。
+2. 等待人工确认后才可按冻结的 merge commit 方式合并 PR #59；合并前必须再 fetch，失败刷新分支重试一次。不得自动合并。
+3. Batch 2 作为冻结整体包含依赖 #33 的 #36，因此在 #59 合并关闭 #33 前不启动 #34；确认合并后删除 Batch 1 分支，拉 main 跑完整 `pnpm verify`，绿后才转 Batch 2 developing。
