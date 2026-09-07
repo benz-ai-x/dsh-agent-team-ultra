@@ -36,18 +36,22 @@ message 保持 `pending`，provider 回归或冷恢复后只投递原 message；
 结果和当前投递阶段，绝不生成第二条 queued message。
 
 Ultra composer 在第一个 `await` 前冻结 recipient、reply、text 和 UUID request id，并按
-Team 把有界 retry intent 放入 `sessionStorage`。同步双击共享同一个 in-flight intent；
-业务拒绝保持可编辑草稿，未知 transport 结果保留完整 request id 与冻结内容供核对。
-重新挂载、页面刷新或 Remote 重连都不会自动发送；用户必须显式选择同请求重试或新建
-意图。成功提交后只做一次显式消息／成员刷新。持续 watch、自动刷新和重连状态机仍由
-#36 负责。
+Team 把有界 retry intent 写入 `sessionStorage` 后读回逐字节相同的编码。只有这一步确认
+成功才调用 Remote；storage 缺失、异常或不一致时消息不发送，保留可编辑草稿并显示双语
+诊断。同步双击共享同一个 in-flight intent。每次调用有 15 秒提交确认期限；期限到达时
+abort transport 并进入 `unknown`，保留完整 request id 与冻结内容供核对。Remote 即使忽略
+abort 或迟到 settle 也不能改写该状态，换 Session、卸载和新建意图都会清理 deadline 并
+abort。业务拒绝同样保留草稿。重新挂载、页面刷新或 Remote 重连都不会自动发送；用户
+必须显式选择同请求重试或新建意图。成功提交后只做一次显式消息／成员刷新。持续 watch、
+自动刷新和重连状态机仍由 #36 负责。
 
 归档验证必须从安装后的 Ultra Client 和 Harness Agent Team 包加载生产 renderer、owner
 Slot 与 generated Remote，并挂载真实 AgentLoop/Agent Registry、TeamService、Session
-projection、JSONL persistence 和 Loader 组合。只有受控 external provider 是测试替身；
-它用 barrier 证明 durable acceptance 先返回、双击只产生一次 provider work、恢复后复用
-原 message，并用缺少 request fact／重复事实的负控防止绕过。真实 Codex／Claude Code
-凭据和人工产品 canary 保留给 #44。
+projection、JSONL persistence 和 Loader 组合。只有受控 external provider 和“丢失一次
+已返回 Remote 回执”的 carrier 边界是测试替身；后者证明 Host 已 durable acceptance 时
+生产 UI 仍会到达 deadline、保存原 intent 且只能显式重放。provider barrier 证明双击只
+产生一次 provider work、恢复后复用原 message，并用缺少 request fact／重复事实的负控
+防止绕过。真实 Codex／Claude Code 凭据和人工产品 canary 保留给 #44。
 
 ## English counterpart
 
@@ -86,21 +90,29 @@ same request reads its original result and current stage and never creates a
 second queued message.
 
 Before its first `await`, the Ultra composer freezes recipient, reply, text,
-and a UUID request id, storing the bounded retry intent in `sessionStorage` by
-Team. Synchronous double-clicks share that in-flight intent. A business
-rejection leaves an editable draft; an unknown transport outcome retains the
-complete request id and frozen fields for inspection. Remount, page refresh,
-and Remote reconnect never send automatically. The user must explicitly retry
-the same request or start a new intent. A successful submission performs only
-one explicit message/roster refresh. Continuous watch, automatic refresh, and
-reconnect state machines remain owned by #36.
+and a UUID request id, writes the Team-scoped bounded retry intent to
+`sessionStorage`, and reads back the byte-identical encoding. It calls the
+Remote only after that confirmation. Missing storage, an exception, or a
+mismatch prevents sending, retains the editable draft, and displays a
+bilingual diagnostic. Synchronous double-clicks share one in-flight intent.
+Each call has a 15-second submission-confirmation deadline: expiry aborts the
+transport and enters `unknown` while retaining the complete request id and
+frozen fields. A Remote that ignores abort or settles late cannot overwrite
+that state. Session changes, unmount, and starting a new intent clear the
+deadline and abort the call. Business rejection also retains the draft.
+Remount, page refresh, and Remote reconnect never send automatically. The user
+must explicitly retry the same request or start a new intent. A successful
+submission performs only one explicit message/roster refresh. Continuous
+watch, automatic refresh, and reconnect state machines remain owned by #36.
 
 Archive verification must load the installed Ultra Client and Harness Agent
 Team packages through the production renderer, owner Slot, and generated
 Remote while composing real AgentLoop/Agent Registry, TeamService, Session
 projection, JSONL persistence, and Loader services. Only the controlled
-external provider is replaced: its barrier proves acceptance returns before
-delivery, a double-click creates one provider work item, and recovery reuses
-the original message. Negative controls reject a missing request fact and
-duplicate facts. Authenticated Codex and Claude Code product canaries remain
-owned by #44.
+external provider and a carrier boundary that drops one already-returned
+Remote receipt are replaced. The latter proves that a durably accepted request
+reaches the production UI deadline, retains its original intent, and is replayed
+only by explicit command. The provider barrier proves a double-click creates
+one provider work item and recovery reuses the original message. Negative
+controls reject a missing request fact and duplicate facts. Authenticated Codex
+and Claude Code product canaries remain owned by #44.

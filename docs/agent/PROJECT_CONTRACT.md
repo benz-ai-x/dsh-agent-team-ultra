@@ -283,6 +283,14 @@ an actual integration commit based on the fixed official comparison.
   owns delivery. Submission and `pending | delivered` delivery stage are
   separate; provider absence preserves the original pending message for
   recovery and never fabricates completion.
+- Before calling that Remote, the browser freezes the request and must write
+  then read back its exact Team-scoped retry intent. Browser-storage absence,
+  failure, or mismatch stops before any Remote side effect and retains the
+  editable draft with a bilingual diagnostic. A 15-second confirmation
+  deadline aborts a non-settling transport and exposes `unknown` with the same
+  saved request; late settlement, remount, and reconnect never auto-submit.
+  Only an explicit retry reuses that request. Session changes and unmount clear
+  the deadline and abort the attempt.
 - Codex installs `team_task_update` and `team_wait` for new threads. Task writes
   reuse shared expectedRevision, ownership, DAG, tombstone and Lead-only rules;
   stale writes return the current revision. The task and its original compact

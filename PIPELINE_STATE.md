@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T13:43:19+08:00（Asia/Shanghai）
+最后更新：2026-09-07T15:10:30+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -24,7 +24,7 @@
 | Issue | 标题 | 模块 | 复杂度 | 依赖 | 本轮状态 |
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
-| #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | developing（Batch 1） |
+| #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | in-review（Batch 1；第 1 轮修复已验证，待双轴复审） |
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | planned（Batch 2） |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | planned（Batch 2） |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | planned（Batch 2） |
@@ -43,7 +43,7 @@
 
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
-| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；需人工合并 | 0 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
+| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；需人工合并 | 1 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | planned | 0 | 0 | 未创建 |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
@@ -84,6 +84,41 @@
 - #33 AC 勾选前已用 `gh issue view 33 --json number,title,state,url,updatedAt,body` 重读实时正文：Issue 仍 open，六条 AC 与冻结正文一致。逐条将 Harness exact-Lead/reply、Team/sender replay/conflict、caller-loss/restart、provider recovery、required event/codec/projection/cross-Team 无副作用，以及 Ultra 双语草稿/生产 packed Remote 证据映射后认定 6/6 满足。随后再次读取最新 body/`updated_at`，仅将这六条的 `[ ]` 改为 `[x]`，程序断言除复选框外零差异并回读成功；GitHub `updatedAt=2026-09-07T05:33:49Z`，Issue 按流程保持 open。
 - 收尾文档已同步：ledger 标记 packed gate 通过，新增 `docs/evidence/issue-33-acceptance.md`，TODO/HANDOFF 改为当前 Batch 1 分支与提交阶段恢复点。`git diff --check` 和九份变更 Markdown 的 91 个本地链接均通过；删除 probe 未使用的观测字段后再次 `pnpm verify:pack` 自然退出 0，完整八归档验证及卸载全绿。证据见 `.ultra-checks/33-ultra-precommit-packed.log`。
 - 主 agent 于提交后再次 `git fetch origin --prune`：`origin/main` 仍为 `08585631ea6e618a3adbf7143046d00fde00f5d7`，分支 0 behind / 1 ahead；#33 仍 open 且 6/6 AC 已勾选，无启动快照后新增 issue、无其他 open PR。Ultra 分支已推送并创建 [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59)，描述包含 `Closes #33`、Harness 精确提交与完整验证结果；状态转为 in-review，review/local-gate 均为 0 轮。
+- PR #59 隔离 Spec review 第 1 轮已完成：0 blocking、1 high、1 medium。High：`TeamMessageCenter` 调用生成 Remote 时无 deadline，永不 settle 的请求会永久停在 submitting，无法进入保留同一 request 的 `unknown`/retry，故 AC 3 为 fail。Medium：`sessionStorage.setItem` 失败被吞掉后仍发送，重挂载可能失去原 intent/requestId；不单独阻塞，但与 high 一并交给修复会话评估。Standards 轴尚在收束，local gate 尚未启动。
+- PR #59 隔离 Standards review 第 1 轮已完成：0 blocking、1 high、2 medium。High：Harness 新增 `SessionEventMap` 事件但固定 diff 没有规范强制的 keyless recorded-session 与 TypeScript/Python SDK 双侧快照。Medium：中英 subsystem 文档一处仍写 projection v6；旧 implemented Agent Note 未与新人类 send/reply Note 建立部分 supersession/current-state 链接。第 1 轮因两个 high 不通过；两项 medium 不独立阻塞，但交修复会话同范围处理。
+- 2026-09-07T14:02:09+08:00：第 1 轮 review-fix 隔离开发已启动。按 `dsh-plugin-dev`/TDD 已完整读取指定契约、测试、snapshot 与 Agent Note 规范；修改前 `pnpm context:check:strict` 通过 582 checks / 0 warnings。已确认公开 seams 为 Harness 正式 recorded-session/SDK 投影快照与 Ultra 公开 `TeamMessageCenter` 交互；先完成 Harness RED→GREEN，不把已知 inactive-context 基线故障或陈旧生成物计为产品 RED。
+- 2026-09-07T14:07:43+08:00：Harness `agent-team-external` 基线已用精确 focused 命令复现：source mode 为 1 failed / 16 skipped，在 `session/prompt` 返回 `cannot create effect on inactive context`；同一用例设 `DSH_EXAMPLE_MODE=lib` 为 1 passed / 16 skipped。这是 #33 事件块存在前的 fixture source-mode 装载 seam 故障，不记为产品 RED；已收窄到 `sdk-event-fixture.mjs` 的 source/lib 依赖解析差异，继续修复正式 seam 后再写持久事件 golden RED。
+- 2026-09-07T14:12:38+08:00：Harness TypeScript SDK snapshot 正式 lib seam 首个真实 RED：先在公开 SDK `session.event` notification 断言中要求一条含真实回复关联的 `team/message/request-committed@1`，再运行 `DSH_EXAMPLE_MODE=lib pnpm exec vitest run --config vitest.snapshot.config.ts -t 'replays agent-team-external'`；结果 1 failed / 16 skipped，精确为期望 1 条但收到 0 条，旧 native message/task 投影均已通过。下一步仅向该录制场景加入合法 request/reply 事实并用正式 refresh 更新 golden。
+- 2026-09-07T14:14:28+08:00：Harness TypeScript SDK snapshot GREEN：录制 fixture 在 active external member 的 native message 之后追加一条 Lead 回复，request receipt 与新 message 原子共存，`replyTo` 指向同 Team 真实旧 message；正式 `DSH_SNAPSHOT=refresh DSH_EXAMPLE_MODE=lib` 工作流刷新 session/notification golden 后，同一 replay 命令 1 passed / 16 skipped。新断言同时固定 version、sender/recipient、literal text、request/result identity 与 reply 关联。
+- 2026-09-07T14:19:44+08:00：Harness Python SDK single-exe snapshot 真实 RED：先在 `smoke_sdk_snapshot` 的公开 `result.events` 投影断言中要求同一 human request/reply 事实，再用官方 `build-exe-for-python-sdk.ts` 构建 host `node24-linux-arm64` single executable；`PYTHONPATH=python/sdk/src python3 scripts/smoke-python-runtime.py --scenario sdk-snapshot --exe dist-exe/deepseek-harness-sdk-runtime-linux-arm64` 精确失败于新事件 expected 1 / received 0，既有 native message/task 投影均已通过。之前直接使用 Node CLI 的 TypeScript-support 环境错误未冒充为 RED。
+- 2026-09-07T14:21:11+08:00：Harness Python SDK single-exe snapshot GREEN：最小 fixture 在同一录制 Team 中追加与 TypeScript 场景同构的 Lead request/reply 事实，正式 `--update-snapshots` 刷新 `scripts/snapshots/python-sdk-single-exe/advanced/` 后，不带 refresh 的同一 single-exe 命令通过。断言固定 version、message sender/recipient/text、request/sender/fingerprint/replyTo 与 accepted result，实际刷新仅涉及 `result.json` 和主 `session.jsonl`。
+- 2026-09-07T14:27:30+08:00：Harness 同范围 medium 文档已修复：Agent Team subsystem 中英残留 projection version 6 均更新为 7；新 human-request Note 与旧 Web Note 双向记录「部分取代」及各自 current owner，旧 Note 不再声称 Web 无 send/reply。三对 sidecar 已用正式 pairing writer 刷新，named pairing 通过；Agent Note format 693/693 与 classification 693/693 均通过，`git diff --check` 通过。single-exe deploy 遗留的忽略 pnpm production/hoisted 状态已用 frozen-lockfile install 恢复，未冒充 gate RED。
+- 2026-09-07T14:29:49+08:00：Harness 拥有者验证全绿：`pnpm typecheck` 自然退出 0；Agent Team package 16 files / 376 tests 通过（保留既有 2 files / 2 tests skipped，本次无新 skip）；正式 lib-mode `agent-team-external` replay 1 passed / 121 skipped；Python SDK single-exe replay 通过；`pnpm test:docs` 15 passed / 0 failed / 0 skipped，其中 pairing、links、Note format/classification/archive 均通过。再次 `git diff --check` 通过。
+- 2026-09-07T14:32:05+08:00：Harness 第 1 轮 review-fix 已形成独立提交 `d2d870fbe40bc0e968abdac854a3aae495162bec`（`test(agent-team): cover human message SDK projections (#33)`）；pre-commit staged translation pairing、lint、whitespace 与 vendor guard 全绿，提交后 Harness 工作树 clean。下一步只 push 既有 `ultra/fix/ultra-33-team-message-send` 远端分支，再让 Ultra 精确锁定该 SHA。
+- 2026-09-07T14:35:02+08:00：Harness 首次 push 未改变远端：SSH `github.com:22` 等待后 connection timeout，本地仍 ahead 1，远端仍为 `d1d6b8a3e16c668e742f47a92297a0de0a20570f`。HTTPS `ls-remote` 已用现有 GitHub credential 成功核对；下一步用同一 repo/branch 的 HTTPS transport 重试，不改历史。
+- 2026-09-07T14:37:02+08:00：Harness HTTPS push 成功：pre-push `typecheck` 通过，远端 `ultra/fix/ultra-33-team-message-send` 已由 `d1d6b8a3e1` fast-forward 到 `d2d870fbe40bc0e968abdac854a3aae495162bec`；HTTPS `ls-remote` 和本地 tracking ref 复核均精确匹配，Harness 工作树 clean 且无 ahead/behind。
+- 2026-09-07T14:40:02+08:00：Ultra 已把运行锁和当前来源文档切到评审修复后的 Harness `d2d870fbe40bc0e968abdac854a3aae495162bec`，按正式摘要算法得到 docs digest `9e71a33224fa8755fd225764705ea16b6cc7df351edbf908e184153bf2048d8a`；ledger 另保留原功能提交并新增快照证据提交行。下一步对这一精确 clean source 运行 `prepare:harness`／冻结安装／构建。
+- 2026-09-07T14:41:34+08:00：`DSH_HARNESS_ROOT=/root/workspace/deepseek-harness-ultra-29 pnpm prepare:harness` 自然退出 0；输出的 repository、version、commit 与 docs digest 均精确匹配 lock。继续执行 `pnpm install`，随后构建并复核 strict freshness。
+- 2026-09-07T14:42:07+08:00：Ultra `pnpm install` 自然退出 0，6 个 workspace 均已是 lock 对应依赖。下一步运行正式 `pnpm build`，再以 strict 确认 source identity、生成物与 freshness。
+- 2026-09-07T14:42:43+08:00：Ultra `pnpm build` 自然退出 0；Host、Client、四包 bundle、Typert 与 compatibility 均针对 `d2d870fbe40bc0e968abdac854a3aae495162bec` 生成完成。继续运行独立 `pnpm context:check:strict`，确认无 stale source/build 后开始 UI RED。
+- 2026-09-07T14:43:07+08:00：post-lock `pnpm context:check:strict` 自然退出 0：582 checks / 0 warnings，Harness source identity、docs digest、依赖解析和所有 built entry freshness 均匹配。固定依赖阶段完成；下一步按公开组件 seam 写永不 settle 的 fake-timer deadline RED。
+- 2026-09-07T14:45:39+08:00：Ultra deadline 产品 RED 已精确复现：公开 `TeamMessageCenter` 的受控 Remote 永不 settle，fake clock 推进 15 秒后测试 1 failed / 7 skipped，首个断言为传入 signal 仍未 abort（received `false`）；因此现状确实会永久停在 submitting。测试同时锁定完整 recipient/reply/text/requestId、迟到 rejection 隔离与显式 same-request retry；这不是测试撰写或生成物错误。下一步实现有界 deadline 与 unmount/late-settle cleanup。
+- 2026-09-07T14:47:00+08:00：deadline GREEN：同一公开组件测试 1 passed / 7 skipped。生产组件以 15 秒确认 deadline race 受控 Remote 与 abort；超时进入双语 unknown、保留完整 intent，迟到 rejection 已被 race handler 消费且不改 UI，显式 retry 复用完全相同请求。session change／unmount／新意图均清理 timer 并 abort，generation guard 阻止 stale settle。下一步新增独立 unmount cleanup 与 storage-failure 产品 RED/证明。
+- 2026-09-07T14:48:16+08:00：Ultra browser-storage 产品 RED 已精确复现：让公开 `sessionStorage.setItem` 抛出 `QuotaExceededError` 后，focused test 1 failed / 8 skipped，Remote 实际仍被调用 1 次；这证明现状会在无法保留 request intent 时产生不可安全恢复的发送。测试还要求英文／中文可诊断错误、原草稿可核对且不虚报已保存 intent。下一步让持久保留确认成为 Remote 调用的前置条件。
+- 2026-09-07T14:49:49+08:00：browser-storage GREEN：同一公开组件测试 1 passed / 8 skipped。组件现在先写入再读回精确 versioned intent；缺失 storage、写入异常、读回异常或内容不一致均在调用 Remote 前停止，保留原草稿、不虚报 saved intent，并显示中英文“消息未发送”加浏览器异常诊断。若 setItem 报错但既有存储仍精确等于同一请求，则允许幂等 retry。下一步补 unmount timer/abort 的独立回归并运行消息中心全文件。
+- 2026-09-07T14:50:59+08:00：首次 unmount 回归执行在 timer 总数断言处 1 failed / 9 skipped：jsdom/React 在组件 deadline 外已有另一个 fake timer，实际总数 2；signal 与产品行为尚未进入失败点，因此这是测试撰写假设错误，不计产品 RED。将断言改为提交前后 timer 增量及卸载恢复基线，再验证 abort 与迟到 rejection。
+- 2026-09-07T14:51:56+08:00：unmount 回归的 timer 增量假设仍受 React click 调度 timer 干扰（期望 +1、实际 +2），第二次失败仍停在测试计数且不是产品 RED。改为精确捕获 15 秒 deadline timer handle，并断言 unmount 对该 handle 调用 clear、同时 signal abort；不再依赖框架 timer 总数。
+- 2026-09-07T14:52:45+08:00：unmount cleanup 回归通过 1 passed / 9 skipped：测试精确捕获 15 秒 deadline handle，组件卸载后 signal 已 abort 且对应 handle 已 clear；随后受控 Remote 迟到 reject 未产生未处理 rejection。下一步运行消息中心全文件，处理真实回归后更新 ADR/evidence 和 packed production seam。
+- 2026-09-07T14:54:06+08:00：首次消息中心全文件为 3 passed / 7 timed out；定位为新增测试的清理顺序错误：在 fake timer 上建立 spy 后先 `useRealTimers`、再 `restoreAllMocks` 会把 spy 捕获的 fake `setTimeout` 恢复并污染后续测试。7 个 timeout 均非产品断言且单独运行过的 storage/deadline/unmount 测试已绿，故不计产品 RED；调整为先 restore spies 再切回 real timers后重跑全文件。
+- 2026-09-07T14:54:40+08:00：修正测试清理顺序后，消息中心完整组件套件 1 file / 10 tests 全绿（1.79s）；既有双击、transport failure、remount、中英文、分页/detail/stale generation/roster 场景与新增 deadline/storage/unmount 场景共同通过。下一步更新 ADR/验收证据与 packed probe，使安装后 production renderer 也证明 deadline/drop-response 和 storage fail-closed。
+- 2026-09-07T14:57:23+08:00：packed production probe 已把原先测试侧手工写 retry intent 改为真实“Host 已接受、Client 响应丢失”：wrapper 只吞一次 installed generated Remote 的已返回回执，生产组件自行在 15 秒 deadline abort/unknown，并要求 exact storage intent 后再走冷恢复/显式 replay。脚本 `node --check` 与 `pnpm build:client` 均自然退出 0；现在运行完整八归档 `pnpm verify:pack`。
+- 2026-09-07T14:58:03+08:00：首次 `pnpm verify:pack` 在运行新 probe 前由 ordinary-resolution compatibility guard 拒绝：单独 `build:client` 后 `lib/client.js` 已更新，而 compatibility manifest 仍是上一轮 full-build 摘要，报 `ULTRA_COMPAT_ARTIFACT_MISMATCH`。这是预期的陈旧生成物阻断，不是产品 RED/local-gate；运行完整 `pnpm build` 刷新正式 compatibility 后重试同一 packed gate。
+- 2026-09-07T14:59:01+08:00：用于恢复 packed 前置的完整 `pnpm build` 自然退出 0，Host/Client、Typert、compatibility 与全部 bundle 已一致刷新；立即重跑相同 `pnpm verify:pack`，本次才可作为 production dropped-response seam 的行为结果。
+- 2026-09-07T15:00:15+08:00：`pnpm verify:pack` 重跑自然退出 0。八归档 pack/install/resolve 后，installed production renderer + generated Remote 真实完成 durable acceptance、刻意丢失一次回执、15 秒 deadline abort/unknown、exact request intent 保留、Host 冷恢复不自动重发、provider 回归投递原消息、显式 same-request replay 且无重复事实/work；随后 Web、Codex/Claude JSON/SQLite recovery 与完整 uninstall 全绿。下一步同步 ADR/evidence/TODO/HANDOFF 并跑 focused/full gates。
+- 2026-09-07T15:03:26+08:00：ADR 0024、PROJECT_CONTRACT 与 #33 evidence 已同步 fail-closed storage、15 秒 deadline、late-settle/unmount 和 packed lost-response 决策；验收证据也加入 Harness keyless TS/Python SDK 投影。Ultra focused 复跑 3 files / 48 tests 全绿（message center、mount、JSON/SQLite migration audit）。下一步 docs/link/diff 与 strict，再运行完整 `pnpm verify`。
+- 2026-09-07T15:05:32+08:00：评审修复后独立 `pnpm context:check:strict` 再次通过 582 checks / 0 warnings；`git diff --check` 退出 0，8 份 changed Markdown 的 91 个本地链接全部存在。focused/packed/strict 均绿，开始完整 `pnpm verify`；该运行仍是修复期 validation，不增加 local-gate 红灯轮数。
+- 2026-09-07T15:07:48+08:00：评审修复后的完整 `pnpm verify` 自然退出 0：strict 582/0，Host/Client/Typert/compatibility build 全绿，Vitest 30 files / 346 tests 全绿，八归档 install/resolve、production lost-response deadline/recovery、Web、Codex/Claude JSON/SQLite recovery 与完整 uninstall 全绿。仅出现既有 SQLite experimental 和 Claude allowlist diagnostic，无失败；仍不增加 local-gate 红灯轮数。下一步把精确数字写回 evidence/TODO/HANDOFF，复核最终 diff 后提交 Ultra（不 push）。
+- 2026-09-07T15:10:30+08:00：精确验证数字与新恢复入口已写回 evidence/TODO/HANDOFF；最终 `git diff --check` 再次退出 0，8 份 changed Markdown 的 91 个本地链接再次通过。Harness HEAD/upstream 均为 `d2d870fbe40bc0e968abdac854a3aae495162bec`、0 ahead/behind 且 clean。Ultra 13 个预期文件（包含主 agent 原有 `PIPELINE_STATE.md` findings）准备形成一个本地 review-fix commit，明确不 push，随后由主 agent双轴复审。
 
 ## AC 进度
 
@@ -113,6 +148,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 将本次 PR #59 / 人工合并状态更新提交并推送，使 review 固定 diff 包含唯一进度索引。
-2. 对固定 `origin/main...PR head` 在两个全新隔离会话并行执行 `/code-review` Standards 与 Spec；只把 blocking/high finding 计入轮次，修复后重新评审。
+1. 第 1 轮两个 high 与三个 medium 已按 TDD 修复并完成 Harness push、Ultra focused/packed/full 验证；Ultra review-fix 以当前本地提交落盘但不 push。
+2. 主 agent 对新的精确 Ultra HEAD 重跑 Standards／Spec 两个全新隔离 review 轴；任何 blocking/high 继续修复并使 review 轮数 +1，连续第 3 轮不通过才熔断。
 3. 无 blocking/high finding 后再 fetch main，若未前进则执行独立完整 `pnpm verify` local gate；通过后发送飞书【需决策】人工合并通知并等待确认。不得自动合并，也不得在 #33 合并关闭前开始 #34。

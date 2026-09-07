@@ -19,6 +19,7 @@ import { NS } from './locales.ts'
 import css from './TeamMessageCenter.module.css'
 
 const PAGE_SIZE = 20
+const SUBMISSION_DEADLINE_MS = 15_000
 
 /** Generated Team Remote operations used by the public message-center view. */
 export interface TeamMessageCenterInjected {
@@ -56,6 +57,8 @@ interface StoredMessageIntent {
   readonly version: 1
   readonly request: SubmitTeamMessageRequest
 }
+
+type IntentStorageResult = { readonly ok: true } | { readonly ok: false; readonly reason: string }
 
 const EMPTY_MESSAGE: MessageDraft = { recipientId: '', replyTo: '', text: '' }
 const INTENT_KEY = 'dsh-agent-team-ultra.message-intent.v1'
@@ -104,12 +107,36 @@ function readIntent(teamSessionId: SessionId): SubmitTeamMessageRequest | null {
   }
 }
 
-function storeIntent(teamSessionId: SessionId, request: SubmitTeamMessageRequest | null): void {
+function storageFailureReason(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`
+  return String(error)
+}
+
+function storeIntent(teamSessionId: SessionId, request: SubmitTeamMessageRequest | null): IntentStorageResult {
   try {
-    if (request === null) globalThis.sessionStorage?.removeItem(intentKey(teamSessionId))
-    else globalThis.sessionStorage?.setItem(intentKey(teamSessionId), JSON.stringify({ version: 1, request }))
-  } catch {
-    // The in-memory intent remains usable when browser storage is unavailable.
+    const storage = globalThis.sessionStorage
+    if (storage === undefined) return { ok: false, reason: 'sessionStorage is unavailable' }
+    const key = intentKey(teamSessionId)
+    if (request === null) {
+      storage.removeItem(key)
+      return { ok: true }
+    }
+    const encoded = JSON.stringify({ version: 1, request } satisfies StoredMessageIntent)
+    let writeFailure: unknown = null
+    try {
+      storage.setItem(key, encoded)
+    } catch (error: unknown) {
+      writeFailure = error
+    }
+    if (storage.getItem(key) === encoded) return { ok: true }
+    return {
+      ok: false,
+      reason: writeFailure === null
+        ? 'sessionStorage did not retain the exact message intent'
+        : storageFailureReason(writeFailure),
+    }
+  } catch (error: unknown) {
+    return { ok: false, reason: storageFailureReason(error) }
   }
 }
 
@@ -146,6 +173,7 @@ export function TeamMessageCenter({
   const submissionGeneration = useRef(0)
   const submitting = useRef(false)
   const submissionController = useRef<AbortController | null>(null)
+  const submissionDeadline = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
   sessionRef.current = teamSessionId
 
   const resetDetail = useCallback((): void => {
@@ -203,6 +231,10 @@ export function TeamMessageCenter({
     const savedIntent = readIntent(requestedSession)
     submissionGeneration.current += 1
     submitting.current = false
+    if (submissionDeadline.current !== null) {
+      globalThis.clearTimeout(submissionDeadline.current)
+      submissionDeadline.current = null
+    }
     submissionController.current?.abort(new Error('Team message composer changed session'))
     submissionController.current = null
     setTeam(null)
@@ -227,6 +259,10 @@ export function TeamMessageCenter({
     return () => {
       submissionGeneration.current += 1
       submitting.current = false
+      if (submissionDeadline.current !== null) {
+        globalThis.clearTimeout(submissionDeadline.current)
+        submissionDeadline.current = null
+      }
       submissionController.current?.abort(new Error('Team message composer unmounted'))
       submissionController.current = null
     }
@@ -235,17 +271,37 @@ export function TeamMessageCenter({
   const submitIntent = async (request: SubmitTeamMessageRequest): Promise<void> => {
     if (submitting.current) return
     submitting.current = true
-    const generation = ++submissionGeneration.current
     const requestedSession = teamSessionId
+    const retained = storeIntent(requestedSession, request)
+    if (!retained.ok) {
+      submitting.current = false
+      setSubmissionError(`${t('messageIntentStorageFailure')} ${retained.reason}`)
+      return
+    }
+    const generation = ++submissionGeneration.current
     const controller = new AbortController()
     submissionController.current = controller
     setIntent(request)
     setSubmission(null)
     setSubmissionError(null)
     setSubmissionPhase('submitting')
-    storeIntent(requestedSession, request)
+    let rejectOnAbort: (() => void) | null = null
+    let deadline: ReturnType<typeof globalThis.setTimeout> | null = null
     try {
-      const result = await sendMessage(requestedSession, request, controller.signal)
+      const aborted = new Promise<never>((_resolve, reject) => {
+        rejectOnAbort = () => {
+          reject(controller.signal.reason ?? new Error(t('messageSendDeadlineExceeded')))
+        }
+        controller.signal.addEventListener('abort', rejectOnAbort, { once: true })
+      })
+      deadline = globalThis.setTimeout(() => {
+        controller.abort(new Error(t('messageSendDeadlineExceeded')))
+      }, SUBMISSION_DEADLINE_MS)
+      submissionDeadline.current = deadline
+      const result = await Promise.race([
+        sendMessage(requestedSession, request, controller.signal),
+        aborted,
+      ])
       if (sessionRef.current !== requestedSession || submissionGeneration.current !== generation) return
       if (!result.ok) {
         setSubmissionPhase('unknown')
@@ -269,9 +325,12 @@ export function TeamMessageCenter({
       setSubmissionPhase('unknown')
       setSubmissionError(`${t('messageSendUnknown')}: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
+      if (rejectOnAbort !== null) controller.signal.removeEventListener('abort', rejectOnAbort)
+      if (deadline !== null) globalThis.clearTimeout(deadline)
+      if (submissionDeadline.current === deadline) submissionDeadline.current = null
       if (submissionGeneration.current === generation) {
         submitting.current = false
-        submissionController.current = null
+        if (submissionController.current === controller) submissionController.current = null
       }
     }
   }
@@ -296,6 +355,10 @@ export function TeamMessageCenter({
   const startNewIntent = (): void => {
     submissionGeneration.current += 1
     submitting.current = false
+    if (submissionDeadline.current !== null) {
+      globalThis.clearTimeout(submissionDeadline.current)
+      submissionDeadline.current = null
+    }
     submissionController.current?.abort(new Error('Operator started a new Team message intent'))
     submissionController.current = null
     storeIntent(teamSessionId, null)

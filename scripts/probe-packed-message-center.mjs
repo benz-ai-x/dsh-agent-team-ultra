@@ -439,9 +439,29 @@ async function startClient(host) {
     .find(entry => entry.options.id === 'messages')
   if (parentEntry === undefined || childEntry === undefined) throw new Error('packed Team owner/message entries are missing')
   const childActions = childEntry.inject()
+  const sendMessage = childActions.sendMessage.bind(childActions)
+  let droppedSendResponse = null
+  childActions.sendMessage = async (sessionId, request, signal) => {
+    const drop = droppedSendResponse
+    if (drop === null) return await sendMessage(sessionId, request, signal)
+    droppedSendResponse = null
+    try {
+      const result = await sendMessage(sessionId, request, signal)
+      drop.resolve({ request, result, signal })
+      return await new Promise(() => {})
+    } catch (error) {
+      drop.reject(error)
+      throw error
+    }
+  }
 
   return {
     childActions,
+    dropNextSendResponse() {
+      if (droppedSendResponse !== null) throw new Error('a packed send response is already armed for loss')
+      droppedSendResponse = Promise.withResolvers()
+      return droppedSendResponse.promise
+    },
     async renderPanel() {
       const container = document.createElement('div')
       document.body.replaceChildren(container)
@@ -463,8 +483,8 @@ async function startClient(host) {
   }
 }
 
-async function waitUntil(assertion, label) {
-  const deadline = Date.now() + 10_000
+async function waitUntil(assertion, label, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs
   let lastError
   while (Date.now() < deadline) {
     try {
@@ -617,23 +637,29 @@ try {
   await select(firstPanel.container, 'Reply to', codexMessageId)
   await select(firstPanel.container, 'Recipient', packedWorkerId)
   await enterText(firstPanel.container, 'Message', packedRequestText)
+  const droppedSendResponse = firstClient.dropNextSendResponse()
   await doubleClick(button(firstPanel.container, 'Send message'))
+  const dropped = await droppedSendResponse
+  const droppedSubmission = requireRemoteSuccess(dropped.result, 'packed committed response selected for loss')
+  if (droppedSubmission.ok !== true
+    || droppedSubmission.value.submission.requestId !== dropped.request.requestId) {
+    throw new Error(`packed response was lost before durable acceptance: ${JSON.stringify(dropped.result)}`)
+  }
   await waitUntil(
-    () => firstPanel.container.textContent?.includes('Accepted; pending delivery.'),
-    'packed accepted submission',
+    () => firstPanel.container.textContent?.includes('Submission result unknown. Review this saved intent before retrying.'),
+    'packed dropped-response deadline',
+    20_000,
   ).catch((error) => {
     throw new Error(`${String(error)}; rendered DOM: ${firstPanel.container.innerHTML}`)
   })
+  if (!dropped.signal.aborted || !firstPanel.container.textContent.includes(dropped.request.requestId)) {
+    throw new Error('packed dropped response did not abort at the deadline with its exact saved request visible')
+  }
 
   const acceptedEvents = await firstHost.events()
   const acceptedFact = acceptedEvents.find(event => event.type === 'team/message/request-committed')
   if (acceptedFact === undefined) throw new Error('packed generated Remote accepted without a durable request fact')
-  const acceptedRequest = {
-    requestId: acceptedFact.data.receipt.requestId,
-    recipientId: packedWorkerId,
-    replyTo: codexMessageId,
-    text: packedRequestText,
-  }
+  const acceptedRequest = dropped.request
   validateSubmissionFacts(acceptedEvents, acceptedRequest)
   requireValidatorRejection(
     acceptedEvents.filter(event => event !== acceptedFact),
@@ -650,10 +676,16 @@ try {
     || runtimeControl.providerLoads !== 1) {
     throw new Error('packed double-click did not retain exactly one request before provider recovery')
   }
-  sessionStorage.setItem(
+  const savedIntent = JSON.parse(sessionStorage.getItem(
     `dsh-agent-team-ultra.message-intent.v1:${encodeURIComponent(leadId)}`,
-    JSON.stringify({ version: 1, request: acceptedRequest }),
-  )
+  ))
+  if (savedIntent.version !== 1
+    || savedIntent.request.requestId !== acceptedRequest.requestId
+    || savedIntent.request.recipientId !== packedWorkerId
+    || savedIntent.request.replyTo !== codexMessageId
+    || savedIntent.request.text !== packedRequestText) {
+    throw new Error(`packed dropped response did not retain the exact intent: ${JSON.stringify(savedIntent)}`)
+  }
 
   const filters = { memberId: members.codex.id, direction: 'sent', delivery: 'delivered' }
   const beforeRestart = requireRemoteSuccess(await firstClient.childActions.listMessages(leadId, {
@@ -753,7 +785,7 @@ try {
   if (!secondPanel.container.textContent.includes(codexMessageId)) throw new Error('recovered packed detail omitted message id')
 
   console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
-  console.log('PASS packed production renderer double-clicks one generated Remote request and preserves its inspectable retry intent across Host recovery')
+  console.log('PASS packed production renderer loses one committed Remote response, reaches its deadline, and preserves the exact retry intent across Host recovery')
   console.log('PASS packed Loader/AgentLoop/Team/JSONL boundary recovers one pending reply through the controlled provider without duplicate work')
   console.log('PASS packed durable-request validator rejects missing and duplicate required facts')
 } finally {
