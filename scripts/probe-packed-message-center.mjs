@@ -27,7 +27,9 @@ const codexMessageId = 'message-codex'
 const packedWorkerName = 'packed-controlled-worker'
 const packedRequestText = '请从打包消息中心执行这项受控工作。'
 const packedPrerequisiteSubject = 'Inspect packed dependency graph'
+const packedAlternatePrerequisiteSubject = 'Approve packed dependency graph'
 const packedDependentSubject = 'Publish packed dependency graph'
+const packedDependentDescription = 'Publish only after the packed prerequisite is complete.'
 const packedProviderId = 'packed-controlled'
 const packedRuntimeEntryId = 'packed-controlled-runtime'
 const packedTeamEntryId = 'packed-agent-team'
@@ -288,8 +290,12 @@ async function startHost(resume) {
       description: 'Inspect the installed production task graph.',
     })
     await host.agentTeams.createTask(lead, {
+      subject: packedAlternatePrerequisiteSubject,
+      description: 'Approve the installed production task graph.',
+    })
+    await host.agentTeams.createTask(lead, {
       subject: packedDependentSubject,
-      description: 'Publish only after the packed prerequisite is complete.',
+      description: packedDependentDescription,
       blockedBy: [prerequisite.id],
     })
     const session = lead.session
@@ -329,9 +335,12 @@ async function startHost(resume) {
 
   const tasks = host.agentTeams.listTasks(lead)
   const prerequisite = tasks.find(task => task.subject === packedPrerequisiteSubject)
-  const dependent = tasks.find(task => task.subject === packedDependentSubject)
-  if (prerequisite === undefined || dependent === undefined
-    || dependent.blockedBy.length !== 1 || dependent.blockedBy[0] !== prerequisite.id
+  const alternatePrerequisite = tasks.find(task => task.subject === packedAlternatePrerequisiteSubject)
+  const dependent = tasks.find(task => task.description === packedDependentDescription)
+  const expectedBlocker = resume ? alternatePrerequisite : prerequisite
+  if (prerequisite === undefined || alternatePrerequisite === undefined || dependent === undefined
+    || expectedBlocker === undefined
+    || dependent.blockedBy.length !== 1 || dependent.blockedBy[0] !== expectedBlocker.id
     || dependent.ready !== false) {
     throw new Error(`Host did not retain the authoritative packed task dependency: ${JSON.stringify(tasks)}`)
   }
@@ -372,7 +381,13 @@ async function startHost(resume) {
     origin,
     cookie,
     lead,
-    taskGraph: { prerequisite, dependent },
+    taskGraph: { prerequisite, alternatePrerequisite, dependent },
+    task(taskId) {
+      return host.agentTeams.getTask(lead, taskId)
+    },
+    async advanceTask(request) {
+      return await host.agentTeams.updateTask(lead, request)
+    },
     async events() {
       const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
       try {
@@ -478,6 +493,9 @@ async function startClient(host) {
 
   return {
     childActions,
+    setLocale(id) {
+      locale.setLocale(id)
+    },
     dropNextSendResponse() {
       if (droppedSendResponse !== null) throw new Error('a packed send response is already armed for loss')
       droppedSendResponse = Promise.withResolvers()
@@ -577,6 +595,28 @@ async function enterSearch(container, label, value) {
   await act(async () => {
     Simulate.change(field, { target: { value } })
   })
+}
+
+async function enterInput(container, placeholder, value) {
+  const field = [...container.querySelectorAll('input')]
+    .find(candidate => candidate.getAttribute('placeholder') === placeholder)
+  if (field === undefined) throw new Error(`input ${JSON.stringify(placeholder)} is missing`)
+  await act(async () => {
+    Simulate.change(field, { target: { value } })
+  })
+  return field
+}
+
+function dependencyCheckbox(container, groupLabel, optionLabel) {
+  const group = [...container.querySelectorAll('fieldset')]
+    .find(candidate => candidate.querySelector('legend')?.textContent?.trim() === groupLabel)
+  if (group === undefined) throw new Error(`dependency group ${JSON.stringify(groupLabel)} is missing`)
+  const option = [...group.querySelectorAll('label')]
+    .find(candidate => candidate.textContent?.trim() === optionLabel)?.querySelector('input[type="checkbox"]')
+  if (option === undefined) {
+    throw new Error(`dependency option ${JSON.stringify(optionLabel)} is missing from ${JSON.stringify(groupLabel)}`)
+  }
+  return option
 }
 
 function messageButtons(container) {
@@ -699,6 +739,134 @@ async function verifyTaskDag(panel, taskGraph) {
   )
 }
 
+async function verifyTaskDependencyEditing(host, client, panel, taskGraph) {
+  await click(button(panel.container, 'Task list'))
+  const dependentLabel = `${taskGraph.dependent.id} · ${taskGraph.dependent.subject}`
+  const prerequisiteLabel = `${taskGraph.prerequisite.id} · ${taskGraph.prerequisite.subject}`
+  const alternateLabel = `${taskGraph.alternatePrerequisite.id} · ${taskGraph.alternatePrerequisite.subject}`
+  await click(ariaButton(panel.container, dependentLabel))
+  await click(button(panel.container, 'Edit'))
+
+  const prerequisite = dependencyCheckbox(panel.container, 'Blocking tasks', prerequisiteLabel)
+  const alternate = dependencyCheckbox(panel.container, 'Blocking tasks', alternateLabel)
+  if (!prerequisite.checked || alternate.checked) {
+    throw new Error('packed dependency picker did not reflect the authoritative blocker')
+  }
+  await click(prerequisite)
+  await click(alternate)
+  if (prerequisite.checked || !alternate.checked) {
+    throw new Error('packed dependency picker did not retain the local dependency draft')
+  }
+  const preview = host.task(taskGraph.dependent.id)
+  if (preview.revision !== taskGraph.dependent.revision
+    || preview.blockedBy.length !== 1 || preview.blockedBy[0] !== taskGraph.prerequisite.id) {
+    throw new Error(`packed dependency preview mutated Host authority: ${JSON.stringify(preview)}`)
+  }
+
+  await click(button(panel.container, 'Save'))
+  const committed = await waitUntil(() => {
+    const current = host.task(taskGraph.dependent.id)
+    return current.revision === taskGraph.dependent.revision + 1
+      && current.blockedBy.length === 1
+      && current.blockedBy[0] === taskGraph.alternatePrerequisite.id
+      ? current
+      : false
+  }, 'packed atomic dependency edit')
+  if (committed.subject !== taskGraph.dependent.subject) {
+    throw new Error('packed atomic dependency edit lost the task body')
+  }
+
+  await click(button(panel.container, 'Task dependency graph'))
+  const graph = panel.container.querySelector('[role="application"][aria-label="Task dependency graph"]')
+  const oldEdge = `${taskGraph.prerequisite.id} → ${taskGraph.dependent.id}`
+  const newEdge = `${taskGraph.alternatePrerequisite.id} → ${taskGraph.dependent.id}`
+  await waitUntil(() => graph !== null && [...graph.querySelectorAll('[aria-label]')]
+    .some(candidate => candidate.getAttribute('aria-label') === newEdge), 'packed committed dependency edge')
+  if ([...graph.querySelectorAll('[aria-label]')]
+    .some(candidate => candidate.getAttribute('aria-label') === oldEdge)) {
+    throw new Error('packed graph retained the removed dependency edge')
+  }
+
+  await click(button(panel.container, 'Task list'))
+  await click(button(panel.container, 'Edit'))
+  const draftSubject = 'Unsaved packed dependency draft'
+  const draftInput = await enterInput(panel.container, 'Task subject', draftSubject)
+  const conflictPrerequisite = dependencyCheckbox(panel.container, 'Blocking tasks', prerequisiteLabel)
+  const conflictAlternate = dependencyCheckbox(panel.container, 'Blocking tasks', alternateLabel)
+  await click(conflictPrerequisite)
+  await click(conflictAlternate)
+  const authoritativeSubject = 'Committed by concurrent packed client'
+  const authoritative = await host.advanceTask({
+    taskId: taskGraph.dependent.id,
+    expectedRevision: committed.revision,
+    action: 'edit',
+    subject: authoritativeSubject,
+  })
+  await click(button(panel.container, 'Save'))
+
+  const englishConflict = 'The current task was reloaded; your draft remains unsaved.'
+  await waitUntil(() => panel.container.querySelector('[role="alert"]')?.textContent === englishConflict,
+    'packed English stale-draft conflict')
+  if (draftInput.value !== draftSubject || !conflictPrerequisite.checked || conflictAlternate.checked) {
+    throw new Error('packed stale CAS discarded the unsaved task/dependency draft')
+  }
+  ariaButton(panel.container, `${taskGraph.dependent.id} · ${authoritativeSubject}`)
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  const afterConflict = host.task(taskGraph.dependent.id)
+  if (afterConflict.revision !== authoritative.revision
+    || afterConflict.subject !== authoritativeSubject
+    || afterConflict.blockedBy.length !== 1
+    || afterConflict.blockedBy[0] !== taskGraph.alternatePrerequisite.id) {
+    throw new Error(`packed stale CAS retried or overwrote Host authority: ${JSON.stringify(afterConflict)}`)
+  }
+
+  await panel.dispose()
+  client.setLocale('zh')
+  const chinesePanel = await client.renderPanel()
+  await click(await waitUntil(() => button(chinesePanel.container, 'Agent Team'), '打包中文 Agent Team 入口'))
+  const chineseCurrentLabel = `${taskGraph.dependent.id} · ${authoritativeSubject}`
+  await click(await waitUntil(
+    () => ariaButton(chinesePanel.container, chineseCurrentLabel),
+    '打包中文当前权威任务',
+  ))
+  await click(button(chinesePanel.container, '编辑'))
+  const chineseDraftSubject = '未保存的打包依赖草稿'
+  const chineseDraftInput = await enterInput(chinesePanel.container, '任务标题', chineseDraftSubject)
+  const chinesePrerequisite = dependencyCheckbox(chinesePanel.container, '依赖任务', prerequisiteLabel)
+  const chineseAlternate = dependencyCheckbox(chinesePanel.container, '依赖任务', alternateLabel)
+  await click(chinesePrerequisite)
+  await click(chineseAlternate)
+  const beforeChineseConflict = host.task(taskGraph.dependent.id)
+  const chineseAuthoritativeSubject = 'Committed by second packed client'
+  const chineseAuthoritative = await host.advanceTask({
+    taskId: taskGraph.dependent.id,
+    expectedRevision: beforeChineseConflict.revision,
+    action: 'edit',
+    subject: chineseAuthoritativeSubject,
+  })
+  await click(button(chinesePanel.container, '保存'))
+  await waitUntil(
+    () => chinesePanel.container.querySelector('[role="alert"]')?.textContent === '任务当前版本已重新加载；你的草稿尚未保存。',
+    '打包中文 stale-draft conflict',
+  )
+  ariaButton(chinesePanel.container, `${taskGraph.dependent.id} · ${chineseAuthoritativeSubject}`)
+  if (chineseDraftInput.value !== chineseDraftSubject
+    || !chinesePrerequisite.checked || chineseAlternate.checked) {
+    throw new Error('打包中文 stale CAS 丢失了未保存任务/依赖草稿')
+  }
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  const afterChineseConflict = host.task(taskGraph.dependent.id)
+  if (afterChineseConflict.revision !== chineseAuthoritative.revision
+    || afterChineseConflict.subject !== chineseAuthoritativeSubject
+    || afterChineseConflict.blockedBy.length !== 1
+    || afterChineseConflict.blockedBy[0] !== taskGraph.alternatePrerequisite.id) {
+    throw new Error(`打包中文 stale CAS 重试或覆盖了 Host 权威值: ${JSON.stringify(afterChineseConflict)}`)
+  }
+  await chinesePanel.dispose()
+  client.setLocale('en')
+  return await client.renderPanel()
+}
+
 async function filterCodex(panel) {
   await select(panel.container, 'Member', members.codex.id)
   await select(panel.container, 'Direction', 'sent')
@@ -754,6 +922,7 @@ try {
   firstClient = await startClient(firstHost)
   firstPanel = await firstClient.renderPanel()
   await verifyTaskDag(firstPanel, firstHost.taskGraph)
+  firstPanel = await verifyTaskDependencyEditing(firstHost, firstClient, firstPanel, firstHost.taskGraph)
   await openMessages(firstPanel)
   for (const route of ['lead → dsh-worker', 'codex-worker → lead', 'claude-worker → lead']) {
     if (!firstPanel.container.textContent.includes(route)) throw new Error(`packed first page is missing ${route}`)
@@ -922,6 +1091,7 @@ try {
   if (!secondPanel.container.textContent.includes(codexMessageId)) throw new Error('recovered packed detail omitted message id')
 
   console.log('PASS packed Team owner panel shares authoritative task list, dependency graph, selection, details, controls, navigation, and filtering')
+  console.log('PASS packed dependency picker commits one atomic CAS and preserves a bilingual stale conflict draft without retry')
   console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
   console.log('PASS packed production renderer loses one committed Remote response, reaches its deadline, and preserves the exact retry intent across Host recovery')
   console.log('PASS packed Loader/AgentLoop/Team/JSONL boundary recovers one pending reply through the controlled provider without duplicate work')

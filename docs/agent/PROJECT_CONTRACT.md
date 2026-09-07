@@ -305,7 +305,15 @@ an actual integration commit based on the fixed official comparison.
   selection, layout, zoom, pan, fit, and keyboard focus are disposable Client
   state and never alter readiness or revision. Both views reuse the existing
   task mutation controls and generated Remote boundary. Native execution
-  permissions stay fixed. See
+  permissions stay fixed. Dependency create/edit uses native real-id
+  checkboxes and submits the complete dependency set through the existing Team
+  mutation boundary. Edit combines text, scopes, and dependencies in one CAS
+  with the original `expectedRevision`; Host validation of references, role,
+  self edges, and indirect cycles remains atomic and rejected writes append no
+  event. Client previews never change readiness. A stale edit reloads the
+  current authoritative task while retaining an explicitly unsaved text and
+  dependency draft with bilingual feedback; it never automatically retries an
+  overwrite. See
   [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md) and
   [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 - The Claude Code provider qualifies only the pinned package-local Claude
