@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T00:17:26+08:00（Asia/Shanghai）
+最后更新：2026-09-08T00:39:30+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review-fix已完成：5/5 AC checked；待review 2/merge |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review-fix已完成：5/5 AC checked；待review 2/merge |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review-fix已完成：5/5 AC checked；待review 2/merge |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review 2通过：5/5 AC checked；待最终批次review/merge |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review-fix 2：4/5 AC checked；#35.4 待修复 |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review-fix 2：4/5 AC checked；#36.5 待修复 |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review（review 2 待执行） | 1 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（review 2 修复） | 2 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -340,6 +340,7 @@
 - 2026-09-08T00:10:27+08:00：Ultra 验收/契约/交接文档已更新至 Harness `41291bc9…`、docs digest `358deaf0…`、owning 22/22 与full 356 tests；只读 changed-Markdown checker 验证10文件/100个本地target全存在，`git diff --check`退出0。PR #60 操作前实时回读仍为OPEN/head `2e3638c…`；正文已精确更新为3个`Closes`、0个`Refs`，记录review fixes A–H、Harness/Ultra提交、snapshot/catalog/owning/full gates及历史red=1/连续red=0，PATCH后再读逐字节一致。下一步最终diff/状态审计后提交这些文档，HTTPS push Ultra 并以`ls-remote`精确核对，然后将Batch 2转为in-review并固定review 2范围。
 - 2026-09-08T00:13:03+08:00：Ultra 验收/状态文档门复跑通过：10 changed Markdown files / 100 local targets，`git diff --check` green；形成`60b44de5fd0eeffa3d7566c0441a75393aba2f9f`（`docs: record Batch 2 review fixes (#34 #35 #36)`）。随后HTTPS push Ultra从`2e3638c…` fast-forward至`60b44de…`，`ls-remote` 与本地精确一致。Batch 2现转为`in-review`，review轮数仍为1，local-gate历史红仍为1/连续红0。下一步固定为隔离review 2：Ultra仅审`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..60b44de5fd0eeffa3d7566c0441a75393aba2f9f`，Harness仅审`d2d870fbe40bc0e968abdac854a3aae495162bec..41291bc9779ba954b774880c634fe90c9945b966`，对照#34/#35/#36实时AC与review 1 findings A–H；本状态提交只记录交接，不扩大review diff。
 - 2026-09-08T00:17:26+08:00：主agent显式刷新两仓 HTTPS remote-tracking refs；Ultra/Harness 均 clean、tracking 0/0，PR #60 实测 OPEN/head=`2090f06a0ee1e1ae96782f203c24dc89b252af1a`、mergeable/CLEAN、0 checks，三个 issue 仍 OPEN 且各5/5 checked。修正“下一步（唯一恢复入口）”为review 2，而非已完成的review 1修复；`2090f06…`及本次状态提交均只含流水状态，不扩大产品/文档审查点。
+- 2026-09-08T00:39:30+08:00：Batch 2 隔离 code-review 第2轮失败，review连续失败计为2，尚未达到第3轮熔断。因root thread上限，原计划的第二个fresh Spec thread无法创建；同一个本轮全新隔离`batch2_review2_standards`会话按`code-review`先后完成Standards与Spec双轴，仍仅接收固定diff和15项AC。结论去重为0 blocking、2 high、1 medium：high一为#35.4 public `getTask`没有生产UI consumer，删除后详情从非墓碑`TeamView.tasks`消失，无法展示墓碑；high二为#36.5 React cleanup仅`void control.dispose()`，未把异步Remote/Host stream静止纳入Fiber完成边界。medium为同一`getTask`公开API的current-consumer规范缺口，随#35.4一起修复。#34全部AC通过；实时GitHub body仅撤回#35.4与#36.5 checkbox，分别为4/5，Issue保持OPEN；PR正文改为`Closes #34`、`Refs #35/#36`。阻塞【仅知会】已通过`lark-im`以bot发送成功，message=`om_x100b66dac2ec08a0ddcd7b246f5c5cb`；无需人工决策、无待补发。
 
 ## AC 进度
 
@@ -365,7 +366,7 @@
 - [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
 - [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
 - [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
-- [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
+- [ ] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
 - [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
@@ -374,7 +375,7 @@
 - [x] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
 - [x] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
 - [x] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
-- [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
+- [ ] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
 
@@ -385,7 +386,7 @@
 - 2026-09-07：Batch 3 仅含两个 L issue；若并入 Batch 2 会形成五个跨 Studio/Team/provider 的 L issue，超过一次 review 可消化上限，故记录为体量例外。
 - 2026-09-07：#18 记 skipped，不关闭、不修改；这是 #44 的显式 AC，不是遗漏。
 - 2026-09-07T13:43:19+08:00：Batch 1 实际新增 public `agentTeams/sendMessage` Remote 与 required persistent event/projection schema，命中“公开接口或 schema 的首个基建 PR”人工合并清单；PR #59 标记“需人工合并”。先完成隔离 review 与本地闸门，再飞书【需决策】通知并等待确认，不自动合并。
-- Batch 2 review 连续失败 1 轮；尚未达到 3 轮熔断。当前无 local-gate 熔断、PR blocked 或飞书待补发。
+- Batch 2 review 连续失败 2 轮；第3轮再有 blocking/high 即触发PR熔断。当前无 local-gate 熔断、PR blocked 或飞书待补发。
 
 ## 待下轮清单
 
@@ -393,7 +394,7 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 对固定 Ultra 产品/文档 diff `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..60b44de5fd0eeffa3d7566c0441a75393aba2f9f` 与 Harness diff `d2d870fbe40bc0e968abdac854a3aae495162bec..41291bc9779ba954b774880c634fe90c9945b966` 启动全新隔离 `/code-review` 第 2 轮；只提供 diff、#34/#35/#36 实时 AC 与 review 1 findings A–H。blocking/high 才阻塞；medium/low 只记 follow-up。
-2. 第 2 轮若仍有 blocking/high，review 连续失败记为2并交另一个全新隔离修复会话；若无，则记录 review 2通过、fetch main，再运行正式 `pnpm verify` 最终闸门。第3轮再失败才触发review熔断。
-3. 最终闸门与 main 对账均绿后，按冻结 merge commit自动合并 PR #60；失败则按用户的刷新重试/阻塞规则处理。
+1. 在同一PR的隔离开发上下文中用`/tdd`修复review 2两项high：通过生产`getTask`注入/调用保留删除墓碑详情，并把watch异步dispose的真正静止所有权上移到可等待的Slot/Fiber边界；禁止用React effect cleanup返回Promise冒充等待。先取得public UI与真实lifecycle RED，再最小GREEN。
+2. 修复、两仓提交/push、full gate、实时AC checkbox-only复核后，以新固定diff启动隔离`/code-review`第3轮；若仍有任意blocking/high，立即按连续3轮规则熔断PR #60、保留分支并发送【需决策】。
+3. 第3轮无blocking/high后fetch main并再次运行正式`pnpm verify`最终闸门；与main对账均绿后按冻结merge commit自动合并PR #60。
 4. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
