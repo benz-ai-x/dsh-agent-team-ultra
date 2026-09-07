@@ -8,11 +8,19 @@ import { operationResult, queryWorkflow } from './fixtures/member-workflow.ts'
 
 afterEach(cleanup)
 
+const EMPTY_PANEL_VIEWS = [] as const
+const usePanelViews = ((selector: (views: typeof EMPTY_PANEL_VIEWS) => unknown) => (
+  selector(EMPTY_PANEL_VIEWS)
+)) as TeamActionProps['usePanelViews']
+
 it('shows Codex task ownership and completion in the existing Team task UI', async () => {
   const { ctx, lead, native, runtime, handle } = await queryWorkflow()
   const task = await ctx.agentTeams.createTask(lead.agent, { subject: 'Visible Codex task', description: 'Render the authoritative task state.' })
   const props = {
     sessionId: lead.agent.id,
+    usePanelViews,
+    resolveTeamSessionId: (sessionId: string) => sessionId,
+    renderSlot: () => null,
     async load(sessionId: string) {
       expect(sessionId).toBe(lead.agent.id)
       return { ok: true, value: ctx.agentTeams.remoteView(lead.agent) }

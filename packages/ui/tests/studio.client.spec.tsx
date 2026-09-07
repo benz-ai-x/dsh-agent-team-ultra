@@ -1304,11 +1304,19 @@ describe('standalone Client bundle', () => {
     })
     expect(exports?.apply).toBeTypeOf('function')
     expect(exports?.inject).toEqual(['remote', 'slots', 'locale'])
-    expect(document.querySelectorAll('style[data-plugin-css]')).toHaveLength(1)
+    const cssModules = () => [...document.querySelectorAll<HTMLStyleElement>('style[data-plugin-css]')]
+      .map(node => node.dataset.pluginCss).sort()
+    expect(cssModules()).toEqual([
+      '@benz-ai-x/dsh-client-ui-agent-team-ultra/Studio.module.css',
+      '@benz-ai-x/dsh-client-ui-agent-team-ultra/TeamMessageCenter.module.css',
+    ])
     handoff?.factory(specifier => {
       if (!modules.has(specifier)) throw new Error(`unexpected require: ${specifier}`)
       return modules.get(specifier)
     })
-    expect(document.querySelectorAll('style[data-plugin-css]')).toHaveLength(1)
+    expect(cssModules()).toEqual([
+      '@benz-ai-x/dsh-client-ui-agent-team-ultra/Studio.module.css',
+      '@benz-ai-x/dsh-client-ui-agent-team-ultra/TeamMessageCenter.module.css',
+    ])
   })
 })

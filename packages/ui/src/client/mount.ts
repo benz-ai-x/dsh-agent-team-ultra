@@ -7,6 +7,8 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteSnapshotStream, RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-experimental-client-ui-agent-team/client'
+import type {} from '@deepseek-ai/dsh-experimental-agent-team/remote'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import {
@@ -14,6 +16,7 @@ import {
   type DigitalEmployeeStudioInjected,
   type DigitalEmployeeStudioWatchSink,
 } from './Studio.tsx'
+import { TeamMessageCenter, type TeamMessageCenterInjected } from './TeamMessageCenter.tsx'
 import { en, NS, zh, type UltraKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -73,6 +76,17 @@ function registerStudio(ctx: ClientContext): void {
       return await ctx.remote.digitalEmployees.evalRun(sessionId, request)
     },
   }
+  const messageActions: TeamMessageCenterInjected = {
+    async loadTeam(sessionId) {
+      return await ctx.remote.agentTeams.view(sessionId)
+    },
+    async listMessages(sessionId, request) {
+      return await ctx.remote.agentTeams.listMessages(sessionId, request)
+    },
+    async getMessage(sessionId, request) {
+      return await ctx.remote.agentTeams.getMessage(sessionId, request)
+    },
+  }
 
   ctx.slots.inject(
     'conversation.session.header.actions',
@@ -83,6 +97,17 @@ function registerStudio(ctx: ClientContext): void {
       locale: NS,
       inject: () => actions,
     }, DigitalEmployeeStudio),
+  )
+  ctx.slots.inject(
+    'agent-team.panel.view',
+    () => ctx.slots.register({
+      name: 'agent-team.panel.view',
+      id: 'messages',
+      order: 20,
+      label: () => ctx.locale.bind(NS)('messagesTab'),
+      locale: NS,
+      inject: () => messageActions,
+    }, TeamMessageCenter),
   )
 }
 
@@ -118,7 +143,7 @@ export async function mountDigitalEmployeeStudio(
   contribution: TypertRemoteContribution,
 ): Promise<() => Promise<void>> {
   const disposeRemote = await ctx.remote.$mount(contribution)
-  const ui = ctx.inject(['remote.digitalEmployees', 'slots', 'locale'], registerStudio)
+  const ui = ctx.inject(['remote.digitalEmployees', 'remote.agentTeams', 'slots', 'locale'], registerStudio)
   try {
     await ui
   } catch (error) {
