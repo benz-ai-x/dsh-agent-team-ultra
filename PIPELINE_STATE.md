@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T15:40:14+08:00（Asia/Shanghai）
+最后更新：2026-09-07T15:48:39+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -24,10 +24,10 @@
 | Issue | 标题 | 模块 | 复杂度 | 依赖 | 本轮状态 |
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
-| #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | in-review（Batch 1；闸门绿，人工合并已确认） |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | planned（Batch 2） |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | planned（Batch 2） |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | planned（Batch 2） |
+| #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | developing（Batch 2） |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | developing（Batch 2） |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | developing（Batch 2） |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
@@ -43,8 +43,8 @@
 
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
-| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；闸门绿；人工合并已确认 | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | planned | 0 | 0 | 未创建 |
+| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（开工对账） | 0 | 0 | 未创建 |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -124,6 +124,14 @@
 - 2026-09-07T15:30:19+08:00：复审后再次 fetch，`origin/main` 未前进，PR head 为 `df534403…`，#33 仍 open 且无新增 issue；正式 local gate `pnpm verify` 自然退出 0：strict 582/0、build/Typert/compatibility 通过，Vitest 30 files / 346 tests，通过八 archive、真实丢回执 deadline/exact retry、Web、Codex/Claude JSON/SQLite recovery 与 uninstall。仓库无 CI；local-gate 红灯轮数保持 0，PR #59 满足全部自动闸门。
 - 2026-09-07T15:31:08+08:00：因 public Remote 与 persistent event/projection schema 命中人工合并规则，已按 `lark-im` 以 bot 向既定群聊发送【需决策】通知，回执 `ok: true`，message `om_x100b66d2cd703104c44a760eec861ed`；请求按冻结 merge commit 方式确认合并 PR #59。发送成功，无待补发通知。
 - 2026-09-07T15:40:14+08:00：用户明确回复“确定”，人工授权按冻结 merge commit 方式合并 PR #59。恢复对账已完成：PR head `9474a8e775f4bc7fa93db74640f6c1b2a5a7494a`、CLEAN/MERGEABLE、无 checks；`origin/main` 仍为 `08585631…`，#33 仍 open 且 6/6 AC 已勾选，无新增 issue，工作树 clean。先把本授权记录提交/push，再以更新后的精确 head 执行合并。
+- 2026-09-07T15:44:28+08:00：人工确认记录提交 `c1e5e7abaff3fb1b4d0788f7a984cdd1d414c791` 推送后，再次 fetch 并确认 PR #59 为 CLEAN/MERGEABLE、main 未前进；`gh pr merge --merge --delete-branch --match-head-commit c1e5e7a… 59` 在 GitHub 成功创建 merge commit `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`。合并提交双亲为原 main 与精确 head，tree 与 head tree `fb72fc38…` 相同；PR 回读 MERGED，#33 于 15:42:39+08:00 自动 CLOSED。命令随后仅在本地 SSH fetch 挂住，已终止并用 HTTPS fast-forward main；远端残留功能分支经精确 SHA 核验后用 GitHub API 删除，本地分支也已删除。当前 main/origin main 均为 `2c5a355…`，等待 post-merge 全量验证。
+- 2026-09-07T15:47:14+08:00：main `2c5a355…` 的 post-merge `pnpm verify` 自然退出 0：strict 582/0、build/Typert/compatibility、Vitest 30 files / 346 tests、八 archive、真实丢回执 deadline/recovery、Web、Codex/Claude JSON/SQLite 与 uninstall 全绿。Batch 1 最终 merged。飞书【仅知会】合并摘要发送成功，回执 `ok: true`，message `om_x100b66d28eed8cb0c26d7beda8aae21`。Batch 2 状态立即转为 developing（开工对账），尚未创建分支或修改 #34–#36。
+
+## Batch 2 当前事实与恢复点
+
+- 2026-09-07T15:48:39+08:00：`git fetch origin --prune` 后本地 main、`origin/main` 与 PR #59 merge commit 均为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`；工作树仅有本状态文件的 Batch 1/2 进度更新。远端 Batch 1 分支已删除，无 open PR。
+- #34、#35、#36 均实时回读为 OPEN、`ready-for-agent`、无人指派且正文/AC 与启动快照一致，`updatedAt` 分别为 `2026-09-05T03:34:59Z`、`03:35:06Z`、`03:35:13Z`。外部依赖 #25、#33 已 CLOSED；#35→#34 与 #36→#35 为本 PR 内顺序，不调整冻结规划。
+- 启动快照后没有新增 open issue；当前 open 范围为 skipped 父 #18 与待处理 #34–#44。下一步从该精确 main 创建 `feat/batch-2-task-dag-live`，提交状态/HANDOFF/TODO 后启动全新隔离开发会话，尚未修改产品实现。
 
 ## AC 进度
 
@@ -135,6 +143,30 @@
 - [x] 提交结果与 pending/delivered/unknown 分离；provider 回归投递原消息且不伪造完成。
 - [x] 正式请求/回复持久格式、codec/投影/恢复；跨 Team 拒绝无持久副作用。
 - [x] 中英文、失败后保留可核对草稿、真实打包 UI/Remote 证据。
+
+### #34
+
+- [ ] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
+- [ ] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
+- [ ] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
+- [ ] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
+- [ ] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
+
+### #35
+
+- [ ] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
+- [ ] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
+- [ ] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
+- [ ] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
+- [ ] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
+
+### #36
+
+- [ ] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
+- [ ] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
+- [ ] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
+- [ ] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
+- [ ] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
 
@@ -153,6 +185,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 提交/push 人工确认记录；再 fetch 并回读 PR 更新后的精确 head、CLEAN/MERGEABLE 和 main 未前进。
-2. 使用 `gh pr merge --merge --delete-branch --match-head-commit <exact-head> 59`；失败则刷新分支只重试一次，仍失败才置阻塞。
-3. 成功后回读 PR/Issue/main，删除本地 Batch 1 分支，拉最新 main 跑完整 `pnpm verify`；绿后记录 merged 并发送飞书【仅知会】，再转 Batch 2 developing。
+1. 从最新 main `2c5a355…` 创建 `feat/batch-2-task-dag-live`，把本状态更新与 HANDOFF/TODO 当前事实作为 Batch 2 首个状态提交。
+2. 启动全新隔离开发会话，输入本轮总约束、Batch 2 条目与三个 issue 全文，按 #34→#35→#36 用 `/tdd` 开发；每个 issue 至少一个独立 commit，未满足 AC 不得关闭。
+3. 测试 seams 固定为 Host authoritative task snapshot/detail/mutation/watch、generated Remote、公开 Agent Teams child Slot/production React UI 与 packed Loader/Host；UI 不得成为权威状态，所有 watch/Slot/Remote 注册必须随 Fiber 释放。
