@@ -12,7 +12,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 
 锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
 
-当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `41291bc9779ba954b774880c634fe90c9945b966`，以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取、Lead-only 持久消息分页与公开面板 Slot、按 Team／发送者隔离且可关联同 Team 原消息的幂等人类提交、从同一 Host 任务视图投影的列表／依赖图／详情和单 revision 依赖编辑，以及 baseline-first 的有界 Team 变化订阅；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `503ad563ff226c2afc77608c432af3a80aae3279`，以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取、Lead-only 持久消息分页与公开面板 Slot、按 Team／发送者隔离且可关联同 Team 原消息的幂等人类提交、从同一 Host 任务视图投影的列表／依赖图／详情和单 revision 依赖编辑，以及 baseline-first 的有界 Team 变化订阅；由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 下一版本规格
 

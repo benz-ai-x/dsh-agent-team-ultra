@@ -19,7 +19,11 @@ const REMOTE: TypertRemoteContribution = {
 const LAUNCH_REQUEST_ID = '11111111-1111-4111-8111-111111111111' as LaunchRequestId
 const EVAL_RUN_ID = '22222222-2222-4222-8222-222222222222' as DigitalEmployeeEvalRunId
 
-async function bench(registrationFailure = false) {
+async function bench(
+  registrationFailure = false,
+  disposeStreamGate?: Promise<unknown>,
+  disposeStreamFailure?: unknown,
+) {
   const ctx = new Context()
   const calls: { readonly method: string; readonly args: readonly unknown[] }[] = []
 
@@ -28,7 +32,10 @@ async function bench(registrationFailure = false) {
     readonly mount = vi.fn(async (_contribution: unknown) => this.disposeMount)
     readonly createStream = vi.fn()
     readonly restartStream = vi.fn()
-    readonly disposeStream = vi.fn(async () => undefined)
+    readonly disposeStream = vi.fn(async () => {
+      await disposeStreamGate
+      if (disposeStreamFailure !== undefined) throw disposeStreamFailure
+    })
     streamOptions: RemoteStreamOptions<unknown> | undefined
 
     constructor(serviceCtx: Context) {
@@ -71,7 +78,7 @@ async function bench(registrationFailure = false) {
     cancelEvalRun: answer('cancelEvalRun', { ok: true, value: {} }),
     evalRun: answer('evalRun', { ok: true, value: {} }),
   } as never)
-  ctx.provide('remote.agentTeams', {
+  const agentTeams = {
     view: answer('team/view', { members: [], tasks: [] }),
     watch: (...args: unknown[]) => {
       calls.push({ method: 'team/watch', args })
@@ -80,7 +87,8 @@ async function bench(registrationFailure = false) {
     listMessages: answer('team/listMessages', { items: [], committedCursor: 'cursor', complete: true }),
     getMessage: answer('team/getMessage', {}),
     sendMessage: answer('team/sendMessage', { ok: true, value: {} }),
-  } as never)
+  }
+  const disposeAgentTeams = ctx.reflect.provide('remote.agentTeams', agentTeams as never)
   ctx.provide('conversation', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
   await ctx.plugin(SlotRegistry).await()
@@ -110,7 +118,10 @@ async function bench(registrationFailure = false) {
     .find(candidate => candidate.component === DigitalEmployeeStudio)
   const messageEntry = () => ctx.slots.entries('agent-team.panel.view')
     .find(candidate => candidate.component === TeamMessageCenter)
-  return { ctx, fiber, activation, calls, disposeRoot, disposeTeamOwner, entry, messageEntry, remote }
+  return {
+    ctx, fiber, activation, calls, disposeRoot, disposeTeamOwner, entry, messageEntry, remote,
+    agentTeams, disposeAgentTeams,
+  }
 }
 
 describe('Digital Employee Studio mount lifecycle', () => {
@@ -312,6 +323,88 @@ describe('Digital Employee Studio mount lifecycle', () => {
     await expect(runtime.activation).resolves.toMatchObject({ message: 'slot registration failed' })
     expect(runtime.remote.mount).toHaveBeenCalledOnce()
     expect(runtime.remote.disposeMount).toHaveBeenCalledOnce()
+    runtime.disposeRoot()
+    runtime.disposeTeamOwner()
+    await runtime.ctx.fiber.dispose()
+  })
+
+  it('awaits a React-triggered message watch disposal before its Fiber releases Remote registration', async () => {
+    const released = Promise.withResolvers<undefined>()
+    const runtime = await bench(false, released.promise)
+    const actions = (runtime.messageEntry()!.inject as unknown as () => TeamMessageCenterInjected)()
+    const control = actions.watch('lead-session', {
+      replace() {}, invalidated() {}, stale() {}, failed() {},
+    })
+    control.start()
+
+    void control.dispose()
+    expect(runtime.remote.disposeStream).toHaveBeenCalledOnce()
+    let settled = false
+    const closing = runtime.fiber.dispose().then(() => { settled = true })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(settled).toBe(false)
+    expect(runtime.remote.disposeMount).not.toHaveBeenCalled()
+
+    released.resolve(undefined)
+    await closing
+    expect(runtime.remote.disposeStream).toHaveBeenCalledOnce()
+    expect(runtime.remote.disposeMount).toHaveBeenCalledOnce()
+    expect(runtime.messageEntry()).toBeUndefined()
+    runtime.disposeRoot()
+    runtime.disposeTeamOwner()
+    await runtime.ctx.fiber.dispose()
+  })
+
+  it('reports message watch disposal failure through lifecycle while releasing Remote registration', async () => {
+    const failure = new Error('message watch transport disposal failed')
+    const runtime = await bench(false, undefined, failure)
+    const logged = vi.spyOn(runtime.ctx.logger, 'error')
+    const actions = (runtime.messageEntry()!.inject as unknown as () => TeamMessageCenterInjected)()
+    const control = actions.watch('lead-session', {
+      replace() {}, invalidated() {}, stale() {}, failed() {},
+    })
+    control.start()
+
+    void control.dispose()
+    await runtime.fiber.dispose()
+    expect(logged).toHaveBeenCalledWith(failure)
+    expect(runtime.remote.disposeStream).toHaveBeenCalledOnce()
+    expect(runtime.remote.disposeMount).toHaveBeenCalledOnce()
+    expect(runtime.messageEntry()).toBeUndefined()
+    runtime.disposeRoot()
+    runtime.disposeTeamOwner()
+    await runtime.ctx.fiber.dispose()
+  })
+
+  it('drains message watches before an Agent Team service generation is withdrawn', async () => {
+    const released = Promise.withResolvers<undefined>()
+    const runtime = await bench(false, released.promise)
+    const actions = (runtime.messageEntry()!.inject as unknown as () => TeamMessageCenterInjected)()
+    const control = actions.watch('lead-session', {
+      replace() {}, invalidated() {}, stale() {}, failed() {},
+    })
+    control.start()
+
+    let withdrawn = false
+    const withdrawing = Promise.resolve(runtime.disposeAgentTeams()).then(() => { withdrawn = true })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(withdrawn).toBe(false)
+    expect(runtime.remote.disposeStream).toHaveBeenCalledOnce()
+    expect(runtime.messageEntry()).toBeUndefined()
+
+    released.resolve(undefined)
+    await withdrawing
+    const staleControl = actions.watch('lead-session', {
+      replace() {}, invalidated() {}, stale() {}, failed() {},
+    })
+    expect(runtime.remote.createStream).toHaveBeenCalledTimes(2)
+    expect(runtime.remote.disposeStream).toHaveBeenCalledTimes(2)
+    staleControl.start()
+
+    const disposeReplacement = runtime.ctx.reflect.provide('remote.agentTeams', runtime.agentTeams as never)
+    await vi.waitFor(() => { expect(runtime.messageEntry()).toBeDefined() })
+    await disposeReplacement()
+    await runtime.fiber.dispose()
     runtime.disposeRoot()
     runtime.disposeTeamOwner()
     await runtime.ctx.fiber.dispose()
