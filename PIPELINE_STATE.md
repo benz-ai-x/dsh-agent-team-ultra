@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T02:00:22+08:00（Asia/Shanghai）
+最后更新：2026-09-08T02:07:10+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（review 2修复/闸门完成，待push与review 3） | 2 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review（review 3） | 2 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -358,6 +358,7 @@
 - 2026-09-08T01:55:55+08:00：review2修复后的正式Ultra `pnpm verify`首次即自然退出0：strict 582/0；Host/Client、Typert与compatibility build全绿；Vitest 30 files / 359 tests全绿；8 archive pack/install、production Team list/DAG/dependency CAS/message page/watch与renderer unmount、真实Web、Codex/Claude JSON+SQLite cold recovery、`registrationsReleased=true`及完整uninstall全部PASS。未新增local-gate红轮，连续红保持0、历史红仍1。下一步更新直接evidence/TODO/HANDOFF与状态，实时同次读取#35/#36最新body并做checkbox-only复核，PR恢复3个Closes后提交/push Ultra并固定review3。
 - 2026-09-08T02:00:22+08:00：AC勾选前重新实时读取GitHub #35/#36最新OPEN正文，并在同一脚本内仅替换各自唯一剩余marker：#35.4 tombstone production consumer、#36.5 quiescent lifecycle。PATCH后即时回读均为5 checked / 0 unchecked、Issue保持OPEN；after正文精确等于同次live before构造目标，且把该`[x]`恢复为`[ ]`后与before逐字节相等。before SHA-256分别为#35 `338490986cddc380cbbfc41b87071cf28b524e6227b21b65ae47e604398d30bc`、#36 `0c26be763cff58055df8463bec69aec982c716353a6749785fa1d7ccbf5069c3`。Batch2三项现均5/5；下一步更新PR为3个Closes、0 Refs及review2修复验证，再完成docs/state commit和HTTPS push。
 - 2026-09-08T02:03:30+08:00：review2修复证据已同步到#34/#35/#36 direct acceptance、Harness patch ledger、TODO、HANDOFF与本状态：最终Harness `503ad563ff…`/digest `d4028c4f…`，owner 60+36+13=109 tests，Ultra owning 25/25与full 359 tests；下一步固定为review3。docs-only复核`pnpm context:check:strict`自然退出0（582/0），7个changed Markdown共77个本地target全部存在，`git diff --check`绿。下一步形成docs/state提交并HTTPS push Ultra，再更新PR正文与最终review3 head。
+- 2026-09-08T02:07:10+08:00：Ultra review2产品提交`ec9980a`与证据提交`9f43f3f189cffd3b00e60fda8e2933d124c05992`已通过HTTPS推送，显式`ls-remote`精确返回`9f43f3f…`。PR #60即时回读/原子更新后为OPEN，head=`9f43f3f…`，正文精确3个`Closes #34/#35/#36`、0个`Refs`，记录Harness `503ad563ff…`、Ultra full 359 tests及review3固定产品/证据范围；PATCH后逐字节回读一致。Batch2转为in-review，review失败轮数仍2、local-gate历史红1/连续红0。本状态提交只记录交接，不扩大固定review3实质范围：Ultra `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..9f43f3f189cffd3b00e60fda8e2933d124c05992`，Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..503ad563ff226c2afc77608c432af3a80aae3279`。
 
 ## AC 进度
 
@@ -411,7 +412,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 完成review 2修复的docs/state审计和PR正文，提交并以HTTPS push Ultra；`ls-remote`精确核对两仓，PR须为3个`Closes`、0个`Refs`且head等于本地。
-2. 以新固定diff启动隔离`/code-review`第3轮：Ultra从main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`到最终head，Harness从`d2d870fbe40bc0e968abdac854a3aae495162bec`到`503ad563ff226c2afc77608c432af3a80aae3279`；复核15项实时AC、review 1 A–H和review 2两项high。若仍有任意blocking/high，立即按连续3轮规则熔断PR #60、保留分支并发送【需决策】。
-3. 第3轮无blocking/high后fetch main并再次运行正式`pnpm verify`最终闸门；与main对账均绿后按冻结merge commit自动合并PR #60。
-4. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
+1. 以固定diff启动隔离`/code-review`第3轮：Ultra `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..9f43f3f189cffd3b00e60fda8e2933d124c05992`，Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..503ad563ff226c2afc77608c432af3a80aae3279`；复核15项实时AC、review 1 A–H和review 2两项high。若仍有任意blocking/high，立即按连续3轮规则熔断PR #60、保留分支并发送【需决策】。
+2. 第3轮无blocking/high后fetch main并再次运行正式`pnpm verify`最终闸门；与main对账均绿后按冻结merge commit自动合并PR #60。
+3. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
