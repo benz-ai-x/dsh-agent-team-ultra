@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T06:11:33+08:00（Asia/Shanghai）
+最后更新：2026-09-08T06:14:09+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -45,7 +45,7 @@
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing | 0 | 1 | 未创建 |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing：隔离开发完成，待主 agent 创建PR | 0 | 1 | 未创建 |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | dependency-paused；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | dependency-paused | 0 | 0 | 未创建 |
@@ -457,6 +457,8 @@
 
 - 2026-09-08T06:11:33+08:00：full-gate暴露的三个正式consumer回归已形成独立Ultra提交`d70156add03db918ac119da38b00bac8aa6c2ad4`（`test: cover Team panel navigation consumers (#37)`，3 paths / +11/-1）；内容只为Codex/Claude TeamAction完整fixture新增空navigation hook/consume，以及Studio production bundle新增公开inject精确等值期待。该提交所覆盖的3 files/29 tests及其后的完整350-test gate均已GREEN。下一步提交剩余HANDOFF/TODO/PIPELINE/direct evidence，再HTTPS push两个新提交并ls-remote。
 
+- 2026-09-08T06:14:09+08:00：收尾证据提交`49b0a2d5d4d4f035a55a8fd17ca9d0d543135ebc`（`docs: record issue 37 acceptance`，HANDOFF/TODO/PIPELINE及新建直接evidence）已形成；Ultra随后经显式HTTPS push将远程`feat/batch-3-studio-recovery`由`68abfed…`快进到`49b0a2d…`，`git ls-remote`与本地HEAD逐字一致且worktree clean。Harness再次HTTPS回读仍为`95483a7a9645679c45805a46a968a1cf7508126c`、worktree clean。隔离开发终态已满足提交/证据要求；主agent下一步创建PR并进入in-review，不得由本上下文开PR、评审、合并或发送飞书。
+
 ## AC 进度
 
 ### #33
@@ -519,5 +521,5 @@
 
 ## 下一步（唯一恢复入口）
 
-1. Batch 3A隔离开发已完成6/6 AC、跨仓提交与完整本地闸门；待该开发上下文提交/HTTPS推送最终consumer回归和证据后，由主 agent 创建PR，描述使用`Closes #37`并列出Harness精确提交与验证结果。
+1. Batch 3A隔离开发已完成6/6 AC、跨仓提交、HTTPS推送与完整本地闸门；由主 agent 创建PR，描述使用`Closes #37`并列出Harness精确提交与验证结果。
 2. PR进入in-review后跑隔离`/code-review`与本地闸门；#37终态后先统一重试PR #60，不直接开工#38。
