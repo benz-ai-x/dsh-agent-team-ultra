@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T22:41:22+08:00（Asia/Shanghai）
+最后更新：2026-09-07T22:47:14+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -316,6 +316,7 @@
 - 2026-09-07T22:14:16+08:00：#36 完成飞书【仅知会】由主agent发送成功，回执`ok=true`、message `om_x100b66d8254440b0c2954f7365e51a0`，无待补发通知。最终对账为#36 5/5 checked且OPEN，Harness `d8630308…`已推送fork/clean/0-0，Ultra实现`b800d99f…`未push，Batch2 local-gate红灯固定1轮且第二轮full verify全绿。现在形成状态-only commit，随后只读核对两仓clean、提交链与review范围后结束isolated dev。
 - 2026-09-07T22:20:11+08:00：主agent提交前通过 HTTPS 恢复并实测 `origin/main=2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Batch 2 HEAD `1f05e0b3d7b83df3325c60f6a07577645e9592d5` 相对 main 为 0 behind / 8 ahead；无其他 open PR、无启动快照后新增 issue，#34/#35/#36 均 OPEN 且各 5/5 checked。分支已用 HTTPS 推送，创建 [PR #60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60)，描述含 `Closes #34/#35/#36`、Harness 精确三提交、完整验证与 snapshot 限制；PR 状态转为 in-review。该 PR 无 migration/schema、删除、认证权限、workflow/deploy 或依赖大版本升级，且首个公共接口基建 PR #59 已人工合并，故不命中本轮人工合并清单。下一步对固定 Ultra `2c5a355…1f05e0b` 与 Harness `d2d870f…d8630308` diff 启动全新隔离 code-review。
 - 2026-09-07T22:41:22+08:00：Batch 2 隔离 code-review 第 1 轮失败，计入 review 轮数 1，未达到连续 3 轮熔断。固定 Ultra 审查范围为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..27dc0ebb567ed241df854f547a20ea8a9d004bae`，Harness 为 `d2d870fbe40bc0e968abdac854a3aae495162bec..d8630308520c028e8ae4511a2c0476c5967ced89`。Standards 报告 1 blocking（`TeamWatchFrame` 未登记 Cordis catalog，`verify-cordis-catalog` 实测失败）和 1 high（人类可见 DAG/UI 改动缺强制 keyless recorded-session snapshot）；Spec 报告 4 high：编辑开始 revision 未钉住导致 live refresh 绕过 CAS、live replace 期间旧 cursor append 可取消权威 replacement、Client 对 burst invalidation 发起无界并发重读、CAS conflict 提示可被并发 refresh 吞掉；另记 1 medium（过滤隐藏 prerequisite 后 ArrowLeft 选择不可见节点）与 1 low（中文 stale 术语应为“陈旧”）。据实时 GitHub body 仅撤回受影响 AC checkbox：#34=4/5、#35=3/5、#36=1/5，正文其余内容未改。PR #60 保持 open，转回 developing；下一步用全新隔离 TDD 修复会话处理全部 blocking/high，并顺带收敛同域 medium/low，随后重新逐项验收与 review。
+- 2026-09-07T22:47:14+08:00：因 #34/#35/#36 存在未勾 AC，按关联规则把 PR #60 实时正文中的 `Closes #34/#35/#36` 全部改为 `Refs #34/#35/#36`，并标明 review 1 修复中；其余 PR 描述保持不变。全新隔离 `batch2_review1_fix` 已接手上述 findings，使用 `/tdd` 与 `dsh-plugin-dev`，不得 merge。
 
 ## AC 进度
 
