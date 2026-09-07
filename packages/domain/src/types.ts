@@ -135,6 +135,8 @@ export type DigitalEmployeeProfileCapability =
 
 /** Operational guarantees a Runtime Backend can enforce and prove. */
 export type DigitalEmployeeRuntimeCapability =
+  | 'full-collaboration'
+  | 'workspace-write'
   | 'exact-call-approval'
   | 'sandbox'
   | 'evaluation'
@@ -310,6 +312,39 @@ export interface DigitalEmployeeInstanceView {
   readonly runtimePresence: DigitalEmployeeRuntimePresence
   readonly error?: string
 }
+
+/** Browser-safe live runtime facts shared by ordinary and Profile-bound Team members. */
+export interface DigitalEmployeeTeamMemberRuntimeView {
+  readonly contextMode?: DigitalEmployeeContextMode
+  readonly provisioningPhase: DigitalEmployeeProvisioningPhase
+  readonly runtimeAvailability: DigitalEmployeeRuntimeAvailability
+  readonly runtimePresence: DigitalEmployeeRuntimePresence
+  readonly supportedContextModes: readonly DigitalEmployeeContextMode[]
+  readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
+  readonly runtimeCapabilities: readonly DigitalEmployeeRuntimeCapability[]
+}
+
+/** One authoritative Team roster member joined to an exact optional Profile Binding. */
+export type DigitalEmployeeTeamMemberView = DigitalEmployeeTeamMemberRuntimeView & (
+  | {
+    readonly binding: 'ordinary'
+    readonly teamId: string
+    readonly memberId: string
+    readonly memberName: string
+    readonly selectedRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+    readonly actualRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  }
+  | {
+    readonly binding: 'profile-bound'
+    readonly teamId: string
+    readonly memberId: string
+    readonly memberName: string
+    readonly profileId: DigitalEmployeeProfileId
+    readonly profileRevision: number
+    readonly selectedRuntimeTarget: DigitalEmployeeRuntimeTarget
+    readonly actualRuntimeTarget?: SelectableDigitalEmployeeRuntimeTarget
+  }
+)
 
 /** Runtime family whose canonical evidence owns one Run. */
 export type DigitalEmployeeRunSource = 'dsh-session' | 'external-native'
@@ -588,6 +623,7 @@ export interface DigitalEmployeeStudioView {
   readonly profiles: readonly DigitalEmployeeProfileCatalogEntry[]
   readonly runtimeCatalog: DigitalEmployeeRuntimeCatalog
   readonly tools: readonly ProfileToolOption[]
+  readonly teamMembers: readonly DigitalEmployeeTeamMemberView[]
   readonly instances: readonly DigitalEmployeeInstanceView[]
   readonly runs: readonly DigitalEmployeeRunIndexRecord[]
   readonly evalSets: readonly DigitalEmployeeEvalSetCatalogEntry[]

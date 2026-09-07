@@ -86,6 +86,64 @@ async function saveAndActivate(runtime: Awaited<ReturnType<typeof workflow>>): P
 }
 
 describe('conversational Ultra Profile tools', () => {
+  it('projects ordinary and Profile-bound teammates from the authoritative roster', async () => {
+    const runtime = await workflow()
+    await runtime.ctx.agentTeams.spawnTeammate(runtime.lead.agent, {
+      name: 'ordinary-reviewer',
+      description: 'Ordinary Team member without an Ultra Profile Binding.',
+      prompt: [{ type: 'text', text: 'Report one finding.' }],
+      context: 'fresh',
+      provider: 'spawn',
+      agentOptions: { provider: target.provider, model: target.model },
+      signal: SIGNAL,
+    })
+    await saveAndActivate(runtime)
+    await expect(runtime.invoke('spawn', {
+      launchRequestId: '01991d0f-b37a-7a44-8b62-95cb29a92988',
+      profileId: profile.id,
+    })).resolves.toMatchObject({ ok: true })
+
+    const studio = await runtime.invoke('view') as DigitalEmployeeStudioView & {
+      readonly teamMembers?: readonly unknown[]
+    }
+    expect(studio.teamMembers).toMatchObject([
+      {
+        binding: 'ordinary',
+        memberName: 'ordinary-reviewer',
+        memberId: expect.any(String),
+        contextMode: 'fresh',
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'inactive',
+        supportedContextModes: ['fresh'],
+        profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+        runtimeCapabilities: [
+          'full-collaboration', 'workspace-write', 'exact-call-approval',
+          'sandbox', 'evaluation', 'evidence', 'usage',
+        ],
+      },
+      {
+        binding: 'profile-bound',
+        memberName: profile.employeeName,
+        memberId: expect.any(String),
+        profileId: profile.id,
+        profileRevision: 1,
+        selectedRuntimeTarget: target,
+        actualRuntimeTarget: target,
+        contextMode: 'fresh',
+        provisioningPhase: 'active',
+        runtimeAvailability: 'available',
+        runtimePresence: 'inactive',
+        supportedContextModes: ['fresh'],
+        profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+        runtimeCapabilities: [
+          'full-collaboration', 'workspace-write', 'exact-call-approval',
+          'sandbox', 'evaluation', 'evidence', 'usage',
+        ],
+      },
+    ])
+  })
+
   it('publishes fixed Lead-only list/detail/launch schemas and keeps ordinary Team members unbound', async () => {
     const runtime = await workflow()
     const leadSchemas = runtime.ctx.tools.schemas(runtime.lead.agent).map(tool => tool.name)

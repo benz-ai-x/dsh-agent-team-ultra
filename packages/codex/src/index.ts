@@ -750,7 +750,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly displayName = 'Codex'
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
-  readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
+  readonly runtimeCapabilities = ['full-collaboration', 'sandbox', 'evidence', 'usage'] as const
   readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly correlations = new Map<string, string>()

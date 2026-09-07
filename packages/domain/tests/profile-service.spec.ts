@@ -486,7 +486,8 @@ async function harness(options: {
       'persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks',
     ].filter(value => provider.profileCapabilities.includes(value as never))) as never,
     runtimeCapabilities: Object.freeze([
-      'exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage',
+      'full-collaboration', 'workspace-write', 'exact-call-approval',
+      'sandbox', 'evaluation', 'evidence', 'usage',
     ].filter(value => provider.runtimeCapabilities.includes(value as never))) as never,
     ...(provider.evaluationTools === undefined
       ? {}
@@ -1639,6 +1640,22 @@ describe('Digital Employee profile contract', () => {
       },
     })
     expect(JSON.stringify(detail)).not.toContain('SECRET_NATIVE_PAYLOAD')
+
+    const evidencePoison = 'credential=run-secret configPath=/private/run.json rawPayload=RUN_TRANSCRIPT'
+    runtime.readTeammateRuntimeEvidence.mockRejectedValueOnce(new Error(evidencePoison))
+    const unavailable = await runtime.ctx.digitalEmployees.runEvidence(
+      runtime.leader,
+      { runId: delivery.runId },
+      new AbortController().signal,
+    )
+    expect(unavailable).toMatchObject({
+      ok: false,
+      error: {
+        code: 'evidence-unavailable',
+        message: 'External runtime evidence is unavailable.',
+      },
+    })
+    expect(JSON.stringify(unavailable)).not.toContain(evidencePoison)
     await registration()
     await runtime.fiber.dispose()
   })
@@ -2035,6 +2052,57 @@ describe('Digital Employee profile contract', () => {
     await runtime.fiber.dispose()
   })
 
+  it('redacts provider diagnostics from public launch errors and Studio snapshots', async () => {
+    const poison = 'credential=super-secret configPath=/private/provider.json rawPayload=SECRET_NATIVE_TRANSCRIPT'
+    const runtime = await harness({
+      spawnErrorBeforeRosterOnce: new TeammateRuntimeError(
+        poison,
+        'TEAM_RUNTIME_CAPABILITY_MISMATCH',
+      ),
+    })
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: [],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: 'runtime-capability-mismatch',
+        message: 'Runtime Target cannot enforce the requested Profile capabilities.',
+      },
+    })
+    const bindingKey = digitalEmployeeBindingKey('lead', 'code-reviewer')
+    await runtime.bindings.put(bindingKey, {
+      ...(runtime.bindings.get(bindingKey) as Record<string, unknown>),
+      error: poison,
+    })
+    const snapshot = runtime.ctx.digitalEmployees.studioView(runtime.leader)
+    expect(snapshot.instances[0]?.error).toBe('Teammate provisioning failed.')
+    expect(JSON.stringify(snapshot)).not.toContain(poison)
+    expect(JSON.stringify(snapshot)).not.toContain('super-secret')
+    expect(JSON.stringify(snapshot)).not.toContain('/private/provider.json')
+    expect(JSON.stringify(snapshot)).not.toContain('SECRET_NATIVE_TRANSCRIPT')
+
+    await registration()
+    await runtime.fiber.dispose()
+  })
+
   it('repairs a contradictory Binding from the authoritative roster on service restart', async () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
@@ -2338,7 +2406,10 @@ describe('Digital Employee profile contract', () => {
           displayName: 'Duplicate Label',
           contextModes: ['fresh', 'fork'],
           profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
-          runtimeCapabilities: ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage'],
+          runtimeCapabilities: [
+            'full-collaboration', 'workspace-write', 'exact-call-approval',
+            'sandbox', 'evaluation', 'evidence', 'usage',
+          ],
           reasoning: {
             efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
             defaultEffort: 'low',

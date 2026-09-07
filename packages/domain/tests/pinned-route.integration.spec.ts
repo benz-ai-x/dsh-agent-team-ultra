@@ -4,6 +4,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import TeamService, {
   TeammateEvaluationHandle,
+  TeammateRuntimeError,
   TeammateRuntimeApprovalId,
   TeammateRuntimeHandle,
   TeammateRuntimeEvidenceId,
@@ -49,6 +50,7 @@ const LAUNCH_REQUEST_ID = launchRequestIdSchema.parse('22222222-2222-4222-8222-2
 const DSH_EVAL_RUN_ID = evalRunIdSchema.parse('33333333-3333-4333-8333-333333333333')
 const EXTERNAL_EVAL_RUN_ID = evalRunIdSchema.parse('44444444-4444-4444-8444-444444444444')
 const CANCELLED_EVAL_RUN_ID = evalRunIdSchema.parse('55555555-5555-4555-8555-555555555555')
+const FAILED_EVAL_RUN_ID = evalRunIdSchema.parse('66666666-6666-4666-8666-666666666666')
 
 class MemoryTable<K extends string, V> implements KvTable<K, V> {
   readonly records = new Map<K, V>()
@@ -1345,6 +1347,38 @@ describe('isolated candidate evaluation integration', () => {
       evaluationHandle: 'fake-eval-1',
     }))
     expect(ctx.agentTeams.listMembers(lead).map(member => member.name)).toEqual(['lead'])
+
+    const diagnosticPoison = 'credential=eval-secret configPath=/private/eval.json rawPayload=EVAL_TRANSCRIPT'
+    provider.createEvaluationHandle.mockRejectedValueOnce(new TeammateRuntimeError(
+      diagnosticPoison,
+      'TEAM_RUNTIME_UNAVAILABLE',
+    ))
+    await expect(ctx.digitalEmployees.startEvalRun(lead, {
+      evalRunId: FAILED_EVAL_RUN_ID,
+      profileId: saved.value.head.profileId,
+      profileRevision: saved.value.revision.revision,
+      evalSetId: set.value.head.evalSetId,
+      evalSetRevision: set.value.revision.revision,
+    })).resolves.toMatchObject({ ok: true, value: { run: { status: 'running' } } })
+    await vi.waitFor(() => {
+      expect(ctx.digitalEmployees.studioView(lead).evalRuns.find(run => (
+        run.evalRunId === FAILED_EVAL_RUN_ID
+      ))?.status).not.toBe('running')
+    }, { timeout: 5_000 })
+    const failedRun = await ctx.digitalEmployees.evalRun(lead, { evalRunId: FAILED_EVAL_RUN_ID })
+    expect(failedRun).toMatchObject({
+      ok: true,
+      value: {
+        run: {
+          status: 'environment-unavailable',
+          cases: [{
+            status: 'environment-unavailable',
+            diagnostic: 'Runtime Target is currently unavailable.',
+          }],
+        },
+      },
+    })
+    expect(JSON.stringify(failedRun)).not.toContain(diagnosticPoison)
 
     const entered = Promise.withResolvers<void>()
     provider.createEvaluationHandle.mockImplementationOnce(async (request) => {

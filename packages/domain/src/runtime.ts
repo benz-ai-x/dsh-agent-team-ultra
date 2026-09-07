@@ -675,7 +675,10 @@ export class RuntimeBackendRegistry {
           profileCapabilities: resolved === undefined ? [] : ALL_PROFILE_CAPABILITIES,
           runtimeCapabilities: resolved === undefined
             ? []
-            : ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage'],
+            : [
+                'full-collaboration', 'workspace-write', 'exact-call-approval',
+                'sandbox', 'evaluation', 'evidence', 'usage',
+              ],
           ...(reasoning === undefined ? {} : { reasoning }),
           ...(resolved === undefined ? { diagnostic: INVALID_DSH_DIAGNOSTIC } : {}),
         }))

@@ -358,6 +358,43 @@ describe('TeamMessageCenter', () => {
     })
   })
 
+  it('applies an addressed member and reapplies the same member on a newer navigation revision', async () => {
+    const listMessages = vi.fn(() => ok(page))
+    const injected = actions({ listMessages })
+    const rendered = render(<TeamMessageCenter {...{
+      ...props(injected),
+      selectedMemberId: WORKER,
+      navigationRevision: 7,
+    }} />)
+
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, {
+        limit: 20,
+        filters: { memberId: WORKER },
+      })
+    })
+    expect((screen.getByLabelText('Member') as HTMLSelectElement).value).toBe(WORKER)
+
+    fireEvent.change(screen.getByLabelText('Member'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, { limit: 20 })
+    })
+
+    rendered.rerender(<TeamMessageCenter {...{
+      ...props(injected),
+      selectedMemberId: WORKER,
+      navigationRevision: 8,
+    }} />)
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, {
+        limit: 20,
+        filters: { memberId: WORKER },
+      })
+    })
+    expect((screen.getByLabelText('Member') as HTMLSelectElement).value).toBe(WORKER)
+  })
+
   it('covers empty, unavailable and unknown states while discarding stale session responses', async () => {
     const firstTeam = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['loadTeam']>>>()
     const firstPage = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>>()

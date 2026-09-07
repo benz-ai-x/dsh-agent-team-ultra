@@ -17,7 +17,7 @@ describe('Ultra-owned Codex public package', () => {
         routingId: 'external-agent/codex', availability: 'available',
         contextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory'],
-        runtimeCapabilities: ['sandbox', 'evidence', 'usage'],
+        runtimeCapabilities: ['full-collaboration', 'sandbox', 'evidence', 'usage'],
         memberOperations: ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'],
       }),
     ])

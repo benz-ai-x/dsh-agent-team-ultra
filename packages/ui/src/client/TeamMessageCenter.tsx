@@ -146,7 +146,7 @@ function requestId(): TeamMessageRequestId {
 
 /** Browse Host-authorized persisted Team messages without copying them into Studio state. */
 export function TeamMessageCenter({
-  teamSessionId, loadTeam, listMessages, getMessage, sendMessage, t,
+  teamSessionId, selectedMemberId, navigationRevision, loadTeam, listMessages, getMessage, sendMessage, t,
 }: TeamMessageCenterProps) {
   const [team, setTeam] = useState<TeamView | null>(null)
   const [page, setPage] = useState<TeamMessagePage | null>(null)
@@ -174,7 +174,10 @@ export function TeamMessageCenter({
   const submitting = useRef(false)
   const submissionController = useRef<AbortController | null>(null)
   const submissionDeadline = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const navigationRef = useRef(navigationRevision)
+  const destinationRef = useRef({ teamSessionId, selectedMemberId, navigationRevision })
   sessionRef.current = teamSessionId
+  destinationRef.current = { teamSessionId, selectedMemberId, navigationRevision }
 
   const resetDetail = useCallback((): void => {
     detailGeneration.current += 1
@@ -228,6 +231,17 @@ export function TeamMessageCenter({
 
   useEffect(() => {
     const requestedSession = teamSessionId
+    const destination = destinationRef.current
+    const initialMemberId = destination.teamSessionId === requestedSession
+      ? destination.selectedMemberId
+      : undefined
+    const initialDraft = initialMemberId === undefined
+      ? EMPTY_FILTERS
+      : { ...EMPTY_FILTERS, memberId: initialMemberId }
+    const initialFilters: TeamMessageFilters | undefined = initialMemberId === undefined
+      ? undefined
+      : { memberId: initialMemberId }
+    navigationRef.current = destination.navigationRevision
     const savedIntent = readIntent(requestedSession)
     submissionGeneration.current += 1
     submitting.current = false
@@ -239,8 +253,8 @@ export function TeamMessageCenter({
     submissionController.current = null
     setTeam(null)
     setPage(null)
-    setDraft(EMPTY_FILTERS)
-    setAppliedFilters(undefined)
+    setDraft(initialDraft)
+    setAppliedFilters(initialFilters)
     setLoadingMore(false)
     setRosterError(null)
     setListError(null)
@@ -254,7 +268,7 @@ export function TeamMessageCenter({
     setSubmission(null)
     setSubmissionError(null)
     resetDetail()
-    void loadPage(requestedSession, undefined, 'replace')
+    void loadPage(requestedSession, initialFilters, 'replace')
     void loadRoster(requestedSession)
     return () => {
       submissionGeneration.current += 1
@@ -267,6 +281,23 @@ export function TeamMessageCenter({
       submissionController.current = null
     }
   }, [loadPage, loadRoster, resetDetail, teamSessionId])
+
+  useEffect(() => {
+    if (navigationRevision === undefined || navigationRevision === navigationRef.current) return
+    navigationRef.current = navigationRevision
+    const filters: TeamMessageFilters | undefined = selectedMemberId === undefined
+      ? undefined
+      : { memberId: selectedMemberId }
+    setDraft(selectedMemberId === undefined
+      ? EMPTY_FILTERS
+      : { ...EMPTY_FILTERS, memberId: selectedMemberId })
+    setAppliedFilters(filters)
+    setPage(null)
+    setLoadingMore(false)
+    setListError(null)
+    resetDetail()
+    void loadPage(teamSessionId, filters, 'replace')
+  }, [loadPage, navigationRevision, resetDetail, selectedMemberId, teamSessionId])
 
   const submitIntent = async (request: SubmitTeamMessageRequest): Promise<void> => {
     if (submitting.current) return

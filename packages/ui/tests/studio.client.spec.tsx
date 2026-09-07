@@ -159,6 +159,7 @@ function view(profiles: readonly DigitalEmployeeProfile[] = []): DigitalEmployee
     profiles: profiles.map(profile => catalog(profile)),
     runtimeCatalog: runtimeCatalog(),
     tools: [{ name: 'read', description: 'Read files' }],
+    teamMembers: [],
     instances: [],
     runs: [],
     evalSets: [],
@@ -171,6 +172,7 @@ function catalogView(profiles: readonly DigitalEmployeeProfileCatalogEntry[]): D
     profiles,
     runtimeCatalog: runtimeCatalog(),
     tools: [{ name: 'read', description: 'Read files' }],
+    teamMembers: [],
     instances: [],
     runs: [],
     evalSets: [],
@@ -264,6 +266,7 @@ function props(overrides: Partial<DigitalEmployeeStudioProps> = {}): DigitalEmpl
   return {
     sessionId: 'session-a' as never,
     load: vi.fn(async () => ({ ok: true, value: view() })),
+    openTeamMessages: vi.fn(),
     watch: vi.fn(() => ({
       start: vi.fn(),
       restart: vi.fn(),
@@ -602,6 +605,72 @@ describe('Digital Employee Studio', () => {
     expect(screen.getByText('Provisioning: Active · r1')).toBeDefined()
     expect(screen.getByText('Runtime availability: Available')).toBeDefined()
     expect(screen.getByText('Runtime presence: Idle')).toBeDefined()
+  })
+
+  it('distinguishes authoritative Team members and shows executable capabilities separately', async () => {
+    const loaded = view([profile()])
+    const openTeamMessages = vi.fn()
+    const withMembers = {
+      ...loaded,
+      teamMembers: [
+        {
+          binding: 'ordinary' as const,
+          teamId: 'session-a',
+          memberId: 'ordinary-member',
+          memberName: 'ordinary-reviewer',
+          contextMode: 'fresh' as const,
+          selectedRuntimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+          actualRuntimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+          provisioningPhase: 'active' as const,
+          runtimeAvailability: 'available' as const,
+          runtimePresence: 'idle' as const,
+          supportedContextModes: ['fresh', 'fork'] as const,
+          profileCapabilities: ['persona', 'mission', 'tool-policy', 'hooks'] as const,
+          runtimeCapabilities: [
+            'full-collaboration', 'workspace-write', 'exact-call-approval', 'evaluation',
+          ] as const,
+        },
+        {
+          binding: 'profile-bound' as const,
+          teamId: 'session-a',
+          memberId: 'bound-member',
+          memberName: 'reviewer',
+          profileId: 'reviewer' as never,
+          profileRevision: 1,
+          contextMode: 'fork' as const,
+          selectedRuntimeTarget: { kind: 'external-agent' as const, provider: 'native-reviewer' },
+          actualRuntimeTarget: { kind: 'external-agent' as const, provider: 'native-reviewer' },
+          provisioningPhase: 'active' as const,
+          runtimeAvailability: 'available' as const,
+          runtimePresence: 'running' as const,
+          supportedContextModes: ['fresh'] as const,
+          profileCapabilities: ['persona', 'mission'] as const,
+          runtimeCapabilities: ['full-collaboration', 'evaluation', 'evidence'] as const,
+        },
+      ],
+    } as unknown as DigitalEmployeeStudioView
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: withMembers })),
+      openTeamMessages,
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+
+    const ordinary = await screen.findByRole('group', { name: 'ordinary-reviewer · Ordinary teammate' })
+    expect(within(ordinary).getByText('Ordinary teammate')).toBeDefined()
+    expect(within(ordinary).getByText('Initial context: Fresh')).toBeDefined()
+    expect(within(ordinary).getByText('Supported contexts: Fresh · Fork')).toBeDefined()
+    expect(within(ordinary).getByText('Runtime availability: Available')).toBeDefined()
+    expect(within(ordinary).getByText('Runtime presence: Idle')).toBeDefined()
+    expect(within(ordinary).getByText(/Profile capabilities: Persona.*Mission.*Tool policy.*Hooks/)).toBeDefined()
+    expect(within(ordinary).getByText(/Runtime capabilities: Full collaboration.*Workspace write.*Exact-call approval.*Evaluation/)).toBeDefined()
+
+    const bound = screen.getByRole('group', { name: 'reviewer · Profile-bound employee' })
+    expect(within(bound).getByText('Profile-bound employee · r1')).toBeDefined()
+    expect(within(bound).getByText('Selected route: native-reviewer')).toBeDefined()
+    expect(within(bound).getByText('Actual route: native-reviewer')).toBeDefined()
+    expect(within(bound).getByText('Runtime presence: Running')).toBeDefined()
+    fireEvent.click(within(bound).getByRole('link', { name: 'Open messages: reviewer' }))
+    expect(openTeamMessages).toHaveBeenCalledWith('session-a', 'bound-member')
   })
 
   it('shows the opaque native handle for an external instance', async () => {
@@ -1027,7 +1096,7 @@ describe('sectioned navigation', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
 
     const nav = screen.getByRole('navigation', { name: 'Workspace' })
-    for (const name of ['Profiles', 'Runtime backends', 'Revisions', 'Instances', 'Runs', 'Evaluations']) {
+    for (const name of ['Profiles', 'Runtime backends', 'Revisions', 'Team members', 'Runs', 'Evaluations']) {
       expect(within(nav).getByRole('link', { name })).toBeDefined()
     }
 

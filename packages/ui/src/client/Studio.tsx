@@ -77,6 +77,7 @@ import css from './Studio.module.css'
 
 export interface DigitalEmployeeStudioInjected {
   load: (sessionId: SessionId) => Promise<RemoteResult<DigitalEmployeeStudioView>>
+  openTeamMessages: (sessionId: SessionId, memberId: string) => void
   watch: (
     sessionId: SessionId,
     sink: DigitalEmployeeStudioWatchSink,
@@ -466,12 +467,22 @@ function profileCapabilityLabel(capability: DigitalEmployeeProfileCapability, t:
 
 function runtimeCapabilityLabel(capability: DigitalEmployeeRuntimeCapability, t: Translate): string {
   switch (capability) {
+    case 'full-collaboration': return t('capabilityFullCollaboration')
+    case 'workspace-write': return t('capabilityWorkspaceWrite')
     case 'exact-call-approval': return t('capabilityExactCallApproval')
     case 'sandbox': return t('capabilitySandbox')
     case 'evaluation': return t('capabilityEvaluation')
     case 'evidence': return t('capabilityEvidence')
     case 'usage': return t('capabilityUsage')
   }
+}
+
+function memberContextModeLabel(mode: 'fresh' | 'fork', t: Translate): string {
+  return mode === 'fresh' ? t('contextFresh') : t('contextFork')
+}
+
+function memberRuntimeTargetLabel(target: DigitalEmployeeRuntimeTarget): string {
+  return target.kind === 'external-agent' ? target.provider : runtimeTargetLabel(target)
 }
 
 function runtimeOptionLabel(backend: DigitalEmployeeRuntimeBackend, t: Translate): string {
@@ -726,6 +737,7 @@ function resizedWindowRect(
 export function DigitalEmployeeStudio({
   sessionId,
   load,
+  openTeamMessages,
   watch,
   save,
   revision,
@@ -1432,6 +1444,7 @@ export function DigitalEmployeeStudio({
   }
 
   const profiles = view?.profiles ?? []
+  const teamMembers = view?.teamMembers ?? []
   const instances = view?.instances ?? []
   const runs = view?.runs ?? []
   const evalSets = view?.evalSets ?? []
@@ -1652,8 +1665,82 @@ export function DigitalEmployeeStudio({
 
                 <h3>{t('instances')}</h3>
                 <div className={css.instances} id={`${workspaceId}-instances`}>
-                  {instances.length === 0 && <p className={css.muted}>{t('noInstances')}</p>}
-                  {instances.map(instance => (
+                  {teamMembers.length === 0 && instances.length === 0 && (
+                    <p className={css.muted}>{t('noInstances')}</p>
+                  )}
+                  {teamMembers.map(member => {
+                    const identity = member.binding === 'ordinary'
+                      ? t('ordinaryTeammate')
+                      : t('profileBoundEmployee')
+                    const instance = member.binding === 'profile-bound'
+                      ? instances.find(candidate => candidate.memberId === member.memberId
+                        && candidate.memberName === member.memberName)
+                      : undefined
+                    return (
+                      <div
+                        key={member.memberId}
+                        role="group"
+                        aria-label={`${member.memberName} · ${identity}`}
+                        className={css.instance}
+                      >
+                        <StateDot state={member.provisioningPhase === 'failed'
+                          ? 'error'
+                          : member.provisioningPhase === 'pending' ? 'ongoing' : 'done'} />
+                        <span>
+                          <strong>{member.memberName}</strong>
+                          <small>
+                            {identity}{member.binding === 'profile-bound' ? ` · r${member.profileRevision}` : ''}
+                          </small>
+                          {member.contextMode !== undefined && (
+                            <small>{t('initialContext')}: {memberContextModeLabel(member.contextMode, t)}</small>
+                          )}
+                          <small>
+                            {t('supportedContexts')}: {member.supportedContextModes.length === 0
+                              ? t('noContextModes')
+                              : member.supportedContextModes.map(mode => memberContextModeLabel(mode, t)).join(' · ')}
+                          </small>
+                          <small>{t('provisioningState')}: {t(provisioningPhaseKey(member.provisioningPhase))}</small>
+                          <small>{t('runtimeAvailabilityState')}: {t(instanceAvailabilityKey(member.runtimeAvailability))}</small>
+                          <small>{t('runtimePresenceState')}: {t(runtimePresenceKey(member.runtimePresence))}</small>
+                          <small>
+                            {t('selectedRoute')}: {member.selectedRuntimeTarget === undefined
+                              ? t('routeNotResolved')
+                              : memberRuntimeTargetLabel(member.selectedRuntimeTarget)}
+                          </small>
+                          <small>
+                            {t('actualRoute')}: {member.actualRuntimeTarget === undefined
+                              ? t('routeNotResolved')
+                              : memberRuntimeTargetLabel(member.actualRuntimeTarget)}
+                          </small>
+                          <small>
+                            {t('profileCapabilities')}: {member.profileCapabilities.length === 0
+                              ? t('noProfileCapabilities')
+                              : member.profileCapabilities.map(capability => profileCapabilityLabel(capability, t)).join(' · ')}
+                          </small>
+                          <small>
+                            {t('runtimeCapabilities')}: {member.runtimeCapabilities.length === 0
+                              ? t('noRuntimeCapabilities')
+                              : member.runtimeCapabilities.map(capability => runtimeCapabilityLabel(capability, t)).join(' · ')}
+                          </small>
+                          {instance?.nativeRuntimeHandle !== undefined && (
+                            <small>{t('nativeRuntimeHandle')}: {instance.nativeRuntimeHandle}</small>
+                          )}
+                          {instance?.error !== undefined && <small className={css.diagnostic}>{instance.error}</small>}
+                          <a
+                            href={`#agent-team/messages/${encodeURIComponent(member.memberId)}`}
+                            aria-label={`${t('openMemberMessages')}: ${member.memberName}`}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              openTeamMessages(sessionId, member.memberId)
+                            }}
+                          >
+                            {t('openMemberMessages')}
+                          </a>
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {teamMembers.length === 0 && instances.map(instance => (
                     <div key={`${instance.teamId}/${instance.memberName}`} className={css.instance}>
                       <StateDot state={instance.provisioningPhase === 'failed' ? 'error' : instance.provisioningPhase === 'pending' ? 'ongoing' : 'done'} />
                       <span>
