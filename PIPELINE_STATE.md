@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T15:31:08+08:00（Asia/Shanghai）
+最后更新：2026-09-07T15:40:14+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -24,7 +24,7 @@
 | Issue | 标题 | 模块 | 复杂度 | 依赖 | 本轮状态 |
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
-| #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | in-review（Batch 1；第 1 轮修复已验证，待双轴复审） |
+| #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | in-review（Batch 1；闸门绿，人工合并已确认） |
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | planned（Batch 2） |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | planned（Batch 2） |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | planned（Batch 2） |
@@ -43,7 +43,7 @@
 
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
-| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；闸门绿；等待人工合并 | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
+| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；闸门绿；人工合并已确认 | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | planned | 0 | 0 | 未创建 |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
@@ -123,6 +123,7 @@
 - 2026-09-07T15:27:21+08:00：PR #59 第 2 轮在两个全新隔离会话对固定 Ultra `08585631…df534403` 与 Harness `c2940ac…d2d870fb` 完成复审。Standards：0 blocking / 0 high / 0 medium / 0 low，确认双 SDK recorded-session、projection v7 文案与 Agent Note partial-supersession 已补齐。Spec：0 finding，六条 AC 全部 PASS，独立确认 deadline/late-settle、storage fail-closed、exact authority/idempotency、provider/restart、codec/projection 与 packed 负控。review 轮数记为 2，本轮通过，无未解决 blocking/high。
 - 2026-09-07T15:30:19+08:00：复审后再次 fetch，`origin/main` 未前进，PR head 为 `df534403…`，#33 仍 open 且无新增 issue；正式 local gate `pnpm verify` 自然退出 0：strict 582/0、build/Typert/compatibility 通过，Vitest 30 files / 346 tests，通过八 archive、真实丢回执 deadline/exact retry、Web、Codex/Claude JSON/SQLite recovery 与 uninstall。仓库无 CI；local-gate 红灯轮数保持 0，PR #59 满足全部自动闸门。
 - 2026-09-07T15:31:08+08:00：因 public Remote 与 persistent event/projection schema 命中人工合并规则，已按 `lark-im` 以 bot 向既定群聊发送【需决策】通知，回执 `ok: true`，message `om_x100b66d2cd703104c44a760eec861ed`；请求按冻结 merge commit 方式确认合并 PR #59。发送成功，无待补发通知。
+- 2026-09-07T15:40:14+08:00：用户明确回复“确定”，人工授权按冻结 merge commit 方式合并 PR #59。恢复对账已完成：PR head `9474a8e775f4bc7fa93db74640f6c1b2a5a7494a`、CLEAN/MERGEABLE、无 checks；`origin/main` 仍为 `08585631…`，#33 仍 open 且 6/6 AC 已勾选，无新增 issue，工作树 clean。先把本授权记录提交/push，再以更新后的精确 head 执行合并。
 
 ## AC 进度
 
@@ -152,6 +153,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 提交/push 本次 review 2、正式 local gate 与飞书回执状态更新，并核对 PR #59 head/mergeability。
-2. 等待人工确认后才可按冻结的 merge commit 方式合并 PR #59；合并前必须再 fetch，失败刷新分支重试一次。不得自动合并。
-3. Batch 2 作为冻结整体包含依赖 #33 的 #36，因此在 #59 合并关闭 #33 前不启动 #34；确认合并后删除 Batch 1 分支，拉 main 跑完整 `pnpm verify`，绿后才转 Batch 2 developing。
+1. 提交/push 人工确认记录；再 fetch 并回读 PR 更新后的精确 head、CLEAN/MERGEABLE 和 main 未前进。
+2. 使用 `gh pr merge --merge --delete-branch --match-head-commit <exact-head> 59`；失败则刷新分支只重试一次，仍失败才置阻塞。
+3. 成功后回读 PR/Issue/main，删除本地 Batch 1 分支，拉最新 main 跑完整 `pnpm verify`；绿后记录 merged 并发送飞书【仅知会】，再转 Batch 2 developing。
