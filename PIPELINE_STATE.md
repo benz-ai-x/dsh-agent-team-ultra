@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T06:21:28+08:00（Asia/Shanghai）
+最后更新：2026-09-08T06:55:59+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -28,7 +28,7 @@
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
-| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | in-review：PR #61，6/6 AC，Issue保持OPEN待合并 |
+| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | developing：PR #61 review 1失败，2/6 AC，修复中 |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | dependency-paused：等Batch 2统一重试解锁#36（Batch 3B） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | dependency-paused：等#38（Batch 4） |
 | #40 | 把双 native 与协作面板迁移到新 Harness 契约 | Codex/Claude/UI migration | L | #39 | dependency-paused：等#39（Batch 4） |
@@ -45,7 +45,7 @@
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | in-review | 0 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing：review 1修复中 | 1 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | dependency-paused；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | dependency-paused | 0 | 0 | 未创建 |
@@ -459,6 +459,9 @@
 
 - 2026-09-08T06:14:09+08:00：收尾证据提交`49b0a2d5d4d4f035a55a8fd17ca9d0d543135ebc`（`docs: record issue 37 acceptance`，HANDOFF/TODO/PIPELINE及新建直接evidence）已形成；Ultra随后经显式HTTPS push将远程`feat/batch-3-studio-recovery`由`68abfed…`快进到`49b0a2d…`，`git ls-remote`与本地HEAD逐字一致且worktree clean。Harness再次HTTPS回读仍为`95483a7a9645679c45805a46a968a1cf7508126c`、worktree clean。隔离开发终态已满足提交/证据要求；主agent下一步创建PR并进入in-review，不得由本上下文开PR、评审、合并或发送飞书。
 - 2026-09-08T06:21:28+08:00：主agent接手后再次`git fetch origin --prune`，确认`origin/main`仍为`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Batch 3A相对main为0 behind / 7 ahead，Ultra本地/远端head均为最终状态提交`ef0c1fa7f0212bdd8f283440c042d72cedb0af75`且worktree clean；Harness正确fork `benz-ai-x/deepseek-harness_x`的本地/HTTPS远端均为`95483a7a9645679c45805a46a968a1cf7508126c`且worktree clean。#37即时回读仍OPEN、6/6 checked；open issue集合与启动范围一致，无待下轮新增项。已创建[PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61)，回读为OPEN、非draft、CLEAN/MERGEABLE、head=`ef0c1fa7…`、29 files / +1158/-75、无checks；正文含`Closes #37`、Harness精确提交/digest、完整测试命令与结果、首轮local-gate回归及已知Harness基线lint限制。Batch 3A转为in-review，review轮数0、历史local-gate红1/连续红0；本PR未命中冻结人工合并清单。
+- 2026-09-08T06:53:15+08:00：PR #61第1轮全新隔离`/code-review`完成，两名`fork_turns=none` reviewer分别执行Standards与Spec，再由独立归并上下文去重；固定Ultra范围`2c5a355…5e7b9d38`、Harness范围`d2d870f…95483a7a`。结论0 blocking / 7 high / 1 medium，本轮失败、review轮数记1，未达连续3轮熔断。High：普通external成员在native acceptance前虚报actual target；Binding持久phase被roster覆盖且未入roster的pending/failed Binding在已有其他成员时消失；DSH仅凭model route无条件声称workspace-write；Claude声明full-collaboration却在create/resume requirement检查拒绝同值；generic launch Error仍可经Gateway泄漏provider原文；生成public Slot catalog缺`selectedMemberId`/`navigationRevision` owner props；人可见自动导航缺规范要求的keyless recorded-session snapshot。Medium：一个抛错navigation subscriber会饿死后续listener。AC矩阵为#37.1/#37.2/#37.3/#37.5 FAIL，#37.4/#37.6 PASS；review只读验证Ultra strict 582/0、10 files/116 tests，Harness 3 files/79 tests，两仓diff-check与worktree clean。
+- 2026-09-08T06:53:15+08:00：依据review结果，用单一fresh脚本连续读取live #37并只把AC 1/2/3/5的四个唯一`[x]`撤为`[ ]`，反向还原证明其余字节零变化；回读Issue仍OPEN、2 checked/4 unchecked、`updatedAt=2026-09-07T22:52:35Z`，before SHA-256=`af689fd5ee0f6cbd22cb3a6d11444f370b64ea90703a2d830da2175ec4c8053c`、after=`b0360fbcef795f54b6e82039996100935887bae5b6fa4270b4c7ad32dd113150`。PR #61正文已原子改为`Refs #37`（0个Closes/1个Refs），记录review 1失败与修复中，head仍为`5e7b9d38…`。Batch 3A转回developing，下一步用全新隔离修复上下文处理全部high并顺带修medium；low重复投影只记follow-up。
+- 2026-09-08T06:55:59+08:00：review high构成当前合并阻塞，已按`lark-im`用bot向冻结群聊即时发送【仅知会】通知，说明PR #61第1轮0 blocking/7 high/1 medium、四项AC撤回、未熔断且将自动修复；回执`ok: true`，message=`om_x100b66c04120e0a0c11f97bd1ed313c`，无待补发。
 
 ## AC 进度
 
@@ -497,11 +500,11 @@
 
 ### #37
 
-- [x] Host Snapshot 依据权威 roster 与 Binding 显示普通/绑定身份、不可变 Revision、选定/实际 Runtime Target。
-- [x] 完整协作与 fresh/fork、工具策略、Hooks、审批、评测、文件写入分别显示并按真实可执行能力校验。
-- [x] 保留 Provisioning Phase、Runtime Availability、Runtime Presence 及 baseline/替换/stale/业务冲突边界。
+- [ ] Host Snapshot 依据权威 roster 与 Binding 显示普通/绑定身份、不可变 Revision、选定/实际 Runtime Target。
+- [ ] 完整协作与 fresh/fork、工具策略、Hooks、审批、评测、文件写入分别显示并按真实可执行能力校验。
+- [ ] 保留 Provisioning Phase、Runtime Availability、Runtime Presence 及 baseline/替换/stale/业务冲突边界。
 - [x] 通过公开导航链接指定成员，不引入另一个 Team 面板；构建兼容性信息只放运维诊断。
-- [x] Snapshot、错误和 Run Index 不含授权、配置路径或 native 原始内容；消息详情继续独立授权分页读取。
+- [ ] Snapshot、错误和 Run Index 不含授权、配置路径或 native 原始内容；消息详情继续独立授权分页读取。
 - [x] 验证档案 CAS/门禁、隔离 Evaluation Worker 和 Exact-call Approval 回归，不能因新协作能力自动放宽。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
@@ -522,5 +525,5 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 对固定Ultra `2c5a355…ef0c1fa7`与Harness `d2d870f…95483a7a`启动全新隔离`/code-review`，只给diff和#37六项AC；仅blocking/high阻塞并计轮次，medium/low记follow-up。
-2. review通过后再次fetch并运行正式本地`pnpm verify`；闸门全绿则按冻结merge commit方式合并PR #61。#37终态后先统一重试PR #60，不直接开工#38。
+1. 启动全新隔离review-fix开发上下文，输入review 1的7 high/1 medium、固定两仓范围与#37 live正文；完整读`tdd`/`dsh-plugin-dev`，逐项RED→GREEN，跨仓独立提交并HTTPS推送。
+2. 修复后fresh复核AC并安全勾选，PR恢复正确的Closes/Refs，再对新固定head跑第2轮全新隔离`/code-review`；review通过后运行正式本地`pnpm verify`。#37终态后先统一重试PR #60，不直接开工#38。
