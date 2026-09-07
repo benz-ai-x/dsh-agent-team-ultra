@@ -131,6 +131,11 @@ an actual integration commit based on the fixed official comparison.
   explicit omissions. Delivery stages are acknowledgements, never read status
   or task completion. See
   [ADR 0023](../adr/0023-compose-persisted-team-message-reads.md).
+- The Team owner's generated `agentTeams/watch` stream authorizes the exact
+  live Lead and begins with one complete authoritative `TeamView`. Later
+  committed message or task changes coalesce into a bounded invalidation;
+  Clients reread the existing task view and current filtered message window.
+  The stream carries no message page, draft, scheduler, or persistent mirror.
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
 - The fixed `ultra_profile_list`, `ultra_profile_detail`, and
@@ -475,7 +480,9 @@ an actual integration commit based on the fixed official comparison.
   stores its bounded retry fields by Team. Double-clicks share that request;
   an unknown transport outcome preserves a reviewable draft, and reload never
   sends it automatically. Only an explicit same-request retry or refresh acts.
-  Continuous watch and reconnect state belong to #36.
+  Team watch generations fence late pages, callbacks, and settlements across
+  filter, Team, and service changes. Carrier loss retains the last committed
+  view as stale; reconnect restores reads only and never submits an intent.
 - Every physical stream generation begins with exactly one complete baseline.
   Later frames are complete replacements, never partial entity patches.
 - Storage-domain, Runtime Backend generation, Agent roster, Team turn, approval,
@@ -484,6 +491,12 @@ an actual integration commit based on the fixed official comparison.
 - The Client uses the stock Gateway generation supervisor and snapshot
   validator. An update before its opening baseline, or a duplicate baseline,
   fails the stream instead of publishing an ambiguous model.
+- The Agent Team stream uses the same Gateway lifecycle but its post-baseline
+  frame is only `invalidated`, not a copied message/task patch. A Client
+  invalidation replaces the current message window without a continuation
+  cursor; a pending old page cannot append after that replacement. Team or
+  service replacement aborts old reads/submissions, preserves only the
+  appropriate Team-scoped unsaved intent, and ignores every late generation.
 - Carrier loss keeps the last accepted complete snapshot visible as stale.
   Terminal disconnection, opening load, complete empty data, pending work,
   conflicts, runtime availability/capability failures, business rejection, and

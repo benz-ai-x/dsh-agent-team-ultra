@@ -73,6 +73,10 @@ async function bench(registrationFailure = false) {
   } as never)
   ctx.provide('remote.agentTeams', {
     view: answer('team/view', { members: [], tasks: [] }),
+    watch: (...args: unknown[]) => {
+      calls.push({ method: 'team/watch', args })
+      return { [Symbol.asyncIterator]: async function * () {} }
+    },
     listMessages: answer('team/listMessages', { items: [], committedCursor: 'cursor', complete: true }),
     getMessage: answer('team/getMessage', {}),
     sendMessage: answer('team/sendMessage', { ok: true, value: {} }),
@@ -196,6 +200,27 @@ describe('Digital Employee Studio mount lifecycle', () => {
     await actions.evalRun('lead-session', { evalRunId: EVAL_RUN_ID })
     const messageActions = (runtime.messageEntry()!.inject as unknown as () => TeamMessageCenterInjected)()
     await messageActions.loadTeam('lead-session')
+    const messageSink = {
+      replace: vi.fn(),
+      invalidated: vi.fn(),
+      stale: vi.fn(),
+      failed: vi.fn(),
+    }
+    const messageWatch = messageActions.watch('lead-session', messageSink)
+    expect(runtime.remote.createStream).toHaveBeenCalledTimes(2)
+    expect(runtime.remote.streamOptions).toMatchObject({
+      name: 'Agent Team message change stream',
+      open: expect.any(Function),
+      ended: expect.any(Function),
+      carrierFailed: expect.any(Function),
+    })
+    runtime.remote.streamOptions?.carrierFailed?.(new Error('message carrier lost') as never)
+    expect(messageSink.stale).toHaveBeenCalledOnce()
+    runtime.remote.streamOptions?.open(new AbortController().signal)
+    expect(runtime.calls.at(-1)?.method).toBe('team/watch')
+    messageWatch.start()
+    await messageWatch.dispose()
+    expect(runtime.remote.disposeStream).toHaveBeenCalledTimes(2)
     await messageActions.listMessages('lead-session', { limit: 20 })
     await messageActions.getMessage('lead-session', {
       messageId: 'message-1' as never,
@@ -257,6 +282,7 @@ describe('Digital Employee Studio mount lifecycle', () => {
       { method: 'cancelEvalRun', args: ['lead-session', { evalRunId: EVAL_RUN_ID }] },
       { method: 'evalRun', args: ['lead-session', { evalRunId: EVAL_RUN_ID }] },
       { method: 'team/view', args: ['lead-session'] },
+      { method: 'team/watch', args: ['lead-session', expect.any(AbortSignal)] },
       { method: 'team/listMessages', args: ['lead-session', { limit: 20 }] },
       {
         method: 'team/getMessage',

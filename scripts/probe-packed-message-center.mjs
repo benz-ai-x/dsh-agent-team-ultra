@@ -148,8 +148,13 @@ const rendererClient = instantiate('@deepseek-ai/dsh-client-ui-renderer')
 const localeClient = instantiate('@deepseek-ai/dsh-client-locale', {
   '@deepseek-ai/dsh-client-store': clientStore,
 })
-const teamClient = instantiate('@deepseek-ai/dsh-experimental-client-ui-agent-team')
-const ultraClient = instantiate('@benz-ai-x/dsh-client-ui-agent-team-ultra', {
+const teamClient = instantiate('@deepseek-ai/dsh-experimental-client-ui-agent-team', {
+  '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
+})
+const ultraClientId = handoffs.has('@benz-ai-x/dsh-client-ui-agent-team-ultra')
+  ? '@benz-ai-x/dsh-client-ui-agent-team-ultra'
+  : '@deepseek-ai/dsh-client-ui-agent-team-ultra'
+const ultraClient = instantiate(ultraClientId, {
   '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
 })
 
@@ -388,6 +393,12 @@ async function startHost(resume) {
     async advanceTask(request) {
       return await host.agentTeams.updateTask(lead, request)
     },
+    async createTask(subject) {
+      return await host.agentTeams.createTask(lead, {
+        subject,
+        description: 'Trigger one committed packed live-view invalidation.',
+      })
+    },
     async events() {
       const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
       try {
@@ -475,9 +486,73 @@ async function startClient(host) {
     .find(entry => entry.options.id === 'messages')
   if (parentEntry === undefined || childEntry === undefined) throw new Error('packed Team owner/message entries are missing')
   const childActions = childEntry.inject()
+  if (typeof childActions.watch !== 'function') {
+    disposeRootSlot()
+    await client.fiber.dispose()
+    throw new Error('packed message child is missing the generated Team watch action')
+  }
+  const watchStats = {
+    baselines: 0,
+    invalidations: 0,
+    stale: 0,
+    failures: 0,
+    starts: 0,
+    disposes: 0,
+    listCalls: [],
+    sendCalls: 0,
+  }
+  const activeWatchSinks = new Set()
+  const watch = childActions.watch.bind(childActions)
+  childActions.watch = (sessionId, sink) => {
+    const observedSink = {
+      replace(value) {
+        watchStats.baselines += 1
+        sink.replace(value)
+      },
+      invalidated() {
+        watchStats.invalidations += 1
+        sink.invalidated()
+      },
+      stale() {
+        watchStats.stale += 1
+        sink.stale()
+      },
+      failed(error) {
+        watchStats.failures += 1
+        sink.failed(error)
+      },
+    }
+    activeWatchSinks.add(observedSink)
+    const control = watch(sessionId, observedSink)
+    return {
+      start() {
+        watchStats.starts += 1
+        control.start()
+      },
+      async dispose() {
+        activeWatchSinks.delete(observedSink)
+        watchStats.disposes += 1
+        await control.dispose()
+      },
+    }
+  }
+  let heldListResponse = null
+  const listMessages = childActions.listMessages.bind(childActions)
+  childActions.listMessages = async (sessionId, request, signal) => {
+    watchStats.listCalls.push(structuredClone(request))
+    const result = await listMessages(sessionId, request, signal)
+    const hold = heldListResponse
+    if (hold !== null && request.cursor !== undefined) {
+      heldListResponse = null
+      hold.captured.resolve({ request: structuredClone(request), result })
+      await hold.release.promise
+    }
+    return result
+  }
   const sendMessage = childActions.sendMessage.bind(childActions)
   let droppedSendResponse = null
   childActions.sendMessage = async (sessionId, request, signal) => {
+    watchStats.sendCalls += 1
     const drop = droppedSendResponse
     if (drop === null) return await sendMessage(sessionId, request, signal)
     droppedSendResponse = null
@@ -493,6 +568,20 @@ async function startClient(host) {
 
   return {
     childActions,
+    watchStats,
+    holdNextCursorPage() {
+      if (heldListResponse !== null) throw new Error('a packed cursor page is already held')
+      const captured = Promise.withResolvers()
+      const release = Promise.withResolvers()
+      heldListResponse = { captured, release }
+      return {
+        captured: captured.promise,
+        release: () => release.resolve(undefined),
+      }
+    },
+    markWatchStale() {
+      for (const sink of activeWatchSinks) sink.stale()
+    },
     setLocale(id) {
       locale.setLocale(id)
     },
@@ -924,10 +1013,44 @@ try {
   await verifyTaskDag(firstPanel, firstHost.taskGraph)
   firstPanel = await verifyTaskDependencyEditing(firstHost, firstClient, firstPanel, firstHost.taskGraph)
   await openMessages(firstPanel)
+  await waitUntil(() => firstClient.watchStats.baselines > 0, 'packed Team watch baseline')
   for (const route of ['lead → dsh-worker', 'codex-worker → lead', 'claude-worker → lead']) {
     if (!firstPanel.container.textContent.includes(route)) throw new Error(`packed first page is missing ${route}`)
   }
   if (messageButtons(firstPanel.container).length !== 20) throw new Error('packed first page is not bounded to 20 rows')
+
+  firstClient.markWatchStale()
+  await waitUntil(
+    () => firstPanel.container.textContent.includes('Disconnected. Showing potentially stale Team messages.'),
+    'packed stale message view',
+  )
+  const latePage = firstClient.holdNextCursorPage()
+  await click(button(firstPanel.container, 'Load older messages'))
+  await latePage.captured
+  const invalidationsBefore = firstClient.watchStats.invalidations
+  const listCallsBefore = firstClient.watchStats.listCalls.length
+  await act(async () => {
+    await firstHost.createTask('Invalidate packed message paging')
+  })
+  await waitUntil(
+    () => firstClient.watchStats.invalidations > invalidationsBefore,
+    'packed committed Team invalidation',
+  )
+  await waitUntil(
+    () => firstClient.watchStats.listCalls.length > listCallsBefore
+      && firstClient.watchStats.listCalls.at(-1)?.cursor === undefined,
+    'packed authoritative message-page reread',
+  )
+  await waitUntil(
+    () => !firstPanel.container.textContent.includes('Disconnected. Showing potentially stale Team messages.'),
+    'packed watch recovery status',
+  )
+  latePage.release()
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  if (messageButtons(firstPanel.container).length !== 20
+    || firstClient.watchStats.sendCalls !== 0) {
+    throw new Error('packed live refresh admitted a late cursor page or automatically resent a message')
+  }
   await click(button(firstPanel.container, 'Load older messages'))
   await waitUntil(() => messageButtons(firstPanel.container).length === 22, 'packed second page')
 
@@ -1004,8 +1127,28 @@ try {
   }), 'pre-restart packed UI detail')
   if (beforeDetail.content.parts[0]?.text !== 'Codex durable body') throw new Error('pre-restart detail body mismatch')
 
+  const watchCallbacksBeforeUnmount = firstClient.watchStats.baselines
+    + firstClient.watchStats.invalidations
+    + firstClient.watchStats.stale
+    + firstClient.watchStats.failures
+  const watchDisposalsBeforeUnmount = firstClient.watchStats.disposes
   await firstPanel.dispose()
   firstPanel = undefined
+  await waitUntil(
+    () => firstClient.watchStats.disposes > watchDisposalsBeforeUnmount,
+    'packed message watch renderer disposal',
+  )
+  await act(async () => {
+    await firstHost.createTask('Invalidate after packed renderer unmount')
+  })
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  const watchCallbacksAfterUnmount = firstClient.watchStats.baselines
+    + firstClient.watchStats.invalidations
+    + firstClient.watchStats.stale
+    + firstClient.watchStats.failures
+  if (watchCallbacksAfterUnmount !== watchCallbacksBeforeUnmount) {
+    throw new Error('packed message watch delivered after renderer unmount')
+  }
   await firstClient.dispose()
   firstClient = undefined
   await firstHost.dispose()
@@ -1093,6 +1236,7 @@ try {
   console.log('PASS packed Team owner panel shares authoritative task list, dependency graph, selection, details, controls, navigation, and filtering')
   console.log('PASS packed dependency picker commits one atomic CAS and preserves a bilingual stale conflict draft without retry')
   console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
+  console.log('PASS packed Team watch establishes a baseline, rereads on bounded invalidation, drops a late cursor page, never resends, and disposes on renderer unmount')
   console.log('PASS packed production renderer loses one committed Remote response, reaches its deadline, and preserves the exact retry intent across Host recovery')
   console.log('PASS packed Loader/AgentLoop/Team/JSONL boundary recovers one pending reply through the controlled provider without duplicate work')
   console.log('PASS packed durable-request validator rejects missing and duplicate required facts')

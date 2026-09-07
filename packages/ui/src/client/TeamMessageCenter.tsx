@@ -24,6 +24,7 @@ const SUBMISSION_DEADLINE_MS = 15_000
 /** Generated Team Remote operations used by the public message-center view. */
 export interface TeamMessageCenterInjected {
   loadTeam: (sessionId: SessionId) => Promise<RemoteResult<TeamView>>
+  watch: (sessionId: SessionId, sink: TeamMessageCenterWatchSink) => TeamMessageCenterWatchControl
   listMessages: (sessionId: SessionId, request: ListTeamMessagesRequest) => Promise<RemoteResult<TeamMessagePage>>
   getMessage: (sessionId: SessionId, request: GetTeamMessageRequest) => Promise<RemoteResult<TeamMessageDetail>>
   sendMessage: (
@@ -31,6 +32,20 @@ export interface TeamMessageCenterInjected {
     request: SubmitTeamMessageRequest,
     signal: AbortSignal,
   ) => Promise<RemoteResult<SubmitTeamMessageResult>>
+}
+
+/** Reconnecting Team change stream destinations for one message-center generation. */
+export interface TeamMessageCenterWatchSink {
+  replace(value: TeamView): void
+  invalidated(): void
+  stale(): void
+  failed(error: unknown): void
+}
+
+/** Minimal lifecycle owned by one mounted message-center generation. */
+export interface TeamMessageCenterWatchControl {
+  start(): void
+  dispose(): Promise<void>
 }
 
 /** Props composed by the Agent Teams child Slot. */
@@ -52,6 +67,7 @@ interface MessageDraft {
 }
 
 type SubmissionPhase = 'editing' | 'submitting' | 'unknown' | 'rejected' | 'accepted'
+type TeamMessageWatchPhase = 'connecting' | 'connected' | 'stale' | 'disconnected' | 'unavailable'
 
 interface StoredMessageIntent {
   readonly version: 1
@@ -146,7 +162,7 @@ function requestId(): TeamMessageRequestId {
 
 /** Browse Host-authorized persisted Team messages without copying them into Studio state. */
 export function TeamMessageCenter({
-  teamSessionId, loadTeam, listMessages, getMessage, sendMessage, t,
+  teamSessionId, loadTeam, watch, listMessages, getMessage, sendMessage, t,
 }: TeamMessageCenterProps) {
   const [team, setTeam] = useState<TeamView | null>(null)
   const [page, setPage] = useState<TeamMessagePage | null>(null)
@@ -166,12 +182,18 @@ export function TeamMessageCenter({
   const [submissionPhase, setSubmissionPhase] = useState<SubmissionPhase>('editing')
   const [submission, setSubmission] = useState<Extract<SubmitTeamMessageResult, { ok: true }>['value'] | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [watchPhase, setWatchPhase] = useState<TeamMessageWatchPhase>('connecting')
   const sessionRef = useRef(teamSessionId)
+  const initializedSessionRef = useRef<SessionId | null>(null)
+  const publishedRef = useRef(false)
+  const appliedFiltersRef = useRef<TeamMessageFilters | undefined>()
+  const watchGeneration = useRef(0)
   const teamGeneration = useRef(0)
   const listGeneration = useRef(0)
   const detailGeneration = useRef(0)
   const submissionGeneration = useRef(0)
   const submitting = useRef(false)
+  const interruptedSubmission = useRef(false)
   const submissionController = useRef<AbortController | null>(null)
   const submissionDeadline = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
   sessionRef.current = teamSessionId
@@ -203,6 +225,7 @@ export function TeamMessageCenter({
       return
     }
     setListError(null)
+    publishedRef.current = true
     setPage((current) => {
       if (mode === 'replace' || current === null) return result.value
       const seen = new Set(current.items.map(item => item.id))
@@ -219,6 +242,7 @@ export function TeamMessageCenter({
     const result = await loadTeam(requestedSession)
     if (sessionRef.current !== requestedSession || teamGeneration.current !== generation) return
     if (result.ok) {
+      publishedRef.current = true
       setTeam(result.value)
       setRosterError(null)
     } else {
@@ -228,8 +252,12 @@ export function TeamMessageCenter({
 
   useEffect(() => {
     const requestedSession = teamSessionId
-    const savedIntent = readIntent(requestedSession)
+    const changedTeam = initializedSessionRef.current !== requestedSession
+    const wasInterrupted = interruptedSubmission.current
+    interruptedSubmission.current = false
+    initializedSessionRef.current = requestedSession
     submissionGeneration.current += 1
+    watchGeneration.current += 1
     submitting.current = false
     if (submissionDeadline.current !== null) {
       globalThis.clearTimeout(submissionDeadline.current)
@@ -237,27 +265,38 @@ export function TeamMessageCenter({
     }
     submissionController.current?.abort(new Error('Team message composer changed session'))
     submissionController.current = null
-    setTeam(null)
-    setPage(null)
-    setDraft(EMPTY_FILTERS)
-    setAppliedFilters(undefined)
+    if (changedTeam) {
+      const savedIntent = readIntent(requestedSession)
+      appliedFiltersRef.current = undefined
+      publishedRef.current = false
+      setTeam(null)
+      setPage(null)
+      setDraft(EMPTY_FILTERS)
+      setAppliedFilters(undefined)
+      setMessageDraft(savedIntent === null ? EMPTY_MESSAGE : {
+        recipientId: savedIntent.recipientId,
+        replyTo: savedIntent.replyTo ?? '',
+        text: savedIntent.text,
+      })
+      setIntent(savedIntent)
+      setSubmissionPhase(savedIntent === null ? 'editing' : 'unknown')
+      setSubmission(null)
+      setSubmissionError(null)
+    } else if (wasInterrupted) {
+      setSubmission(null)
+      setSubmissionError(null)
+      setSubmissionPhase('unknown')
+    }
     setLoadingMore(false)
     setRosterError(null)
     setListError(null)
-    setMessageDraft(savedIntent === null ? EMPTY_MESSAGE : {
-      recipientId: savedIntent.recipientId,
-      replyTo: savedIntent.replyTo ?? '',
-      text: savedIntent.text,
-    })
-    setIntent(savedIntent)
-    setSubmissionPhase(savedIntent === null ? 'editing' : 'unknown')
-    setSubmission(null)
-    setSubmissionError(null)
+    setWatchPhase('connecting')
     resetDetail()
-    void loadPage(requestedSession, undefined, 'replace')
+    void loadPage(requestedSession, appliedFiltersRef.current, 'replace')
     void loadRoster(requestedSession)
     return () => {
       submissionGeneration.current += 1
+      interruptedSubmission.current = submitting.current
       submitting.current = false
       if (submissionDeadline.current !== null) {
         globalThis.clearTimeout(submissionDeadline.current)
@@ -267,6 +306,44 @@ export function TeamMessageCenter({
       submissionController.current = null
     }
   }, [loadPage, loadRoster, resetDetail, teamSessionId])
+
+  useEffect(() => {
+    const requestedSession = teamSessionId
+    const generation = ++watchGeneration.current
+    const current = (): boolean => sessionRef.current === requestedSession
+      && watchGeneration.current === generation
+    setWatchPhase('connecting')
+    const control = watch(requestedSession, {
+      replace(next) {
+        if (!current()) return
+        teamGeneration.current += 1
+        publishedRef.current = true
+        setTeam(next)
+        setRosterError(null)
+        setWatchPhase('connected')
+        resetDetail()
+        void loadPage(requestedSession, appliedFiltersRef.current, 'replace')
+      },
+      invalidated() {
+        if (!current()) return
+        setWatchPhase('connected')
+        resetDetail()
+        void loadPage(requestedSession, appliedFiltersRef.current, 'replace')
+        void loadRoster(requestedSession)
+      },
+      stale() {
+        if (current()) setWatchPhase(publishedRef.current ? 'stale' : 'disconnected')
+      },
+      failed() {
+        if (current()) setWatchPhase('unavailable')
+      },
+    })
+    control.start()
+    return () => {
+      if (watchGeneration.current === generation) watchGeneration.current += 1
+      void control.dispose()
+    }
+  }, [loadPage, loadRoster, resetDetail, teamSessionId, watch])
 
   const submitIntent = async (request: SubmitTeamMessageRequest): Promise<void> => {
     if (submitting.current) return
@@ -370,6 +447,7 @@ export function TeamMessageCenter({
 
   const applyFilters = (): void => {
     const filters = filtersOf(draft)
+    appliedFiltersRef.current = filters
     setAppliedFilters(filters)
     setPage(null)
     resetDetail()
@@ -564,6 +642,13 @@ export function TeamMessageCenter({
       {rosterError !== null && <div className={css.error} role="alert">{rosterError}</div>}
       {listError !== null && <div className={css.error} role="alert">{listError}</div>}
       {detailError !== null && <div className={css.error} role="alert">{detailError}</div>}
+      {watchPhase === 'stale' && <div className={css.notice} role="status">{t('messageStreamStale')}</div>}
+      {watchPhase === 'disconnected' && (
+        <div className={css.notice} role="status">{t('messageStreamDisconnected')}</div>
+      )}
+      {watchPhase === 'unavailable' && (
+        <div className={css.notice} role="status">{t('messageStreamUnavailable')}</div>
+      )}
       {loading && page === null && <div className={css.notice}>{t('loadingMessages')}</div>}
       {!loading && page !== null && page.items.length === 0 && (
         <div className={css.notice}>{t('emptyMessages')}</div>

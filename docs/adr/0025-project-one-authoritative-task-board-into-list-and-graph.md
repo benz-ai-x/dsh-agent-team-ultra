@@ -4,11 +4,14 @@ status: accepted
 
 # Project one authoritative Team task board into list and graph views
 
-[Issue #34](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/34)
-adds an interactive dependency graph beside the shared task list. The Agent
-Team owner remains the only task authority and UI composition owner: list,
-graph, and detail are projections of one `TeamView.tasks` result, while every
-write continues through the existing revision-checked Team mutation API.
+[Issue #34](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/34) adds an
+interactive dependency graph beside the shared task list;
+[Issue #35](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/35) edits
+its dependencies, and
+[Issue #36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36) follows
+committed changes. The Agent Team owner remains the only task authority and UI
+composition owner: list, graph, detail, and live refresh project one Host Team,
+while every write continues through the existing revision-checked mutation API.
 
 ## 中文规范
 
@@ -32,8 +35,17 @@ Client 只保留可丢弃的显示状态：当前选中 id、列表／图模式�
 
 该边界刻意不引入第二套任务存储、自动调度器、图数据库、文件锁或成员启动逻辑，
 也不把任务面板放进 Ultra Studio。无额外图形依赖的确定性布局使 production bundle
-保持 browser-safe；公开 Team owner Slot 和所有现有注册仍随其 Fiber 释放。#36 的
-watch/reconnect 必须扩展这同一权威边界，而不是建立旁路状态。
+保持 browser-safe；公开 Team owner Slot 和所有现有注册仍随其 Fiber 释放。
+
+#36 在这条边界增加 exact-live-Lead `agentTeams/watch`：每个 stream generation 先给
+完整权威 `TeamView` baseline，之后消息或任务的持久提交只合并为一个有界
+`invalidated` 信号。信号不携带消息页、任务 patch 或 Client 草稿；DAG 重读同一任务
+view，消息中心以当前筛选、无旧 continuation cursor 重读同一持久页。旧 cursor 页、旧
+Team／service callback 和迟到提交受 generation 隔离。carrier 断开保留最后权威数据并
+明确标为 stale；重连只恢复读取，不能自动重发已保存意图。切 Team 会释放旧 stream、
+读取、timer 和 pending submit；同 Team service 替换保留未保存草稿，被中断的 exact
+request 只转为 unknown。Host follower、generated Remote、Gateway、locale、Slot 和 UI
+control 均由对应 Fiber／renderer 生命周期释放，仍不形成旁路状态。
 
 ## English counterpart
 
@@ -69,5 +81,19 @@ This boundary deliberately adds no second task store, scheduler, graph
 database, file lock, member launch, or parallel Studio panel. A deterministic
 layout without another graph dependency keeps the production bundle
 browser-safe, while the public Team owner Slot and existing registrations
-remain Fiber-scoped. Issue #36's watch/reconnect must extend this same authority
-boundary rather than introduce a side channel.
+remain Fiber-scoped.
+
+Issue #36 extends that boundary with exact-live-Lead `agentTeams/watch`. Every
+stream generation starts with a complete authoritative `TeamView` baseline;
+durable message or task commits then coalesce into one bounded `invalidated`
+signal. The signal carries no message page, task patch, or Client draft. The
+DAG rereads the same task view, while the message center replaces the current
+filtered page without an old continuation cursor. Generation fences reject
+old cursor pages, prior-Team or prior-service callbacks, and late settlements.
+Carrier loss retains the last authoritative data as explicitly stale;
+reconnect restores reads and never resends a saved intent. A Team change
+releases the prior stream, reads, timer, and pending submission. Same-Team
+service replacement preserves an unsaved draft and marks an interrupted exact
+request unknown. Host followers, generated Remote, Gateway, locale, Slot, and
+UI controls all end with their owning Fiber or renderer, so no side-channel
+state is introduced.

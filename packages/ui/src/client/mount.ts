@@ -3,6 +3,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@benz-ai-x/dsh-agent-team-ultra/remote'
 import type { DigitalEmployeeStudioFrame } from '@benz-ai-x/dsh-agent-team-ultra/client'
+import type { TeamWatchFrame } from '@deepseek-ai/dsh-experimental-agent-team/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteSnapshotStream, RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -16,7 +17,12 @@ import {
   type DigitalEmployeeStudioInjected,
   type DigitalEmployeeStudioWatchSink,
 } from './Studio.tsx'
-import { TeamMessageCenter, type TeamMessageCenterInjected } from './TeamMessageCenter.tsx'
+import {
+  TeamMessageCenter,
+  type TeamMessageCenterInjected,
+  type TeamMessageCenterWatchControl,
+  type TeamMessageCenterWatchSink,
+} from './TeamMessageCenter.tsx'
 import { en, NS, zh, type UltraKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -80,6 +86,9 @@ function registerStudio(ctx: ClientContext): void {
     async loadTeam(sessionId) {
       return await ctx.remote.agentTeams.view(sessionId)
     },
+    watch(sessionId, sink) {
+      return createTeamMessageWatch(ctx, sessionId, sink)
+    },
     async listMessages(sessionId, request) {
       return await ctx.remote.agentTeams.listMessages(sessionId, request)
     },
@@ -112,6 +121,39 @@ function registerStudio(ctx: ClientContext): void {
       inject: () => messageActions,
     }, TeamMessageCenter),
   )
+}
+
+type TeamWatchBaselineFrame = Extract<TeamWatchFrame, { readonly type: 'baseline' }>
+type TeamWatchInvalidationFrame = Exclude<TeamWatchFrame, TeamWatchBaselineFrame>
+
+/**
+ * Reconnect one logical Team change stream for the message-center child view.
+ *
+ * @param ctx Client context that owns the generated Remote and Gateway stream.
+ * @param sessionId Exact Team Lead Session key resolved again by the Host.
+ * @param sink Generation-fenced message-center lifecycle destination.
+ * @returns A start/dispose control owned by the mounted child Slot generation.
+ */
+export function createTeamMessageWatch(
+  ctx: ClientContext,
+  sessionId: Parameters<TeamMessageCenterInjected['loadTeam']>[0],
+  sink: TeamMessageCenterWatchSink,
+): TeamMessageCenterWatchControl {
+  const stream = ctx.remote.$stream<TeamWatchFrame>({
+    name: 'Agent Team message change stream',
+    open: signal => ctx.remote.agentTeams.watch(sessionId, signal),
+    ended: accepted => accepted
+      ? new RemoteStreamCarrierError('Agent Team message change stream ended after opening')
+      : new Error('Agent Team message change stream ended before its opening baseline'),
+    carrierFailed: () => { sink.stale() },
+  })
+  return new RemoteSnapshotStream<TeamWatchBaselineFrame, TeamWatchInvalidationFrame>(stream, {
+    name: 'Agent Team message change stream',
+    isSnapshot: (frame): frame is TeamWatchBaselineFrame => frame.type === 'baseline',
+    replace: frame => { sink.replace(frame.value) },
+    update: () => { sink.invalidated() },
+    failed: sink.failed,
+  })
 }
 
 type DigitalEmployeeStudioBaselineFrame = Extract<DigitalEmployeeStudioFrame, { readonly type: 'baseline' }>
