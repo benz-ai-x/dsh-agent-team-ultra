@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T02:07:10+08:00（Asia/Shanghai）
+最后更新：2026-09-08T02:49:32+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review 2修复完成：5/5 AC checked；待review 3/merge |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review 2修复完成：5/5 AC checked；待review 3/merge |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review 2修复完成：5/5 AC checked；待review 3/merge |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review（review 3） | 2 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -359,6 +359,7 @@
 - 2026-09-08T02:00:22+08:00：AC勾选前重新实时读取GitHub #35/#36最新OPEN正文，并在同一脚本内仅替换各自唯一剩余marker：#35.4 tombstone production consumer、#36.5 quiescent lifecycle。PATCH后即时回读均为5 checked / 0 unchecked、Issue保持OPEN；after正文精确等于同次live before构造目标，且把该`[x]`恢复为`[ ]`后与before逐字节相等。before SHA-256分别为#35 `338490986cddc380cbbfc41b87071cf28b524e6227b21b65ae47e604398d30bc`、#36 `0c26be763cff58055df8463bec69aec982c716353a6749785fa1d7ccbf5069c3`。Batch2三项现均5/5；下一步更新PR为3个Closes、0 Refs及review2修复验证，再完成docs/state commit和HTTPS push。
 - 2026-09-08T02:03:30+08:00：review2修复证据已同步到#34/#35/#36 direct acceptance、Harness patch ledger、TODO、HANDOFF与本状态：最终Harness `503ad563ff…`/digest `d4028c4f…`，owner 60+36+13=109 tests，Ultra owning 25/25与full 359 tests；下一步固定为review3。docs-only复核`pnpm context:check:strict`自然退出0（582/0），7个changed Markdown共77个本地target全部存在，`git diff --check`绿。下一步形成docs/state提交并HTTPS push Ultra，再更新PR正文与最终review3 head。
 - 2026-09-08T02:07:10+08:00：Ultra review2产品提交`ec9980a`与证据提交`9f43f3f189cffd3b00e60fda8e2933d124c05992`已通过HTTPS推送，显式`ls-remote`精确返回`9f43f3f…`。PR #60即时回读/原子更新后为OPEN，head=`9f43f3f…`，正文精确3个`Closes #34/#35/#36`、0个`Refs`，记录Harness `503ad563ff…`、Ultra full 359 tests及review3固定产品/证据范围；PATCH后逐字节回读一致。Batch2转为in-review，review失败轮数仍2、local-gate历史红1/连续红0。本状态提交只记录交接，不扩大固定review3实质范围：Ultra `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..9f43f3f189cffd3b00e60fda8e2933d124c05992`，Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..503ad563ff226c2afc77608c432af3a80aae3279`。
+- 2026-09-08T02:49:32+08:00：Batch 2 全新隔离 `fork_turns=none` 的 code-review 第3轮失败，触发“review连续3轮不通过”PR级熔断；PR #60置为 blocked，Ultra `feat/batch-2-task-dag-live` 与 Harness `fix/ultra-34-36-task-dag-live` 均保留，不再修复或合并。固定范围结论为0 blocking、2 high、4 medium、0 low，AC映射9 PASS / 6 FAIL / 0 NOT PROVEN。High：F1 冲突后显式再保存永远携带旧revision，且reload失败被误报为已重载（#35.3/#36.4）；F2 DAG Client虽限制权威请求数，但每invalidation追加Promise/resolver waiter，慢读期数量无界（#36.1）。Medium：implemented Agent Note与实际edit-base/reload语义不一致；blocker文案展示全部历史依赖而非未完成项（#34.1/#35.2/#36.4）；fit-to-view最小0.5导致普通5节点DAG裁剪（#34.3）；并发删除后依赖草稿中的旧ID不可见也无法取消（#35.3）。评审只读验证Ultra targeted 25/25 + strict 582/0、Harness targeted 109/109 + built-lib 1/1，两仓`diff --check`与工作树均干净。受线程上限约束，该全新reviewer在同一隔离上下文中分轴完成Standards/Spec，无独立reviewer一致性背书；不影响2项high触发用户明定熔断。
 
 ## AC 进度
 
@@ -373,26 +374,26 @@
 
 ### #34
 
-- [x] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
+- [ ] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
 - [x] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
-- [x] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
+- [ ] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
 - [x] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
 - [x] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
 
 ### #35
 
 - [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
-- [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
-- [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
+- [ ] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
+- [ ] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
 - [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
 - [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
 
-- [x] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
+- [ ] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
 - [x] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
 - [x] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
-- [x] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
+- [ ] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
 - [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
@@ -404,7 +405,7 @@
 - 2026-09-07：Batch 3 仅含两个 L issue；若并入 Batch 2 会形成五个跨 Studio/Team/provider 的 L issue，超过一次 review 可消化上限，故记录为体量例外。
 - 2026-09-07：#18 记 skipped，不关闭、不修改；这是 #44 的显式 AC，不是遗漏。
 - 2026-09-07T13:43:19+08:00：Batch 1 实际新增 public `agentTeams/sendMessage` Remote 与 required persistent event/projection schema，命中“公开接口或 schema 的首个基建 PR”人工合并清单；PR #59 标记“需人工合并”。先完成隔离 review 与本地闸门，再飞书【需决策】通知并等待确认，不自动合并。
-- Batch 2 review 连续失败 2 轮；第3轮再有 blocking/high 即触发PR熔断。当前无 local-gate 熔断、PR blocked 或飞书待补发。
+- 2026-09-08T02:49:32+08:00：Batch 2 review 连续失败3轮，PR #60 正式熔断为blocked；分支保留，不执行第4轮修复/评审，等全部可执行PR结束后按用户规则统一重试一轮。熔断原因为2项high，其余4项medium记为follow-up并纳入后续统一重试。local-gate历史红1、当前连续红0。飞书【需决策】待发送，发送失败也不阻塞依赖审计。
 
 ## 待下轮清单
 
@@ -412,6 +413,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 以固定diff启动隔离`/code-review`第3轮：Ultra `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..9f43f3f189cffd3b00e60fda8e2933d124c05992`，Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..503ad563ff226c2afc77608c432af3a80aae3279`；复核15项实时AC、review 1 A–H和review 2两项high。若仍有任意blocking/high，立即按连续3轮规则熔断PR #60、保留分支并发送【需决策】。
-2. 第3轮无blocking/high后fetch main并再次运行正式`pnpm verify`最终闸门；与main对账均绿后按冻结merge commit自动合并PR #60。
-3. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
+1. 以GitHub最新body对#34/#35/#36执行checkbox-only撤回：#34.1/#34.3、#35.2/#35.3、#36.1/#36.4；PR #60正文改为3个`Refs`，保持OPEN，写明review-3熔断与保留分支。
+2. 通过`lark-im`向冻结群聊发送飞书【需决策】：PR #60已熔断、2 high + 4 medium、未合并、分支保留；请求决定后续重试方向。记录回执或待补发。
+3. 实时读取#37–#44依赖，判定PR #60是否阻塞全部剩余工作；若#37独立可执行，记录冻结规划调整理由后只推进#37，否则按“被熔断PR阻塞全部剩余工作”整体停机并通知。
