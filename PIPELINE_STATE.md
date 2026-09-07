@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T03:17:42+08:00（Asia/Shanghai）
+最后更新：2026-09-08T06:11:33+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -45,7 +45,7 @@
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing | 0 | 0 | 未创建 |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing | 0 | 1 | 未创建 |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | dependency-paused；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | dependency-paused | 0 | 0 | 未创建 |
@@ -365,6 +365,97 @@
 - 2026-09-08T03:07:10+08:00：Batch 3A分支首次`pnpm context:check:strict`完整执行后仅2项失败/0 warning：当前`.dsh/harness`仍指向为Batch 2保留的Harness工作树HEAD `503ad563…`，而最新main锁精确要求`d2d870fbe40bc0e968abdac854a3aae495162bec`及对应docs digest；其余580项检查通过。这是被保留熔断分支与新Batch源选择的预期隔离问题，不是Batch 3A产品测试或local-gate红轮。不切换/重置被保留的Harness工作树；为#37从锁定`d2d870f…`建立独立Harness worktree，再用官方`prepare:harness`+`pnpm install`恢复strict绿灯。
 - 2026-09-08T03:15:47+08:00：已从锁定提交`d2d870fbe40bc0e968abdac854a3aae495162bec`建立独立Harness工作树`/root/workspace/deepseek-harness-ultra-37`与分支`fix/ultra-37-studio-capabilities`，没有切换、重置或修改Batch 2保留工作树`/root/workspace/deepseek-harness-ultra-29`（仍为`503ad563ff226c2afc77608c432af3a80aae3279`）。`DSH_HARNESS_ROOT=/root/workspace/deepseek-harness-ultra-37 pnpm prepare:harness`及Ultra `pnpm install`均自然退出0；首次post-prepare strict的114项失败全部是全新Harness工作树尚无built main/types entry，属正式开发前来源构建准备态，不是产品测试或local-gate红轮。随后在该Harness工作树运行`pnpm install && pnpm run build:lib`自然退出0，再次运行Ultra `pnpm context:check:strict`通过582 checks / 0 warnings；两份Harness工作树均clean，Ultra仅有本状态文件变更。
 - 2026-09-08T03:17:42+08:00：Batch 3A developing状态提交`a60b902a2d280ab0e47a72fd6f62c4a10420c142`（`chore: start Batch 3A`）已通过HTTPS推送到`feat/batch-3-studio-recovery`，显式HTTPS `ls-remote`回读精确匹配。随后再次实时读取#37：仍OPEN、`updatedAt=2026-09-05T03:35:23Z`且6项AC均未勾；依赖#30/#31/#32仍全部CLOSED；PR #60仍为唯一open PR。可以把这一固定输入交给全新隔离开发上下文。
+- 2026-09-08T03:27:17+08:00：Batch 3A全新隔离开发上下文完成首次实测对账：GitHub open范围仍为#18/#34–#44，PR #60仍是唯一open PR；#37仍OPEN、`updatedAt=2026-09-05T03:35:23Z`、6项AC未勾且无评论，#30/#31/#32均CLOSED。Ultra `HEAD=origin/feat/batch-3-studio-recovery=e50fddffd64eb19845396d9012327ec96a391854`，产品merge-base仍为`origin/main=2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`；Harness独占工作树为 clean `fix/ultra-37-studio-capabilities@d2d870fbe40bc0e968abdac854a3aae495162bec`，该#37远程分支尚未创建，Batch 2保留远程仍精确为`503ad563ff226c2afc77608c432af3a80aae3279`。开工`pnpm context:check:strict`再次自然退出0，582 checks / 0 warnings。尚未写产品测试，因此尚无Batch 3A产品RED；下一步在已确认的Host Snapshot/generated Remote/Studio/public Team navigation seam完成现状与ADR审计，再进入首个RED。
+- 2026-09-08T03:38:39+08:00：#37首个最小公开seam测试已写入：同一生成`digitalEmployees/view`必须以权威Team roster同时投影普通 teammate 与精确Binding关联的Profile-bound teammate。首次focused命令在收集前因当前Harness可执行`lib/index.js`与Ultra已生成兼容证明不一致而退出1（0 tests，`ULTRA_COMPAT_ARTIFACT_MISMATCH`）；这是陈旧构建产物的环境准备失败，不计产品RED。下一步先按正式构建链刷新锁定Harness/Ultra产物，再原样执行该focused命令取得产品RED；不删测试、不弱化断言。
+- 2026-09-08T03:40:37+08:00：环境准备完成：锁定Harness基线完整`pnpm build`自然退出0，Ultra `pnpm build`自然退出0并重新生成绑定`d2d870f…`的Typert/兼容证明。原样focused测试随后取得首个真实产品RED：自然退出1，1 failed / 9 skipped（test 289ms，命令4.47s）；生成Remote Snapshot的`teamMembers`为`undefined`，未投影期望的普通与Profile-bound两类权威roster行。下一步在`StudioProjection`做最小roster-first精确Binding join并扩展browser-safe DTO，不改变Binding/Team持久格式。
+- 2026-09-08T03:43:04+08:00：首个最小GREEN完成。`DigitalEmployeeStudioView.teamMembers`为必需的browser-safe判别联合；`StudioProjection`只遍历权威`agentTeams.listMembers()`中的teammate，再以同Team、精确member id与永久name连接Binding，普通成员不会因Binding缺失而消失，Binding也不能凭自身创造roster成员；绑定行保留不可变Profile Revision及选定/实际Runtime Target。Ultra正式`pnpm build`自然退出0并刷新生成Remote，原focused自然退出0（1 passed / 9 skipped，test291ms，命令4.52s）。未改Team/Ultra持久格式；下一步为三类状态与真实协作/文件能力写下一条公共Snapshot RED。
+- 2026-09-08T03:45:10+08:00：#37第二个产品RED在Harness canonical provider metadata seam成立：新增测试要求独立接受并回读`full-collaboration`与`workspace-write`两个operational capabilities，focused自然退出1（1 failed / 44 skipped，test74ms，命令5.11s），当前`normalizeProvider`以“invalid runtime capabilities”拒绝。该扩展用于由同一Fiber可执行注册如实发布能力，避免Ultra按provider品牌猜测；下一步最小扩展公开capability union/验证白名单与owner docs，再在Ultra按当前catalog generation投影并显示。
+- 2026-09-08T03:46:10+08:00：第二个最小GREEN完成：Harness公开`TeammateRuntimeCapability`及注册规范化白名单仅新增`full-collaboration`、`workspace-write`两个正交值；原focused自然退出0（1 passed / 44 skipped，test88ms，命令5.11s），未知/重复值拒绝逻辑不变。下一步补owner docs/Agent Note并让Ultra Runtime Catalog/实例Snapshot消费该精确metadata；Codex/Claude声明full collaboration但继续不声明workspace-write，DSH能力单独如实呈现。
+- 2026-09-08T03:47:39+08:00：#37第三个产品RED成立：Codex与Claude Code真实Catalog/Fiber集成测试现要求runtime metadata包含`full-collaboration`且不包含`workspace-write`；两文件focused自然退出1（2 failed，test261ms，命令4.64s），实际两者仍仅发布`sandbox/evidence/usage`。该RED精确固定“六项Team member operations + 必需durable provider create/resume/deliver/interrupt契约构成完整协作，但当前read-only native不宣称文件写入”；下一步更新两个真实provider声明及Ultra capability union/fixture规范化后原样复跑。
+- 2026-09-08T03:50:53+08:00：能力声明契约补充负控取得产品RED：Harness focused自然退出1（1 failed / 44 skipped，test70ms，命令5.06s），一个没有完整六项`memberOperations`/binder的provider仍能错误声明`full-collaboration`。下一步在同一注册规范化边界要求完整协作声明必须同时具备全部六项当前Team操作；provider必需的create/resume/deliver/interrupt/dispose方法继续由类型与注册对象结构提供，防止目录虚报。
+- 2026-09-08T03:52:06+08:00：完整协作声明负控最小GREEN：Harness注册规范化复用唯一六项native operation表，`full-collaboration`缺任一操作或binder即以`TEAM_RUNTIME_INVALID_PROVIDER`拒绝；原focused自然退出0（1 passed / 44 skipped，test89ms，命令5.09s）。Harness前一轮`pnpm run build:lib`自然退出0；随后Ultra build因Harness尚有预期未提交源码被source-clean guard先行拒绝，这不是产品RED/local-gate。下一步先补齐Harness owner docs/Agent Note、验证、独立提交并HTTPS push，再更新Ultra lock后恢复Catalog RED→GREEN；Snapshot GREEN已完成，UI RED尚未开始。
+- 2026-09-08T03:57:47+08:00：Harness能力契约的owner docs与既有架构Agent Note已完成双语同步：`full-collaboration`严格表示耐久双向消息、六项有界原生成员操作、终态结算、精确中断/恢复/释放；`workspace-write`保持独立且不授予权限、不越过sandbox或Profile tool policy，因此只读runtime可如实声明完整协作而不声称写入。下一步运行完整owner test、lint/typecheck/doc-sync与build；全部通过后形成独立Harness提交并HTTPS push/ls-remote，再允许Ultra lock引用。
+- 2026-09-08T04:05:01+08:00：Harness完整owner test 45/45、`lint:contracts-ready`与`typecheck:contracts-ready`均自然退出0。首轮可完整观测的`doc-sync`为28 pass / 4 stale：能力union新增两行使正式Cordis/config/persistence catalog源链接行号过期，三对已同步双语正文尚未重录pairing manifest；其余文档构建、type-equivalence、links、wrap、Agent Note格式等28门全绿。这是预期生成物同步要求，不是产品RED或Ultra local-gate；下一步只运行仓库指示的三个正式generator与pairing `--write`，审查机械diff后原样复跑doc-sync。
+- 2026-09-08T04:13:15+08:00：Harness正式generator已刷新公开Cordis capability union及config/persistence源行链接；英文/中文目录逐项核对为相同当前源码位置，五对直接受影响的pairing manifest只在明确指定文件后重录。第二次`doc-sync`为31 pass / 1 stale，准确暴露生成目录自身的两对pair尚未重录；修正后全域pairing 1132/1132，再次完整`doc-sync`自然退出0（32 passed / 0 failed / 0 skipped，141.48s）。下一步仅跑Harness full build与最终diff/check，立即形成独立提交及HTTPS push。
+- 2026-09-08T04:14:22+08:00：Harness正式`pnpm build`自然退出0（Host/Client libraries、Web frontend与220项Client artifact生成全绿）；最终19个tracked paths、`git diff --check`无错误。当前产品、owner docs、Agent Note、pair manifests与直接因果generated catalogs已收口；下一步立刻形成#37独立Harness提交并通过fork HTTPS push/ls-remote验证。
+- 2026-09-08T04:15:04+08:00：#37独立Harness提交已形成：`9f73a7d71cc9136d32030975d4ff1d0bcc834ff3`（`feat: declare Team runtime collaboration capabilities (#37)`），19 paths / 73 insertions / 28 deletions；pre-commit staged pairing、lint、whitespace与vendor guard全部通过，提交后worktree clean。下一步HTTPS push到fork分支`fix/ultra-37-studio-capabilities`并显式`ls-remote`核验同一SHA。
+- 2026-09-08T04:16:02+08:00：Harness HTTPS push成功；pre-push完整Host build与Client typecheck自然退出0，fork新分支`fix/ultra-37-studio-capabilities`精确指向`9f73a7d71cc9136d32030975d4ff1d0bcc834ff3`。显式HTTPS `git ls-remote`与本地HEAD完全一致，Harness worktree clean。现在才允许重算Ultra docs digest并把lock指向该精确已推送clean提交；随后prepare/install/build并复跑Catalog RED取得GREEN。
+- 2026-09-08T04:18:25+08:00：Ultra lock/README已更新至已推送Harness `9f73a7d71c…`及实算docs digest `b64dd01c…bdaa`；官方`prepare:harness`回读相同commit/digest且`pnpm install`自然退出0。首次Ultra build在产品编译前被source freshness guard拒绝：七个链接消费者看到Harness `types`入口mtime早于源码；这是Harness增量声明产物时间戳问题，不是产品RED或正式local gate。沿用仓库既有恢复方式，分别以4GiB强制重发Host/Client TypeScript project references，再正式`build:lib`并原样重跑Ultra build，不改锁/测试/断言。
+- 2026-09-08T04:23:00+08:00：Harness Host/Client project references分别以4GiB `--force`自然退出0，随后正式`build:lib`自然退出0；Ultra原样build已通过source guard与全部Host/provider/domain/Typert生成，首次进入Client编译后得到新的真实产品RED：`Studio.tsx`对扩展后的运行能力判别联合缺少`full-collaboration`与`workspace-write`分支，TS2366自然退出1。该RED固定UI必须单独命名并显示两类能力；下一步先用已成功生成的provider bundle复跑Catalog RED→GREEN，再以locale/UI测试驱动补齐能力标签和member Snapshot呈现。
+- 2026-09-08T04:23:57+08:00：紧接着复跑Catalog时两文件均在collect前被`ULTRA_COMPAT_ARTIFACT_MISMATCH`拒绝（0 tests）：Ultra build只有最终Client成功后才会重写完整compatibility proof，而本轮在真实Client TS RED处退出，现有proof自然仍对应旧Harness executable。该结果是生成流程中间态，不冒充Catalog GREEN/RED；下一步从已成立的UI compile RED补能力标签及member行为测试/实现，完整build成功生成compatibility后再原样复跑Catalog，只有测试实际执行才计GREEN。
+- 2026-09-08T04:29:36+08:00：Studio行为级UI RED已在现有组件与既有test file取得：新增权威`teamMembers` fixture同时包含普通成员和Profile-bound员工，要求身份、不可变Revision、fresh/fork、selected/actual route、provisioning/availability/presence，以及Profile/运行能力（完整协作、文件写入、审批、评测等）分别呈现。focused自然退出1（1 failed / 26 skipped，test1159ms，命令5.71s），当前Studio完全不消费`teamMembers`，找不到目标member group；失败不是fixture/环境。下一步补Host DTO完整字段与roster-first投影，再在同一Studio实例区最小渲染及双语locale，原样跑Snapshot/UI GREEN。
+- 2026-09-08T04:38:58+08:00：Studio行为级最小GREEN完成：没有新增Team面板，只在既有侧栏实例区改为消费权威`teamMembers`，普通/Profile-bound身份、绑定Revision、fresh/fork、三类生命周期状态、selected/actual route及Profile/Runtime能力均分行双语显示；完整协作与工作区写入保持独立标签，旧`instances`只作为native handle/error补充及陈旧fixture兼容回退。同一focused命令自然退出0（1 passed / 26 skipped，test199ms，命令2.21s）。下一步运行完整Ultra build以验证Host DTO/roster投影和生成兼容证明，再原样复跑Snapshot/Catalog focused取得其GREEN。
+- 2026-09-08T04:40:00+08:00：Ultra正式`pnpm build`自然退出0；source guard、Host/provider/domain bundles、生成Remote/Typert、Client TypeScript/production bundle及compatibility proof全部精确绑定已推送Harness `9f73a7d71c…`。此前`Studio.tsx`穷尽联合的真实TS RED已由两个独立双语能力标签修复。下一步原样执行Snapshot及Codex/Claude Catalog focused测试，确认行为而非只依赖编译。
+- 2026-09-08T04:40:27+08:00：三份focused集成文件实跑为Codex/Claude Catalog 2 files全绿、Snapshot file 9项既有测试绿但新扩展测试1项失败；失败仅为新断言把同步完成工作的权威`stopped` roster误写成只接受`running|idle`，产品实际忠实映射为`inactive`，其余普通/绑定身份、Revision、route、phase/availability及两类能力数组全部匹配。该fixture事实由同次权威roster输出确认，因此属于测试预期写错，不冒充产品RED，也不把停止成员伪装为在线；下一步把两行预期精确改为`inactive`后原样复跑三文件。
+- 2026-09-08T04:41:29+08:00：修正新增fixture的两行权威停止态预期后，Snapshot+Codex Catalog+Claude Catalog原样整文件复跑自然退出0（3 files / 12 tests，tests 1.74s，命令3.14s）。Catalog前述真实RED现正式GREEN：两个native provider如实声明完整协作但不声称工作区写入；Snapshot GREEN证明普通/Profile-bound均由同一权威roster生成、精确Binding join，并从当前catalog/status给出实际能力与lifecycle。下一步补公开Team导航seam的最小RED，使Studio成员链接打开既有Team消息中心而非第二面板。
+- 2026-09-08T04:47:32+08:00：公开Team导航最小行为RED成立。审计确认Harness已有唯一`TeamAction`面板及公开`agent-team.panel.view` child Slot，但没有外部打开指定child/member的公共入口；测试通过公开导航snapshot指定当前Team、`messages`及精确member，focused自然退出1（1 failed / 22 skipped，test1.04s，命令4.64s），当前UI保持关闭且没有渲染child Slot。下一步只补Fiber-owned Client navigation service、TeamAction消费及Slot owner的可选member/revision；不复制面板、不导入私有MessageCenter组件。
+- 2026-09-08T04:50:20+08:00：公开Team导航首层GREEN：Harness新增Fiber-owned `agentTeamPanelNavigation.open`请求交换，`TeamAction`只在当前精确Team且目标public child已注册时消费，请求携带可选member与单调revision至既有Slot owner；消费后清除 retained request，避免切换/重挂载重复打开。原focused自然退出0（1 passed / 22 skipped，test194ms，命令3.78s），仍只有一个既有Team dialog。下一步以browser mount测试服务注册/撤销，再接入Ultra成员链接和MessageCenter成员筛选。
+- 2026-09-08T04:57:04+08:00：Harness TeamAction+browser两份owner文件复跑自然退出0（2 files / 34 tests）；实测公开navigation service注册、addressed snapshot、精确单次consume、唯一dialog/member Slot props，以及owning Fiber释放后`ctx.get('agentTeamPanelNavigation')`为undefined。package bundle亦自然退出0。中英文owner README与既有Agent Note已同步最小接口/安全边界并重录两对pair manifest。期间试探`verify-translation-pairing --help`因该脚本不支持help自然退出2，随即读脚本usage改用正式`--write <pairs>`成功；这是命令参数错误，不是产品RED或gate。下一步跑Harness typecheck/doc-sync，提交并HTTPS push后再让Ultra精确锁引用。
+- 2026-09-08T05:00:47+08:00：Harness完整Client `typecheck:contracts-ready`初跑准确发现一处旧测试helper对新增hooks做浅层Partial的编译错误，改为仅对hooks深一层Partial后原样复跑自然退出0。全仓`lint:contracts-ready`初跑发现本slice两项及4项未改基线测试违规；本slice两项已修且限定owner目录lint自然退出0，4项分别blame至既有`eea1387`/`d1d6b8a`且工作树无其diff，不越界修改。该全仓lint异常记为Harness既有基线环境事实；Ultra本身无lint脚本，最终闸门仍是`pnpm verify`。下一步跑完整doc-sync并审查生成影响。
+- 2026-09-08T05:07:53+08:00：Harness首轮`doc-sync`为28 pass / 4 expected stale：公开service的JSDoc参数/导出成员不完整、Client-only Context key缺明确owner exemption、Slot源码行号变化；均按canonical门修复，新增exemption明确指向package README，并只用正式`gen-client-catalog`/`gen-cordis-inspect-catalog`生成。第二轮完整`doc-sync`自然退出0（32 passed / 0 failed / 0 skipped，144.79s）。下一步运行Harness正式full build、最终owner tests/diff check后提交导航slice。
+- 2026-09-08T05:09:21+08:00：Harness导航slice正式`pnpm build`自然退出0（Host/Client libraries、Web frontend、220项Client artifacts）；两对指定文档pair复核一致，`git diff --check`绿。最终diff为公开navigation service、既有TeamAction/Slot owner、2份owner tests、双语README/Agent Note及直接因果的Client Slot catalog/owner exemption，不含Host schema或持久格式。下一步形成第二个#37 Harness独立commit并HTTPS push/ls-remote。
+- 2026-09-08T05:10:13+08:00：第二个#37 Harness独立commit已形成：`95483a7a9645679c45805a46a968a1cf7508126c`（`feat: link extensions into Team panel members (#37)`），14 paths / 219 insertions / 14 deletions；pre-commit staged translation pairing、lint、whitespace、vendor guard全绿，提交后worktree clean。下一步HTTPS push现有`fix/ultra-37-studio-capabilities`并显式ls-remote。
+- 2026-09-08T05:11:10+08:00：第二个Harness提交经HTTPS push成功，pre-push完整Host build与Client typecheck自然退出0；远程`fix/ultra-37-studio-capabilities`由`9f73a7d…`快进至`95483a7a9645679c45805a46a968a1cf7508126c`，显式HTTPS `ls-remote`与本地HEAD精确一致，worktree clean。因本提交未改`docs/`，重算docs digest仍为`b64dd01c…bdaa`；Ultra lock/README现已指向该已推送clean commit。下一步正式prepare/install后取得Ultra member link RED。
+
+- 2026-09-08T05:16:36+08:00：Ultra已用官方`prepare:harness`与`pnpm install`自然退出0，精确绑定已推送clean Harness `95483a7…`/docs digest `b64dd01c…bdaa`。随后仅为刷新兼容证明运行的Ultra build在产品编译前被source freshness guard拒绝：三个消费者判定`experimental-client-ui-agent-team` built types入口早于当前源码；这是Harness增量产物mtime的环境准备态，不计公开成员链接产品RED或local-gate红。下一步仅强制重发Harness Client project references并正式重建Client library，原样跑Ultra build恢复freshness，然后执行已写好的同一Studio focused测试取得真实链接RED。
+
+- 2026-09-08T05:19:30+08:00：Harness Client project references以4GiB `--force`自然退出0，正式`build:lib:client`自然退出0；随后Ultra完整`pnpm build`自然退出0，freshness与compatibility proof均精确绑定`95483a7…`。原样Studio focused测试现取得公开成员链接真实产品RED：自然退出1，1 failed / 26 skipped（test231ms，命令2.20s）；权威Profile-bound成员卡中找不到可访问名称`Open messages: reviewer`的link。下一步只在既有成员卡补公开链接，并由Ultra mount调用Harness公开`agentTeamPanelNavigation.open({ teamSessionId, viewId: 'messages', memberId })`；再用Harness既有MessageCenter按addressed member进行授权分页筛选。
+
+- 2026-09-08T05:22:10+08:00：Studio成员链接最小GREEN：`DigitalEmployeeStudioInjected`新增同步导航action，既有权威成员卡渲染浏览器安全anchor及双语label，点击仅传当前Team Session与精确member id，不复制Team面板或消息数据；原focused自然退出0（1 passed / 26 skipped，test208ms，命令2.21s）。下一步先以mount owner测试取得公共Harness service调用RED，再把该action接到`agentTeamPanelNavigation.open`。
+
+- 2026-09-08T05:22:58+08:00：Ultra mount公共导航依赖RED成立：owner focused自然退出1（1 failed / 1 skipped，test27ms，命令2.05s），当前注册导出仍只有`remote/slots/locale`，没有声明Harness公开`agentTeamPanelNavigation`；测试同时固定点击action只能调用`open({ teamSessionId, viewId: 'messages', memberId })`。下一步最小扩展mount inject/action并原样复跑，不访问Harness私有组件。
+
+- 2026-09-08T05:23:45+08:00：Ultra mount公共导航最小GREEN：顶层与内层Fiber均显式注入Harness公开`agentTeamPanelNavigation`，Studio action只发出`messages` child及精确Team/member；owner focused自然退出0（1 passed / 1 skipped，test28ms，命令2.07s）。Harness端同一服务的注册/consume/disposal此前已在2 files / 34 tests证明。下一步为既有Ultra `TeamMessageCenter`写addressed member初始与重复导航revision RED，保持消息详情仍由独立授权Remote按页读取。
+
+- 2026-09-08T05:24:52+08:00：既有消息中心addressed-member真实RED成立：focused自然退出1（1 failed / 10 skipped，test1.07s，命令2.12s）；Harness Slot owner已给出`selectedMemberId=message-worker`/revision 7，但当前首个授权`listMessages`仍发`{ limit: 20 }`且Member筛选为空。测试还固定同一member在新navigation revision下必须覆盖操作者临时清空的筛选并重新读取；下一步仅在现有replaceable列表状态应用addressed filter，不预取详情、不复制消息正文。
+
+- 2026-09-08T05:26:16+08:00：addressed-member消息中心最小GREEN：初次挂载直接以`{ memberId }`调用现有授权分页`listMessages`，筛选控件同步该member；新navigation revision会清空旧页/详情并对同一member重新应用筛选，request被consume后不会因可选props消失而清空。focused自然退出0（1 passed / 10 skipped，test216ms，命令1.29s）；正文详情仍只在用户选行后通过独立`getMessage(messageId, committedCursor)`读取。下一步整文件回归Studio/MessageCenter/mount，再补Host边界安全与状态replacement证据。
+
+- 2026-09-08T05:26:46+08:00：Studio/MessageCenter/mount三份owner整文件首轮为39 passed / 1 failed。MessageCenter与mount全绿；唯一失败是既有workspace-navigation断言仍查找旧标签`Instances`，而#37已将同一导航目标如实命名为`Team members`，DOM中六个链接与`#…-instances`目标均存在。这是同一产品文案变更的测试预期同步遗漏，不计新产品RED/local-gate；将只把该精确旧标签断言改为当前中英文词汇，保持六区域与目标断言强度后原样复跑。
+
+- 2026-09-08T05:27:25+08:00：同步workspace-navigation精确新标签后，Studio/MessageCenter/mount三份owner整文件原样复跑自然退出0（3 files / 40 tests，tests4.09s，命令5.30s）。这覆盖成员显示/链接、双语与可访问导航、addressed分页/详情授权、消息发送恢复、会话迟到响应丢弃、Remote/Slot挂载与Fiber释放。下一步补Host Snapshot负面字段安全断言，并确认Studio watch的baseline/replacement/stale/business conflict既有回归覆盖。
+
+- 2026-09-08T05:34:54+08:00：public error/Studio diagnostic脱敏真实RED成立：向外部runtime边界注入同时含credential、私有config path与native raw transcript标记的`TEAM_RUNTIME_CAPABILITY_MISMATCH`，focused自然退出1（1 failed / 55 skipped，test69ms，命令1.38s）；当前公开`runtime-capability-mismatch.message`逐字复制provider prose，且同一内容还将进入失败Binding/Studio Snapshot。下一步按typed runtime error code映射固定browser-safe文案，并让失败Binding复用同一安全失败；不做字符串猜测式secret扫描。
+
+- 2026-09-08T05:36:31+08:00：public error/Studio diagnostic最小GREEN：typed teammate-runtime错误按稳定code映射固定browser-safe文案，公开失败与失败Binding复用同一安全失败；未知异常的Binding只保留固定`Teammate provisioning failed.`，不把任意prose持久化进Snapshot。Domain重建/Typert生成自然退出0，原focused自然退出0（1 passed / 55 skipped，test61ms，命令1.35s），注入的credential/path/raw transcript标记在公开结果和整个Studio Snapshot均不可见。下一步扩展同一原则到持久Evaluation诊断与按需Run错误并以既有redaction测试证明。
+
+- 2026-09-08T05:38:25+08:00：持久Evaluation诊断脱敏真实RED成立：真实隔离external Evaluation Worker边界注入含credential/path/raw transcript的typed unavailable错误，focused自然退出1（1 failed / 5 skipped，test217ms，命令1.56s）；最终`evalRun.cases[0].diagnostic`当前逐字持久化provider prose。下一步复用同一typed runtime code→browser-safe文案；timeout/cancel/Team/未知异常也只保留固定分类，不改变Evaluation Worker非roster、审批never或sandbox规则。
+
+- 2026-09-08T05:39:33+08:00：Evaluation诊断最小GREEN：typed runtime错误复用稳定安全映射，timeout/cancel/Team/未知异常分别只持久化固定分类文案；Domain重建自然退出0，原真实隔离external evaluation focused自然退出0（1 passed / 5 skipped，test210ms，命令1.54s），毒化provider prose不进入Eval Run。测试同轮继续证明Evaluation handle独立、Team roster仍只有Lead、环境固定read-only/approval-never且精确dispose。下一步为按需Run evidence失败补同类安全RED/GREEN，然后整文件回归。
+
+- 2026-09-08T05:40:24+08:00：按需Run evidence错误脱敏真实RED成立：在已证明Run Index/成功fold不复制raw payload后，让授权external evidence读取抛出含credential/path/raw transcript的任意错误；focused自然退出1（1 failed / 55 skipped，test81ms，命令1.43s），当前`evidence-unavailable.message`拼接原异常prose。下一步将DSH/external两类按需证据失败改为固定browser-safe分类，signal abort仍按原语义抛出。
+
+- 2026-09-08T05:41:04+08:00：Run evidence错误最小GREEN：DSH/external两类非abort evidence异常均只返回固定browser-safe unavailable分类，Host内部修复日志仍可使用有界诊断，signal abort语义不变。Domain重建自然退出0，原focused自然退出0（1 passed / 55 skipped，test71ms，命令1.37s）；同一测试继续证明成功fold/Run Index忽略private native payload。下一步联跑profile-service、pinned-route、run-evidence、generated Remote及UI完整owner回归。
+
+- 2026-09-08T05:41:30+08:00：八份脱敏/恢复联跑首轮114 passed / 1 failed；唯一失败是既有DSH catalog完整数组仍只列旧五项runtime capability，实际按#37新增并正确多出`full-collaboration`/`workspace-write`。这是旧完整数组的测试预期同步遗漏，不计产品RED/local-gate；精确补入两项且保持顺序/全量断言后原样复跑，其他Snapshot、Run、Eval、Remote、feed与UI测试均已绿。
+
+- 2026-09-08T05:42:12+08:00：同步既有DSH完整capability数组后，八份脱敏/恢复联跑原样自然退出0（8 files / 115 tests，tests6.11s，命令5.89s）：profile-service、真实pinned routes/隔离evaluation、Run evidence、generated Remote、Studio feed、Studio/MessageCenter/mount全部绿。已证明新teamMembers/公开错误/Eval诊断/Run Index与按需详情不含注入的grant-like credential、config path或native raw标记，消息正文仍只按授权分页选行读取；完整baseline/replacement/stale/disconnected/business conflict及Fiber释放未回归。下一步运行AC6专门回归集合并审查类型/构建。
+
+- 2026-09-08T05:43:29+08:00：AC6专门回归自然退出0（3 files / 6 passed / 63 skipped，tests1.03s，命令2.21s）：并发Head CAS只允许一个编辑获胜；JSON/SQLite替换后精确Eval/Promotion Gate与历史保持；stock DSH和native Exact-call Approval均绑定一个call且sandbox独立拒绝；DSH Evaluation Worker为fresh parentless，external worker保持非roster、read-only/approval-never并精确释放。新增完整协作能力未进入这些授权判断。下一步跑正式Ultra build/type boundary，再准备直接验收证据与最终full gate。
+
+- 2026-09-08T05:44:10+08:00：Ultra正式`pnpm build`再次自然退出0：source/clean/fresh guard、Host/providers/domain/Profile bundles、Typert Host/Remote生成、Client TypeScript/browser bundle与compatibility proof均精确绑定已推送Harness `95483a7…`。新增公开Client service只经type-only browser入口消费，没有解析Host/native provider实现。下一步审查最终diff、更新README/TODO/HANDOFF及`docs/evidence/issue-37-acceptance.md`，随后先提交产品slice，再运行最终`pnpm verify`与证据提交。
+
+- 2026-09-08T05:45:50+08:00：历史失败Binding的Snapshot边界脱敏真实RED成立：在安全public failure返回后，模拟旧存储把同一Binding diagnostic写成含credential/path/raw transcript的遗留prose；focused自然退出1（1 failed / 55 skipped，test68ms，命令1.39s），`snapshotInstance`当前仍逐字复制。下一步在最终Host→Client投影边界无条件把存在的失败原因收敛为固定`Teammate provisioning failed.`；持久源保留供Host运维，Client不接收旧原文。
+
+- 2026-09-08T05:46:32+08:00：历史Binding Snapshot边界最小GREEN：Host storage仍可保留诊断供内部恢复/运维，但`StudioProjection.snapshotInstance`只向Client暴露固定失败分类；Domain重建自然退出0，原focused自然退出0（1 passed / 55 skipped，test61ms，命令1.37s），手工毒化旧Binding后整个Studio Snapshot不含credential/path/raw transcript。至此AC5所有新增/遗留写入与按需错误路径均在最终投影处fail closed。
+
+- 2026-09-08T05:48:04+08:00：#37独立Ultra产品提交已形成：`68abfed30c4a10a345b96c3f28d9e6233f8c7e70`（`feat: show truthful Team member capabilities (#37)`），23 paths / 649 insertions / 40 deletions；`git diff --cached --check`提交前全绿。产品merge-base仍为最新`origin/main=2c5a355…`；工作树仅余未提交`PIPELINE_STATE.md`，后续TODO/HANDOFF/验收证据将进入独立证据提交。下一步HTTPS push该产品提交并显式ls-remote，再写文档/证据和跑最终full gate。
+
+- 2026-09-08T05:48:45+08:00：Ultra产品提交经显式HTTPS push成功；远程`feat/batch-3-studio-recovery`由`e50fddf…`快进至`68abfed30c4a10a345b96c3f28d9e6233f8c7e70`，HTTPS `ls-remote`与本地HEAD逐字一致。Harness远程仍精确为`95483a7a9645679c45805a46a968a1cf7508126c`且worktree clean。下一步写直接验收证据/TODO/HANDOFF并运行最终full gate；不创建PR。
+
+- 2026-09-08T05:59:10+08:00：收尾前再次以`gh`/`git`对账：#37仍OPEN、正文updatedAt仍为`2026-09-05T03:35:23Z`且6项未勾；PR #59实测MERGED为main `2c5a355…`，PR #60实测仍OPEN；Ultra HTTPS `ls-remote`精确为产品提交`68abfed…`，Harness工作树clean。已最小更新TODO/HANDOFF当前恢复入口并新增`docs/evidence/issue-37-acceptance.md`，逐项映射6项AC、RED/GREEN、跨仓提交及已完成owner回归；最终`pnpm verify`结果仍明确标为pending，未提前宣称完成。下一步直接运行正式full gate；若绿，再用同一安全脚本fresh读取、精确勾选并逐字回读6项AC。
+
+- 2026-09-08T06:01:09+08:00：Batch 3A正式local gate第1轮`pnpm verify`自然退出1，计local-gate红1；strict与完整build均已绿，Vitest为27 files/347 passed、3 files/3 failed（总350）。三项均为新增公开Client依赖的正式consumer fixture未同步：Codex与Claude的Team owner UI测试缺`usePanelNavigation`，Studio standalone bundle的完整inject数组仍只期望旧三项而漏`agentTeamPanelNavigation`。失败直接由本PR引起，未归为flaky或基线；下一步只在这三个既有消费测试补无导航snapshot/新增公开inject精确期待，先3文件GREEN，再重跑完整`pnpm verify`。连续红目前1，未触发CI/local-gate熔断。
+
+- 2026-09-08T06:03:01+08:00：full-gate回归的最小修复已GREEN：Codex/Claude正式Team owner UI consumer各注入空的公开navigation snapshot与consume函数，Studio standalone bundle精确期待第四项`agentTeamPanelNavigation`；未放宽任何业务断言。原失败三文件组合自然退出0（3 files / 29 tests，命令8.49s）。下一步重跑完整`pnpm verify`第2轮；只有再次红才达到连续2轮local-gate熔断阈值。
+
+- 2026-09-08T06:05:34+08:00：Batch 3A第2轮完整`pnpm verify`自然退出0，连续红恢复为0（历史local-gate红仍为1）：strict 582 checks/0 warnings；Host/Client、Typert/compatibility及全部包build绿；Vitest 30 files/350 tests全绿；8 archive pack/install/resolve、公开Team owner分页消息与Host recovery、production renderer丢回执/精确retry、受控provider无重复投递、required-fact负控、真实Web、Codex与Claude在JSON/SQLite的新建/恢复/6项member operations/registrations release、完整uninstall全部PASS。下一步把精确结果写入evidence/TODO/HANDOFF，运行文档链接与diff检查；随后执行单一fresh GitHub正文安全脚本勾选6项AC。
+
+- 2026-09-08T06:07:27+08:00：最终未提交路径审计精确为三份收尾文档、直接evidence及full-gate修复的三个正式consumer测试；完整build未留下额外tracked生成物漂移。Ultra与Harness `git diff --check`均自然退出0，Harness仍clean；只读脚本验证HANDOFF/PIPELINE/TODO/evidence四份Markdown共58个本地链接全部存在。6项AC现均有直接行为、回归及full gate证据；下一步立即运行单一安全脚本，脚本内fresh读取#37正文、断言OPEN/6个唯一unchecked marker、二次读取无并发变化、只替换目标checkbox、证明其余字节相同、PATCH并完整回读。
+
+- 2026-09-08T06:08:56+08:00：#37六项AC已用单一安全Node脚本精确勾选。脚本内连续两次fresh `gh issue view`确认Issue OPEN、`updatedAt=2026-09-05T03:35:23Z`且正文逐字相同；逐项断言6个目标unchecked marker唯一存在、反向还原后其余字节完全相同，再用`gh api PATCH`提交并立即完整回读。终态为OPEN、6/6 checked、`updatedAt=2026-09-07T22:08:47Z`、`otherBytesUnchanged=true`；before body SHA-256=`78f421108950fecf1d51074f754d3d11149b8a6aba059f19bd39ee2af4812dd5`，after=`af689fd5ee0f6cbd22cb3a6d11444f370b64ea90703a2d830da2175ec4c8053c`。全部AC完整证明，推荐PR使用`Closes #37`；下一步只提交/HTTPS推送三个full-gate consumer回归与收尾证据，不创建PR。
+
+- 2026-09-08T06:11:33+08:00：full-gate暴露的三个正式consumer回归已形成独立Ultra提交`d70156add03db918ac119da38b00bac8aa6c2ad4`（`test: cover Team panel navigation consumers (#37)`，3 paths / +11/-1）；内容只为Codex/Claude TeamAction完整fixture新增空navigation hook/consume，以及Studio production bundle新增公开inject精确等值期待。该提交所覆盖的3 files/29 tests及其后的完整350-test gate均已GREEN。下一步提交剩余HANDOFF/TODO/PIPELINE/direct evidence，再HTTPS push两个新提交并ls-remote。
 
 ## AC 进度
 
@@ -403,12 +494,12 @@
 
 ### #37
 
-- [ ] Host Snapshot 依据权威 roster 与 Binding 显示普通/绑定身份、不可变 Revision、选定/实际 Runtime Target。
-- [ ] 完整协作与 fresh/fork、工具策略、Hooks、审批、评测、文件写入分别显示并按真实可执行能力校验。
-- [ ] 保留 Provisioning Phase、Runtime Availability、Runtime Presence 及 baseline/替换/stale/业务冲突边界。
-- [ ] 通过公开导航链接指定成员，不引入另一个 Team 面板；构建兼容性信息只放运维诊断。
-- [ ] Snapshot、错误和 Run Index 不含授权、配置路径或 native 原始内容；消息详情继续独立授权分页读取。
-- [ ] 验证档案 CAS/门禁、隔离 Evaluation Worker 和 Exact-call Approval 回归，不能因新协作能力自动放宽。
+- [x] Host Snapshot 依据权威 roster 与 Binding 显示普通/绑定身份、不可变 Revision、选定/实际 Runtime Target。
+- [x] 完整协作与 fresh/fork、工具策略、Hooks、审批、评测、文件写入分别显示并按真实可执行能力校验。
+- [x] 保留 Provisioning Phase、Runtime Availability、Runtime Presence 及 baseline/替换/stale/业务冲突边界。
+- [x] 通过公开导航链接指定成员，不引入另一个 Team 面板；构建兼容性信息只放运维诊断。
+- [x] Snapshot、错误和 Run Index 不含授权、配置路径或 native 原始内容；消息详情继续独立授权分页读取。
+- [x] 验证档案 CAS/门禁、隔离 Evaluation Worker 和 Exact-call Approval 回归，不能因新协作能力自动放宽。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
 
@@ -428,5 +519,5 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 启动一个全新隔离开发上下文，输入仅为用户主流程、Batch 3A条目和#37实时全文；该上下文必须完整读`tdd`与`dsh-plugin-dev`并按RED→GREEN推进，#37至少一个独立提交。
-2. 开发完成后按主循环创建PR、跑隔离`/code-review`与完整闸门；#37终态后先统一重试PR #60，不直接开工#38。
+1. Batch 3A隔离开发已完成6/6 AC、跨仓提交与完整本地闸门；待该开发上下文提交/HTTPS推送最终consumer回归和证据后，由主 agent 创建PR，描述使用`Closes #37`并列出Harness精确提交与验证结果。
+2. PR进入in-review后跑隔离`/code-review`与本地闸门；#37终态后先统一重试PR #60，不直接开工#38。

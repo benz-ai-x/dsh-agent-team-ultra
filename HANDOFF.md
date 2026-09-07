@@ -1,20 +1,19 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-07（Asia/Shanghai）。用户使用中文。
+交接日期：2026-09-08（Asia/Shanghai）。用户使用中文。
 
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
 ## 当前任务与完成边界
 
-- 当前持续目标固定为本轮启动快照的 **#18、#33–#44，共 13 项**；唯一进度索引为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，Issue／PR／分支事实冲突时以 `gh`／`git` 实测修正。#18 按 #44 的明确 AC 保持 open 且本轮记 skipped；#33–#44 按冻结的五个 Batch 串行推进，每个开发和评审均使用全新隔离会话。
-- 当前主工作区分支为 `feat/batch-1-message-send-reply`，从 main `08585631ea6e618a3adbf7143046d00fde00f5d7` 建立。[PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 的两轮 Standards／Spec 隔离评审已收敛为 0 finding，正式 post-review `pnpm verify` 也全绿；#33 六项 AC 已勾选但 Issue 保持 open。该 PR 新增 public Remote 与 persistent schema，命中人工合并清单；飞书【需决策】通知发送成功，用户已于 2026-09-07 15:40（Asia/Shanghai）明确确认按冻结 merge commit 方式合并。
-- #27–#32 已在本轮启动前分别合并 PR #53–#58 并关闭，不属于本次快照范围。Batch 2 冻结包含 #34、#35、#36，而 #36 依赖 #33；因此 #59 人工合并前不启动 #34。后续恢复只读 `PIPELINE_STATE.md`，不再使用历史 `/root/workspace/.ultra-checks/frozen-issues-27-44.json` 作为进度源。
-- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
-- #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。历史 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
-- **历史轮次按当时指示在开发和验证后关闭 #19–#26；本轮 #27 起须在 PR 验收、评审和合并后关闭。PR #45–#52 已按用户逐项授权合并；PR #48 的评审发现和额外模块类型漏检已修复，最终 Standards / Spec 均为 0 项未解决发现。PR #51 已完成 main 整合，修复缓存与 Team 历史审计两项 P2，通过完整验证和双轴复审后合并。** 用户已完成 `gh` 设备授权登录，本仓库权限为 `ADMIN`。此前的认证阻塞已经解决，不能继续将其列为未完成原因。
-- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。该阶段 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27–#32 已完成，#33 PR #59 第 1 轮修复待双轴复审，#34–#44 待处理。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
-- 本轮先按用户指示创建 #19 的 PR，再依照“继续”按顺序创建 #20–#25 的 PR、评审并关闭已完成 Issue。评审使用各自固定提交的独立工作区，未把 #26 WIP 混入 PR。#25 的补修在 `/tmp/ultra-25-audit-fix-vHVNjX` 完成，其锁定 Harness 与主工作区 #26 的来源分别验证。
+- 当前持续目标仍固定为启动快照的 **#18、#33–#44，共 13 项**；唯一进度索引为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，Issue／PR／分支事实冲突时以 `gh`／`git` 实测修正。#18 按 #44 的明确 AC 保持 open 且本轮记 skipped；每个开发和评审阶段均使用全新隔离上下文。
+- [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 已于 2026-09-07 合并为 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，#33 已关闭。Batch 2 的 [PR #60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) 仍 open，因隔离 review 连续三轮未通过而熔断；保留 `/root/workspace/deepseek-harness-ultra-29` 及其 Ultra／Harness 分支，不得切换、重置、修改或删除。
+- 当前主工作区为 `/root/workspace/dsh-agent-team-ultra` 的 `feat/batch-3-studio-recovery`，基于 main `2c5a355…`。#37 产品提交 `68abfed30c4a10a345b96c3f28d9e6233f8c7e70` 已经 HTTPS 推送并由 `ls-remote` 精确回读；它让 Host Snapshot 以权威 roster 为主、精确关联 Binding，在既有 Studio 成员区如实显示普通／Profile-bound 身份、Revision、路由、生命周期和分层能力，并通过公开 Team 导航打开指定成员的既有消息中心。
+- #37 锁定的 Harness 工作区为 `/root/workspace/deepseek-harness-ultra-37`、分支 `fix/ultra-37-studio-capabilities`。相对基线 `d2d870fbe40bc0e968abdac854a3aae495162bec` 的两个独立提交为 `9f73a7d71cc9136d32030975d4ff1d0bcc834ff3`（受验证的协作／写入能力）与 `95483a7a9645679c45805a46a968a1cf7508126c`（Fiber-owned 公共成员导航）；两者已 HTTPS 推送，远端 head 精确回读为 `95483a7…`，工作树 clean。Ultra lock 的文档摘要为 `b64dd01c882927bf39cd936ce7545019df5b8763538f847fc4c3db5640cdbdaa`。
+- #37 的直接验收映射见 [docs/evidence/issue-37-acceptance.md](docs/evidence/issue-37-acceptance.md)。产品 TDD、脱敏联跑和 CAS／门禁／隔离 Evaluation Worker／Exact-call Approval 回归均已通过；最终 `pnpm verify` 也已通过 582 strict／0 warning、30 files／350 tests、八归档安装／生产消息恢复／Web／双 runtime JSON 与 SQLite 恢复／完整卸载。GitHub 正文已由单一 fresh-read／精确 PATCH／完整回读脚本只勾选六个目标 checkbox，6／6 checked 且 Issue 保持 open；推荐 PR 使用 `Closes #37`。此隔离开发上下文只剩提交／推送证据，不得创建 PR、合并或发送飞书。
+- #37 到达终态后必须先按熔断规则统一重试 PR #60；只有重试解除 #36 依赖，才可继续 #38。不要从本交接直接开工 #38。#39–#44 继续按 [PIPELINE_STATE.md](PIPELINE_STATE.md) 的冻结依赖顺序执行。
+- 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。#27–#33 已分别通过 PR #53–#59 合并并关闭；历史实现细节保留在下文，只作背景，不能覆盖本节和实时事实。
 
 - **#19–#26 Acceptance criteria 已同步**：按用户要求，以 main `6253119`、PR #45–#52 的实际合并记录、逐项代码／测试断言和既有验证日志重新审计 39 项验收条件。已实际将 GitHub #19／#20／#21 各 4 项，#22／#23／#24 各 5 项，#25／#26 各 6 项全部勾选，并逐项回读确认；仅改变该小节的复选框，正文与 closed 状态保留。#25 的完成范围是只读审计和迁移设计，#26 为授权查询，阶段 C 迁移及 #44 真实认证 native 验收仍是后续任务。本轮 strict 554 项／0 警告通过，未重复运行既有通过的完整测试；逐项证据及更新前后快照在 `/tmp/ultra-19-26-acceptance-audit/audit.json`。
 
