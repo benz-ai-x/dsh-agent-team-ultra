@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T18:43:00+08:00（Asia/Shanghai）
+最后更新：2026-09-07T22:20:11+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | implemented（#34/#35/#36均 checked；等待固定起点review） | 0 | 1 | 未创建 |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review | 0 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -314,6 +314,7 @@
 - 2026-09-07T22:12:05+08:00：提交后实时重读 GitHub #36：OPEN，`updatedAt=2026-09-05T03:35:13Z`，title/What to build/5条AC/blocked-by均与冻结范围逐字一致，5个checkbox仍未勾。逐项证据映射：Host完整baseline+bounded invalidation/authority reread；filter/cursor/late page/Team与service generation fencing；reconnect read-only/no resend/unknown intent；同一Host message+task commit与英中生命周期/冲突；generated stream/owner+child Slot/Gateway/Fiber/unmount与真实packed负控——5/5均由focused、owning、generated及最终archive/full gate实证。现在从**同一次最新body**构造只替换这5个marker的patch，并在提交前后归一化checkbox后断言正文零其他变化。
 - 2026-09-07T22:12:51+08:00：GitHub #36 checkbox-only patch自然退出0并回读通过：`checked=5`、`unchecked=0`、Issue仍OPEN、`updatedAt=2026-09-07T14:12:51Z`；after body精确等于由同次live before body生成的目标，统一把`[x]`还原为`[ ]`后与before逐字节相同，证明除5个marker外正文零变化。#36及Batch2三项实现现均为5/5 checked；等待主agent发送飞书【仅知会】回执后写入状态，再形成状态-only commit并交固定起点review。
 - 2026-09-07T22:14:16+08:00：#36 完成飞书【仅知会】由主agent发送成功，回执`ok=true`、message `om_x100b66d8254440b0c2954f7365e51a0`，无待补发通知。最终对账为#36 5/5 checked且OPEN，Harness `d8630308…`已推送fork/clean/0-0，Ultra实现`b800d99f…`未push，Batch2 local-gate红灯固定1轮且第二轮full verify全绿。现在形成状态-only commit，随后只读核对两仓clean、提交链与review范围后结束isolated dev。
+- 2026-09-07T22:20:11+08:00：主agent提交前通过 HTTPS 恢复并实测 `origin/main=2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Batch 2 HEAD `1f05e0b3d7b83df3325c60f6a07577645e9592d5` 相对 main 为 0 behind / 8 ahead；无其他 open PR、无启动快照后新增 issue，#34/#35/#36 均 OPEN 且各 5/5 checked。分支已用 HTTPS 推送，创建 [PR #60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60)，描述含 `Closes #34/#35/#36`、Harness 精确三提交、完整验证与 snapshot 限制；PR 状态转为 in-review。该 PR 无 migration/schema、删除、认证权限、workflow/deploy 或依赖大版本升级，且首个公共接口基建 PR #59 已人工合并，故不命中本轮人工合并清单。下一步对固定 Ultra `2c5a355…1f05e0b` 与 Harness `d2d870f…d8630308` diff 启动全新隔离 code-review。
 
 ## AC 进度
 
@@ -367,6 +368,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 形成仅含最终#36 GitHub/飞书回执的Ultra状态commit，确认Ultra clean且不push、Harness clean且fork tracking 0/0。
-2. 把固定review起点`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..HEAD`与三项issue commits/验证结果交给主agent，开始独立review；开发agent不创建/推送Ultra PR。
-3. #37+不进入本批；后续状态只由review/修复/合并对应隔离会话按本索引继续。
+1. 对固定 Ultra diff `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..1f05e0b3d7b83df3325c60f6a07577645e9592d5` 与 Harness diff `d2d870fbe40bc0e968abdac854a3aae495162bec..d8630308520c028e8ae4511a2c0476c5967ced89` 启动全新隔离 `/code-review`，只提供 diff 与 #34/#35/#36 AC；blocking/high 才阻塞。
+2. 若 review 有 blocking/high，交全新隔离修复会话后重走 review 与 local gate；无则 fetch main、运行正式 `pnpm verify` 闸门并按冻结 merge commit 自动合并 PR #60。
+3. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
