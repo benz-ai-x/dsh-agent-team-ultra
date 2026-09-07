@@ -298,9 +298,16 @@ an actual integration commit based on the fixed official comparison.
   original result before CAS; changed input conflicts. Wait observes later Team
   activity for 10 seconds to 1 hour, ends on cancellation or grant revocation,
   and stores no receipt. Wait, claim and dependency readiness never start members
-  or acquire file locks; interruption preserves task ownership. The current
-  task UI reads authoritative Team state, and native execution permissions stay
-  fixed. See [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md).
+  or acquire file locks; interruption preserves task ownership. The public
+  Shared Task Panel projects one authoritative Team view into an accessible
+  list, dependency graph, and shared detail. Real task ids and
+  blocker-to-dependent edges retain Host owner/status/readiness facts; filter,
+  selection, layout, zoom, pan, fit, and keyboard focus are disposable Client
+  state and never alter readiness or revision. Both views reuse the existing
+  task mutation controls and generated Remote boundary. Native execution
+  permissions stay fixed. See
+  [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md) and
+  [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 - The Claude Code provider qualifies only the pinned package-local Claude
   Agent SDK `0.3.241` and Claude Code `2.1.241` native payload. It never
   searches `PATH`; a missing, mismatched, or unqualified payload leaves the

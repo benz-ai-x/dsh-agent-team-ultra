@@ -26,6 +26,8 @@ const members = {
 const codexMessageId = 'message-codex'
 const packedWorkerName = 'packed-controlled-worker'
 const packedRequestText = '请从打包消息中心执行这项受控工作。'
+const packedPrerequisiteSubject = 'Inspect packed dependency graph'
+const packedDependentSubject = 'Publish packed dependency graph'
 const packedProviderId = 'packed-controlled'
 const packedRuntimeEntryId = 'packed-controlled-runtime'
 const packedTeamEntryId = 'packed-agent-team'
@@ -281,6 +283,15 @@ async function startHost(resume) {
       },
       signal: new AbortController().signal,
     })
+    const prerequisite = await host.agentTeams.createTask(lead, {
+      subject: packedPrerequisiteSubject,
+      description: 'Inspect the installed production task graph.',
+    })
+    await host.agentTeams.createTask(lead, {
+      subject: packedDependentSubject,
+      description: 'Publish only after the packed prerequisite is complete.',
+      blockedBy: [prerequisite.id],
+    })
     const session = lead.session
     for (const member of Object.values(members)) appendMember(session, TeamId, SessionId, member)
     for (let index = 0; index < 19; index += 1) {
@@ -314,6 +325,15 @@ async function startHost(resume) {
     lead = resumed.agent
     const recovered = host.agentTeams.listMembers(lead).find(member => member.name === packedWorkerName)
     if (recovered?.status !== 'inactive') throw new Error('recovered packed recipient is not inactive without its provider')
+  }
+
+  const tasks = host.agentTeams.listTasks(lead)
+  const prerequisite = tasks.find(task => task.subject === packedPrerequisiteSubject)
+  const dependent = tasks.find(task => task.subject === packedDependentSubject)
+  if (prerequisite === undefined || dependent === undefined
+    || dependent.blockedBy.length !== 1 || dependent.blockedBy[0] !== prerequisite.id
+    || dependent.ready !== false) {
+    throw new Error(`Host did not retain the authoritative packed task dependency: ${JSON.stringify(tasks)}`)
   }
 
   if (routes.length !== 1 || routes[0].path !== '/api') throw new Error('Host did not expose one /api route')
@@ -352,6 +372,7 @@ async function startHost(resume) {
     origin,
     cookie,
     lead,
+    taskGraph: { prerequisite, dependent },
     async events() {
       const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
       try {
@@ -504,6 +525,13 @@ function button(container, label) {
   return found
 }
 
+function ariaButton(container, label) {
+  const found = [...container.querySelectorAll('button')]
+    .find(candidate => candidate.getAttribute('aria-label') === label)
+  if (found === undefined) throw new Error(`button with aria-label ${JSON.stringify(label)} is missing`)
+  return found
+}
+
 async function click(element) {
   await act(async () => {
     element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -542,6 +570,15 @@ async function enterText(container, label, value) {
   })
 }
 
+async function enterSearch(container, label, value) {
+  const field = [...container.querySelectorAll('input[type="search"]')]
+    .find(candidate => candidate.getAttribute('aria-label') === label)
+  if (field === undefined) throw new Error(`searchbox ${JSON.stringify(label)} is missing`)
+  await act(async () => {
+    Simulate.change(field, { target: { value } })
+  })
+}
+
 function messageButtons(container) {
   const list = container.querySelector('[aria-label="Persisted Team messages"]')
   if (list === null) return []
@@ -550,6 +587,22 @@ function messageButtons(container) {
 }
 
 async function openMessages(panel) {
+  if (panel.container.querySelector('[role="dialog"][aria-label="Agent Team"]') === null) {
+    const teamTab = await waitUntil(
+      () => button(panel.container, 'Agent Team'),
+      'packed Agent Team tab',
+    ).catch((error) => {
+      throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
+    })
+    await click(teamTab)
+  }
+  await waitUntil(() => button(panel.container, 'Messages'), 'packed Messages tab')
+  await click(button(panel.container, 'Messages'))
+  await waitUntil(() => panel.container.textContent?.includes('Persisted messages'), 'packed message center')
+  await waitUntil(() => messageButtons(panel.container).length > 0, 'packed message rows')
+}
+
+async function verifyTaskDag(panel, taskGraph) {
   const teamTab = await waitUntil(
     () => button(panel.container, 'Agent Team'),
     'packed Agent Team tab',
@@ -557,10 +610,93 @@ async function openMessages(panel) {
     throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
   })
   await click(teamTab)
-  await waitUntil(() => button(panel.container, 'Messages'), 'packed Messages tab')
-  await click(button(panel.container, 'Messages'))
-  await waitUntil(() => panel.container.textContent?.includes('Persisted messages'), 'packed message center')
-  await waitUntil(() => messageButtons(panel.container).length > 0, 'packed message rows')
+
+  const dependentLabel = `${taskGraph.dependent.id} · ${taskGraph.dependent.subject}`
+  const prerequisiteLabel = `${taskGraph.prerequisite.id} · ${taskGraph.prerequisite.subject}`
+  const dependentRow = await waitUntil(
+    () => ariaButton(panel.container, dependentLabel),
+    'packed authoritative dependent task row',
+  ).catch((error) => {
+    throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
+  })
+  await click(dependentRow)
+
+  const details = await waitUntil(
+    () => panel.container.querySelector('[role="region"][aria-label="Task details"]'),
+    'packed shared task details',
+  )
+  for (const expected of [
+    taskGraph.dependent.id,
+    taskGraph.dependent.subject,
+    taskGraph.prerequisite.id,
+    'Pending',
+    'Blocked by dependencies',
+  ]) {
+    if (!details.textContent.includes(expected)) throw new Error(`packed task details are missing ${JSON.stringify(expected)}`)
+  }
+  for (const expected of ['New task', 'Edit', 'Delete']) button(panel.container, expected)
+  if (details.querySelector('select') === null) throw new Error('packed task details omitted the existing owner control')
+
+  await click(button(panel.container, 'Task dependency graph'))
+  const graph = await waitUntil(
+    () => panel.container.querySelector('[role="application"][aria-label="Task dependency graph"]'),
+    'packed task dependency graph',
+  )
+  const edgeLabel = `${taskGraph.prerequisite.id} → ${taskGraph.dependent.id}`
+  const edge = [...graph.querySelectorAll('[aria-label]')]
+    .find(candidate => candidate.getAttribute('aria-label') === edgeLabel)
+  if (edge?.getAttribute('data-from-task-id') !== taskGraph.prerequisite.id
+    || edge.getAttribute('data-to-task-id') !== taskGraph.dependent.id
+    || edge.getAttribute('marker-end') !== 'url(#agent-team-task-arrow)') {
+    throw new Error(`packed task graph omitted its authoritative directed edge ${edgeLabel}`)
+  }
+  const prerequisiteNode = ariaButton(graph, prerequisiteLabel)
+  const dependentNode = ariaButton(graph, dependentLabel)
+  for (const expected of ['Unowned', 'Pending', 'Blocked by dependencies', taskGraph.prerequisite.id]) {
+    if (!dependentNode.textContent.includes(expected)) {
+      throw new Error(`packed dependent node is missing Host fact ${JSON.stringify(expected)}`)
+    }
+  }
+  if (prerequisiteNode.getAttribute('data-graph-column') !== '0'
+    || dependentNode.getAttribute('data-graph-column') !== '1') {
+    throw new Error('packed task graph did not apply its dependency-aware layout')
+  }
+
+  const zoomBefore = graph.getAttribute('data-zoom')
+  await click(ariaButton(panel.container, 'Zoom in dependency graph'))
+  await waitUntil(() => graph.getAttribute('data-zoom') !== zoomBefore, 'packed graph zoom')
+  button(panel.container, 'Fit dependency graph to view')
+
+  await act(async () => {
+    prerequisiteNode.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  })
+  await waitUntil(() => dependentNode.getAttribute('aria-pressed') === 'true', 'packed graph keyboard navigation')
+  await click(button(panel.container, 'Task list'))
+  if (ariaButton(panel.container, dependentLabel).getAttribute('aria-pressed') !== 'true') {
+    throw new Error('packed task selection did not survive graph-to-list switching')
+  }
+
+  await enterSearch(panel.container, 'Filter tasks', taskGraph.dependent.subject)
+  await waitUntil(
+    () => panel.container.textContent.includes(`Hidden dependencies: ${taskGraph.prerequisite.id}`),
+    'packed hidden-dependency list cue',
+  )
+  if (!panel.container.textContent.includes('Blocked by dependencies')) {
+    throw new Error('packed task filter changed the authoritative readiness text')
+  }
+  await click(button(panel.container, 'Task dependency graph'))
+  const filteredGraph = panel.container.querySelector('[role="application"][aria-label="Task dependency graph"]')
+  if (filteredGraph === null
+    || !filteredGraph.textContent.includes(`Hidden dependencies: ${taskGraph.prerequisite.id}`)
+    || [...filteredGraph.querySelectorAll('[aria-label]')].some(candidate => candidate.getAttribute('aria-label') === edgeLabel)) {
+    throw new Error('packed filtered graph did not distinguish hidden dependencies from Host readiness')
+  }
+  await enterSearch(panel.container, 'Filter tasks', '')
+  await waitUntil(
+    () => [...filteredGraph.querySelectorAll('[aria-label]')]
+      .some(candidate => candidate.getAttribute('aria-label') === edgeLabel),
+    'packed dependency edge after clearing filter',
+  )
 }
 
 async function filterCodex(panel) {
@@ -617,6 +753,7 @@ try {
   firstHost = await startHost(false)
   firstClient = await startClient(firstHost)
   firstPanel = await firstClient.renderPanel()
+  await verifyTaskDag(firstPanel, firstHost.taskGraph)
   await openMessages(firstPanel)
   for (const route of ['lead → dsh-worker', 'codex-worker → lead', 'claude-worker → lead']) {
     if (!firstPanel.container.textContent.includes(route)) throw new Error(`packed first page is missing ${route}`)
@@ -784,10 +921,14 @@ try {
   await waitUntil(() => secondPanel.container.textContent.includes('Codex durable body'), 'recovered packed detail')
   if (!secondPanel.container.textContent.includes(codexMessageId)) throw new Error('recovered packed detail omitted message id')
 
+  console.log('PASS packed Team owner panel shares authoritative task list, dependency graph, selection, details, controls, navigation, and filtering')
   console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
   console.log('PASS packed production renderer loses one committed Remote response, reaches its deadline, and preserves the exact retry intent across Host recovery')
   console.log('PASS packed Loader/AgentLoop/Team/JSONL boundary recovers one pending reply through the controlled provider without duplicate work')
   console.log('PASS packed durable-request validator rejects missing and duplicate required facts')
+} catch (error) {
+  console.error(error)
+  process.exitCode = 1
 } finally {
   deliveryRelease.resolve(undefined)
   await secondPanel?.dispose().catch(() => {})
