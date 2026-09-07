@@ -11,7 +11,7 @@ parent [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18).
 The shared authority boundary remains
 [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 Ultra pins qualified Harness commit
-[`41291bc977`](https://github.com/benz-ai-x/deepseek-harness_x/commit/41291bc9779ba954b774880c634fe90c9945b966).
+[`503ad563ff`](https://github.com/benz-ai-x/deepseek-harness_x/commit/503ad563ff226c2afc77608c432af3a80aae3279).
 
 | Acceptance criterion | Repeatable evidence and conclusion |
 | --- | --- |
@@ -19,29 +19,29 @@ Ultra pins qualified Harness commit
 | Fence paging/live races, filters, late pages, Team switches, and service replacements | Component tests cover both race directions: an append already in flight is fenced when invalidation starts a no-cursor replacement, while an old published cursor cannot start append after replacement begins. A barrier test changes filters while the prior replacement is pending and proves the old filter generation cannot publish before the one queued trailing read. Team switching releases old queues and pending submission, disposes its control, starts an empty new-Team intent, and rejects late callbacks/settlements. Same-Team replacement preserves an editing draft; an interrupted pending request retains its exact id/body as explicitly unknown without retry. |
 | Reconnect reads without resend, missing pages, duplicates, or false completion | Stale and reconnect callbacks only reload `TeamView` and the authoritative filtered window. `sendMessage` remains zero throughout reconnect tests. A pending cursor cannot become the replacement cursor, metadata ids are deduplicated on valid append, and pending delivery remains separate from task completion. Stored uncertain intents return only as reviewable `unknown`; only the explicit retry command resubmits the same request. |
 | Share Host commit facts and keep distinct bilingual states | The same Host follower observes a real `remoteSendMessage` acceptance/delivery and task commits. Authority reads return the exact delivered message and current task view. Production UI tests distinguish empty/loading, disconnected before baseline, stale after baseline, unavailable terminal transport, stale-CAS conflict, and retained committed data in English and Chinese; Chinese stale copy consistently uses “陈旧”. |
-| Release watch, Remote, locale, Slot, and background work; prove generated and packed paths | The generated descriptor exposes exactly `agentTeams/watch` in stream mode with Agent lookup and signal cancellation. Host abort and Team Fiber disposal end iterators; TeamAction and message child controls dispose on close, service replacement, renderer unmount, and Client Fiber teardown. The packed probe uses the production renderer, public owner/child Slot, generated Remote, Gateway, real Host/Team/JSONL persistence, and verifies baseline, committed invalidation, late-cursor rejection, no resend, and no callback after renderer unmount. |
+| Release watch, Remote, locale, Slot, and background work; prove generated and packed paths | The generated descriptor exposes exactly `agentTeams/watch` in stream mode with Agent lookup and signal cancellation. Host abort and Team Fiber disposal end iterators. TeamAction and message child React cleanup immediately trigger idempotent control disposal, while their Client context owners retain every live or replaced async close until Fiber/service-generation teardown is quiescent; deferred transport tests prove the lifecycle cannot resolve early, registrations reach zero, and disposal failures are caught by the Cordis lifecycle boundary. The packed probe uses the production renderer, public owner/child Slot, generated Remote, Gateway, real Host/Team/JSONL persistence, and verifies baseline, committed invalidation, late-cursor rejection, no resend, and no callback after renderer unmount. |
 
 ## Verification
 
-- Harness source-owning tests pass 3 files / 104 tests: 60 Host Team authority,
-  34 production TeamAction, and 10 browser child-Slot tests. The built-library
+- Harness source-owning tests pass 3 files / 109 tests: 60 Host Team authority,
+  36 production TeamAction, and 13 browser child-Slot/lifecycle tests. The built-library
   stream descriptor e2e passes 1/1.
 - Harness type equivalence passes 435/435 blocks, the isolated Agent Team
   recorded replay passes, and all 15 documentation gates pass. Official Host
   and Client builds generate the stream descriptor and browser bundle; no
   artifact was hand-edited.
 - Ultra source preparation attests Harness
-  `41291bc9779ba954b774880c634fe90c9945b966` and docs digest
-  `358deaf018cb0851d60c70f23beb954bc8513f7154cde82d137be757af15c782`.
+  `503ad563ff226c2afc77608c432af3a80aae3279` and docs digest
+  `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`.
   Frozen install, build, 582 strict checks / zero warnings, and the message plus
-  mount owner suites (2 files / 22 tests) pass.
+  mount owner suites (2 files / 25 tests) pass.
 - Ultra `pnpm verify:pack` passes all eight archives. Its production path
   covers task-DAG and dependency-CAS regressions, watch baseline and bounded
   invalidation, a held late cursor, zero reconnect resend, renderer disposal,
   Host recovery, real Web boot, Codex/Claude JSON and SQLite recovery,
   registration release, and complete uninstall.
 - The review-fix final `pnpm verify` passes 582 strict checks with zero warnings, production
-  Host/Client and generated-artifact builds, 356 tests in 30 files, and repeats
+  Host/Client and generated-artifact builds, 359 tests in 30 files, and repeats
   the complete eight-archive install, Web, dual-runtime recovery, lifecycle,
   and uninstall gate. Before review round 1, the first formal local-gate run
   exposed two stale direct-mount fixtures; after both consumed the authoritative

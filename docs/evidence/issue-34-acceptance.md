@@ -11,7 +11,7 @@ The projection boundary is recorded in
 [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 Ultra starts from main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` and pins
 qualified Harness commit
-[`41291bc977`](https://github.com/benz-ai-x/deepseek-harness_x/commit/41291bc9779ba954b774880c634fe90c9945b966).
+[`503ad563ff`](https://github.com/benz-ai-x/deepseek-harness_x/commit/503ad563ff226c2afc77608c432af3a80aae3279).
 
 | Acceptance criterion | Repeatable evidence and conclusion |
 | --- | --- |
@@ -23,13 +23,13 @@ qualified Harness commit
 
 ## Verification
 
-- Harness TeamAction passes 34/34 and the public browser mount passes 10/10;
+- Harness TeamAction passes 36/36 and the public browser mount passes 13/13;
   the focused keyless Web snapshot passes 3/3 and corpus validation 2/2.
 - Harness Client production build, Host generated build, 32/32 documentation
   gates, bilingual pairing, generated catalogs, and `git diff --check` pass.
-- Ultra source preparation exactly attests Harness `41291bc9779ba954b774880c634fe90c9945b966`
+- Ultra source preparation exactly attests Harness `503ad563ff226c2afc77608c432af3a80aae3279`
   and documentation digest
-  `358deaf018cb0851d60c70f23beb954bc8513f7154cde82d137be757af15c782`;
+  `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`;
   install, full build, and 582 strict checks / zero warnings pass.
 - Ultra `pnpm verify:pack` passes all eight installed archives, the production
   task list/DAG probe, persisted message/reply recovery, real Web boot,

@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T00:39:30+08:00（Asia/Shanghai）
+最后更新：2026-09-08T02:00:22+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review 2通过：5/5 AC checked；待最终批次review/merge |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review-fix 2：4/5 AC checked；#35.4 待修复 |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review-fix 2：4/5 AC checked；#36.5 待修复 |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review 2修复完成：5/5 AC checked；待review 3/merge |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review 2修复完成：5/5 AC checked；待review 3/merge |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review 2修复完成：5/5 AC checked；待review 3/merge |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（review 2 修复） | 2 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（review 2修复/闸门完成，待push与review 3） | 2 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -342,6 +342,23 @@
 - 2026-09-08T00:17:26+08:00：主agent显式刷新两仓 HTTPS remote-tracking refs；Ultra/Harness 均 clean、tracking 0/0，PR #60 实测 OPEN/head=`2090f06a0ee1e1ae96782f203c24dc89b252af1a`、mergeable/CLEAN、0 checks，三个 issue 仍 OPEN 且各5/5 checked。修正“下一步（唯一恢复入口）”为review 2，而非已完成的review 1修复；`2090f06…`及本次状态提交均只含流水状态，不扩大产品/文档审查点。
 - 2026-09-08T00:39:30+08:00：Batch 2 隔离 code-review 第2轮失败，review连续失败计为2，尚未达到第3轮熔断。因root thread上限，原计划的第二个fresh Spec thread无法创建；同一个本轮全新隔离`batch2_review2_standards`会话按`code-review`先后完成Standards与Spec双轴，仍仅接收固定diff和15项AC。结论去重为0 blocking、2 high、1 medium：high一为#35.4 public `getTask`没有生产UI consumer，删除后详情从非墓碑`TeamView.tasks`消失，无法展示墓碑；high二为#36.5 React cleanup仅`void control.dispose()`，未把异步Remote/Host stream静止纳入Fiber完成边界。medium为同一`getTask`公开API的current-consumer规范缺口，随#35.4一起修复。#34全部AC通过；实时GitHub body仅撤回#35.4与#36.5 checkbox，分别为4/5，Issue保持OPEN；PR正文改为`Closes #34`、`Refs #35/#36`。阻塞【仅知会】已通过`lark-im`以bot发送成功，message=`om_x100b66dac2ec08a0ddcd7b246f5c5cb`；无需人工决策、无待补发。
 
+- 2026-09-08T00:44:34+08:00：review 2 隔离修复会话已按恢复协议重读最新状态、`tdd` 全部规则及 tests/mocking、`dsh-plugin-dev` 与 core/Agent Team/Client/Service/runtime/packaging 路由参考；公开 seam 由失败规格已确认为 production `TeamAction`→generated `getTask` 与 React unmount→Slot/Fiber 可等待 lifecycle。Git/GitHub 实测 Ultra clean HEAD/remote=`7d5e5b2d76017988deb36d3c52a4bad8254bee5a`、Harness clean HEAD/remote=`41291bc9779ba954b774880c634fe90c9945b966`、main=`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`；PR #60 OPEN/CLEAN/MERGEABLE、0 checks、`Closes #34`+`Refs #35/#36`；#34=5/5、#35/#36=4/5且均 OPEN。开工 `pnpm context:check:strict` 自然退出0（582/0），无 source mismatch。下一步先读实 lifecycle/RemoteSnapshotStream/Slot 实现，再逐个 vertical slice 取得真实 RED；不提前写 GREEN。
+- 2026-09-08T00:50:01+08:00：#35.4 墓碑 production consumer 的首个 TDD RED 已在公开 `TeamAction` seam 取得：`pnpm vitest run packages/experimental/client-ui-agent-team/tests/team-action.client.spec.tsx -t "retains a deleted selection"` 自然退出1；真实删除后的 authority view 已移除 `task-1`，但现实现把选择自动跳到剩余任务，公开 `getTask(lead, task-1)` 调用为0，无法显示所选删除墓碑。失败来自缺失产品行为而非命令/fixture。下一步最小接入 generated `getTask`、保留选择并对迟到 Team/session generation 做 fence，再跑同一 GREEN。
+- 2026-09-08T00:54:02+08:00：#35.4 墓碑 consumer 最小 GREEN：`TeamActionInjected` 与 production Browser mount 现消费 generated `agentTeams/getTask`；authority list移除当前选择时保留原 Task id，以带 session/service/detail generation fence 的单次权威读取显示 deleted tombstone，写控件对墓碑完全隐藏；切 Team 后迟到旧墓碑不能进入新面板。focused `team-action` 2/2（其余34 skipped）与 browser/generated 10/10均自然退出0。新增 `message-read.spec`/`team.spec`/mount/browser-plugin 无关漂移为0；本 slice 仅改 TeamAction/locales/mount及其两份 owning tests。下一步先形成独立 #35 Harness commit，再进入 #36.5 async quiescent disposal 的新 RED。
+- 2026-09-08T00:57:05+08:00：#35 独立 Harness提交已形成：`07bbff8a1f785cc9acbf57460d8aff9d90a3c5d3`（`fix: retain deleted Team task details (#35)`），提交前 owning TeamAction+browser 46/46、package正式bundle与`git diff --check`全绿；尚未push，待#36 Harness提交后按规则一并HTTPS push。#36.5 首个真实 lifecycle RED：可控 `RemoteSnapshotStream.dispose` transport gate 未释放时，React式主动触发后 `Fiber.dispose()`仍在10ms内提前resolve且Remote registration已开始释放；focused browser命令自然退出1，证明当前Fiber不拥有该异步静止等待，而非仅断言“dispose被调用”。下一步最小加入 Client apply/Fiber 所有的异步control owner，React cleanup只同步触发，owner等待并传播失败。
+- 2026-09-08T01:15:30+08:00：#36.5 Harness GREEN扩展到真实 service generation：旧`remote.agentTeams`撤回会等待deferred watch静止、移除UI，旧actions随后创建的control立即关闭且不能启动consumer，新service generation再独立注册；dispose failure由Cordis logger边界接住并继续释放Remote registration。TeamAction+browser 49/49与双语README/Agent Note正式pairing均绿。公开inject新增`getTask`使client catalog真实过期，已用正式`gen-client-catalog`更新并形成#35提交`40e833393c`。Harness `test:gui`首轮3924 pass/1 skip/1 fail，唯一失败是本PR既有#34 tabs neutral border仍为1px而现行gate要求0.5px；该可归因 standards RED已最小改为0.5px，focused elevation 7/7 GREEN。`doc-sync`首轮29 pass/3 stale generated catalogs（client/config/persistence），client已生成；下一步正式生成并审查另两份catalog、复跑GUI/doc-sync。以上是Harness owning/standards gates，不是Ultra full gate，连续local-full-red仍0。
+- 2026-09-08T01:39:20+08:00：Harness review 2修复形成4个独立追加提交：`07bbff8a1f`（#35生产`getTask`墓碑详情）、`40e833393c`（#35正式client catalog）、`443791f7da`（#34 hairline border gate）、`503ad563ff`（#36 Fiber-owned quiescent watch disposal）。最终TeamAction+Browser 49/49、GUI 283 files / 3925 pass / 1 skip、`doc-sync` 32/32、Cordis/client package/i18n/typecheck与client/config/persistence正式generated verify、`git diff --check`均绿。审查`docs/config-catalog*`与`docs/persistence-catalog*`确认其配置/持久定义正文不变，仅因本PR此前#36对`agent-team/types.ts`新增5行使正式source链接行号整体偏移，故是直接因果generated输出而保留。仓库级`DSH_SNAPSHOT=replay pnpm run test:web`完成build后出现5个非Team既有Web场景失败（chat scroll 2、preset selection、web-search marker、skill invoke），且所有worker/Chromium退出后Vitest teardown继续空转约12分钟，按既有不得无限等待规则中止为exit130；本批正式`agent-team-panel.e2e.ts`定向replay随后自然退出0（1 file / 3 tests，未刷新golden）。该仓库级异常不计Ultra full gate红轮；下一步HTTPS push/ls-remote Harness，再更新Ultra exact lock并实现message-center lifecycle owner。
+- 2026-09-08T01:40:35+08:00：Harness HTTPS push经pre-push full Host build与`typecheck:contracts-ready`自然退出0；fork分支由`41291bc…` fast-forward至`503ad563ff226c2afc77608c432af3a80aae3279`。随后显式HTTPS `git ls-remote`精确返回同一SHA，Harness worktree clean。下一步Ultra lock/digest只指向该精确已推送源，运行正式prepare/install/build后再取得message-center lifecycle RED。
+- 2026-09-08T01:43:20+08:00：Ultra reference lock/README已更新至精确Harness `503ad563ff…`与重算docs digest `d4028c4f…e767`；官方`prepare:harness` attestation及`pnpm install`自然退出0。首次`pnpm build`在Ultra产品编译前由source freshness guard退出1：Harness pre-push构建后Client/Session declaration与conversation bundle时间戳仍旧，不是行为测试或正式`pnpm verify`，故不计local-gate红轮。沿用仓库既有官方恢复：强制重发Harness host/client project references后运行正式lib build，再原样重跑Ultra build；不删除cache、不手改lib、不绕过guard。
+- 2026-09-08T01:45:30+08:00：一次把Harness host+client两个大型project graph合并交给默认2GiB `pnpm exec tsc --force`，约98s后因V8 heap OOM退出1；这是命令资源配置错误，不冒充产品RED或Ultra full gate。改为与仓库正式host build一致的Node 4GiB并将host/client分开强制重发，避免同时保留两张project graph；仍不删除/skip/放宽任何测试或断言。
+- 2026-09-08T01:49:20+08:00：Harness host/client project references各以4GiB分开`--force`自然退出0，随后正式`pnpm run build:lib`自然退出0；Ultra原样`pnpm build`复跑自然退出0，source guard、Host/Client bundles、Typert与compatibility均精确绑定`503ad563ff…`。下一步在Ultra production mount/Slot/Fiber seam用真实deferred message watch取得quiescent lifecycle RED，再做最小owner实现。
+- 2026-09-08T01:50:15+08:00：#36.5 Ultra lifecycle取得干净RED：在production mount创建真实message watch control，模拟React cleanup先触发`dispose()`，底层Remote stream以deferred gate阻塞；`runtime.fiber.dispose()`仍在10ms内错误提前resolve且Remote contribution已释放，focused `mount.client.spec.ts`自然退出1。该失败精确证明Fiber没有等待已触发control静止，不是只检查dispose调用。下一步把message watch owner注册在同一service generation的Client context effect，wrapper保持React同步触发且Fiber异步等待。
+- 2026-09-08T01:52:20+08:00：#36.5 Ultra最小GREEN完成。production `registerStudio`为每个Client/service generation创建message watch owner并在Context effect注册async disposer；组件收到的wrapper在React cleanup立即且幂等触发底层dispose，owner保留pending直至Fiber等待静止，关闭后旧actions新建control会立即释放且不能启动。新增测试证明：deferred transport未释放时Fiber/Remote mount不提前完成；dispose失败由Cordis lifecycle logger接住且Remote仍释放；`remote.agentTeams`撤回会等待旧control、新service独立注册。既有Team切换/unmount主动dispose测试仍保留；message-center+mount整体验证2 files / 25 tests自然退出0。下一步运行Ultra build、packing/lifecycle owning gates与diff审计，形成#36产品提交。
+- 2026-09-08T01:53:40+08:00：Ultra新增lifecycle实现后`pnpm build`自然退出0，source guard、Host/Client、Typert与compatibility均绑定Harness `503ad563ff…`；`git diff --check`绿。精确stage lock/README、message watch owner与mount lifecycle test，形成#36独立Ultra提交`ec9980a`（`fix: await Team message watch disposal (#36)`）；PIPELINE状态仍单独留在工作树。下一步运行正式`pnpm verify`，其中必须通过真实8 archive pack/install/boot/uninstall与registration release；若失败按当前连续full红0→1即时记录。
+- 2026-09-08T01:55:55+08:00：review2修复后的正式Ultra `pnpm verify`首次即自然退出0：strict 582/0；Host/Client、Typert与compatibility build全绿；Vitest 30 files / 359 tests全绿；8 archive pack/install、production Team list/DAG/dependency CAS/message page/watch与renderer unmount、真实Web、Codex/Claude JSON+SQLite cold recovery、`registrationsReleased=true`及完整uninstall全部PASS。未新增local-gate红轮，连续红保持0、历史红仍1。下一步更新直接evidence/TODO/HANDOFF与状态，实时同次读取#35/#36最新body并做checkbox-only复核，PR恢复3个Closes后提交/push Ultra并固定review3。
+- 2026-09-08T02:00:22+08:00：AC勾选前重新实时读取GitHub #35/#36最新OPEN正文，并在同一脚本内仅替换各自唯一剩余marker：#35.4 tombstone production consumer、#36.5 quiescent lifecycle。PATCH后即时回读均为5 checked / 0 unchecked、Issue保持OPEN；after正文精确等于同次live before构造目标，且把该`[x]`恢复为`[ ]`后与before逐字节相等。before SHA-256分别为#35 `338490986cddc380cbbfc41b87071cf28b524e6227b21b65ae47e604398d30bc`、#36 `0c26be763cff58055df8463bec69aec982c716353a6749785fa1d7ccbf5069c3`。Batch2三项现均5/5；下一步更新PR为3个Closes、0 Refs及review2修复验证，再完成docs/state commit和HTTPS push。
+- 2026-09-08T02:03:30+08:00：review2修复证据已同步到#34/#35/#36 direct acceptance、Harness patch ledger、TODO、HANDOFF与本状态：最终Harness `503ad563ff…`/digest `d4028c4f…`，owner 60+36+13=109 tests，Ultra owning 25/25与full 359 tests；下一步固定为review3。docs-only复核`pnpm context:check:strict`自然退出0（582/0），7个changed Markdown共77个本地target全部存在，`git diff --check`绿。下一步形成docs/state提交并HTTPS push Ultra，再更新PR正文与最终review3 head。
+
 ## AC 进度
 
 ### #33
@@ -366,7 +383,7 @@
 - [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
 - [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
 - [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
-- [ ] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
+- [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
 - [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
@@ -375,7 +392,7 @@
 - [x] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
 - [x] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
 - [x] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
-- [ ] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
+- [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
 
@@ -394,7 +411,7 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 在同一PR的隔离开发上下文中用`/tdd`修复review 2两项high：通过生产`getTask`注入/调用保留删除墓碑详情，并把watch异步dispose的真正静止所有权上移到可等待的Slot/Fiber边界；禁止用React effect cleanup返回Promise冒充等待。先取得public UI与真实lifecycle RED，再最小GREEN。
-2. 修复、两仓提交/push、full gate、实时AC checkbox-only复核后，以新固定diff启动隔离`/code-review`第3轮；若仍有任意blocking/high，立即按连续3轮规则熔断PR #60、保留分支并发送【需决策】。
+1. 完成review 2修复的docs/state审计和PR正文，提交并以HTTPS push Ultra；`ls-remote`精确核对两仓，PR须为3个`Closes`、0个`Refs`且head等于本地。
+2. 以新固定diff启动隔离`/code-review`第3轮：Ultra从main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`到最终head，Harness从`d2d870fbe40bc0e968abdac854a3aae495162bec`到`503ad563ff226c2afc77608c432af3a80aae3279`；复核15项实时AC、review 1 A–H和review 2两项high。若仍有任意blocking/high，立即按连续3轮规则熔断PR #60、保留分支并发送【需决策】。
 3. 第3轮无blocking/high后fetch main并再次运行正式`pnpm verify`最终闸门；与main对账均绿后按冻结merge commit自动合并PR #60。
 4. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
