@@ -11,42 +11,44 @@ parent [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18).
 The shared authority boundary remains
 [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 Ultra pins qualified Harness commit
-[`d863030852`](https://github.com/benz-ai-x/deepseek-harness_x/commit/d8630308520c028e8ae4511a2c0476c5967ced89).
+[`41291bc977`](https://github.com/benz-ai-x/deepseek-harness_x/commit/41291bc9779ba954b774880c634fe90c9945b966).
 
 | Acceptance criterion | Repeatable evidence and conclusion |
 | --- | --- |
-| Establish a complete baseline, then bounded invalidation and authoritative rereads | Host tests open the follower before reading the baseline, so an overlapping commit cannot be lost. The first frame is a complete `TeamView`; synchronous message/task bursts retain one pending invalidation bit per follower. TeamAction replaces its task view from the baseline, while Ultra reloads the current message window through the existing list Remote. No stream frame stores a page, body, task patch, or Client-authored authority. |
-| Fence paging/live races, filters, late pages, Team switches, and service replacements | Component tests hold an old cursor page while an invalidation starts a no-cursor replacement with the same normalized filters; the late page cannot append and the live row appears once. Team switching aborts the old page and pending submission, disposes its control, starts an empty new-Team intent, and rejects late callbacks/settlements. Same-Team replacement preserves an editing draft; an interrupted pending request retains its exact id/body as explicitly unknown without retry. |
+| Establish a complete baseline, then bounded invalidation and authoritative rereads | Host tests open the follower before reading the baseline, so an overlapping commit cannot be lost. The first frame is a complete `TeamView`; synchronous message/task bursts retain one pending invalidation bit per follower. Client count/barrier tests prove task view, message page, and roster each allow one authority read in flight and coalesce a burst into exactly one trailing read. No stream frame or latch stores a page, body, task patch, or Client-authored authority. |
+| Fence paging/live races, filters, late pages, Team switches, and service replacements | Component tests cover both race directions: an append already in flight is fenced when invalidation starts a no-cursor replacement, while an old published cursor cannot start append after replacement begins. A barrier test changes filters while the prior replacement is pending and proves the old filter generation cannot publish before the one queued trailing read. Team switching releases old queues and pending submission, disposes its control, starts an empty new-Team intent, and rejects late callbacks/settlements. Same-Team replacement preserves an editing draft; an interrupted pending request retains its exact id/body as explicitly unknown without retry. |
 | Reconnect reads without resend, missing pages, duplicates, or false completion | Stale and reconnect callbacks only reload `TeamView` and the authoritative filtered window. `sendMessage` remains zero throughout reconnect tests. A pending cursor cannot become the replacement cursor, metadata ids are deduplicated on valid append, and pending delivery remains separate from task completion. Stored uncertain intents return only as reviewable `unknown`; only the explicit retry command resubmits the same request. |
-| Share Host commit facts and keep distinct bilingual states | The same Host follower observes a real `remoteSendMessage` acceptance/delivery and task commits. Authority reads return the exact delivered message and current task view. Production UI tests distinguish empty/loading, disconnected before baseline, stale after baseline, unavailable terminal transport, stale-CAS conflict, and retained committed data in English and Chinese. |
+| Share Host commit facts and keep distinct bilingual states | The same Host follower observes a real `remoteSendMessage` acceptance/delivery and task commits. Authority reads return the exact delivered message and current task view. Production UI tests distinguish empty/loading, disconnected before baseline, stale after baseline, unavailable terminal transport, stale-CAS conflict, and retained committed data in English and Chinese; Chinese stale copy consistently uses “陈旧”. |
 | Release watch, Remote, locale, Slot, and background work; prove generated and packed paths | The generated descriptor exposes exactly `agentTeams/watch` in stream mode with Agent lookup and signal cancellation. Host abort and Team Fiber disposal end iterators; TeamAction and message child controls dispose on close, service replacement, renderer unmount, and Client Fiber teardown. The packed probe uses the production renderer, public owner/child Slot, generated Remote, Gateway, real Host/Team/JSONL persistence, and verifies baseline, committed invalidation, late-cursor rejection, no resend, and no callback after renderer unmount. |
 
 ## Verification
 
-- Harness source-owning tests pass 3 files / 101 tests: Host Team authority,
-  production TeamAction, and browser child-Slot composition. The built-library
+- Harness source-owning tests pass 3 files / 104 tests: 60 Host Team authority,
+  34 production TeamAction, and 10 browser child-Slot tests. The built-library
   stream descriptor e2e passes 1/1.
 - Harness type equivalence passes 435/435 blocks, the isolated Agent Team
   recorded replay passes, and all 15 documentation gates pass. Official Host
   and Client builds generate the stream descriptor and browser bundle; no
   artifact was hand-edited.
 - Ultra source preparation attests Harness
-  `d8630308520c028e8ae4511a2c0476c5967ced89` and docs digest
-  `09c3afac913fa2a8e708b57014421f9fe4b618f964bbd7fddd9a43e45298a39f`.
+  `41291bc9779ba954b774880c634fe90c9945b966` and docs digest
+  `358deaf018cb0851d60c70f23beb954bc8513f7154cde82d137be757af15c782`.
   Frozen install, build, 582 strict checks / zero warnings, and the message plus
-  mount owner suites (2 files / 19 tests) pass.
+  mount owner suites (2 files / 22 tests) pass.
 - Ultra `pnpm verify:pack` passes all eight archives. Its production path
   covers task-DAG and dependency-CAS regressions, watch baseline and bounded
   invalidation, a held late cursor, zero reconnect resend, renderer disposal,
   Host recovery, real Web boot, Codex/Claude JSON and SQLite recovery,
   registration release, and complete uninstall.
-- Final `pnpm verify` passes 582 strict checks with zero warnings, production
-  Host/Client and generated-artifact builds, 353 tests in 30 files, and repeats
+- The review-fix final `pnpm verify` passes 582 strict checks with zero warnings, production
+  Host/Client and generated-artifact builds, 356 tests in 30 files, and repeats
   the complete eight-archive install, Web, dual-runtime recovery, lifecycle,
-  and uninstall gate. Its first local-gate run exposed two stale direct-mount
-  fixtures; after both consumed the authoritative watch baseline and asserted
-  the shared selected detail precisely, their focused 2/2 and the second full
-  gate passed. The Batch local-gate red count remains one.
+  and uninstall gate. Before review round 1, the first formal local-gate run
+  exposed two stale direct-mount fixtures; after both consumed the authoritative
+  watch baseline and asserted the shared selected detail precisely, their
+  focused 2/2 and the next full gate passed. The review-fix full gate passed on
+  its first run, so the historical Batch red count remains one and consecutive
+  red count remains zero.
 
 The first Host RED lacked a public watch. A role RED showed the old draft did
 not enforce exact Lead authority, and the prior built descriptor lacked the

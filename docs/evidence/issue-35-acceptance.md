@@ -10,13 +10,15 @@ parent [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18).
 The authority boundary is recorded in
 [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 Ultra pins qualified Harness commit
-[`75c23c47e7`](https://github.com/benz-ai-x/deepseek-harness_x/commit/75c23c47e7f25ebd30fcd313e9774562fb46c003).
+[`41291bc977`](https://github.com/benz-ai-x/deepseek-harness_x/commit/41291bc9779ba954b774880c634fe90c9945b966);
+the edit-race fix is isolated in
+[`945feb92c0`](https://github.com/benz-ai-x/deepseek-harness_x/commit/945feb92c0).
 
 | Acceptance criterion | Repeatable evidence and conclusion |
 | --- | --- |
-| Share task id/revision and validate dependency additions/removals through the real Team API | The production picker is a native checkbox group derived from the current authoritative task view and keyed by real ids. Edit sends body, scopes, and the complete `blockedBy` set once with the selected task's original `expectedRevision`. The Host atomic-edit test proves missing references, self edges, and indirect cycles are rejected with unchanged task revision, body, dependencies, and durable event count; existing exact-role checks remain in that same mutation API. |
+| Share task id/revision and validate dependency additions/removals through the real Team API | The production picker is a native checkbox group derived from the current authoritative task view and keyed by real ids. Edit pins `expectedRevision` when the form opens, then sends body, scopes, and the complete `blockedBy` set once even if a watch refresh updates the selected task meanwhile. The Host atomic-edit test proves missing references, self edges, and indirect cycles are rejected with unchanged task revision, body, dependencies, and durable event count; existing exact-role checks remain in that same mutation API. |
 | Make C claimable only after both A and B complete, with synchronized edges and blockers | The Host test creates A/B/C, atomically gives C both prerequisites, completes A and observes C still blocked, then completes B and claims C only after readiness becomes true. Production component tests require preview to leave the old graph unchanged and a committed refresh to replace the exact prerequisite-to-dependent edge and blocker detail. The installed archive independently replaces `A -> C` with `B -> C` through the actual checkbox and generated Remote. |
-| Return conflict/current authority to two Clients while retaining an unsaved draft without retry | The two-Client component test lets Client A advance the Host, then proves Client B submits its stale revision exactly once, reloads A's current value, and retains B's text and dependency choices under an explicit unsaved diagnostic. The [packed production probe](../../scripts/probe-packed-message-center.mjs) repeats the stale CAS against a real Host through the generated Remote. After 50 ms, revision and dependencies still equal Host authority, proving no automatic overwrite retry. |
+| Return conflict/current authority to two Clients while retaining an unsaved draft without retry | The two-Client component test lets Client A advance the Host, sends Client B a real watch invalidation, then proves B still submits the edit-start revision exactly once, reloads A's current value, and retains B's text and dependency choices under an explicit unsaved diagnostic. A reverse barrier test interleaves the conflict reload and trailing watch reload; either authority result preserves the sticky unsaved diagnostic without retry. The [packed production probe](../../scripts/probe-packed-message-center.mjs) repeats the stale CAS against a real Host through the generated Remote. |
 | Preserve tombstone, reopen, ownership, hidden-dependency, and preview semantics | Host tests retain an in-progress owner across dependency edits, clear ownership on complete/reopen according to the existing transition, preserve blockers/readiness, expose a stable tombstone through Host detail, and hide deletion from the task list. Component filtering still names hidden blockers without recomputing readiness. Both unit and packed probes verify dependency clicks alone do not mutate the Host or graph. |
 | Reject stale Lead, cross-Team, and unauthorized writes without persistence; provide accessible bilingual selection and feedback | One Host test uses an exact-handle impostor, another Team Lead, and a same-Team non-owner, asserting precise rejection and unchanged event counts in both Roots. Native checkbox/fieldset semantics provide keyboard operation and the existing native-button list remains the graph alternative. Separate English and Chinese production-renderer mounts each create a real stale conflict and verify current authority plus explicit unsaved-draft feedback. |
 
@@ -34,9 +36,9 @@ Ultra pins qualified Harness commit
   surface and no golden was changed; the isolated Agent Team replay above is
   green. Details and exact counts remain in
   [pipeline state](../../PIPELINE_STATE.md).
-- Ultra source preparation attests Harness `75c23c47e7f25ebd30fcd313e9774562fb46c003`
+- Ultra source preparation attests Harness `41291bc9779ba954b774880c634fe90c9945b966`
   and docs digest
-  `09c3afac913fa2a8e708b57014421f9fe4b618f964bbd7fddd9a43e45298a39f`.
+  `358deaf018cb0851d60c70f23beb954bc8513f7154cde82d137be757af15c782`.
   Frozen install, build, and 582 strict checks / zero warnings pass.
 - Ultra `pnpm verify:pack` passes all eight installed archives, the real
   English/Chinese dependency-edit and stale-CAS path, existing message and

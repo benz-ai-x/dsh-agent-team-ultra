@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T22:47:14+08:00（Asia/Shanghai）
+最后更新：2026-09-08T00:10:27+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review-fix：4/5 AC checked；#34.3 待修复 |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review-fix：3/5 AC checked；#35.1/#35.3 待修复 |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review-fix：1/5 AC checked；#36.1–#36.4 待修复 |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review-fix已完成：5/5 AC checked；待review 2/merge |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review-fix已完成：5/5 AC checked；待review 2/merge |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review-fix已完成：5/5 AC checked；待review 2/merge |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
@@ -317,6 +317,27 @@
 - 2026-09-07T22:20:11+08:00：主agent提交前通过 HTTPS 恢复并实测 `origin/main=2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Batch 2 HEAD `1f05e0b3d7b83df3325c60f6a07577645e9592d5` 相对 main 为 0 behind / 8 ahead；无其他 open PR、无启动快照后新增 issue，#34/#35/#36 均 OPEN 且各 5/5 checked。分支已用 HTTPS 推送，创建 [PR #60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60)，描述含 `Closes #34/#35/#36`、Harness 精确三提交、完整验证与 snapshot 限制；PR 状态转为 in-review。该 PR 无 migration/schema、删除、认证权限、workflow/deploy 或依赖大版本升级，且首个公共接口基建 PR #59 已人工合并，故不命中本轮人工合并清单。下一步对固定 Ultra `2c5a355…1f05e0b` 与 Harness `d2d870f…d8630308` diff 启动全新隔离 code-review。
 - 2026-09-07T22:41:22+08:00：Batch 2 隔离 code-review 第 1 轮失败，计入 review 轮数 1，未达到连续 3 轮熔断。固定 Ultra 审查范围为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..27dc0ebb567ed241df854f547a20ea8a9d004bae`，Harness 为 `d2d870fbe40bc0e968abdac854a3aae495162bec..d8630308520c028e8ae4511a2c0476c5967ced89`。Standards 报告 1 blocking（`TeamWatchFrame` 未登记 Cordis catalog，`verify-cordis-catalog` 实测失败）和 1 high（人类可见 DAG/UI 改动缺强制 keyless recorded-session snapshot）；Spec 报告 4 high：编辑开始 revision 未钉住导致 live refresh 绕过 CAS、live replace 期间旧 cursor append 可取消权威 replacement、Client 对 burst invalidation 发起无界并发重读、CAS conflict 提示可被并发 refresh 吞掉；另记 1 medium（过滤隐藏 prerequisite 后 ArrowLeft 选择不可见节点）与 1 low（中文 stale 术语应为“陈旧”）。据实时 GitHub body 仅撤回受影响 AC checkbox：#34=4/5、#35=3/5、#36=1/5，正文其余内容未改。PR #60 保持 open，转回 developing；下一步用全新隔离 TDD 修复会话处理全部 blocking/high，并顺带收敛同域 medium/low，随后重新逐项验收与 review。
 - 2026-09-07T22:47:14+08:00：因 #34/#35/#36 存在未勾 AC，按关联规则把 PR #60 实时正文中的 `Closes #34/#35/#36` 全部改为 `Refs #34/#35/#36`，并标明 review 1 修复中；其余 PR 描述保持不变。全新隔离 `batch2_review1_fix` 已接手上述 findings，使用 `/tdd` 与 `dsh-plugin-dev`，不得 merge。
+- 2026-09-07T22:49:14+08:00：review 1 修复会话已完整读取项目契约、状态、TDD 与 DSH Agent Team/Client/Service/runtime/packaging 路由规则，并确认公开 `TeamAction`、generated Team Remote/watch、Fiber 与 keyless recorded-session 为既定测试 seam。Git/GitHub 实测 Ultra/Harness 两仓 clean；Ultra HEAD/remote=`2e3638c0f9dae89ad9c2026283a0d3c944fc77f9`、Harness HEAD/fork=`d8630308520c028e8ae4511a2c0476c5967ced89`、PR #60 OPEN 且仅 `Refs #34/#35/#36`、无 CI；#34/#35/#36 实时 checkbox 分别为 4/5、3/5、1/5。`pnpm context:check:strict` 自然退出 0（582 checks / 0 warnings），锁定 Harness 与 docs digest 一致，允许开始 TDD。下一步先复现 Harness catalog 固定红灯并走正式 generator，再新增最窄 keyless snapshot 场景；任何行为源码前均先取得对应公开 seam RED。
+- 2026-09-07T22:51:48+08:00：Harness catalog slice RED/GREEN 完成。RED：未改产品/断言时 `pnpm run verify-cordis-catalog` 自然退出 1，精确报告 public `ctx.agentTeams.watch` 的 `TeamWatchFrame` 未分类，属于审查固定 finding A。GREEN：仅将该公开类型映射到其 owner `agent-team.md`，运行正式 `pnpm run gen-cordis-catalog`（97 artifacts computed，3 written，1 bilingual pair record refreshed），生成 `agent-team.md/.zh.md/.i18n.yaml` 与 `tool-cordis/api-catalog.ts`；随后 `pnpm run verify-cordis-catalog` 自然退出 0（97/97 up to date）。未手改生成物。下一步处理 keyless recorded-session snapshot finding，并保持本 slice 的 5 个 Harness 文件待 #36 相关提交。
+- 2026-09-07T23:04:05+08:00：Harness keyless UI snapshot finding B 已收敛。定位到既有真实 `agent-team-panel.e2e.ts` 的 golden 位于 corpus 外 `apps/web/tests/snapshots/` 且只含旧列表；首次 replay 自然退出 1 是旧定位器在新增共享 detail 后匹配两个 `Browser task`，属于已有 snapshot fixture 陈旧，不冒充产品 RED。现将场景迁入正式 `snapshots/web/agent-team-panel/`，以自有 authored `session.jsonl` 记录两条真实 `team/task` Host facts及 blocker edge，新增 `snapshot.yml`、无模型调用 header sidecar、list 与 DAG 两份 ARIA golden；Browser 测试从真实 persistence seed/cold attach/Team Remote 打开同一面板，断言 task-1→task-2 edge。只对该场景执行 refresh，随后 focused replay 3/3 与 corpus ownership/header/redaction 2/2 均自然退出 0；未刷新任何无关 golden。下一步进入行为 finding C/F/G：先在公开 `TeamAction` seam 增加两个 Client + 真 watch invalidation/CAS 竞态与 filtered keyboard RED，再做最小实现。
+- 2026-09-07T23:06:40+08:00：finding G filtered keyboard slice RED/GREEN 完成。测试在只显示 dependent、其 prerequisite 被 filter 隐藏的真实 `TeamAction` graph 上聚焦 dependent 并按 ArrowLeft；RED 自然退出 1，DOM 证明 activeElement 留在可见节点但 selected detail 被切到不可见 task-1。GREEN 仅在提交导航前验证目标存在于当前 `graphLayout.byId`；同一 focused 测试自然退出 0（1 passed / 30 skipped），选择与 detail 均保持 task-2。下一步做 edit base revision pin 的两个 Client + watch invalidation RED。
+- 2026-09-07T23:08:31+08:00：finding C edit CAS slice RED/GREEN 完成。新增两个真实 `TeamAction` Client：两者从 revision 1 开始编辑，Client A 提交 revision 2，第二 Client 接收 watch `invalidated()` 并权威 reload，同时保留本地草稿；其保存只有携带 edit-start revision 1 才得到 conflict。RED 自然退出 1：当前实现错误携带 watch 后的 revision 2、提交成功并吞掉冲突草稿提示。GREEN 新增 disposable edit base（task id + revision），只在 startEdit 捕获，session reset、cancel 或成功提交才清除；focused 自然退出 0（1 passed / 31 skipped），update 精确为 expectedRevision 1且草稿/冲突提示保留。下一步做 conflict reload 与 watch refresh 反向竞态 finding F。
+- 2026-09-07T23:12:33+08:00：finding F conflict/watch race slice RED/GREEN 完成。测试让 CAS conflict 自身 authority reload 与随后真实 watch invalidation reload 交错，先返回的旧 generation read 被丢弃、后返回的新 revision 2 成为权威视图；RED 自然退出 1，最终 UI 缺少“草稿未保存”冲突提示。GREEN 仅把 conflictDraft 作为 edit lifecycle 内的显式 sticky 状态，任一竞态 authority read 成功都重显该提示，start/reset/cancel/成功提交才清除；同一 focused 自然退出 0（1 passed / 32 skipped），当前权威标题与未保存草稿同时保留且无自动重试。下一步为 DAG watch burst 建立计数/barrier RED并加入 in-flight+dirty 有界 latch。
+- 2026-09-07T23:19:04+08:00：finding E 的 Harness DAG bounded reread slice RED/GREEN 完成。计数+barrier 测试在首个 authority reload pending 时连续投递4个真实 watch invalidation；无产品改动 RED 自然退出1，`load` 从预期2次膨胀到5次（修正 mock fallback 后再次得到同一干净产品RED且无 unhandled fixture错误）。GREEN 用单一 in-flight queue 合并同 generation 请求：burst期间最多一个 authority read，至少一次脏失效触发恰好一个 trailing read；session/watch generation cleanup释放排队 waiter并以既有 generation fence拒绝迟到结果。为符合新契约，既有 overlap/session/mutation测试改为显式验证串行 trailing，而非要求并发。整个 `team-action.client.spec.tsx` 自然退出0（34/34），覆盖 baseline、burst、session/service release、CAS conflict和创建/更新。下一步修正中英文 stale 术语并跑 Harness owning/standards gates。
+- 2026-09-07T23:20:25+08:00：finding H Harness 术语 RED/GREEN 完成。先把精确中文 stale UI断言改为规范“陈旧”，focused 自然退出1且 DOM 仍显示“过期”；只改 locale value 后同一测试自然退出0（1 passed / 33 skipped）。随后 TeamAction full 已在 bounded slice 后自然退出0（34/34）。下一步跑其余 public mount/browser与 keyless snapshot/corpus及 Harness standards。
+- 2026-09-07T23:23:40+08:00：Harness focused/standards 第一轮审计：browser public mount 10/10、keyless web snapshot replay 3/3、snapshot corpus 2/2、Cordis catalog 97/97、TypeScript full typecheck均自然退出0。首次 full lint 暴露本 PR #34–#36 原提交内的 watch callback unbound/unsafe matcher及 Host新 watch/message测试 lint，同时还暴露 review base 已存在且本 PR未触碰的 `message-read.spec.ts:541` catch callback warning；前者已做等价显式回调/窄断言并使 `lint:contracts-ready` 自然退出0，后者确认在固定 review base 即存在且不属于本批后撤销修复，避免无关 lint 漂移。`team.spec.ts`、`mount.ts`、`browser-plugin.client.spec.ts` 的小改动均逐项位于固定 #34–#36 diff新增行，只为使本批新 Host watch/message与 Client stream测试通过现行 formatter/lint，不改变产品语义；`message-read.spec.ts` 已恢复 clean。下一步重跑本批 changed-scope lint/owning tests并提交 issue-oriented Harness fixes。
+- 2026-09-07T23:39:15+08:00：Harness review修复已形成4个追加 imperative commits并经 HTTPS 推送：`aa05b41e66`（#34正式 keyless DAG snapshot）、`b91c45098a`（#34过滤后键盘选择）、`945feb92c0`（#35 edit-start revision与sticky conflict draft）、`41291bc977`（#36 catalog、bounded authority reread、规范 stale 文案及新 watch/message测试 lint收口）。提交前/后 TeamAction 34/34、Host Team 60/60、browser mount 10/10、web snapshot 3/3、corpus 2/2、catalog 97/97、doc-quick 15/15、full typecheck与changed-scope lint均绿，`git diff --check`绿；Harness worktree clean。fork branch经 `git ls-remote` 精确核对为 `41291bc9779ba954b774880c634fe90c9945b966`。下一步把 Ultra lock精确更新至此 SHA并走官方 prepare/install/build，再对 message replacement/append与burst建立RED。
+- 2026-09-07T23:40:40+08:00：Ultra lock/ledger 已精确更新为 Harness `41291bc9779ba954b774880c634fe90c9945b966` 与重算 docs digest `358deaf0…c782`；`prepare:harness` attestation、`pnpm install`均自然退出0。紧接的 Ultra `pnpm build` 在产品编译前自然退出1，仅因 Harness本轮 Client源码尚未正式重建，source guard报告 `dsh-experimental-client-ui-agent-team` main/types freshness（3个consumer重复）；这是官方 source freshness guard，不是行为测试、也不是正式 full `pnpm verify`，不计 local-gate红轮。下一步在 Harness运行正式 `build:lib:client`，不删除 cache/不绕 guard，随后原样重跑 Ultra build。
+- 2026-09-07T23:42:05+08:00：Harness `pnpm build:lib:client` 自然退出0并重建 production Client bundle；Ultra build guard复跑时 built main已绿但 declaration entry仍被 TypeScript incremental误判无需重发，精确剩余为 types freshness（3 consumers），再次在产品编译前退出1。沿用本批先前已验证的官方 project-reference恢复路径：`tsc -b tsconfig.client.json --force` 重发 declaration 后再跑正式 Client build；不删除 incremental cache、不手改 lib、不放宽 guard，仍非正式 full gate红轮。
+- 2026-09-07T23:44:35+08:00：Harness `tsc -b tsconfig.client.json --force && pnpm build:lib:client` 自然退出0；Ultra `pnpm build` 原样复跑自然退出0，所有 source consumer 精确证明 Harness `41291bc9…`，Host/Client/production bundle与官方 Typert artifacts完成。lock准备闭合。下一步对 Ultra message replacement/append反向竞态与page/roster burst取得公开 UI RED。
+- 2026-09-07T23:46:42+08:00：finding D/E Ultra message slices取得两条独立干净 RED并最小 GREEN。D：live replacement pending 后点击旧 committed cursor 的 Load older，RED自然退出1且 `listMessages` 从2增至3，证明旧 append可抢新 generation；GREEN在replacement in-flight时拒绝append并禁用旧cursor按钮，同一 focused自然退出0。E：4次 watch invalidation burst 在page/roster首读 barrier pending时，RED自然退出1且二者均由2次膨胀到5次；GREEN为page replacement与roster各加一个in-flight+latest-dirty latch，每类同时最多1读、burst后恰好1 trailing，同一 focused自然退出0。session/service cleanup释放queue且既有generation fence丢弃迟到结果；append先于replacement的正向竞态仍由list generation隔离，反向竞态不再启动旧窗口。下一步跑整个 message owning file验证既有filter/team/service竞态并修正中文 stale术语。
+- 2026-09-07T23:47:48+08:00：finding H Ultra 术语 RED/GREEN 完成。精确中文 disconnected→baseline→stale lifecycle断言先改为规范“陈旧”，focused自然退出1且DOM仍为“过期”；只改 Ultra locale 后同一 focused自然退出0（1 passed / 18 skipped）。Harness/Ultra 两侧新增 stale文案现均不再使用“过期”。下一步执行 message-center+mount整个 owning files；任何因新串行契约陈旧的竞态fixture只调整时序，不放宽最终权威事实断言。
+- 2026-09-07T23:51:20+08:00：Ultra message-center+mount owning 回归首次有 1 条旧 baseline/watch fixture 失败：它仍要求 initial page 与 watch replacement 并发，与新的单 in-flight + trailing 契约冲突；未减少权威事实断言，只改为先发布 baseline、再串行 live replacement。复跑 2 files / 21 tests 自然退出0，既有filter/team/service/append竞态与卸载全绿。
+- 2026-09-07T23:56:56+08:00：#36.2 filter generation 补强 RED/GREEN：watch replacement pending 时应用新 delivery filter，旧 generation 返回后 RED 自然退出1并真实发布了“old filter generation”；GREEN 在排入 latest trailing replacement 时同步推进 list generation，使旧结果不能进入当前 filter，仍只发起一个 trailing read。message-center+mount 整体复跑 2 files / 22 tests 自然退出0。下一步审计文档/差异并提交 Ultra #36 review-fix slice，然后执行唯一 full gate `pnpm verify`。
+- 2026-09-07T23:58:52+08:00：Ultra #36 review-fix 产品提交已形成：`b8678244268b71125657a031024455cb836265fe`（`fix: bound live Team authority reloads (#36)`），包含精确 Harness lock/ledger、message page/roster latch、filter generation fence、“陈旧” locale 及对应回归；未包含尚在工作树的验收/交接/状态文档。随后经 HTTPS fetch 确认 `main` 仍为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，正是当前 merge-base，无需 update branch。现在执行唯一 full local gate `pnpm verify`；若红立即记录为当前连续红第1轮，既往红灯历史仍为1但连续计数已在上次full green后归零。
+- 2026-09-08T00:01:25+08:00：review-fix 完整 `pnpm verify` 首次即自然退出0：582 strict checks / 0 warnings；Host/Client、Typert与compatibility正式构建；30 files / 356 tests 全绿；8 archives 安装、production Team list/DAG/dependency CAS/message page/watch、真实Web、Codex/Claude JSON+SQLite cold recovery、registration release与完整uninstall全绿。本次没有新增 local-gate 红轮，连续红保持0；历史红灯次数保持表中1。下一步同次最新读取 #34/#35/#36 GitHub 正文，以 checkbox-only patch 勾选已满足 AC 并证明其余字节不变，然后收口PR正文与review 2交接。
+- 2026-09-08T00:06:05+08:00：AC 勾选前在同一脚本/同一次操作内通过 GitHub API 实时重读 #34/#35/#36 最新 OPEN 正文，仅将 #34.3、#35.1/#35.3、#36.1–#36.4 的精确 marker 从`[ ]`改为`[x]`。PATCH后立即再读均为5 checked / 0 unchecked，且将目标marker归一为`[ ]`后与各自PATCH前正文逐字节相等；其余字节 SHA-256分别为 #34 `8f9317b158ca9e2b4a3170cbfc7cf91262cbe3bececa24358b9d6c5e25942461`、#35 `f85bb3d47863841ef79e095d93691817d3c1563ad96931d82b00b9c15535b2f8`、#36 `9a4bb6a9724a3f4fc2967d71d3bd4947d960df39dd1754b468deff624f2e7a8d`。下一步把 PR #60 三个`Refs`恢复为`Closes`，写入review-fix摘要与新增验证。
+- 2026-09-08T00:10:27+08:00：Ultra 验收/契约/交接文档已更新至 Harness `41291bc9…`、docs digest `358deaf0…`、owning 22/22 与full 356 tests；只读 changed-Markdown checker 验证10文件/100个本地target全存在，`git diff --check`退出0。PR #60 操作前实时回读仍为OPEN/head `2e3638c…`；正文已精确更新为3个`Closes`、0个`Refs`，记录review fixes A–H、Harness/Ultra提交、snapshot/catalog/owning/full gates及历史red=1/连续red=0，PATCH后再读逐字节一致。下一步最终diff/状态审计后提交这些文档，HTTPS push Ultra 并以`ls-remote`精确核对，然后将Batch 2转为in-review并固定review 2范围。
 
 ## AC 进度
 
@@ -333,24 +354,24 @@
 
 - [x] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
 - [x] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
-- [ ] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
+- [x] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
 - [x] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
 - [x] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
 
 ### #35
 
-- [ ] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
+- [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
 - [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
-- [ ] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
+- [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
 - [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
 - [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
 
-- [ ] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
-- [ ] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
-- [ ] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
-- [ ] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
+- [x] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
+- [x] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
+- [x] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
+- [x] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
 - [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。

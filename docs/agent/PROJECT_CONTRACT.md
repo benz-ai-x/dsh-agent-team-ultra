@@ -135,6 +135,8 @@ an actual integration commit based on the fixed official comparison.
   live Lead and begins with one complete authoritative `TeamView`. Later
   committed message or task changes coalesce into a bounded invalidation;
   Clients reread the existing task view and current filtered message window.
+  Each Client read class permits one in-flight read and at most one trailing
+  dirty read; a page replacement blocks append from its unpublished cursor.
   The stream carries no message page, draft, scheduler, or persistent mirror.
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
@@ -313,11 +315,11 @@ an actual integration commit based on the fixed official comparison.
   permissions stay fixed. Dependency create/edit uses native real-id
   checkboxes and submits the complete dependency set through the existing Team
   mutation boundary. Edit combines text, scopes, and dependencies in one CAS
-  with the original `expectedRevision`; Host validation of references, role,
+  with the `expectedRevision` pinned when editing starts; Host validation of references, role,
   self edges, and indirect cycles remains atomic and rejected writes append no
   event. Client previews never change readiness. A stale edit reloads the
   current authoritative task while retaining an explicitly unsaved text and
-  dependency draft with bilingual feedback; it never automatically retries an
+  dependency draft across a racing watch refresh with bilingual feedback; it never automatically retries an
   overwrite. See
   [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md) and
   [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
@@ -494,7 +496,9 @@ an actual integration commit based on the fixed official comparison.
 - The Agent Team stream uses the same Gateway lifecycle but its post-baseline
   frame is only `invalidated`, not a copied message/task patch. A Client
   invalidation replaces the current message window without a continuation
-  cursor; a pending old page cannot append after that replacement. Team or
+  cursor; replacement serializes burst rereads and disables the last published
+  continuation cursor until the replacement publishes. A pending old page
+  cannot append after that replacement. Team or
   service replacement aborts old reads/submissions, preserves only the
   appropriate Team-scoped unsaved intent, and ignores every late generation.
 - Carrier loss keeps the last accepted complete snapshot visible as stale.

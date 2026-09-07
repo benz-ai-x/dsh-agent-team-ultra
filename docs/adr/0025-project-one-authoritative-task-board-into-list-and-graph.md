@@ -29,9 +29,9 @@ Client 只保留可丢弃的显示状态：当前选中 id、列表／图模式�
 
 依赖选择同样只投影当前 `TeamView.tasks`：原生 checkbox 使用真实 task id，Client
 预览不改变 Host 图或 readiness。创建提交完整依赖集合；编辑把正文、scope 和完整依赖
-放进一次带原 `expectedRevision` 的 `edit`。Host 继续在同一提交边界校验引用、角色、
+放进一次带开始编辑时钉住的 `expectedRevision` 的 `edit`。Host 继续在同一提交边界校验引用、角色、
 自环和间接环，失败不增加 Revision 或事件。CAS 冲突时 Client 重新读取当前权威任务，
-同时保留明确标为未保存的正文和依赖草稿；中英文反馈都不自动覆盖重试。
+在竞态 watch refresh 后仍保留明确标为未保存的正文和依赖草稿；中英文反馈都不自动覆盖重试。
 
 该边界刻意不引入第二套任务存储、自动调度器、图数据库、文件锁或成员启动逻辑，
 也不把任务面板放进 Ultra Studio。无额外图形依赖的确定性布局使 production bundle
@@ -40,7 +40,9 @@ Client 只保留可丢弃的显示状态：当前选中 id、列表／图模式�
 #36 在这条边界增加 exact-live-Lead `agentTeams/watch`：每个 stream generation 先给
 完整权威 `TeamView` baseline，之后消息或任务的持久提交只合并为一个有界
 `invalidated` 信号。信号不携带消息页、任务 patch 或 Client 草稿；DAG 重读同一任务
-view，消息中心以当前筛选、无旧 continuation cursor 重读同一持久页。旧 cursor 页、旧
+view，消息中心以当前筛选、无旧 continuation cursor 重读同一持久页。DAG、消息页和
+roster 各自通过一个 in-flight/dirty latch 串行权威读取，burst 至多追加一次重读；消息
+replacement 发布前禁用旧 cursor append。旧 cursor 页、旧
 Team／service callback 和迟到提交受 generation 隔离。carrier 断开保留最后权威数据并
 明确标为 stale；重连只恢复读取，不能自动重发已保存意图。切 Team 会释放旧 stream、
 读取、timer 和 pending submit；同 Team service 替换保留未保存草稿，被中断的 exact
@@ -70,12 +72,12 @@ Dependency selection likewise projects only the current `TeamView.tasks`.
 Native checkboxes use real task ids, and a Client preview changes neither the
 Host graph nor readiness. Create submits the complete dependency set. Edit
 places text, scopes, and the complete dependency set in one `edit` carrying the
-original `expectedRevision`. The Host validates references, role, self edges,
+`expectedRevision` pinned when editing starts. The Host validates references, role, self edges,
 and indirect cycles within that same commit boundary; rejection appends no
 revision or event. On a CAS conflict, the Client reloads the current
 authoritative task while retaining explicitly unsaved text and dependency
 drafts. Neither the English nor Chinese feedback automatically retries an
-overwrite.
+overwrite, and a racing watch refresh cannot clear that conflict state.
 
 This boundary deliberately adds no second task store, scheduler, graph
 database, file lock, member launch, or parallel Studio panel. A deterministic
@@ -88,7 +90,10 @@ stream generation starts with a complete authoritative `TeamView` baseline;
 durable message or task commits then coalesce into one bounded `invalidated`
 signal. The signal carries no message page, task patch, or Client draft. The
 DAG rereads the same task view, while the message center replaces the current
-filtered page without an old continuation cursor. Generation fences reject
+filtered page without an old continuation cursor. DAG, message-page, and roster
+authority reads each use one in-flight/dirty latch, so a burst adds at most one
+trailing read; the last published cursor cannot append while its replacement is
+unpublished. Generation fences reject
 old cursor pages, prior-Team or prior-service callbacks, and late settlements.
 Carrier loss retains the last authoritative data as explicitly stale;
 reconnect restores reads and never resends a saved intent. A Team change

@@ -125,7 +125,7 @@ The Lead-only view composed inside the Agent Teams owner panel that pages persis
 _Avoid_: Studio transcript, Run timeline, native history browser
 
 **Team Change Watch Generation**:
-One exact-live-Lead stream lifetime that starts with a complete authoritative Team view, then coalesces committed message and task changes into bounded invalidation markers. Clients reread existing Host views; reconnect restores reads only, while stale pages, callbacks, drafts, and settlements from another Team or service generation are fenced.
+One exact-live-Lead stream lifetime that starts with a complete authoritative Team view, then coalesces committed message and task changes into bounded invalidation markers. Clients serialize each class of authoritative reread with one in-flight operation and at most one trailing dirty read; reconnect restores reads only, while stale pages, callbacks, drafts, and settlements from another Team or service generation are fenced.
 _Avoid_: Event log, message feed, Client task store, resend trigger
 
 **Shared Task Panel**:
