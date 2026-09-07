@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T22:20:11+08:00（Asia/Shanghai）
+最后更新：2026-09-07T22:41:22+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | implemented：5/5 AC checked，Issue 保持 open 等 Batch PR |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | implemented：5/5 AC checked，Issue 保持 open 等 Batch PR |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | implemented：5/5 AC checked，Issue 保持 open 等 Batch PR |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | review-fix：4/5 AC checked；#34.3 待修复 |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | review-fix：3/5 AC checked；#35.1/#35.3 待修复 |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | review-fix：1/5 AC checked；#36.1–#36.4 待修复 |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | planned（Batch 4） |
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review | 0 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（review 1 修复） | 1 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -315,6 +315,7 @@
 - 2026-09-07T22:12:51+08:00：GitHub #36 checkbox-only patch自然退出0并回读通过：`checked=5`、`unchecked=0`、Issue仍OPEN、`updatedAt=2026-09-07T14:12:51Z`；after body精确等于由同次live before body生成的目标，统一把`[x]`还原为`[ ]`后与before逐字节相同，证明除5个marker外正文零变化。#36及Batch2三项实现现均为5/5 checked；等待主agent发送飞书【仅知会】回执后写入状态，再形成状态-only commit并交固定起点review。
 - 2026-09-07T22:14:16+08:00：#36 完成飞书【仅知会】由主agent发送成功，回执`ok=true`、message `om_x100b66d8254440b0c2954f7365e51a0`，无待补发通知。最终对账为#36 5/5 checked且OPEN，Harness `d8630308…`已推送fork/clean/0-0，Ultra实现`b800d99f…`未push，Batch2 local-gate红灯固定1轮且第二轮full verify全绿。现在形成状态-only commit，随后只读核对两仓clean、提交链与review范围后结束isolated dev。
 - 2026-09-07T22:20:11+08:00：主agent提交前通过 HTTPS 恢复并实测 `origin/main=2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Batch 2 HEAD `1f05e0b3d7b83df3325c60f6a07577645e9592d5` 相对 main 为 0 behind / 8 ahead；无其他 open PR、无启动快照后新增 issue，#34/#35/#36 均 OPEN 且各 5/5 checked。分支已用 HTTPS 推送，创建 [PR #60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60)，描述含 `Closes #34/#35/#36`、Harness 精确三提交、完整验证与 snapshot 限制；PR 状态转为 in-review。该 PR 无 migration/schema、删除、认证权限、workflow/deploy 或依赖大版本升级，且首个公共接口基建 PR #59 已人工合并，故不命中本轮人工合并清单。下一步对固定 Ultra `2c5a355…1f05e0b` 与 Harness `d2d870f…d8630308` diff 启动全新隔离 code-review。
+- 2026-09-07T22:41:22+08:00：Batch 2 隔离 code-review 第 1 轮失败，计入 review 轮数 1，未达到连续 3 轮熔断。固定 Ultra 审查范围为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..27dc0ebb567ed241df854f547a20ea8a9d004bae`，Harness 为 `d2d870fbe40bc0e968abdac854a3aae495162bec..d8630308520c028e8ae4511a2c0476c5967ced89`。Standards 报告 1 blocking（`TeamWatchFrame` 未登记 Cordis catalog，`verify-cordis-catalog` 实测失败）和 1 high（人类可见 DAG/UI 改动缺强制 keyless recorded-session snapshot）；Spec 报告 4 high：编辑开始 revision 未钉住导致 live refresh 绕过 CAS、live replace 期间旧 cursor append 可取消权威 replacement、Client 对 burst invalidation 发起无界并发重读、CAS conflict 提示可被并发 refresh 吞掉；另记 1 medium（过滤隐藏 prerequisite 后 ArrowLeft 选择不可见节点）与 1 low（中文 stale 术语应为“陈旧”）。据实时 GitHub body 仅撤回受影响 AC checkbox：#34=4/5、#35=3/5、#36=1/5，正文其余内容未改。PR #60 保持 open，转回 developing；下一步用全新隔离 TDD 修复会话处理全部 blocking/high，并顺带收敛同域 medium/low，随后重新逐项验收与 review。
 
 ## AC 进度
 
@@ -331,24 +332,24 @@
 
 - [x] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
 - [x] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
-- [x] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
+- [ ] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
 - [x] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
 - [x] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
 
 ### #35
 
-- [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
+- [ ] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
 - [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
-- [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
+- [ ] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
 - [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
 - [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
 
-- [x] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
-- [x] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
-- [x] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
-- [x] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
+- [ ] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
+- [ ] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
+- [ ] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
+- [ ] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
 - [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
@@ -360,7 +361,7 @@
 - 2026-09-07：Batch 3 仅含两个 L issue；若并入 Batch 2 会形成五个跨 Studio/Team/provider 的 L issue，超过一次 review 可消化上限，故记录为体量例外。
 - 2026-09-07：#18 记 skipped，不关闭、不修改；这是 #44 的显式 AC，不是遗漏。
 - 2026-09-07T13:43:19+08:00：Batch 1 实际新增 public `agentTeams/sendMessage` Remote 与 required persistent event/projection schema，命中“公开接口或 schema 的首个基建 PR”人工合并清单；PR #59 标记“需人工合并”。先完成隔离 review 与本地闸门，再飞书【需决策】通知并等待确认，不自动合并。
-- 当前无 review 熔断、local-gate 熔断、PR blocked 或飞书待补发。
+- Batch 2 review 连续失败 1 轮；尚未达到 3 轮熔断。当前无 local-gate 熔断、PR blocked 或飞书待补发。
 
 ## 待下轮清单
 
@@ -368,6 +369,7 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 对固定 Ultra diff `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..1f05e0b3d7b83df3325c60f6a07577645e9592d5` 与 Harness diff `d2d870fbe40bc0e968abdac854a3aae495162bec..d8630308520c028e8ae4511a2c0476c5967ced89` 启动全新隔离 `/code-review`，只提供 diff 与 #34/#35/#36 AC；blocking/high 才阻塞。
-2. 若 review 有 blocking/high，交全新隔离修复会话后重走 review 与 local gate；无则 fetch main、运行正式 `pnpm verify` 闸门并按冻结 merge commit 自动合并 PR #60。
-3. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
+1. 用全新隔离 `/tdd` 修复会话处理 Batch 2 review 1 的 1 blocking + 5 high；同域 medium 键盘导航和 low 术语一并修复并补回归，但不单独计阻塞轮次。先修 Harness catalog/snapshot与 DAG revision/refresh，再修 Ultra live replacement/bounded reread；每项先取得可归因 RED 再最小 GREEN。
+2. 修复后实时重读 #34/#35/#36 body，仅在对应证据闭合后重新勾选 AC；推送 Ultra/Harness 精确 head，更新 PR #60 描述并以新的固定 diff 启动隔离 code-review 第 2 轮。
+3. 第 2 轮无 blocking/high 后 fetch main、运行正式 `pnpm verify` 闸门并按冻结 merge commit 自动合并 PR #60；若仍失败则按 review/local-gate 连续轮次规则继续或熔断。
+4. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
