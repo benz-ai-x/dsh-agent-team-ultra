@@ -219,6 +219,9 @@
 - 2026-09-07T19:32:10+08:00：最终 `pnpm verify:pack` 自然退出 0（约 39.6s）。正式生成并安装 8 archives；production renderer→公开 Team owner/child Slot→generated Remote→真实 Host 通过 #35 原生 task-id checkbox、preview 无提交、单 revision atomic CAS、方向边替换，以及英文／中文各自 stale CAS 后重读权威版本、保留未保存 task/dependency 草稿、50ms 无自动重试负控。既有消息分页、丢回执 deadline、controlled-provider/JSONL 恢复、required-fact validator、真实 Web、Codex/Claude JSON/SQLite cold recovery、registration release 与完整 uninstall 同时全绿。下一步只收口 Ultra #35 evidence/TODO/HANDOFF 与直接 contract docs，再复跑 focused/strict/link/diff gates；不扩写新 ADR。
 - 2026-09-07T19:37:00+08:00：Ultra #35 文档已收敛：复用并扩展 ADR 0025 的同一 Host authority/CAS 决策，没有新建 ADR；新增 `docs/evidence/issue-35-acceptance.md` 逐项映射五条 AC 和 full-snapshot 环境异常，更新直接 PROJECT_CONTRACT、TODO、HANDOFF、README/reference lock ledger。#35 没有新增领域术语或持久事实，故 CONTEXT 不改；probe 同时删去一个 `ariaButton` 已抛错后的不可达条件，不改变断言。下一步只跑 node syntax、focused/strict、Markdown links 与 diff-check，不继续扩写。
 - 2026-09-07T19:38:30+08:00：Ultra #35 收口 gates 全绿：packed probe `node --check` exit 0；message-center + public mount focused 为 2 files / 12 tests PASS（2.27s）；standalone strict 再次 582 checks / 0 warnings；8 个 changed Markdown files 的 104 个 local links 全部存在；`git diff --check` exit 0。结合刚完成的八 archive gate，Ultra #35 已满足独立提交条件；下一步精确审核文件集并形成本地 `(#35)` commit，不 push。
+- 2026-09-07T19:41:33+08:00：Ultra #35 独立实现／资格提交已形成：`0bfc508a7f4b9262cf8aa5f6156602a52c93458d`（`feat: qualify atomic task dependency editing (#35)`），10 个预期 lock/probe/direct docs/evidence/state 文件，325 insertions / 28 deletions；提交后工作树 clean，按约束未 push Ultra。Harness 对应提交为已推送且 clean 的 `75c23c47e7f25ebd30fcd313e9774562fb46c003`。
+- 2026-09-07T19:41:33+08:00：#35 勾选前实时 `gh issue view` 回读：OPEN，`updatedAt=2026-09-05T03:35:06Z`，恰好 5 条未勾 AC、0 条已勾。重新按真实 Host DAG/CAS/authority、双 Client 草稿、production renderer/generated Remote/packed 英中负控逐项映射后认定 5/5 满足；程序只将五处 `- [ ]` 替换为 `- [x]`。回读仍 OPEN，`updatedAt=2026-09-07T11:41:33Z`，5 checked / 0 unchecked；post body 精确等于预期 patch，checkbox 归一化后与 pre body 逐字节相同。#35 完成，下一步为 #36 baseline-then-watch seam 审计与首个公开 RED；飞书完成知会交主 agent 发送并在回执后补记。
+- 2026-09-07T19:42:12+08:00：主 agent 已发送 #35 飞书完成知会并成功，回执 `ok=true`、message id `om_x100b66de7f8e34a8c235301df282e1b`。#35 跨仓提交、远端维护分支、5/5 AC、唯一状态和外部知会现已闭环；下一步状态提交后 clean 对账并实时读取 #36。
 
 ## AC 进度
 
@@ -241,11 +244,11 @@
 
 ### #35
 
-- [ ] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
-- [ ] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
-- [ ] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
-- [ ] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
-- [ ] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
+- [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
+- [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
+- [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
+- [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
+- [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
 
@@ -272,6 +275,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. Harness #35 已 clean 且跟踪 fork 精确 `75c23c47e7…`；不触及官方 origin。先将 Ultra lock/docs digest 推进到该提交，运行正式 prepare/install/build/strict，并以实际新 archive 重跑 packed dependency/CAS probe。
-2. 收口 Ultra #35 evidence、TODO、HANDOFF 与直接 lock owner docs，复跑 focused/strict/diff/docs-links，形成独立本地 `(#35)` commit；不 push Ultra、不建 PR。
-3. 实时重读 #35 正文；只有 5/5 AC 仍由上述 Host/UI/generated Remote/packed 证据满足时，精确 checkbox-only patch 并程序核验其余正文零变化。记录完成状态后才进入 #36 baseline-then-watch RED。
+1. #35 已有 Harness `75c23c47…` 与 Ultra `0bfc508…` 独立提交、5/5 GitHub AC、完整 packed 证据及飞书成功回执；不再修改该实现。
+2. 实时重读 #36 正文，审计现有 Team change subscription/message paging/Task view/Remote/Client generation seams；先建立 Host 公开 baseline-then-watch/overflow invalidation/cancellation-disposal RED，再最小 GREEN。
+3. 在同一 Team owner public panel 建 Client stale/disconnected/reconnect generation RED，严格覆盖分页/live、filter、late page、Team switch/service replacement/no auto resend 与双语状态；#37+ 不进入本批。
