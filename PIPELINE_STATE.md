@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T16:35:47+08:00（Asia/Shanghai）
+最后更新：2026-09-07T18:08:21+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,8 +25,8 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | developing（Batch 2） |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | developing（Batch 2） |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | implemented：5/5 AC checked，Issue 保持 open 等 Batch PR |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | developing（Batch 2，RED 准备） |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | developing（Batch 2） |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | planned（Batch 3） |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | planned（Batch 3） |
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（#34 RED 准备） | 0 | 0 | 未创建 |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing（#34 implemented/checked，#35 RED 准备） | 0 | 0 | 未创建 |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | planned | 0 | 0 | 未创建 |
@@ -175,6 +175,7 @@
 - 2026-09-07T17:48:18+08:00：#34 packed production UI GREEN：完整 `pnpm verify:pack` 自然退出 0。官方重打并安装 8 archive 后，同一探针在 actual production renderer + 公开 Team owner/child Slot + generated Remote + 真实 Host/AgentLoop/JSONL 上通过：权威 task id、`task-1 → task-2` 可见箭头、共享 selection/detail/原 owner/Edit/Delete/create 控件、自动 layout、zoom/fit、键盘导航、list fallback、filter hidden-dependency 与不变 readiness 均 PASS；既有消息分页/丢回执/冷恢复、Web，Codex/Claude JSON+SQLite recovery/registration release 及全量 uninstall 也全绿。下一步只收口 #34 Ultra 直接 evidence/TODO/HANDOFF，跑 focused/strict/diff-check 并形成独立 `(#34)` 本地 commit，不 push。
 - 2026-09-07T18:04:08+08:00：#34 Ultra 文档与候选 gate 收口完成：ADR 0025 记录同一权威 task board 的 owner UI 投影边界，acceptance evidence 将 5 条 AC 映射到 Harness/packed 真实证据；CONTEXT、PROJECT_CONTRACT、README、patch ledger、TODO 与 HANDOFF 已同步精确 `709f96c5…` / digest，并明确 #35/#36 未实现。四项验证均自然退出 0：packed probe `node --check`，9 个 changed Markdown / 100 个本地链接，`pnpm context:check:strict` 582 checks / 0 warnings，`git diff --check`。下一步只审核精确 diff/staged set 并形成 #34 Ultra 独立 commit，不 push；随后实时重读 #34 正文，仅在 5/5 仍成立时精确 patch checkbox。
 - 2026-09-07T18:06:08+08:00：#34 提交前精确 diff 自审完成：用旧 archive 形成 RED 时曾临时延后 message child Slot 检查，获得有效失败点后已恢复原严格 owner+child 前置 guard，不把基线兼容绕过留入最终探针。该等价收紧后 `node --check` 与 `git diff --check` 再次 exit 0；已通过的 current archive GREEN 在 child 存在时走相同路径。现形成 Ultra #34 独立 commit。
+- 2026-09-07T18:08:21+08:00：#34 Ultra 独立提交 `dfd55e07999abdf845df89be39e64bc021d86ad8`（`feat: qualify shared task dependency graph (#34)`）已形成，11 个预期 lock/probe/直接 docs/evidence 文件，未 push。提交后实时 `gh issue view 34` 确认 title/body/state 未发生外部更新，5 条 AC 仍与已验证行为逐项一致；程序只将这 5 个 `- [ ]` 改为 `- [x]`，回读 `checked=5`、除 checkbox marker 外 before/after 字节相同，GitHub `updatedAt=2026-09-07T10:08:21Z`，Issue 按 Batch PR 流程保持 OPEN。Harness #34 提交仍为已推送且 remote 精确核对的 `709f96c5a16ff3e34c385ba79f45dd4435d8418c`。下一步以 clean 工作树进入 #35 首个 dependency-selector/concurrent-draft RED，不提前开始 #36。
 
 ## AC 进度
 
@@ -189,11 +190,11 @@
 
 ### #34
 
-- [ ] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
-- [ ] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
-- [ ] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
-- [ ] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
-- [ ] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
+- [x] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
+- [x] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
+- [x] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
+- [x] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
+- [x] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
 
 ### #35
 
@@ -228,6 +229,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 在 Harness 公开 production `TeamAction` 测试建立 #34 首个真实 RED：真实 task id 和前置→依赖边，列表/图切换共享 selection/detail 及既有 mutation 控件；确认失败点来自缺失产品行为后立即记录。
-2. 以最小 vertical slice 实现首个 GREEN，再逐项用 RED→GREEN 加入自动布局、zoom/pan/fit、过滤隐藏依赖提示、键盘和列表替代；不得把 UI preview 当作 Host readiness 或 revision 权威。
-3. 完成 #34 的 Harness/generated/built/packed 与 Ultra 公开 Slot 证据后独立提交并实时重读/精确勾选 AC，再依序进入 #35、#36；每个 issue 至少一个独立 commit，未满足 AC 不得关闭。
+1. 先确认 Ultra 工作树只含记录 #34 完成的第二个状态 commit，Harness 仍 clean 且跟踪 fork 精确 `709f96c5…`；不 push Ultra、不建 PR。
+2. 实时重读 #35 正文，在现有 `TeamAction` 共享 selection/detail 与真实 `updateTask(expectedRevision)` seam 先建立依赖多选的公开 UI RED；不把 Client preview 当作提交。
+3. 按 #35 的实际依赖顺序分别验证 A/B/C readiness、CAS 并发冲突保留草稿、循环／跨 Team／无权限／过期 Lead 无持久副作用、墓碑／重开／owner／隐藏依赖与中英文反馈；每个公开行为 RED→最小 GREEN，形成独立 `(#35)` commit 后才进入 #36。
