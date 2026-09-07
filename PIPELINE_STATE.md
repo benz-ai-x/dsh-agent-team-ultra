@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T13:38:32+08:00（Asia/Shanghai）
+最后更新：2026-09-07T13:43:19+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -43,7 +43,7 @@
 
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
-| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | developing | 0 | 0 | 未创建 |
+| Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | in-review；需人工合并 | 0 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | planned | 0 | 0 | 未创建 |
 | Batch 3 | #37、#38 | `feat/batch-3-studio-recovery` | Studio 真实能力投影与 provider/Host 跨功能恢复紧密关联；两项均为 L，为保持一次 review 可消化而不并入 Batch 2 | planned | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
@@ -83,7 +83,7 @@
 - Ultra 最终完整验证：`pnpm verify` 自然退出 0；strict 582/0、Host/Client 与 Typert/compatibility build、全 Vitest 30 files / 343 tests、八 archive pack/install/resolve、生产 packed 消息提交/恢复、Web、Codex/Claude JSON/SQLite recovery 及完整卸载均通过。证据见 `.ultra-checks/33-ultra-final-verify.log`；这仍是 developing 阶段开发者验证，不增加 local-gate 轮数。
 - #33 AC 勾选前已用 `gh issue view 33 --json number,title,state,url,updatedAt,body` 重读实时正文：Issue 仍 open，六条 AC 与冻结正文一致。逐条将 Harness exact-Lead/reply、Team/sender replay/conflict、caller-loss/restart、provider recovery、required event/codec/projection/cross-Team 无副作用，以及 Ultra 双语草稿/生产 packed Remote 证据映射后认定 6/6 满足。随后再次读取最新 body/`updated_at`，仅将这六条的 `[ ]` 改为 `[x]`，程序断言除复选框外零差异并回读成功；GitHub `updatedAt=2026-09-07T05:33:49Z`，Issue 按流程保持 open。
 - 收尾文档已同步：ledger 标记 packed gate 通过，新增 `docs/evidence/issue-33-acceptance.md`，TODO/HANDOFF 改为当前 Batch 1 分支与提交阶段恢复点。`git diff --check` 和九份变更 Markdown 的 91 个本地链接均通过；删除 probe 未使用的观测字段后再次 `pnpm verify:pack` 自然退出 0，完整八归档验证及卸载全绿。证据见 `.ultra-checks/33-ultra-precommit-packed.log`。
-- 无 open PR。Batch 1 尚未 push/建 PR，review/local gate 均为 0 轮。
+- 主 agent 于提交后再次 `git fetch origin --prune`：`origin/main` 仍为 `08585631ea6e618a3adbf7143046d00fde00f5d7`，分支 0 behind / 1 ahead；#33 仍 open 且 6/6 AC 已勾选，无启动快照后新增 issue、无其他 open PR。Ultra 分支已推送并创建 [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59)，描述包含 `Closes #33`、Harness 精确提交与完整验证结果；状态转为 in-review，review/local-gate 均为 0 轮。
 
 ## AC 进度
 
@@ -104,6 +104,7 @@
 - 2026-09-07：Batch 1 单独包含 #33，理由是持久格式、跨仓 Harness/Ultra 改动和既有 895 行 WIP已超过普通批量 review 体量，适用“特别复杂可单独”。
 - 2026-09-07：Batch 3 仅含两个 L issue；若并入 Batch 2 会形成五个跨 Studio/Team/provider 的 L issue，超过一次 review 可消化上限，故记录为体量例外。
 - 2026-09-07：#18 记 skipped，不关闭、不修改；这是 #44 的显式 AC，不是遗漏。
+- 2026-09-07T13:43:19+08:00：Batch 1 实际新增 public `agentTeams/sendMessage` Remote 与 required persistent event/projection schema，命中“公开接口或 schema 的首个基建 PR”人工合并清单；PR #59 标记“需人工合并”。先完成隔离 review 与本地闸门，再飞书【需决策】通知并等待确认，不自动合并。
 - 当前无 review 熔断、local-gate 熔断、PR blocked 或飞书待补发。
 
 ## 待下轮清单
@@ -112,6 +113,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. #33 实现、focused/strict/full verify、live AC 6/6、checkbox-only GitHub 更新、TODO/HANDOFF/验收证据与差异检查均已完成；本恢复记录随 Ultra 独立 `#33` branch HEAD 落盘，未 push、未建 PR。
-2. 主 agent 先用 `git log -1` 与两仓 `git status` 对账该 HEAD 和 Harness `d1d6b8a3e1`，再进入 Ultra push／单独 PR／review／local-gate 阶段。
-3. 当前 PR 状态仍为 developing，review/local-gate 轮数均保持 0；不得在 #33 合并关闭前开始 #34。
+1. 将本次 PR #59 / 人工合并状态更新提交并推送，使 review 固定 diff 包含唯一进度索引。
+2. 对固定 `origin/main...PR head` 在两个全新隔离会话并行执行 `/code-review` Standards 与 Spec；只把 blocking/high finding 计入轮次，修复后重新评审。
+3. 无 blocking/high finding 后再 fetch main，若未前进则执行独立完整 `pnpm verify` local gate；通过后发送飞书【需决策】人工合并通知并等待确认。不得自动合并，也不得在 #33 合并关闭前开始 #34。
