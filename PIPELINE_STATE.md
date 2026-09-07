@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-07T15:10:30+08:00（Asia/Shanghai）
+最后更新：2026-09-07T15:15:18+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -119,6 +119,7 @@
 - 2026-09-07T15:05:32+08:00：评审修复后独立 `pnpm context:check:strict` 再次通过 582 checks / 0 warnings；`git diff --check` 退出 0，8 份 changed Markdown 的 91 个本地链接全部存在。focused/packed/strict 均绿，开始完整 `pnpm verify`；该运行仍是修复期 validation，不增加 local-gate 红灯轮数。
 - 2026-09-07T15:07:48+08:00：评审修复后的完整 `pnpm verify` 自然退出 0：strict 582/0，Host/Client/Typert/compatibility build 全绿，Vitest 30 files / 346 tests 全绿，八归档 install/resolve、production lost-response deadline/recovery、Web、Codex/Claude JSON/SQLite recovery 与完整 uninstall 全绿。仅出现既有 SQLite experimental 和 Claude allowlist diagnostic，无失败；仍不增加 local-gate 红灯轮数。下一步把精确数字写回 evidence/TODO/HANDOFF，复核最终 diff 后提交 Ultra（不 push）。
 - 2026-09-07T15:10:30+08:00：精确验证数字与新恢复入口已写回 evidence/TODO/HANDOFF；最终 `git diff --check` 再次退出 0，8 份 changed Markdown 的 91 个本地链接再次通过。Harness HEAD/upstream 均为 `d2d870fbe40bc0e968abdac854a3aae495162bec`、0 ahead/behind 且 clean。Ultra 13 个预期文件（包含主 agent 原有 `PIPELINE_STATE.md` findings）准备形成一个本地 review-fix commit，明确不 push，随后由主 agent双轴复审。
+- 2026-09-07T15:15:18+08:00：Ultra review-fix 提交 `cf9ab192586ee5aa0aaef0e06c81de6a6956a334` 已形成并由主 agent 推送；fetch 后 `origin/main` 仍为 `08585631ea6e618a3adbf7143046d00fde00f5d7`，PR 分支相对 main 0 behind / 3 ahead。GitHub PR #59 head 已回读为 `cf9ab192…`、mergeable/CLEAN、无 checks；PR 描述已更新为 Harness `d2d870f…`、第 1 轮修复和 48/346 最新验证数字。#33 仍 open、6/6 AC 保持勾选，无启动快照后新增 issue。
 
 ## AC 进度
 
@@ -148,6 +149,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 第 1 轮两个 high 与三个 medium 已按 TDD 修复并完成 Harness push、Ultra focused/packed/full 验证；Ultra review-fix 以当前本地提交落盘但不 push。
-2. 主 agent 对新的精确 Ultra HEAD 重跑 Standards／Spec 两个全新隔离 review 轴；任何 blocking/high 继续修复并使 review 轮数 +1，连续第 3 轮不通过才熔断。
+1. 提交并推送本次 PR head/验证状态更新，使第 2 轮固定 diff 包含唯一进度索引。
+2. 主 agent 对新固定 Ultra head（含 `cf9ab192…`）及 Harness `d2d870fb…` 重跑 Standards／Spec 两个全新隔离 review 轴；任何 blocking/high 继续修复并使 review 轮数 +1，连续第 3 轮不通过才熔断。
 3. 无 blocking/high finding 后再 fetch main，若未前进则执行独立完整 `pnpm verify` local gate；通过后发送飞书【需决策】人工合并通知并等待确认。不得自动合并，也不得在 #33 合并关闭前开始 #34。
