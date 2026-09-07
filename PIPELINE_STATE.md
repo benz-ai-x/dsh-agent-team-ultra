@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T00:13:03+08:00（Asia/Shanghai）
+最后更新：2026-09-08T00:17:26+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -339,6 +339,7 @@
 - 2026-09-08T00:06:05+08:00：AC 勾选前在同一脚本/同一次操作内通过 GitHub API 实时重读 #34/#35/#36 最新 OPEN 正文，仅将 #34.3、#35.1/#35.3、#36.1–#36.4 的精确 marker 从`[ ]`改为`[x]`。PATCH后立即再读均为5 checked / 0 unchecked，且将目标marker归一为`[ ]`后与各自PATCH前正文逐字节相等；其余字节 SHA-256分别为 #34 `8f9317b158ca9e2b4a3170cbfc7cf91262cbe3bececa24358b9d6c5e25942461`、#35 `f85bb3d47863841ef79e095d93691817d3c1563ad96931d82b00b9c15535b2f8`、#36 `9a4bb6a9724a3f4fc2967d71d3bd4947d960df39dd1754b468deff624f2e7a8d`。下一步把 PR #60 三个`Refs`恢复为`Closes`，写入review-fix摘要与新增验证。
 - 2026-09-08T00:10:27+08:00：Ultra 验收/契约/交接文档已更新至 Harness `41291bc9…`、docs digest `358deaf0…`、owning 22/22 与full 356 tests；只读 changed-Markdown checker 验证10文件/100个本地target全存在，`git diff --check`退出0。PR #60 操作前实时回读仍为OPEN/head `2e3638c…`；正文已精确更新为3个`Closes`、0个`Refs`，记录review fixes A–H、Harness/Ultra提交、snapshot/catalog/owning/full gates及历史red=1/连续red=0，PATCH后再读逐字节一致。下一步最终diff/状态审计后提交这些文档，HTTPS push Ultra 并以`ls-remote`精确核对，然后将Batch 2转为in-review并固定review 2范围。
 - 2026-09-08T00:13:03+08:00：Ultra 验收/状态文档门复跑通过：10 changed Markdown files / 100 local targets，`git diff --check` green；形成`60b44de5fd0eeffa3d7566c0441a75393aba2f9f`（`docs: record Batch 2 review fixes (#34 #35 #36)`）。随后HTTPS push Ultra从`2e3638c…` fast-forward至`60b44de…`，`ls-remote` 与本地精确一致。Batch 2现转为`in-review`，review轮数仍为1，local-gate历史红仍为1/连续红0。下一步固定为隔离review 2：Ultra仅审`2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..60b44de5fd0eeffa3d7566c0441a75393aba2f9f`，Harness仅审`d2d870fbe40bc0e968abdac854a3aae495162bec..41291bc9779ba954b774880c634fe90c9945b966`，对照#34/#35/#36实时AC与review 1 findings A–H；本状态提交只记录交接，不扩大review diff。
+- 2026-09-08T00:17:26+08:00：主agent显式刷新两仓 HTTPS remote-tracking refs；Ultra/Harness 均 clean、tracking 0/0，PR #60 实测 OPEN/head=`2090f06a0ee1e1ae96782f203c24dc89b252af1a`、mergeable/CLEAN、0 checks，三个 issue 仍 OPEN 且各5/5 checked。修正“下一步（唯一恢复入口）”为review 2，而非已完成的review 1修复；`2090f06…`及本次状态提交均只含流水状态，不扩大产品/文档审查点。
 
 ## AC 进度
 
@@ -392,7 +393,7 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 用全新隔离 `/tdd` 修复会话处理 Batch 2 review 1 的 1 blocking + 5 high；同域 medium 键盘导航和 low 术语一并修复并补回归，但不单独计阻塞轮次。先修 Harness catalog/snapshot与 DAG revision/refresh，再修 Ultra live replacement/bounded reread；每项先取得可归因 RED 再最小 GREEN。
-2. 修复后实时重读 #34/#35/#36 body，仅在对应证据闭合后重新勾选 AC；推送 Ultra/Harness 精确 head，更新 PR #60 描述并以新的固定 diff 启动隔离 code-review 第 2 轮。
-3. 第 2 轮无 blocking/high 后 fetch main、运行正式 `pnpm verify` 闸门并按冻结 merge commit 自动合并 PR #60；若仍失败则按 review/local-gate 连续轮次规则继续或熔断。
+1. 对固定 Ultra 产品/文档 diff `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3..60b44de5fd0eeffa3d7566c0441a75393aba2f9f` 与 Harness diff `d2d870fbe40bc0e968abdac854a3aae495162bec..41291bc9779ba954b774880c634fe90c9945b966` 启动全新隔离 `/code-review` 第 2 轮；只提供 diff、#34/#35/#36 实时 AC 与 review 1 findings A–H。blocking/high 才阻塞；medium/low 只记 follow-up。
+2. 第 2 轮若仍有 blocking/high，review 连续失败记为2并交另一个全新隔离修复会话；若无，则记录 review 2通过、fetch main，再运行正式 `pnpm verify` 最终闸门。第3轮再失败才触发review熔断。
+3. 最终闸门与 main 对账均绿后，按冻结 merge commit自动合并 PR #60；失败则按用户的刷新重试/阻塞规则处理。
 4. 合并后删除 Ultra/Harness 本批远端与本地分支、拉最新 main 跑 post-merge `pnpm verify`；绿后记录 merged、飞书通知并进入 Batch 3，#37+在此之前不开发。
