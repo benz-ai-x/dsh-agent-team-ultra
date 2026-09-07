@@ -31,6 +31,7 @@
 
 .heading button,
 .filters button,
+.composeActions button,
 .loadMore {
   border: 0;
   border-radius: 6px;
@@ -40,9 +41,64 @@
 }
 
 .heading button,
-.filters button {
+.filters button,
+.composeActions button {
   min-height: 30px;
   padding: 5px 9px;
+}
+
+.composer {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+}
+
+.composeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.composeGrid label,
+.messageText {
+  display: grid;
+  gap: 3px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.composeGrid select,
+.messageText textarea {
+  min-width: 0;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 6px;
+  background: var(--dsw-specific-menu);
+  color: var(--dsw-alias-label-primary);
+}
+
+.composeGrid select {
+  min-height: 30px;
+}
+
+.messageText textarea {
+  min-height: 64px;
+  padding: 6px;
+  resize: vertical;
+}
+
+.composeActions,
+.intent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.intent {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
 }
 
 .filters {
@@ -148,7 +204,8 @@
 }
 
 @media (max-width: 620px) {
-  .browser {
+  .browser,
+  .composeGrid {
     grid-template-columns: 1fr;
   }
 }

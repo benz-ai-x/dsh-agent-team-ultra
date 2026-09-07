@@ -75,6 +75,7 @@ async function bench(registrationFailure = false) {
     view: answer('team/view', { members: [], tasks: [] }),
     listMessages: answer('team/listMessages', { items: [], committedCursor: 'cursor', complete: true }),
     getMessage: answer('team/getMessage', {}),
+    sendMessage: answer('team/sendMessage', { ok: true, value: {} }),
   } as never)
   ctx.provide('conversation', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
@@ -200,6 +201,11 @@ describe('Digital Employee Studio mount lifecycle', () => {
       messageId: 'message-1' as never,
       committedCursor: 'cursor' as never,
     })
+    await messageActions.sendMessage('lead-session', {
+      requestId: 'request-1' as never,
+      recipientId: 'worker-session' as never,
+      text: 'Review this message.',
+    }, new AbortController().signal)
     expect(runtime.calls).toEqual([
       { method: 'view', args: ['lead-session'] },
       { method: 'revision', args: ['lead-session', { profileId: 'reviewer', revision: 2 }] },
@@ -255,6 +261,14 @@ describe('Digital Employee Studio mount lifecycle', () => {
       {
         method: 'team/getMessage',
         args: ['lead-session', { messageId: 'message-1', committedCursor: 'cursor' }],
+      },
+      {
+        method: 'team/sendMessage',
+        args: [
+          'lead-session',
+          { requestId: 'request-1', recipientId: 'worker-session', text: 'Review this message.' },
+          expect.any(AbortSignal),
+        ],
       },
     ])
 

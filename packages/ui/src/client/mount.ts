@@ -86,6 +86,9 @@ function registerStudio(ctx: ClientContext): void {
     async getMessage(sessionId, request) {
       return await ctx.remote.agentTeams.getMessage(sessionId, request)
     },
+    async sendMessage(sessionId, request, signal) {
+      return await ctx.remote.agentTeams.sendMessage(sessionId, request, signal)
+    },
   }
 
   ctx.slots.inject(
