@@ -131,7 +131,7 @@ describe('operator migration audit', () => {
     const report = JSON.parse(result.stdout)
     expect(report).toMatchObject({
       ok: true,
-      sourceFormats: { session: 0, teamEvent: 2, teamProjection: 6, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
+      sourceFormats: { session: 0, teamEvent: 2, teamProjection: 7, messageRequest: 1, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
       migration: {
         sourcePreserved: true, bidirectionalWrites: false, targetWrites: 'closed-until-complete',
         executionAvailable: false,
@@ -377,7 +377,7 @@ describe('operator migration audit', () => {
       memberId: launched.value.memberId, nativeRuntimeHandle: launched.value.nativeRuntimeHandle,
       nativeTurnId: expect.any(String), kind: 'initial',
     }))
-    expect(JSON.parse(accepted.stdout).sourceFormats).toMatchObject({ teamProjection: 6, nativeOperation: 4 })
+    expect(JSON.parse(accepted.stdout).sourceFormats).toMatchObject({ teamProjection: 7, messageRequest: 1, nativeOperation: 4 })
     expect(JSON.parse(accepted.stdout).nativeCorrelations).toContainEqual(expect.objectContaining({
       memberId: launched.value.memberId, nativeRuntimeHandle: launched.value.nativeRuntimeHandle,
       nativeTurnId: expect.any(String), operationId: expect.any(String), kind: 'settlement',

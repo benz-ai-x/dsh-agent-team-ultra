@@ -265,10 +265,24 @@ an actual integration commit based on the fixed official comparison.
   `team_message_send` for new threads and recovers terminal settlements from
   native history without copying commentary or full transcripts into Team or
   Run evidence. The required native-operation event is payload 4 and the Team
-  projection checkpoint is version 6, whose event-derived message index adds
-  stable queue/delivery sequences and times; explicit payload-3 message and
-  legacy payload-2 readers retain old logs. Session 0 and Ultra v1 remain. See
+  projection checkpoint is version 7, whose event-derived message index adds
+  stable queue/delivery sequences and times and whose request index retains
+  human submission receipts; explicit payload-3 message and legacy payload-2
+  readers retain old logs. Session 0 and Ultra v1 remain. See
   [ADR 0018](../adr/0018-persist-native-team-message-receipts.md).
+- The Team Message Center sends only through the Team owner's generated
+  `agentTeams/sendMessage` operation. The Host resolves the Session key to the
+  exact live Lead and derives both Team and sender; the request supplies no
+  authority. It requires one explicit active recipient and may correlate one
+  real prior message from the same Team without copying its body.
+- A Team Message Request ID is scoped by Team and Host-resolved sender. The
+  canonical recipient, literal text, and optional reply id are immutable:
+  matching retries return the original message and changed input conflicts
+  without appending. Required `team/message/request-committed@1` atomically
+  retains that receipt, reply correlation, and queued message before the Team
+  owns delivery. Submission and `pending | delivered` delivery stage are
+  separate; provider absence preserves the original pending message for
+  recovery and never fabricates completion.
 - Codex installs `team_task_update` and `team_wait` for new threads. Task writes
   reuse shared expectedRevision, ownership, DAG, tombstone and Lead-only rules;
   stale writes return the current revision. The task and its original compact
@@ -432,8 +446,13 @@ an actual integration commit based on the fixed official comparison.
   Host-owned snapshot builder after exact live Lead authorization, roster
   reconciliation, and Run repair.
 - Studio Snapshots and the Run Index never contain persisted Team message
-  bodies. The message center reads only the Agent Team log on demand and does
-  not copy raw native history, attachment data, or credentials.
+  bodies. The message center reads and submits only through the Agent Team
+  owner and does not copy raw native history, attachment data, or credentials.
+  Before its first await, the Client freezes one explicit submission intent and
+  stores its bounded retry fields by Team. Double-clicks share that request;
+  an unknown transport outcome preserves a reviewable draft, and reload never
+  sends it automatically. Only an explicit same-request retry or refresh acts.
+  Continuous watch and reconnect state belong to #36.
 - Every physical stream generation begins with exactly one complete baseline.
   Later frames are complete replacements, never partial entity patches.
 - Storage-domain, Runtime Backend generation, Agent roster, Team turn, approval,

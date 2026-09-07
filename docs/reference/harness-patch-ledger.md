@@ -1,9 +1,12 @@
 # Harness 补丁清单 / Harness patch ledger
 
 本清单对应 [Spec #18 修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)
-与 [#22](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/22)。中文规范中的
-US-01、US-02、US-03、US-15、US-20、US-24、US-25、US-26、US-47、US-50、US-51，
-D-01–D-04、D-21、D-22，以及 T-03、T-04、T-09 在英文版本中沿用相同编号。
+与 [#22](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/22)、
+[#33](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/33)。中文规范中的
+US-01、US-02、US-03、US-15、US-18、US-19、US-20、US-24–US-26、US-28、
+US-33、US-47、US-50、US-51、US-56–US-59、US-66，D-01–D-04、D-10、
+D-14–D-16、D-21、D-23、D-25，以及 T-01、T-03、T-04、T-06、T-07、
+T-09、T-16、T-18 在英文版本中沿用相同编号。
 
 The Chinese Spec is normative. Requirement identifiers above are shared by
 both language versions. This ledger records maintained changes; it does not
@@ -14,13 +17,14 @@ claim that an upstream contribution was submitted or accepted.
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
 | 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `c2940ac5039b744f962d2b264c03a6e9fb33af07`, `0.1.2-rc.1` | 阶段 B 持久消息读取运行源 / Phase B persisted-message read runtime source |
+| 维护 fork / Maintained fork | `d1d6b8a3e16c668e742f47a92297a0de0a20570f`, `0.1.2-rc.1` | 阶段 B 持久消息读写运行源 / Phase B persisted-message read/write runtime source |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `58989b9e268c06bd46f37148b59cf9041dce6bd58e69812d3569b369616eb3ca` | 锁定文档内容 / locked documentation content |
-| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.message-center.v1` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
+| 文档摘要 / Documentation digest | `1a657499e776a02559799396a590e73f06de646667ef88dda7bb8ca76ab27b7a` | 锁定文档内容 / locked documentation content |
+| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.message-center.v2` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
 | Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
-| Team 投影 / Team projection | `6` | fork 增加事件派生的稳定消息 queue/delivery 索引 / fork adds an event-derived stable message queue/delivery index |
+| 人类消息请求 / Human message request | `1` | 必需事件原子保存请求回执、回复关联与 queued 消息 / required event atomically stores the request receipt, reply correlation, and queued message |
+| Team 投影 / Team projection | `7` | fork 增加不可变请求回执及事件派生的稳定消息 queue/delivery 索引 / fork adds immutable request receipts and an event-derived stable message queue/delivery index |
 | Ultra domain | `agent_team_ultra_v1`, version `1` | 独立 sidecar generation / independent sidecar generation |
 | Codex wrapper / payload / protocol | `@openai/codex@0.149.1`; `0.149.1-<platform>-<arch>`; `app-server-v2` | 具体平台 payload 由 provider 的资格检查确认 / provider qualification resolves the exact platform payload |
 | Claude SDK / payload / protocol | `@anthropic-ai/claude-agent-sdk@0.3.241`; Claude Code `2.1.241`; `claude-agent-sdk` | SDK 与 native 产品版本独立 / SDK and native product versions are separate |
@@ -59,6 +63,7 @@ executable closure selected by Node. Neither proves valid native user login.
 | [b85ebb3fca](https://github.com/benz-ai-x/deepseek-harness_x/commit/b85ebb3fca3da0c735cfed0b4532f926a4221e24) | 当前 grant 下读取精确成员的 launch、入站 delivery 与已提交 settlement，供 provider 冷恢复对账 / grant-bound Host recovery facts for provider reconciliation | no format change; existing launch/message/receipt facts only | 229 owning tests; four changed runtime files at 100% scoped coverage; build, Loader, generated catalog, docs and lint; Ultra Claude public-history JSON/SQLite recovery and Run evidence; [ADR 0020](../adr/0020-authorize-claude-team-tools.md) | maintained branch `fix/ultra-29-native-recovery-reader`; Host-only operation is not advertised as a model tool |
 | [a1342a76f5](https://github.com/benz-ai-x/deepseek-harness_x/commit/a1342a76f53fce70f5bae95cad435557d46d1411) | exact live Lead 的持久消息 metadata 分页、筛选和按需安全正文，并发布 Team owner child Slot / persisted-message metadata paging, filtering, safe on-demand content, and a Team-owner child Slot for the exact live Lead | projection 6 adds queue/delivery sequence/time index; no event or native payload change | 269 Agent Team/Client regressions; message reader at 100% scoped coverage; built-library Remote test; keyless Session replay; real browser composition; build, generated catalogs, 32 doc gates and lint; [ADR 0023](../adr/0023-compose-persisted-team-message-reads.md) | maintained branch `fix/ultra-32-team-message-read`; #33 owns writes and #36 owns live subscription |
 | [eea13874ce](https://github.com/benz-ai-x/deepseek-harness_x/commit/eea13874ce), [c2940ac503](https://github.com/benz-ai-x/deepseek-harness_x/commit/c2940ac5039b744f962d2b264c03a6e9fb33af07) | 在 flush 前固定已提交读取上界、让 Team 清理等待已接纳读取，并由 renderer 注入 owner selector hook；补全 pending-read 快照契约 / capture the committed read cutoff before flush, settle accepted reads during Team disposal, bind the owner selector hook through the renderer, and document pending-read snapshots | no format change; projection remains 6 and Session/event/native-operation versions remain fixed | 271 Agent Team/Client regressions; nine reader tests with 100% scoped coverage; cutoff-race and disposal RED/GREEN; built-library Remote; 32 doc gates; Ultra installed-bundle renderer/Remote/Host/recovery gate | same maintained branch; post-review hardening, with no upstream acceptance claimed |
+| [d1d6b8a3e1](https://github.com/benz-ai-x/deepseek-harness_x/commit/d1d6b8a3e16c668e742f47a92297a0de0a20570f) | 精确 live Lead 通过 Team owner `submitMessage` 与 generated `agentTeams/sendMessage` 提交明确接收者、字面正文和可选同 Team 回复；`(Team, sender, request id)` 的同输入重放原结果，变更输入冲突；durable acceptance 后由 Team 生命周期拥有原消息投递 / exact live Lead submits an explicit recipient, literal body, and optional same-Team reply through Team-owned `submitMessage` and generated `agentTeams/sendMessage`; `(Team, sender, request id)` replays identical input and conflicts on changed input; Team lifecycle owns delivery after durable acceptance | required `team/message/request-committed@1`; projection 7 retains immutable receipts and reply correlation; Session 0, base Team event 2, and native operation 4 remain fixed; legacy reads rebuild and future formats fail closed | 376 package tests plus 186 owning tests; public Remote cancellation/acceptance barrier, replay/conflict, cross-Team no-effect, JSONL restart/provider recovery, built-library Remote, Host/Client/docs/type gates; Ultra packed production renderer/generated Remote plus Loader/AgentLoop/Team/JSONL controlled-provider recovery and required-fact negative controls pass; authenticated canary remains #44 | maintained branch `fix/ultra-33-team-message-send`; no upstream acceptance claimed |
 
 表中列出可重跑的测试责任，不表示本次运行了每个上游测试或真实产品 canary。
 The test column identifies validation owners, not a claim that all those suites

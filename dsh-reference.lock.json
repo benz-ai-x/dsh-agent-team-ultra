@@ -4,8 +4,8 @@
     "repository": "https://github.com/benz-ai-x/deepseek-harness_x.git",
     "version": "0.1.2-rc.1",
     "node": "^22.19.0 || >=24.0.0",
-    "commit": "c2940ac5039b744f962d2b264c03a6e9fb33af07",
-    "docsDigest": "58989b9e268c06bd46f37148b59cf9041dce6bd58e69812d3569b369616eb3ca"
+    "commit": "d1d6b8a3e16c668e742f47a92297a0de0a20570f",
+    "docsDigest": "1a657499e776a02559799396a590e73f06de646667ef88dda7bb8ca76ab27b7a"
   },
   "localResolution": {
     "environmentVariable": "DSH_HARNESS_ROOT",
@@ -23,11 +23,12 @@
       "version": "0.1.3-alpha.1",
       "supportedRuntime": false
     },
-    "extensionApi": "agent-team-ultra.phase-b.message-center.v1",
+    "extensionApi": "agent-team-ultra.phase-b.message-center.v2",
     "formats": {
       "session": 0,
       "teamEvent": 2,
-      "teamProjection": 6,
+      "teamProjection": 7,
+      "messageRequest": 1,
       "ultraDomain": {
         "name": "agent_team_ultra_v1",
         "version": 1

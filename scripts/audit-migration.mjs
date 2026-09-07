@@ -109,7 +109,8 @@ try {
   console.log(JSON.stringify({
     ok: true,
     sourceFormats: { session: lock.compatibility.formats.session, teamEvent: lock.compatibility.formats.teamEvent,
-      teamProjection: lock.compatibility.formats.teamProjection, nativeOperation: lock.compatibility.formats.nativeOperation,
+      teamProjection: lock.compatibility.formats.teamProjection, messageRequest: lock.compatibility.formats.messageRequest,
+      nativeOperation: lock.compatibility.formats.nativeOperation,
       ultraDomain: observedV1 ? 'agent_team_ultra_v1' : v0 ? 'agent_team_ultra' : null, ultraVersion: observedV1 ? 1 : v0 ? 0 : null },
     sourceDigest: before,
     sourceCompatibility: {

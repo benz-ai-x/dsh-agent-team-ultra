@@ -4,11 +4,11 @@ import { createServer } from 'node:http'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { JSDOM } from 'jsdom'
 import React, { createElement } from 'react'
-import { act } from 'react-dom/test-utils'
+import { act, Simulate } from 'react-dom/test-utils'
 
 const [ultraClientFile, teamClientFile, teamPackageRoot, rawHarnessRoot] = process.argv.slice(2)
 if ([ultraClientFile, teamClientFile, teamPackageRoot, rawHarnessRoot].some(value => value === undefined)) {
@@ -24,6 +24,29 @@ const members = {
   claude: { id: 'packed-claude-worker', name: 'claude-worker', provider: 'claude-code' },
 }
 const codexMessageId = 'message-codex'
+const packedWorkerName = 'packed-controlled-worker'
+const packedRequestText = '请从打包消息中心执行这项受控工作。'
+const packedProviderId = 'packed-controlled'
+const packedRuntimeEntryId = 'packed-controlled-runtime'
+const packedTeamEntryId = 'packed-agent-team'
+const packedLaunchRequestId = '77777777-7777-4777-8777-777777777777'
+const controlledRuntimeUrl = pathToFileURL(join(
+  dirname(fileURLToPath(import.meta.url)),
+  'fixtures/packed-controlled-team-runtime.mjs',
+)).href
+const controlledRuntimeKey = Symbol.for('dsh-agent-team-ultra.packed-controlled-runtime')
+const deliveryRelease = Promise.withResolvers()
+const runtimeControl = {
+  providerId: packedProviderId,
+  providerLoads: 0,
+  createCalls: [],
+  resumeCalls: [],
+  deliverCalls: [],
+  runtimes: new Map(),
+  deliveryTurns: new Map(),
+  deliveryRelease,
+}
+globalThis[controlledRuntimeKey] = runtimeControl
 
 const fileUrl = path => pathToFileURL(resolve(path)).href
 const harnessUrl = path => fileUrl(join(harnessRoot, path))
@@ -51,6 +74,7 @@ Object.assign(globalThis, {
   HTMLElement: dom.window.HTMLElement,
   Event: dom.window.Event,
   MouseEvent: dom.window.MouseEvent,
+  sessionStorage: dom.window.sessionStorage,
   IS_REACT_ACT_ENVIRONMENT: true,
 })
 Object.defineProperty(globalThis, 'navigator', {
@@ -125,25 +149,6 @@ const ultraClient = instantiate('@benz-ai-x/dsh-client-ui-agent-team-ultra', {
   '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
 })
 
-function agentFor(host, session) {
-  return {
-    id: session.id,
-    options: { provider: 'probe', model: 'probe' },
-    session,
-    ctx: host.extend(),
-    status: 'idle',
-    acceptsNextStep: false,
-    send() {},
-    updateInbox() { return 'not-found' },
-    followup() {},
-    steer() { return { outcome: Promise.resolve({ status: 'rejected' }) } },
-    inject(input) { session.append('user/message', input, { surfaceOp: 'append' }) },
-    reserveTurnAdmission() {},
-    cancel() {},
-    whenIdle() { return Promise.resolve() },
-  }
-}
-
 function appendMember(session, TeamId, SessionId, member) {
   const base = {
     id: SessionId(member.id),
@@ -180,15 +185,18 @@ function appendMessage(session, TeamId, TeamMessageId, SessionId, input) {
 
 async function startHost(resume) {
   const { Context } = cordis
-  const { default: AgentRegistry } = await import(harnessUrl('packages/core/agent/lib/index.js'))
+  const { Loader } = await import(harnessUrl('vendor/loader/lib/index.js'))
+  const { default: AgentLoop } = await import(harnessUrl('packages/core/agent-loop/lib/index.js'))
+  const { mountAgentLoopTestDependencies } = await import(harnessUrl('packages/test-support/agent-loop-testkit/lib/index.js'))
   const connectionHost = await import(harnessUrl('packages/client/connection/lib/index.js'))
   const { default: TypertRemoteService } = await import(harnessUrl('packages/api/gateway/lib/index.js'))
   const remotesHost = await import(harnessUrl('packages/api/remotes/lib/index.js'))
-  const { default: SessionStore, SessionId } = await import(harnessUrl('packages/core/session/lib/index.js'))
+  const { SessionId } = await import(harnessUrl('packages/core/session/lib/index.js'))
   const { default: SessionProjectionRegistry } = await import(harnessUrl('packages/session/session-projection/lib/index.js'))
   const { default: JsonlSessionPersistence } = await import(harnessUrl('packages/session/session-persistence-jsonl/lib/index.js'))
+  const { default: SubagentService } = await import(harnessUrl('packages/subagent/subagent/lib/index.js'))
   const { default: TypertRegistry } = await import(harnessUrl('packages/typert/registry/lib/index.js'))
-  const { default: TeamService, TeamId, TeamMessageId } = await import(teamUrl('lib/index.js'))
+  const { default: PackedTeamService, TeamId, TeamMessageId } = await import(teamUrl('lib/index.js'))
   const { TYPERT } = await import(teamUrl('lib/typert.host.js'))
 
   const routes = []
@@ -215,23 +223,65 @@ async function startHost(resume) {
       return next ?? credentials.get(key)
     },
   })
-  host.provide('subagents', {})
-  await host.plugin({ inject: connectionHost.inject, apply: connectionHost.apply })
-  await host.plugin(TypertRegistry)
-  await host.plugin(SessionStore)
-  await host.plugin(AgentRegistry)
+  await mountAgentLoopTestDependencies(host)
   await host.plugin(SessionProjectionRegistry)
   await host.plugin(JsonlSessionPersistence, { root: storageRoot })
+  await host.plugin(AgentLoop, { agents: [] })
+  await host.plugin(SubagentService)
+  await host.plugin({ inject: connectionHost.inject, apply: connectionHost.apply })
+  await host.plugin(TypertRegistry)
   await host.plugin(TypertRemoteService)
   await host.plugin({ inject: remotesHost.inject, apply: remotesHost.apply })
-  await host.plugin(TeamService)
+  const loaderFiber = host.plugin(Loader, {
+    baseUrl: pathToFileURL(join(resolve(teamPackageRoot), 'package.json')).href,
+  })
+  await loaderFiber
+  const teamEntry = {
+    id: packedTeamEntryId,
+    name: teamUrl('lib/index.js'),
+    config: {},
+  }
+  const runtimeEntry = {
+    id: packedRuntimeEntryId,
+    name: controlledRuntimeUrl,
+    config: {},
+  }
+  await host.loader.root.update(resume ? [teamEntry] : [teamEntry, runtimeEntry])
+  await host.loader.await()
+  if (!(host.agentTeams instanceof PackedTeamService)) {
+    throw new Error('Loader did not mount the packed TeamService implementation')
+  }
   host.typert.register(TYPERT)
 
-  let session
-  let persistenceHandle
+  let lead
   if (!resume) {
-    session = host.sessions.create(SessionId(leadId))
-    persistenceHandle = await host.sessionPersistence.create(session.header)
+    lead = await host.agentLoop.create(SessionId(leadId), {})
+    const spawned = await host.agentTeams.spawnTeammate(lead, {
+      name: packedWorkerName,
+      description: 'Controlled recipient created through the packed Team owner',
+      prompt: [{ type: 'text', text: 'Accept one controlled packed message.' }],
+      context: 'fresh',
+      runtime: {
+        kind: 'external-agent',
+        provider: packedProviderId,
+        launchRequestId: packedLaunchRequestId,
+        profile: {
+          persona: 'Be deterministic.',
+          mission: 'Accept one controlled packed message.',
+          context: [],
+          memory: [],
+          toolPolicy: { mode: 'inherit', names: [] },
+          hooks: [],
+        },
+        requirements: {
+          contextMode: 'fresh',
+          profileCapabilities: ['persona', 'mission'],
+          runtimeCapabilities: [],
+        },
+      },
+      signal: new AbortController().signal,
+    })
+    const session = lead.session
     for (const member of Object.values(members)) appendMember(session, TeamId, SessionId, member)
     for (let index = 0; index < 19; index += 1) {
       appendMessage(session, TeamId, TeamMessageId, SessionId, {
@@ -255,30 +305,17 @@ async function startHost(resume) {
       body: 'Claude durable body',
     })
     await host.sessions.flush(session)
+    await host.loader.remove(packedRuntimeEntryId)
+    if (host.agentTeams.listMembers(lead).find(member => member.name === packedWorkerName)?.status !== 'inactive') {
+      throw new Error('Loader removal did not make the controlled packed recipient inactive')
+    }
   } else {
-    const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
-    const seed = structuredClone(await stored.read())
-    const header = structuredClone(stored.header)
-    const inheritedEventCount = stored.inheritedEventCount
-    await stored.close()
-    session = host.sessions.create(SessionId(leadId), {
-      seed,
-      inheritedEventCount,
-      meta: {
-        ...(header.cwd === undefined ? {} : { cwd: header.cwd }),
-        ...(header.parentSession === undefined ? {} : { parentSession: header.parentSession }),
-        createdAt: header.createdAt,
-        isSeeded: header.isSeeded,
-        ...(header.origin === undefined ? {} : { origin: header.origin }),
-        ...(header.delegationDepth === undefined ? {} : { delegationDepth: header.delegationDepth }),
-        ...(header.agentPreset === undefined ? {} : { agentPreset: header.agentPreset }),
-      },
-    })
-    persistenceHandle = await host.sessionPersistence.open(SessionId(leadId), 'write')
+    const resumed = await host.agents.resume({ resumeSessionId: SessionId(leadId), agentOptions: {} })
+    lead = resumed.agent
+    const recovered = host.agentTeams.listMembers(lead).find(member => member.name === packedWorkerName)
+    if (recovered?.status !== 'inactive') throw new Error('recovered packed recipient is not inactive without its provider')
   }
 
-  const lead = agentFor(host, session)
-  host.agents.register(lead)
   if (routes.length !== 1 || routes[0].path !== '/api') throw new Error('Host did not expose one /api route')
   if (upgradeRoutes.length !== 1 || upgradeRoutes[0].path !== '/api/remote.mux') {
     throw new Error('Host did not expose one /api/remote.mux upgrade route')
@@ -314,13 +351,25 @@ async function startHost(resume) {
   return {
     origin,
     cookie,
+    lead,
+    async events() {
+      const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
+      try {
+        return structuredClone(await stored.read())
+      } finally {
+        await stored.close()
+      }
+    },
+    async enableProvider() {
+      await host.loader.root.update([teamEntry, runtimeEntry])
+      await host.loader.await()
+    },
     async dispose() {
       await new Promise((resolveClose, rejectClose) => server.close(error => {
         if (error === undefined) resolveClose()
         else rejectClose(error)
       }))
       await host.fiber.dispose()
-      await persistenceHandle.close().catch(() => {})
     },
   }
 }
@@ -419,7 +468,7 @@ async function waitUntil(assertion, label) {
   let lastError
   while (Date.now() < deadline) {
     try {
-      const value = assertion()
+      const value = await assertion()
       if (value !== false && value !== undefined && value !== null) return value
     } catch (error) {
       lastError = error
@@ -441,12 +490,36 @@ async function click(element) {
   })
 }
 
+async function doubleClick(element) {
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+}
+
 async function select(container, label, value) {
   const field = [...container.querySelectorAll('label')]
     .find(candidate => candidate.firstChild?.textContent?.trim() === label)?.querySelector('select')
   if (field === undefined) throw new Error(`select ${JSON.stringify(label)} is missing`)
-  field.value = value
-  await act(async () => { field.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => { Simulate.change(field, { target: { value } }) })
+}
+
+function selectOptionValue(container, label, text) {
+  const field = [...container.querySelectorAll('label')]
+    .find(candidate => candidate.firstChild?.textContent?.trim() === label)?.querySelector('select')
+  const option = [...field?.querySelectorAll('option') ?? []]
+    .find(candidate => candidate.textContent?.trim() === text)
+  if (option === undefined) throw new Error(`option ${JSON.stringify(text)} is missing from ${JSON.stringify(label)}`)
+  return option.value
+}
+
+async function enterText(container, label, value) {
+  const field = [...container.querySelectorAll('label')]
+    .find(candidate => candidate.firstChild?.textContent?.trim() === label)?.querySelector('textarea')
+  if (field === undefined) throw new Error(`textarea ${JSON.stringify(label)} is missing`)
+  await act(async () => {
+    Simulate.change(field, { target: { value } })
+  })
 }
 
 function messageButtons(container) {
@@ -486,6 +559,34 @@ function requireRemoteSuccess(result, label) {
   return result.value
 }
 
+function validateSubmissionFacts(events, expected) {
+  const facts = events.filter(event => event.type === 'team/message/request-committed'
+    && event.data.receipt.requestId === expected.requestId)
+  if (facts.length !== 1) throw new Error(`expected one durable request fact, received ${facts.length}`)
+  const fact = facts[0]
+  const { message, receipt } = fact.data
+  if (fact.data.version !== 1 || fact.data.teamId !== leadId
+    || receipt.senderId !== leadId || receipt.replyTo !== expected.replyTo
+    || receipt.result.requestId !== expected.requestId || receipt.result.status !== 'accepted'
+    || receipt.result.messageId !== message.id || message.senderId !== leadId
+    || message.targetId !== expected.recipientId
+    || message.content.length !== 1 || message.content[0]?.type !== 'text'
+    || message.content[0]?.text !== expected.text
+    || !/^[0-9a-f]{64}$/u.test(receipt.inputFingerprint)) {
+    throw new Error(`durable request fact does not match the packed submission: ${JSON.stringify(fact)}`)
+  }
+  return fact
+}
+
+function requireValidatorRejection(events, expected, label) {
+  try {
+    validateSubmissionFacts(events, expected)
+  } catch {
+    return
+  }
+  throw new Error(`packed submission validator accepted ${label}`)
+}
+
 let firstHost
 let firstClient
 let firstPanel
@@ -512,6 +613,48 @@ try {
   await waitUntil(() => firstPanel.container.textContent.includes('Codex durable body'), 'packed Codex detail')
   if (!firstPanel.container.textContent.includes(codexMessageId)) throw new Error('packed detail omitted the stable message id')
 
+  const packedWorkerId = selectOptionValue(firstPanel.container, 'Recipient', packedWorkerName)
+  await select(firstPanel.container, 'Reply to', codexMessageId)
+  await select(firstPanel.container, 'Recipient', packedWorkerId)
+  await enterText(firstPanel.container, 'Message', packedRequestText)
+  await doubleClick(button(firstPanel.container, 'Send message'))
+  await waitUntil(
+    () => firstPanel.container.textContent?.includes('Accepted; pending delivery.'),
+    'packed accepted submission',
+  ).catch((error) => {
+    throw new Error(`${String(error)}; rendered DOM: ${firstPanel.container.innerHTML}`)
+  })
+
+  const acceptedEvents = await firstHost.events()
+  const acceptedFact = acceptedEvents.find(event => event.type === 'team/message/request-committed')
+  if (acceptedFact === undefined) throw new Error('packed generated Remote accepted without a durable request fact')
+  const acceptedRequest = {
+    requestId: acceptedFact.data.receipt.requestId,
+    recipientId: packedWorkerId,
+    replyTo: codexMessageId,
+    text: packedRequestText,
+  }
+  validateSubmissionFacts(acceptedEvents, acceptedRequest)
+  requireValidatorRejection(
+    acceptedEvents.filter(event => event !== acceptedFact),
+    acceptedRequest,
+    'a missing required request fact',
+  )
+  requireValidatorRejection(
+    [...acceptedEvents, structuredClone(acceptedFact)],
+    acceptedRequest,
+    'duplicate request facts',
+  )
+  if (acceptedEvents.filter(event => event.type === 'team/message/request-committed').length !== 1
+    || runtimeControl.deliverCalls.length !== 0 || runtimeControl.createCalls.length !== 1
+    || runtimeControl.providerLoads !== 1) {
+    throw new Error('packed double-click did not retain exactly one request before provider recovery')
+  }
+  sessionStorage.setItem(
+    `dsh-agent-team-ultra.message-intent.v1:${encodeURIComponent(leadId)}`,
+    JSON.stringify({ version: 1, request: acceptedRequest }),
+  )
+
   const filters = { memberId: members.codex.id, direction: 'sent', delivery: 'delivered' }
   const beforeRestart = requireRemoteSuccess(await firstClient.childActions.listMessages(leadId, {
     limit: 1,
@@ -531,6 +674,12 @@ try {
   firstHost = undefined
 
   secondHost = await startHost(true)
+  const recoveredBeforeClient = await secondHost.events()
+  const recoveredFact = validateSubmissionFacts(recoveredBeforeClient, acceptedRequest)
+  if (recoveredBeforeClient.some(event => event.type === 'team/message/delivered'
+    && event.data.messageId === recoveredFact.data.message.id)) {
+    throw new Error('packed message fabricated delivery while its provider was unavailable')
+  }
   secondClient = await startClient(secondHost)
   const afterRestart = requireRemoteSuccess(await secondClient.childActions.listMessages(leadId, {
     limit: 1,
@@ -546,13 +695,69 @@ try {
 
   secondPanel = await secondClient.renderPanel()
   await openMessages(secondPanel)
+  await waitUntil(
+    () => secondPanel.container.textContent.includes('Submission result unknown. Review this saved intent before retrying.'),
+    'recovered packed saved intent',
+  )
+  if (!secondPanel.container.textContent.includes(acceptedRequest.requestId)
+    || (await secondHost.events()).filter(event => event.type === 'team/message/request-committed').length !== 1
+    || runtimeControl.deliverCalls.length !== 0) {
+    throw new Error('packed remount automatically resent or lost the accepted retry intent')
+  }
+
+  await secondHost.enableProvider()
+  await waitUntil(() => runtimeControl.deliverCalls.length === 1, 'packed provider recovery delivery')
+  const delivery = runtimeControl.deliverCalls[0]
+  if (runtimeControl.providerLoads !== 2 || runtimeControl.resumeCalls.length !== 1
+    || delivery.deliveryId !== recoveredFact.data.message.id
+    || delivery.nativeHandle !== [...runtimeControl.runtimes.values()][0]?.nativeHandle
+    || delivery.senderId !== leadId || delivery.senderName !== 'lead'
+    || delivery.content[0]?.type !== 'text'
+    || delivery.content[0]?.text !== `Team message ${delivery.deliveryId} in reply to ${codexMessageId} from lead:`
+    || delivery.content[1]?.type !== 'text' || delivery.content[1]?.text !== packedRequestText) {
+    throw new Error(`packed provider received the wrong recovered message: ${JSON.stringify(delivery)}`)
+  }
+  const beforeRelease = await secondHost.events()
+  validateSubmissionFacts(beforeRelease, acceptedRequest)
+  if (beforeRelease.some(event => event.type === 'team/message/delivered'
+    && event.data.messageId === delivery.deliveryId)) {
+    throw new Error('packed Team marked delivery before the provider barrier acknowledged it')
+  }
+  deliveryRelease.resolve(undefined)
+  await waitUntil(async () => (await secondHost.events()).some(event => event.type === 'team/message/delivered'
+    && event.data.messageId === delivery.deliveryId), 'packed persisted delivery acknowledgement')
+
+  await click(button(secondPanel.container, 'Retry same request'))
+  await waitUntil(() => secondPanel.container.textContent?.includes('Accepted and delivered.'), 'packed explicit replay result')
+  const finalEvents = await secondHost.events()
+  validateSubmissionFacts(finalEvents, acceptedRequest)
+  if (finalEvents.filter(event => event.type === 'team/message/request-committed').length !== 1
+    || finalEvents.filter(event => event.type === 'team/message/delivered'
+      && event.data.messageId === delivery.deliveryId).length !== 1
+    || runtimeControl.deliverCalls.length !== 1) {
+    throw new Error('packed explicit replay created duplicate request or provider work')
+  }
+  const submittedPage = requireRemoteSuccess(await secondClient.childActions.listMessages(leadId, {
+    limit: 100,
+  }), 'packed submitted-message list')
+  const submittedRow = submittedPage.items.find(item => item.id === delivery.deliveryId)
+  if (submittedRow?.requestId !== acceptedRequest.requestId || submittedRow.replyTo !== codexMessageId
+    || submittedRow.sender.id !== leadId || submittedRow.recipient.id !== packedWorkerId
+    || submittedRow.delivery.stage !== 'delivered') {
+    throw new Error(`packed submitted-message projection is incomplete: ${JSON.stringify(submittedRow)}`)
+  }
+
   await filterCodex(secondPanel)
   await click(messageButtons(secondPanel.container)[0])
   await waitUntil(() => secondPanel.container.textContent.includes('Codex durable body'), 'recovered packed detail')
   if (!secondPanel.container.textContent.includes(codexMessageId)) throw new Error('recovered packed detail omitted message id')
 
   console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
+  console.log('PASS packed production renderer double-clicks one generated Remote request and preserves its inspectable retry intent across Host recovery')
+  console.log('PASS packed Loader/AgentLoop/Team/JSONL boundary recovers one pending reply through the controlled provider without duplicate work')
+  console.log('PASS packed durable-request validator rejects missing and duplicate required facts')
 } finally {
+  deliveryRelease.resolve(undefined)
   await secondPanel?.dispose().catch(() => {})
   await secondClient?.dispose().catch(() => {})
   await secondHost?.dispose().catch(() => {})
@@ -560,6 +765,7 @@ try {
   await firstClient?.dispose().catch(() => {})
   await firstHost?.dispose().catch(() => {})
   globalThis.fetch = nativeFetch
+  delete globalThis[controlledRuntimeKey]
   dom.window.close()
   rmSync(storageRoot, { recursive: true, force: true })
 }

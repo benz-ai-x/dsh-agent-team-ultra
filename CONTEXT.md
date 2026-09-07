@@ -108,8 +108,20 @@ _Avoid_: Arbitrary Host RPC, native shell tool, implicit optional capability
 The authoritative acceptance result for one member's native call or work settlement, identified by that member, native session, work turn and call or settlement kind. Replaying the same normalized input returns the original result; changed input conflicts.
 _Avoid_: Transport response, delivery acknowledgement, completed task
 
+**Message Submission Intent**:
+One human decision by the exact live Team Lead to send literal text to one explicit active recipient, optionally correlated as a reply to one real message from that Team. It remains the same intent across double-clicks, unknown transport outcomes, explicit retry, and process restart.
+_Avoid_: Click, Remote call, delivery attempt, reconnect action
+
+**Team Message Request ID**:
+A bounded caller-owned id whose idempotency scope is the authoritative Team and Host-resolved sender. Together with the immutable recipient, literal text, and optional reply id it recovers one original submission; it never supplies Team or sender authority.
+_Avoid_: Global idempotency key, message id, sender credential
+
+**Message Submission Receipt**:
+The durable acceptance fact atomically retaining one Team Message Request ID, canonical input fingerprint, optional reply correlation, and original queued message. It is independent of the message's current delivery stage.
+_Avoid_: Transport response, delivery acknowledgement, task completion
+
 **Team Message Center**:
-The Lead-only view composed inside the Agent Teams owner panel that pages persisted Team message metadata and loads sanitized intentional content on demand through generated Remote operations.
+The Lead-only view composed inside the Agent Teams owner panel that pages persisted Team message metadata, loads sanitized intentional content on demand, and submits or explicitly retries one Message Submission Intent through generated Remote operations.
 _Avoid_: Studio transcript, Run timeline, native history browser
 
 **Committed Message Window**:
