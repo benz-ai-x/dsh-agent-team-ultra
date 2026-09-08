@@ -9,10 +9,10 @@
 
 - 当前持续目标仍固定为启动快照的 **#18、#33–#44，共 13 项**；唯一进度索引为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，Issue／PR／分支事实冲突时以 `gh`／`git` 实测修正。#18 按 #44 的明确 AC 保持 open 且本轮记 skipped；每个开发和评审阶段均使用全新隔离上下文。
 - [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 已于 2026-09-07 合并为 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，#33 已关闭。Batch 2 的 [PR #60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) 仍 open，因隔离 review 连续三轮未通过而熔断；保留 `/root/workspace/deepseek-harness-ultra-29` 及其 Ultra／Harness 分支，不得切换、重置、修改或删除。
-- 当前主工作区为 `/root/workspace/dsh-agent-team-ultra` 的 `feat/batch-3-studio-recovery`，基于 main `2c5a355…`。#37 产品提交 `68abfed30c4a10a345b96c3f28d9e6233f8c7e70` 已经 HTTPS 推送并由 `ls-remote` 精确回读；它让 Host Snapshot 以权威 roster 为主、精确关联 Binding，在既有 Studio 成员区如实显示普通／Profile-bound 身份、Revision、路由、生命周期和分层能力，并通过公开 Team 导航打开指定成员的既有消息中心。
-- #37 锁定的 Harness 工作区为 `/root/workspace/deepseek-harness-ultra-37`、分支 `fix/ultra-37-studio-capabilities`。相对基线 `d2d870fbe40bc0e968abdac854a3aae495162bec` 的两个独立提交为 `9f73a7d71cc9136d32030975d4ff1d0bcc834ff3`（受验证的协作／写入能力）与 `95483a7a9645679c45805a46a968a1cf7508126c`（Fiber-owned 公共成员导航）；两者已 HTTPS 推送，远端 head 精确回读为 `95483a7…`，工作树 clean。Ultra lock 的文档摘要为 `b64dd01c882927bf39cd936ce7545019df5b8763538f847fc4c3db5640cdbdaa`。
-- #37 的直接验收映射见 [docs/evidence/issue-37-acceptance.md](docs/evidence/issue-37-acceptance.md)。产品 TDD、脱敏联跑和 CAS／门禁／隔离 Evaluation Worker／Exact-call Approval 回归均已通过；最终 `pnpm verify` 也已通过 582 strict／0 warning、30 files／350 tests、八归档安装／生产消息恢复／Web／双 runtime JSON 与 SQLite 恢复／完整卸载。GitHub 正文已由单一 fresh-read／精确 PATCH／完整回读脚本只勾选六个目标 checkbox，6／6 checked 且 Issue 保持 open；Ultra 与 Harness 提交均已 HTTPS 推送并精确回读。开发交接已就绪，主 agent 下一步创建使用 `Closes #37` 的 PR；此隔离上下文不得创建 PR、合并或发送飞书。
-- #37 到达终态后必须先按熔断规则统一重试 PR #60；只有重试解除 #36 依赖，才可继续 #38。不要从本交接直接开工 #38。#39–#44 继续按 [PIPELINE_STATE.md](PIPELINE_STATE.md) 的冻结依赖顺序执行。
+- 当前主工作区为 `/root/workspace/dsh-agent-team-ultra` 的 `feat/batch-3-studio-recovery`，基于 main `2c5a355…`。[PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) review 1（0 blocking、7 high、1 medium）已完成TDD修复；独立Ultra提交为`a94ede79d193495d347282d50fcf9a4dc1445042`。普通external actual target现需native acceptance；Binding的持久phase/availability不再被roster覆盖且未入roster的pending/failed仍可见；DSH不再无proof声明workspace-write；Claude demand、普通Error fail-closed与post-reservation恢复语义均一致。
+- #37 锁定的 Harness 工作区为 `/root/workspace/deepseek-harness-ultra-37`、分支 `fix/ultra-37-studio-capabilities`。review-fix独立提交`924a622f6dc69a2e4b5beebdf218196da927dc7c`已HTTPS推送并精确回读，工作树clean；它补齐capability codec、Gateway/roster unknown-error隔离、公开`AgentTeamPanelViewOwnerProps`及官方catalog、正式keyless Web navigation snapshot和listener异常隔离。Ultra lock的文档摘要仍为`b64dd01c882927bf39cd936ce7545019df5b8763538f847fc4c3db5640cdbdaa`。
+- #37直接验收映射见[docs/evidence/issue-37-acceptance.md](docs/evidence/issue-37-acceptance.md)。Harness focused owner 5 files/176 tests、keyless replay 1/5、corpus 1/2、catalog/doc/typecheck/build全绿；full lint仅剩4项未改基线违规。Ultra固定聚合集10 files/164 tests、AC6 3 files/6 tests及最终`pnpm verify`均通过：582 strict/0 warnings、30 files/354 tests、八归档安装/生产恢复/Web/双runtime JSON与SQLite恢复/完整卸载。GitHub #37经同一脚本双读、唯一marker、反向还原与完整回读后仍OPEN且6/6 checked，推荐`Closes #37`。
+- 用户明确要求本PR开发完成后停止。因此证据提交HTTPS推送/`ls-remote`后立即暂停；不得启动review 2、合并、开后续PR或发送通知。唯一恢复入口是以PR #61最终固定head启动全新隔离review 2。#37终态后仍必须先按熔断规则统一重试PR #60；只有重试解除#36依赖，才可继续#38。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。#27–#33 已分别通过 PR #53–#59 合并并关闭；历史实现细节保留在下文，只作背景，不能覆盖本节和实时事实。
 
 - **#19–#26 Acceptance criteria 已同步**：按用户要求，以 main `6253119`、PR #45–#52 的实际合并记录、逐项代码／测试断言和既有验证日志重新审计 39 项验收条件。已实际将 GitHub #19／#20／#21 各 4 项，#22／#23／#24 各 5 项，#25／#26 各 6 项全部勾选，并逐项回读确认；仅改变该小节的复选框，正文与 closed 状态保留。#25 的完成范围是只读审计和迁移设计，#26 为授权查询，阶段 C 迁移及 #44 真实认证 native 验收仍是后续任务。本轮 strict 554 项／0 警告通过，未重复运行既有通过的完整测试；逐项证据及更新前后快照在 `/tmp/ultra-19-26-acceptance-audit/audit.json`。
@@ -272,10 +272,10 @@
 
 ## 下一步
 
-1. #33 开发、AC 6/6 与 PR #59 第 1 轮修复均完成；Harness 修复已推送到 `ultra/fix/ultra-33-team-message-send`，Ultra 修复只在本地 branch HEAD，禁止由本修复会话 push。
-2. 主 agent 复核两仓 SHA／clean 状态后，以新精确 Ultra HEAD 重跑 Standards 与 Spec 两个隔离 review 轴；当前 review 轮数 1、local-gate 红灯轮数 0。无 blocking/high finding 后再按冻结流程执行 local gate 和人工合并通知。
-3. #33 只有在 PR 通过、合并与 Issue 关闭后才完成流程并进入 #34；父 Spec #18 保持 open，#36 watch/reconnect 与 #44 真实凭据边界不得提前混入。
-4. 按本轮用户授权，通过已确认身份与收件人发送每项完成／合并结果及阻塞飞书通知；发送失败必须在当前会话明确报告。
+1. review 1开发收口完成后立即按用户要求暂停；当前上下文不得启动review 2、合并、开后续PR或发送飞书通知。
+2. 用户恢复后，先由主agent复核Ultra/Harness SHA与clean状态，再以PR #61最终固定head启动全新隔离review 2；当前review失败轮数1、local-gate历史红1/连续红0。
+3. review通过后的PR正文、local gate、合并、Issue关闭及通知仍由主agent按冻结流程处理；本交接只推荐6/6证据对应的`Closes #37`，不代为修改PR正文。
+4. #37到达终态后先统一重试blocked PR #60，不得直接开工#38；父Spec #18保持open，#36 watch/reconnect与#44真实凭据边界不得提前混入。
 
 ## 权威材料与技能
 
@@ -285,6 +285,8 @@
 - 既有开发已使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`、`lark-im`、`lark-shared`、`writing-for-agents`、`diagnosing-bugs`；本轮使用 `code-review` 完成七个 PR 的 Standards／Spec 并行评审，并使用 `tdd` 修复 #51 的发现。测试沿用 #25 已明确的公开审计 CLI 和真实 JSON／SQLite 边界。技能路径以当前会话可用列表为准；不得引用旧交接中本环境不存在的技能作为完成证据。
 
 - 本轮 #33 使用 `dsh-plugin-dev` 固定 Team owner／generated Remote／Loader／packed 生命周期边界，使用 `tdd` 保存公开 Remote、UI、提交／投递分离、migration 和 packed RED/GREEN，并使用 `domain-modeling` 更新术语与 ADR 0024；没有开始 code review 或后续 Issue。
+
+- 本轮PR #61 review 1修复使用`tdd`逐项保存7 high/1 medium的真实RED/GREEN，使用`dsh-plugin-dev`固定Host/Gateway、公开Client Slot、官方catalog、Fiber生命周期及keyless recorded-session边界；没有启动review 2或后续Issue。
 
 - 本轮 PR #48 修复使用 `tdd`、`dsh-plugin-dev`、`domain-modeling` 和 `code-review`；评审技能要求的两路独立代理已完成最终复核。
 
