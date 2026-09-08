@@ -8,7 +8,7 @@
 
 最新用户要求是 `$resolving-merge-conflicts pr#61`。只在独立 worktree 整合 main `9835db4` 与 PR #61 已发布头 `2491023`，同时合并其 Harness `4490b43` 与 main 锁定的 `b78caad462`。保留两侧契约，运行组合回归和完整归档验证，再提交并推送原分支；不合并 PR #61，不修改其他 PR／Issue，不推进旧流水线或发送通知。
 
-PR #60 已合并为 `9835db4361dcad500b3be09ef69f78420d71a6ab`，#34–#36 已 CLOSED 且各 5/5 AC。PR #61 与 #37 仍 OPEN；三项修复发布证据见 [修复说明](docs/evidence/pr61-review-fixes.md)。本次 Harness 合并为 `bb9b48954821a29f712043b08b746085cc07a440`；组合验证已通过：316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates，Ultra 完整 `pnpm verify` 为 582 strict／0 warnings、378 tests／32 files 与八归档恢复／Web／卸载。当前正提交并发布原分支；证据及不变的限制见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，不继承旧测试数或改变历史 review／重试计数。
+PR #60 已合并为 `9835db4361dcad500b3be09ef69f78420d71a6ab`，#34–#36 已 CLOSED 且各 5/5 AC。PR #61 与 #37 仍 OPEN；三项修复发布证据见 [修复说明](docs/evidence/pr61-review-fixes.md)。本次 Harness 合并为 `bb9b48954821a29f712043b08b746085cc07a440`；组合验证已通过：316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates，Ultra 完整 `pnpm verify` 为 582 strict／0 warnings、378 tests／32 files 与八归档恢复／Web／卸载。Ultra merge `309c778ed665ea78538a234a2897d4907eeb0a6f` 与 Harness merge 均已正常推送原分支并回读一致，发布后 strict 再次通过 582／0。本次交接只追加文档，不改变已验证产品；证据及不变的限制见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，不继承旧测试数或改变历史 review／重试计数。
 
 ### 历史 PR #60 合并门槛（保留证据，不是当前授权）
 
@@ -48,7 +48,7 @@ Host／Client／Typert／compatibility 构建与八归档安装／恢复／Web�
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | merged：PR #60 合并为 9835db4；Issue CLOSED，5/5 AC；保留历史 review 记录 |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | merged：PR #60 合并为 9835db4；Issue CLOSED，5/5 AC；保留历史 review 记录 |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | merged：PR #60 合并为 9835db4；Issue CLOSED，5/5 AC；保留历史 review 记录 |
-| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | in-review：PR #61 OPEN，6/6 AC；三项修复已发布，当前仅解决 main 冲突 |
+| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | in-review：PR #61 OPEN，6/6 AC；三项修复及 main 冲突处理均已发布，等待用户下一步 |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | dependency-paused：#36 已关闭，仍等待 #37（Batch 3B） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | dependency-paused：等#38（Batch 4） |
 | #40 | 把双 native 与协作面板迁移到新 Harness 契约 | Codex/Claude/UI migration | L | #39 | dependency-paused：等#39（Batch 4） |
@@ -65,7 +65,7 @@ Host／Client／Typert／compatibility 构建与八归档安装／恢复／Web�
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | merged：PR #60 合并为 9835db4；历史 review 3、唯一重试 1/1 保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | in-review：三项修复已发布；当前仅解决 main 冲突，不合并 PR | 1 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | in-review：三项修复与 main 冲突处理已发布；不合并 PR，等待用户指令 | 1 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，Batch 2 已合并，仍须等待 #37 终态 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | dependency-paused；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | dependency-paused | 0 | 0 | 未创建 |
@@ -647,6 +647,6 @@ Host／Client／Typert／compatibility 构建与八归档安装／恢复／Web�
 
 ## 下一步（唯一恢复入口）
 
-1. 当前只处理 PR #61：在独立 Ultra／Harness worktree 合入 main 的既有功能，保留已发布三项修复；完成组合验证与精确 lock 后提交。
-2. 正常推送到维护 Harness 分支 `fix/pr61-member-capabilities` 与原 PR 分支 `feat/batch-3-studio-recovery`，核对远端 head、可合并状态和工作区清洁。
-3. 完成后等待用户下一步指令；不合并 PR #61，不修改 Issue 正文，不启动 #38–#44 或发送通知。PR #60 已合并，不重复重试。
+1. PR #61 冲突处理已完成，代码 merge `309c778` 与配套 Harness `bb9b489548` 已发布；恢复时核对 live head、两侧 commit／clean 状态和 PR mergeability，不重复操作。
+2. 等待用户下一步指令；不因本次验证通过而合并 PR #61，不修改 Issue 正文，不启动 #38–#44 或发送通知。
+3. PR #60 已合并，保留其历史 review／重试记录与已知低优先级发现，不重复重试或扩大修复。

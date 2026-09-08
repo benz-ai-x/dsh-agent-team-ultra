@@ -9,11 +9,12 @@
 
 - 最新用户要求使用 `resolving-merge-conflicts` 解决 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 与 main 的冲突。仅在独立 worktree 整合、验证并推送原 PR 分支；不把 PR #61 合并进 main，不推进其他 Issue／PR，不发送通知。
 - Ultra：`/root/workspace/pr61-fixes.7yIVdj/ultra`，本地 `fix/pr61-review-findings`，起点 `2491023814b71ce267cd55883459e2096d42e0e0`，合入 main `9835db4361dcad500b3be09ef69f78420d71a6ab`。主工作区 main、原 HANDOFF 改动和来源链接保持不动。PR #60 已合并，#34–#36 已关闭且各 5/5 AC。
-- Harness：`/root/workspace/pr61-fixes.7yIVdj/harness`，`fix/pr61-member-capabilities`，将已发布的 `4490b43a0f67b2851e23109edf5ae6232bea223d` 与 main 锁定的 `b78caad462c3509127761904ed59ee549b6b6160` 合并。完成后只推送维护 fork 的同名分支，不推送官方 upstream；新 lock 必须指向合并提交及正式 docs digest。
+- Harness：`/root/workspace/pr61-fixes.7yIVdj/harness`，`fix/pr61-member-capabilities`，以 `4490b43a0f67b2851e23109edf5ae6232bea223d` 和 `b78caad462c3509127761904ed59ee549b6b6160` 为双亲合并为 `bb9b48954821a29f712043b08b746085cc07a440`，已正常推送维护 fork 同名分支且远端回读一致；未推送官方 upstream。新 lock 及正式 docs digest 已同步，worktree clean。
 - 精确 native handle 的已确认成员操作仅作为当前提供方世代的 live roster 事实。Codex 新线程可证明六项工具安装，冷恢复无法从固定 0.149.1 协议读取工具清单，因此显示“未确认”，包括工具齐全但无法证明的冷恢复线程；不安装新工具、不替换线程、不新增持久格式。Claude 每次 query 安装六项 Team MCP 工具，create/resume 均返回对应证明。
 - 普通成员使用持久 requirements 校验当前后端的 context、Profile 与 runtime 能力，降级显示 capability-mismatch，恢复后沿用原身份和排队工作。消息导航仍走公开 Team panel navigation，随后关闭 Studio；重新打开刷新 Host 快照但保留编辑草稿。
 - 合并保留 main 的同一任务列表／DAG／详情、单 revision 依赖 CAS、冲突草稿和共享有界 watch owner，以及 PR #61 的成员能力证明、Studio 草稿与同一面板导航。消息导航同时更新 watch 的筛选引用，服务替换不重置同 Team 草稿。新增定向导航／watch 竞争回归；Harness 双语 owner 文档合并并由官方命令重生目录。
-- 当前验证：Harness 合并提交为 `bb9b48954821a29f712043b08b746085cc07a440`，完整 build、316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates 与变更文件 lint／正常 commit hooks 通过；全量 lint 仍有未改 `message-read.spec.ts:541` 两条基线违规。Ultra 完整 `pnpm verify` 自然退出 0：582 strict／0 warnings、32 files／378 tests、八归档安装、production DAG／CAS／watch、Web、Codex／Claude JSON＋SQLite 恢复和卸载均通过。首次仅因 built-types freshness 被拦截，用官方 project `tsc -b --force` 恢复后原样重跑；未放宽锁或门禁。已完成本地冲突处理，正在提交／推送原分支；直接证据见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，日志在 `/root/workspace/pr61-fixes.7yIVdj/merge-*.log`。
+- 当前验证：Harness 合并提交为 `bb9b48954821a29f712043b08b746085cc07a440`，完整 build、316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates 与变更文件 lint／正常 commit hooks 通过；全量 lint 仍有未改 `message-read.spec.ts:541` 两条基线违规。Ultra 完整 `pnpm verify` 自然退出 0：582 strict／0 warnings、32 files／378 tests、八归档安装、production DAG／CAS／watch、Web、Codex／Claude JSON＋SQLite 恢复和卸载均通过。首次仅因 built-types freshness 被拦截，用官方 project `tsc -b --force` 恢复后原样重跑；未放宽锁或门禁。直接证据见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，日志在 `/root/workspace/pr61-fixes.7yIVdj/merge-*.log`。
+- Ultra 合并提交 `309c778ed665ea78538a234a2897d4907eeb0a6f` 的双亲为 PR 原头 `2491023` 与 main `9835db4`；已正常推送原分支 `feat/batch-3-studio-recovery`，GitHub head 回读一致，PR 仍 OPEN，冲突状态已转为 MERGEABLE／CLEAN，无远端 checks。Harness 正常 pre-push 类型检查通过；发布后 Ultra strict 再次通过 582／0。本交接提交只同步发布结果，不改变已验证代码或锁；恢复时回读 GitHub 当前 head，不把该文档提交当作另一次产品变更。未强推、未合并 PR、未改 main。
 - 环境：Node 22.22.1、pnpm 11.7.0。本次使用 `resolving-merge-conflicts`、`dsh-plugin-dev`，Harness 按 `dsh-ci-test-reliability`／`dsh-pre-push-checks` 验证，按 `dsh-doc`／`dsh-prose-standard` 合并双语资料。未启动新评审 agent；验证与发布不等于 PR 已重新批准或合并。
 - 权威需求保持 [Spec #18 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)、[#34](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/34)、[#35](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/35)、[#36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36)、[#37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37) 与现有 ADR。下文历史状态和当时授权不能覆盖本节。
 
@@ -307,9 +308,9 @@
 
 ## 下一步
 
-1. 完成 PR #61 组合验证，记录精确 Harness 合并提交及来源摘要，提交 Ultra 合并。
-2. 通过正常钩子推送维护 Harness 分支和 PR #61 原分支，回读提交与可合并状态；不强推、不改 main。
-3. 完成后停下，等待用户决定是否重新评审或合并。其他 PR、Issue、流水线、通知和真实 native 验收不在本轮范围。
+1. PR #61 冲突处理、组合验证和原分支发布已完成；恢复时只读核对 live head 是否包含 `309c778`、Harness lock 是否为 `bb9b489548` 及远端 mergeability，不重复合并或重做修复。
+2. 等待用户决定是否重新评审或合并 PR #61；通过验证与推送不等于审查批准，也不授权直接合并。
+3. 其他 PR、Issue、流水线、通知和真实 native 验收仍不在本轮范围；保留主工作区与其他 worktree 的原状态。
 
 ## 权威材料与技能
 

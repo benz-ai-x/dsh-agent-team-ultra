@@ -10,7 +10,7 @@ The three PR #61 repairs were published as `c8ed61c` and `2491023`, with compani
 - [x] Complete the final aggregate and local archive verification: 582 strict checks, 364 tests, eight archives, Web boot, JSON/SQLite recovery and uninstall.
 - [x] Publish the companion Harness commit and all three repairs to the existing remote PR #61; verify both remote commit identities without bypassing hooks or rewriting history.
 
-- [ ] Integrate main and its locked Harness source, run combined regression and archive gates, then publish the resolved PR #61.
+- [x] Integrate main and its locked Harness source, run combined regression and archive gates, then publish the resolved PR #61: Ultra merge `309c778`, Harness merge `bb9b489548`, 378 tests and complete eight-archive verification. Both original branches were fast-forwarded without bypassing hooks; PR #61 remains OPEN. See [merge evidence](docs/evidence/pr61-merge-resolution.md).
 
 ## Current vertical slice
 

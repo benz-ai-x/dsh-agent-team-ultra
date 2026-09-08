@@ -43,6 +43,8 @@
 
 PR #60 已记录的 3 P2 + 1 P3 仍保留：最后一个任务删除后的墓碑展示、50 行 DAG 的 Fit 舍入、真实 Slot/Fiber 草稿保留组合证据缺口，以及公开 watch 文档的 Lead-only 权限说明。此处不把组合套件通过当作这些发现已修复。真实凭据 native 验收仍属于 #44；本次不宣称重新审查批准或合并 PR #61。
 
-Harness 已形成正常双亲 merge commit，Ultra 完整验证通过。正在执行本次原分支发布；最终远端 head、mergeability 与工作区状态需在推送后只读核对。
+Ultra merge [`309c778ed665ea78538a234a2897d4907eeb0a6f`](https://github.com/benz-ai-x/dsh-agent-team-ultra/commit/309c778ed665ea78538a234a2897d4907eeb0a6f) 以 `2491023` 和 `9835db4` 为双亲，已正常快进推送到原 PR 分支 `feat/batch-3-studio-recovery`，GitHub head 回读一致且 PR 仍 OPEN。Harness `bb9b489548` 已正常推送到维护 fork 的 `fix/pr61-member-capabilities`，HTTPS `ls-remote` 精确回读一致，正常 pre-push 类型检查通过。发布后 Ultra strict 再次通过 582／0，两侧 worktree 当时均 clean；主工作区保持 main `9835db4` 与原 HANDOFF 内容。未强推或合并 PR。本次发布交接只追加文档，恢复时应读取包含该 merge 的最新 head 及 GitHub 当前 mergeability。
 
 本轮使用 `resolving-merge-conflicts` 与 `dsh-plugin-dev`，Harness 测试／发布遵循 `dsh-ci-test-reliability`／`dsh-pre-push-checks`，双语文档遵循 `dsh-doc`／`dsh-prose-standard`。没有启动其他代理或发送外部通知。
+
+GitHub 对已发布代码头 `309c778` 的稳定回读为 OPEN、MERGEABLE、CLEAN，`statusCheckRollup` 为空；这是无合并冲突的证明，不是远端 CI 或新的代码审查批准。最终文档交接提交不改变上述运行时与锁定来源。
