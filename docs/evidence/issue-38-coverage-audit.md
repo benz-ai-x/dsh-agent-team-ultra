@@ -1,9 +1,10 @@
-# #38 覆盖盘点：尚未验收
+# #38 覆盖盘点与 TDD 过程
 
 日期：2026-09-08。权威需求为 [Issue #38](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/38)
 及其引用的 [Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)。
-本次回读 #38 为 OPEN，六条 AC 均未勾选，正文更新时间为
-`2026-09-08T10:48:53Z`。本文保留开工盘点并追加定向验证，不是通过报告；不更新远端 AC。
+开工回读 #38 为 OPEN，六条 AC 均未勾选，正文更新时间为
+`2026-09-08T10:48:53Z`。本文保留当时盘点并追加定向验证；最终候选通过结果以
+[验收记录](issue-38-acceptance.md) 为准，下文“尚未执行”是对应阶段状态。
 
 ## 已核验的基线
 

@@ -7,16 +7,14 @@
 
 ## 当前任务与完成边界
 
-- 用户已授权从 [#38](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/38) 开始按 `tdd` 开发，并在每个 Issue 完成后通过飞书 CLI 报告结果。继续采用 live Issue 中已经确认的三个 PR 范围：#38、#39–#43、#44；Issue 只做必要定向验证，完整跨功能／冒烟／错误冒泡／真实归档验收集中在最终 PR 候选。未跑的 AC 不勾选；父 Spec #18 保持 open，开发授权不自动包含合并。
-- #38 已实时读取，仍为 OPEN／ready-for-agent、6 条 AC 未勾选；依赖 #36、#37 均为 CLOSED。PR #61 已合并到 main `ec88d85a2ec668388ff37b0b6cba4bab3e332040`，旧 TODO／PIPELINE_STATE 中的暂停范围和未合并状态不能覆盖本节。
-- 独立 Ultra worktree 为 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`，从上述 main 创建。主工作区既有 HANDOFF、3 个 stash、本地分支、维护 Harness 与所有历史证据均保留；没有提交、推送或创建 PR。
-- 环境仍为 Node 22.22.1／pnpm 11.7.0，锁定 Harness `57670c6b320f7f240cbad360a9f691c8598e1571`，链接到 `/root/workspace/pr61-fixes.7yIVdj/harness`。已正式 prepare 后 frozen/offline install；独立工作区 strict 590／0 和未改代码的完整 build 均自然退出 0。日志为新 worktree 父目录的 `pre-edit-strict.log`、`baseline-build.log`。没有改来源锁或维护 Harness。
-- 已完成公开边界 RED → GREEN：真实 JSON／SQLite 冷 Run 读取在 Host 卸载结束前必须静止；DSH 与 Codex 的异步 Run 读取在 Lead 退出后必须拒绝旧身份；Codex 与 Claude 的慢进程退出必须区分清理 abort 宽限期和实际静止。相关三个新测试文件共 6 tests 通过，日志 `claude-quiescence-green.log`，此前各自 RED 日志均保留。运行时代码已修改，尚未完成 #38 或创建 PR。
-- 共享恢复场景已通过：真实 Team／JSON／SQLite、对话工具启动、丢失消息／任务回执、任务所有权、另一 provider、评测、Run 与 watch 共存。按 RED → GREEN 修复 Codex 恢复遗漏终态证据，以及原生结束时间早于 Host 接受时间导致无效 Run 冷启动失败；保留真实时间线并明确标记完成时间不可用，不伪造时间。加强的原 handle 接续、迟到旧代际通知、冷恢复后完成原任务并解锁 DAG 均通过，日志 `combined-recovery-final.log`；夹具接线失败不算产品 RED。
-- [#38 覆盖审计](docs/evidence/issue-38-coverage-audit.md) 保留开工盘点并追加实际 RED／GREEN。直接 view 准备在卸载后才结束已由公开入口复现，并将直接 Run repair 纳入等待；JSON／SQLite 的 run、view、watch 共六种组合与旧 Lead 回归全部通过（7 tests，`snapshot-lifecycle-matrix.log`）。此前相关 11 文件 111 tests 通过（`recovery-focused.log`），最终完整门禁尚待执行。
-- 用户已明确确认测试边界及持续完成范围：真实 Host／生成 Remote、Team／Session 与 JSON／SQLite 持久化、Cordis Fiber 移除／替换，仅外部 SDK／进程使用受控替身。原确认阻塞已解除，从现有 worktree 开始逐个 RED → GREEN，不重复建立工作区。
-- 飞书通知已确认由 CLI bot 私信当前登录用户，内容为“编号、实现／测试结果、分支／PR、待验收项”。尚未发送完成消息；实现完成与 PR 验收完成分别报告，不因通知要求提前勾选或关闭 Issue。凭据与私人会话不写入仓库。
-- 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im` 和 `lark-shared`；没有启动新代码审查、多代理或真实 native 认证验收。完整 #38–#44 目标仍未完成，继续按三批次与依赖推进。
+- 用户已确认持续从 #38 开始按 `tdd` 开发，并在每个 Issue 完成后通过飞书 CLI 通知。PR 范围保持 #38、#39–#43、#44；Issue 定向验证，完整跨功能／冒烟／错误冒泡／真实归档验证在最终 PR 候选收口。未验 AC 不勾选，Issue 合并后关闭，父 Spec #18 不修改；开发授权不自动包含 PR 合并。
+- #38 实现与自动化验收完成，待 PR 发布／评审和人工合并。独立工作区 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`；实现提交 `c91a3b7`，最终验证提交 `7caa05e3a951dac88eaf93067d0db1985088d966`。尚未推送或创建 PR；远端 AC 仍待按证据更新。
+- [验收记录](docs/evidence/issue-38-acceptance.md) 逐项映射六条 AC。真实公开入口 RED → GREEN 修复 run/view/watch 冷读取清理、旧 Lead 的 DSH／Codex 详情、双 native 宽限期诊断、Codex 恢复终态及无效原生结束时间。共享 JSON／SQLite 场景保留原 member／handle、丢失回执去重、任务所有权与 DAG、另一 provider、评测、Run 和 watch；迟到旧代际通知与重复旧 Fiber 清理不影响新工作。
+- 最终 `pnpm verify` 自然退出 0：590 strict／0 warnings，Host／Client／Typert／compatibility 构建，394 tests／35 files，八归档普通解析与安装、生产消息／DAG／CAS／watch／丢响应恢复、Web 启动、Codex／Claude JSON＋SQLite 冷恢复及完整卸载通过。日志为 worktree 父目录 `issue-38-qualified-verify.log`。首轮唯一失败是旧夹具的相对终态时间却要求完整；保留输入、用量与终态，明确验证 incomplete／无 endedAt 后重新跑完整门禁通过。
+- Node 22.22.1／pnpm 11.7.0，Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 位于 `/root/workspace/pr61-fixes.7yIVdj/harness`，来源和锁均未修改。main 仍为 `ec88d85a2ec668388ff37b0b6cba4bab3e332040`；主工作区既有 HANDOFF、3 个 stash、历史工作树和维护源码均保留。
+- 飞书身份及收件人已经确认；当前 user／bot 服务端验证 ready。使用 CLI bot 私信当前登录用户，内容含编号、实现／测试、分支／PR及待验收项；尚未发送 #38 完成消息，PR 发布后发送。凭据和私人会话不写入仓库。
+- 下一步发布 #38 并通知，然后从其候选建立 #39–#43 升级集成线，不切换 B 发布线。已回读 #39–#44，固定官方比较为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`；#43 完整迁移／归档门禁与人工合并、#44 真实认证验收仍不可省略。没有开始修改新 Harness 基线。
+- 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
 
 ## PR #61 发布交接（历史记录，已合并）
 

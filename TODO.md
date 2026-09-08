@@ -16,7 +16,7 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Audit all six #38 AC against existing public tests and packed probes; distinguish real persistence from memory-only fixtures in the [coverage audit](docs/evidence/issue-38-coverage-audit.md). This is not acceptance.
 - [x] User confirmed the public TDD seams: real Host/generated Remote, Team/Session and JSON/SQLite persistence, and Cordis Fiber lifecycle; only external SDK/process boundaries are controlled.
 - [x] Reproduce and fix #38 Run read/view disposal, retired Lead reads, native cleanup diagnostics, recovered terminal evidence and invalid native completion times through public RED → GREEN slices; the combined real-persistence recovery scenario passes.
-- [ ] Run affected tests and maintain one AC-to-evidence map; run the full cross-feature/archive gate on the final Batch 3B PR candidate.
+- [x] Complete the [six-AC evidence map](docs/evidence/issue-38-acceptance.md) and final Batch 3B gate at `7caa05e`: 590 strict checks, 394 tests and eight-archive install/Web/message/DAG/native recovery/uninstall all pass; PR review and merge remain separate.
 - [x] User confirmed bot DM to the current Feishu user with Issue, implementation/test results, branch/PR and pending acceptance; report implementation completion separately from PR acceptance.
 
 ## Previous requested scope: publish and merge the reviewed PR #61 (completed)
