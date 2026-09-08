@@ -20,7 +20,13 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(manifest.publishConfig).toBeUndefined()
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.peerDependencies).toEqual({
+      '@deepseek-ai/cordis': '4.0.2',
       '@deepseek-ai/cordis-plugin-loader': '1.0.3',
+      '@deepseek-ai/dsh-session-persistence-jsonl': '0.1.3-alpha.1',
+      '@deepseek-ai/dsh-storage': '0.1.3-alpha.1',
+      '@deepseek-ai/dsh-storage-domain': '0.1.3-alpha.1',
+      '@deepseek-ai/dsh-storage-json': '0.1.3-alpha.1',
+      '@deepseek-ai/dsh-storage-sqlite': '0.1.3-alpha.1',
       '@benz-ai-x/dsh-agent-team-ultra': '0.1.0',
       '@benz-ai-x/dsh-client-ui-agent-team-ultra': '0.1.0',
       '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-rc.1',
@@ -51,7 +57,15 @@ describe('Agent Team Ultra profile overlay', () => {
     expect(patches.find(patch => patch.id === 'tool-subagent')?.config).toMatchObject({ backgroundMode: 'one-shot' })
     expect(patches.find(patch => patch.id === 'tool-subagent-fork')?.config).toMatchObject({ backgroundMode: 'one-shot' })
 
-    const groups = patches.flatMap(patch => patch.insert ?? [])
+    const rows = patches.flatMap(patch => patch.insert ?? [])
+    const groups = rows.filter(row => row.id === 'agent-team-ultra-compatibility')
+    expect(rows).toHaveLength(2)
+    expect(rows.find(row => row.id === 'agent-team-ultra-data')).toMatchObject({
+      name: '@benz-ai-x/dsh-agent-team-ultra-profile/data',
+    })
+    for (const id of ['session-persistence-jsonl', 'storage-json', 'storage-domain']) {
+      expect(patches.find(patch => patch.id === id)).toMatchObject({ disabled: true })
+    }
     expect(groups).toHaveLength(1)
     expect(groups[0]).toMatchObject({
       id: 'agent-team-ultra-compatibility',

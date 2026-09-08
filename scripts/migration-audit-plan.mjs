@@ -1,11 +1,13 @@
-/** Accepted format plan; executing the Phase C migration remains a separate capability. */
+/** Isolated operator execution; final Phase C release qualification remains separate. */
 export const migrationPlan = {
-  executionAvailable: false,
+  executionAvailable: true,
+  command: 'pnpm migration:execute',
   sourcePreserved: true,
   bidirectionalWrites: false,
   targetWrites: 'closed-until-complete',
   targetFormats: {
-    session: 2, teamEvent: 3, teamProjection: 4, subagentDescriptor: 3,
+    session: 2, teamEvent: 2, teamProjection: 7, subagentDescriptor: 3,
+    nativeOperation: 4, messageRequest: 1, projectionCache: 7,
     ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1,
   },
   order: [
@@ -22,6 +24,6 @@ export const migrationPlan = {
     identity: ['source-digest', 'source-compatibility', 'target-fork-commit', 'target-formats'],
     commit: 'complete-only-after-validated-durable-target',
   },
-  requiredVocabulary: ['team/member@3', 'team/task@3', 'team/native-operation/committed@3', 'team/message/queued@3', 'team/message/delivered@3'],
-  decision: 'docs/adr/0016-audit-and-plan-format-aware-migration.md',
+  requiredVocabulary: ['team/member@2', 'team/task@2', 'team/native-operation/committed@4', 'team/message/request-committed@1', 'team/message/queued@2', 'team/message/delivered@2'],
+  decision: 'docs/adr/0026-preserve-team-identities-on-session-v2.md',
 }

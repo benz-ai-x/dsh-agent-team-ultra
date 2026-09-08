@@ -135,9 +135,38 @@ pnpm migration:audit --sessions /absolute/path/to/sessions --sqlite /absolute/pa
 
 按实际后端选择其中一条。需要纯 JSON 输出时，使用 `node scripts/audit-migration.mjs` 加相同参数。成功退出 `0`，拒绝退出 `1` 并返回稳定的 `AUDIT_*` 原因。根目录和文件必须存在、没有符号链接；每个源文件上限 64 MiB，每个目录树上限 10,000 个文件。审计前后核对文件摘要，变化中的源须重新取得静止快照；报告只包含身份、版本、检查结果和计划，不含消息正文或 native transcript。
 
-审计区分 Session codec、Team payload、projection stateVersion、descriptor 和 Ultra Generation，核验 Profile／Revision／Binding 与 Team、固定 route、native 身份及能力需求。未知或未来业务格式拒绝读取；每个 Team 历史（含继承前缀）都经完整 payload 与状态转换检查，非继承事件必须属于当前 Session。不可用 checkpoint（含缺失或不可读的 SQLite 缓存表）基于真实日志冷重建并报告原因，源缓存保持不变；权威业务数据错误仍拒绝。v0 和 pending v1 只在内存中按现有 Host 规则投影、校验和判断重试冲突，不创建或补写目标库。SQLite 的数据库及 WAL 复制到临时目录后用只读连接检查，源 SHM 和数据库不会被 SQLite 打开或更新，临时副本在退出前清除。
+审计区分 Session codec、Team payload、projection stateVersion、descriptor 和 Ultra Generation，核验 Profile／Revision／Binding 与 Team、固定 route、native 身份及能力需求。未知或未来业务格式拒绝读取；每个 Team 历史（含继承前缀）都经完整 payload 与状态转换检查，非继承事件必须属于当前 Session。不可用 checkpoint（含缺失或不可读的 SQLite 缓存表）基于真实日志冷重建并报告原因，源缓存保持不变；权威业务数据错误仍拒绝。v0 和 pending v1 只在内存中按现有 Host 规则投影、校验和判断重试冲突，不创建或补写目标库。历史 Session 按最高规范代际经过真实 codec／相邻链，再仅在临时副本上打开真实 read handle，防止只读 body open 向源发布新代际；报告包含实际源 Session 版本。SQLite 的数据库及 WAL 同样复制到临时目录后用只读连接检查，源 SHM 和数据库不会被 SQLite 打开或更新；所有临时副本在退出前清除。
 
-报告中的阶段 C 计划保留 Session、成员、Profile Revision、任务／消息、Launch Request、native handle／turn、时间与 CAS，规定 pending 目标关闭业务写入、相同记录复用、冲突拒绝、完成标记最后提交和禁止双向写入。方案见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)。当前命令只审计，**不执行格式迁移**；阶段 A 已验收；阶段 B 的消息中心扩展把运行锁更新至维护提交 `d2d870fbe4…`，新增必需的 message request 格式 1、把 Team 投影 checkpoint 升至 7，并以 keyless recorded Session 同步验证 TypeScript／Python SDK 投影，官方 `d347e7` 仍仅为对照与阶段 C 集成基础。
+报告区分实际观察到的 `sourceFormats` 和本次 reader 的资格／格式；源数据没有记录 writer commit 时明确返回未知，不把候选 reader SHA 当成源 writer。审计本身不迁移数据。Batch 4 隔离分支以固定官方 `d347e703` 和完整 B 组合成维护候选 `3c38b1d4e8`；Session 2、Team payload 2、native operation 4（保留 3 读取）、message request 1、Team projection 7 分别记录。源保护见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)，实际版本见 [ADR 0026](docs/adr/0026-preserve-team-identities-on-session-v2.md)。#41 已完成定向实现，#43 最终归档资格仍待完成；main 和 PR #62 保持 B 发布线。
+
+## 隔离联合迁移（Batch 4 候选）
+
+先停止源 Session、JSON／SQLite 的**所有写入者**并保留备份。在同一已准备、已构建的候选仓库中，选择实际后端；目标必须是独立的新目录，不能与任一源重合或互相包含：
+
+```sh
+pnpm migration:execute --sessions /absolute/source/sessions --json /absolute/source/storages --target /absolute/isolated-target
+pnpm migration:execute --sessions /absolute/source/sessions --sqlite /absolute/source/storage.sqlite --target /absolute/isolated-target
+```
+
+命令先审计源，只在私有副本执行真实 codec、Ultra v0→v1 和 checkpoint／Run Index 重建，随后发布目标；不原地升级源。`ultra-migration-manifest.json` 先为 `pending`，业务写入保持关闭；目标文件与源身份校验通过后，最后原子发布 `complete`。没有业务不兼容字段变化，因此不新增 Ultra 代际。原生 Run 只从持久关联重建，缺少 SDK 终态时保持 `unknown`／`incomplete`，不伪造成功；既有 Eval Run 保留，Host 重启重新判定 Promotion Gate。
+
+进程中断后用**相同源、相同候选和相同目标**重试。相同文件复用，不覆盖分歧或未知文件；只回收可证明为预期内容前缀的运维临时文件。`--max-writes N` 可在第 N 次耐久发布后暂停，返回 `MIGRATION_PAUSED`（退出 1）；它不是业务启动开关。已完成且未投入业务的相同目标再次执行会校验并返回 `reused: true`，不重写。业务写入后不要把它当同步命令重复运行。成功退出 0，失败退出 1，输出有界的 `MIGRATION_*`／`AUDIT_*`；纯 JSON 可用 `node scripts/migrate-data.mjs` 加同样参数。报告不含 prompt、消息正文、凭据或 native transcript。
+
+目标是数据集，**不是完整 DSH_HOME**：Session 位于 `target/sessions`；JSON 位于 `target/storage`（注意不是默认的 `storages`），SQLite 位于 `target/storage.sqlite`。完成后在已安装 Ultra 的 Profile overlay 后追加对公开数据行的配置，JSON 例如：
+
+```yaml
+- id: agent-team-ultra-data
+  config:
+    sessions:
+      root: /absolute/isolated-target/sessions
+    storage:
+      backend: json
+      root: /absolute/isolated-target/storage
+```
+
+SQLite 将 `storage` 改为 `{ backend: sqlite, path: /absolute/isolated-target/storage.sqlite }`。两处路径必须来自**同一次完成的迁移**；该 Loader 行在任何可写持久化注册前联合检查它们，并随同一 Fiber 释放。不要重新启用被 overlay 关闭的 `session-persistence-jsonl`、`storage-json`、`storage-domain` 基础行。新安装的默认路径仍为 `DSH_HOME/sessions` 和 `DSH_HOME/storages`。
+
+命令不复制 Profile 配置、原生认证或 SDK 自有历史目录；只保留 DSH／Ultra 事实中的原 member／handle／turn 等身份，后续原生恢复仍需原有 SDK 数据与有效认证。旧程序／stock 回放、降级写入、源目标双向写入均不受支持；新 Loader 的 pending 保护不能约束旧二进制。当前耐久发布与进程锁验证环境为 Linux arm64，其他平台尚未资格验证。详见 [ADR 0027](docs/adr/0027-publish-one-isolated-migration-dataset.md) 与 [#41 定向证据](docs/evidence/issue-41-acceptance.md)；完整历史归档／中断矩阵归 #43，真实认证归 #44。
 
 ## 使用
 

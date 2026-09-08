@@ -10,6 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 let source
 let assertUltraCompatibility
+let assertUltraMigrationReady
 let invocation
 try {
   source = requirePreparedHarness(root)
@@ -21,6 +22,7 @@ try {
 try {
   const compatibility = await import(pathToFileURL(join(root, 'packages/domain/lib/compatibility.js')).href)
   assertUltraCompatibility = compatibility.assertUltraCompatibility
+  assertUltraMigrationReady = compatibility.assertUltraMigrationReady
   assertUltraCompatibility(pathToFileURL(join(root, 'packages/domain/package.json')).href)
   assertUltraCompatibility(pathToFileURL(join(root, 'packages/profile/package.json')).href, 'profile')
   if (args.length === 0 || args[0] === 'check') {
@@ -40,7 +42,7 @@ if (invocation.mode === 'plugin') {
   const result = spawnSync(process.execPath, [cli, ...args], { stdio: 'inherit', env: process.env })
   if (result.status !== 0) process.exit(result.status ?? 1)
   if (invocation.args[0] === 'add') {
-    try { await checkInstalledProfile() }
+    try { await checkInstalledProfile(false) }
     catch (error) { rejectInstallation(error) }
   }
   process.exit(0)
@@ -48,10 +50,11 @@ if (invocation.mode === 'plugin') {
 process.argv = [process.execPath, cli, ...args]
 await import(pathToFileURL(cli).href)
 
-async function checkInstalledProfile() {
+async function checkInstalledProfile(checkMigration = true) {
   const profile = invocation.profile
   if (!profile || !/^[a-zA-Z0-9_-]+$/.test(profile)) throw new Error('A valid profile name is required')
   const { resolveDshHome } = await import(pathToFileURL(join(source.harnessRoot, 'packages/util/home-paths/lib/index.js')).href)
+  if (checkMigration) assertUltraMigrationReady(resolveDshHome())
   const directory = join(resolveDshHome(), 'profiles', profile)
   if (!existsSync(join(directory, 'package.json'))) throw new Error(`Ultra profile ${profile} is not installed`)
   assertUltraCompatibility(pathToFileURL(join(directory, 'package.json')).href, 'profile')
@@ -59,7 +62,7 @@ async function checkInstalledProfile() {
 
 function rejectInstallation(error) {
   console.error(JSON.stringify({
-    code: error.code?.startsWith('ULTRA_COMPAT_') ? error.code : 'ULTRA_COMPAT_INSTALLATION_INVALID',
+    code: /^ULTRA_(COMPAT_|MIGRATION_)/.test(error.code ?? '') ? error.code : 'ULTRA_COMPAT_INSTALLATION_INVALID',
     message: error.message,
   }))
   process.exit(1)

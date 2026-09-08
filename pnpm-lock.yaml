@@ -220,6 +220,10 @@ importers:
         version: link:../../.dsh/harness/packages/interaction/user-approval
 
   packages/profile:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: 3.18.2
+        version: 3.18.2
     devDependencies:
       '@benz-ai-x/dsh-agent-team-claude-code':
         specifier: workspace:*
@@ -233,6 +237,9 @@ importers:
       '@benz-ai-x/dsh-client-ui-agent-team-ultra':
         specifier: workspace:*
         version: link:../ui
+      '@deepseek-ai/cordis':
+        specifier: link:../../.dsh/harness/vendor/cordis
+        version: link:../../.dsh/harness/vendor/cordis
       '@deepseek-ai/cordis-plugin-include':
         specifier: link:../../.dsh/harness/vendor/include
         version: link:../../.dsh/harness/vendor/include
@@ -248,6 +255,21 @@ importers:
       '@deepseek-ai/dsh-experimental-tool-agent-team':
         specifier: link:../../.dsh/harness/packages/experimental/tool-agent-team
         version: link:../../.dsh/harness/packages/experimental/tool-agent-team
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: link:../../.dsh/harness/packages/session/session-persistence-jsonl
+        version: link:../../.dsh/harness/packages/session/session-persistence-jsonl
+      '@deepseek-ai/dsh-storage':
+        specifier: link:../../.dsh/harness/packages/storage/storage
+        version: link:../../.dsh/harness/packages/storage/storage
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: link:../../.dsh/harness/packages/storage/storage-domain
+        version: link:../../.dsh/harness/packages/storage/storage-domain
+      '@deepseek-ai/dsh-storage-json':
+        specifier: link:../../.dsh/harness/packages/storage/storage-json
+        version: link:../../.dsh/harness/packages/storage/storage-json
+      '@deepseek-ai/dsh-storage-sqlite':
+        specifier: link:../../.dsh/harness/packages/storage/storage-sqlite
+        version: link:../../.dsh/harness/packages/storage/storage-sqlite
 
   packages/ui:
     dependencies:

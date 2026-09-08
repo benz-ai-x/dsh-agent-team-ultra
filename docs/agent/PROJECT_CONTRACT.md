@@ -98,6 +98,11 @@ projected records and refuse divergence. Invalid checkpoints, including missing
 or unreadable SQLite cache tables, are reported for cold rebuilding, leaving
 original bytes intact. Cache recovery never suppresses authoritative data errors.
 
+Historical Session data passes the frozen physical codec and adjacent chain in
+memory before validation through real read handles on a private copy. Even a
+read-only body open can publish a successor generation, so it never targets the
+source root. Reports name the observed source Session versions independently of
+the current writer; supported canonical generations select the highest version.
 SQLite is read through a private database/WAL copy so even SHM creation stays
 outside the source. Source digests include sidecars and are checked again before
 success; active rollback journals require explicit recovery. Unknown, future
@@ -120,6 +125,28 @@ The Batch 4 integration branch pins a clean, immutable candidate for formal sour
 preparation and focused tests. Its `phase-c.integration-candidate` label is not a
 completed release qualification. Main retains B until #43 records the final
 cross-feature, migration and archive gates and a human confirms the PR merge.
+
+The repo-only `pnpm migration:execute` publishes one isolated dataset, never an
+in-place source upgrade. Real codec, Ultra generation and derived checkpoint/Run
+rebuilding happen on a private copy. A durable pending manifest binds source
+digest, observed formats and exact target qualification; byte-equal publications
+are reusable, divergence is refused, and completion is committed only after
+target and unchanged-source validation. Unknown source writer provenance remains
+unknown, independently of the qualified reader. Existing Eval Runs survive;
+Host recovery invalidates stale environment gates. Native Run reconstruction
+does not invent SDK evidence or success.
+
+The Profile's public `data` entry owns Session persistence, the selected JSON or
+SQLite backend and Domain in one Fiber. It admits both configured paths together
+before any writable registration: pending/invalid/mismatched manifests or mixed
+migration roots fail closed. The overlay disables the original separate data
+rows; fresh defaults remain `DSH_HOME/sessions` and `DSH_HOME/storages`. Operator
+targets instead use `sessions` plus `storage` or `storage.sqlite`, and require
+explicit configuration of that public row. See [ADR 0027](../adr/0027-publish-one-isolated-migration-dataset.md).
+The operator requires stopped source writers, preserves original data and does
+not transport authentication, Profile configuration or SDK-owned histories.
+Stock/old-program replay, downgrade and bidirectional writes are unsupported.
+Focused Linux verification is not the final historical archive or native-auth gate.
 
 ## Authority and state
 

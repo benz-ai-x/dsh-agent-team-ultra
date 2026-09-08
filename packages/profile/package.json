@@ -11,11 +11,16 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./data": {
+      "types": "./lib/types/data.d.ts",
+      "default": "./lib/data.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
+    "lib/data.js",
     "lib/types/**/*.d.ts",
     "cordis.patch.yml"
   ],
@@ -27,8 +32,17 @@
   "scripts": {
     "bundle": "node ../../scripts/check-harness-source.mjs && tsdown"
   },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.2"
+  },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/cordis-plugin-loader": "1.0.3",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.3-alpha.1",
+    "@deepseek-ai/dsh-storage": "0.1.3-alpha.1",
+    "@deepseek-ai/dsh-storage-domain": "0.1.3-alpha.1",
+    "@deepseek-ai/dsh-storage-json": "0.1.3-alpha.1",
+    "@deepseek-ai/dsh-storage-sqlite": "0.1.3-alpha.1",
     "@benz-ai-x/dsh-agent-team-ultra": "0.1.0",
     "@benz-ai-x/dsh-client-ui-agent-team-ultra": "0.1.0",
     "@deepseek-ai/dsh-experimental-agent-team": "0.1.2-rc.1",
@@ -61,7 +75,13 @@
     }
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "link:../../.dsh/harness/vendor/cordis",
     "@deepseek-ai/cordis-plugin-loader": "link:../../.dsh/harness/vendor/loader",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "link:../../.dsh/harness/packages/session/session-persistence-jsonl",
+    "@deepseek-ai/dsh-storage": "link:../../.dsh/harness/packages/storage/storage",
+    "@deepseek-ai/dsh-storage-domain": "link:../../.dsh/harness/packages/storage/storage-domain",
+    "@deepseek-ai/dsh-storage-json": "link:../../.dsh/harness/packages/storage/storage-json",
+    "@deepseek-ai/dsh-storage-sqlite": "link:../../.dsh/harness/packages/storage/storage-sqlite",
     "@deepseek-ai/cordis-plugin-include": "link:../../.dsh/harness/vendor/include",
     "@benz-ai-x/dsh-agent-team-ultra": "workspace:*",
     "@benz-ai-x/dsh-client-ui-agent-team-ultra": "workspace:*",
