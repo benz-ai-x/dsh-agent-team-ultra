@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { TeamAction, type TeamActionProps } from '@deepseek-ai/dsh-experimental-client-ui-agent-team/src/client/TeamAction.tsx'
 import { en, type TeamKey } from '@deepseek-ai/dsh-experimental-client-ui-agent-team/src/client/locales.ts'
@@ -40,6 +40,18 @@ it('shows Claude task ownership and completion in the existing Team task UI', as
       expect(sessionId).toBe(lead.agent.id)
       return { ok: true, value: ctx.agentTeams.remoteView(lead.agent) }
     },
+    watch(sessionId, sink) {
+      expect(sessionId).toBe(lead.agent.id)
+      let active = true
+      return {
+        start() {
+          if (active) sink.replace(ctx.agentTeams.remoteView(lead.agent))
+        },
+        async dispose() {
+          active = false
+        },
+      }
+    },
     async createTask() { throw new Error('This scenario mutates tasks through Claude.') },
     async updateTask() { throw new Error('This scenario mutates tasks through Claude.') },
     async openTeammate() { throw new Error('This scenario stays on the task board.') },
@@ -48,17 +60,18 @@ it('shows Claude task ownership and completion in the existing Team task UI', as
   render(<TeamAction {...props} />)
   fireEvent.click(screen.getByRole('button', { name: 'Agent Team' }))
   expect(await screen.findByText('Visible Claude task')).toBeTruthy()
-  expect(screen.getByText('Pending')).toBeTruthy()
+  const taskDetail = within(screen.getByRole('region', { name: 'Task details' }))
+  expect(taskDetail.getByText('Pending')).toBeTruthy()
   expect((screen.getByLabelText('Owner') as HTMLSelectElement).value).toBe('')
 
   expect((await update(client!, task.id, 1, 'claim')).success).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Refresh Team' }))
-  expect(await screen.findByText('In progress')).toBeTruthy()
+  expect(await taskDetail.findByText('In progress')).toBeTruthy()
   expect((screen.getByLabelText('Owner') as HTMLSelectElement).value).toBe('claude-reviewer')
 
   expect((await update(client!, task.id, 2, 'complete')).success).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Refresh Team' }))
-  expect(await screen.findByText('Completed')).toBeTruthy()
+  expect(await taskDetail.findByText('Completed')).toBeTruthy()
   await waitFor(() => { expect((screen.getByLabelText('Owner') as HTMLSelectElement).disabled).toBe(true) })
   expect(screen.getByRole('button', { name: 'Reopen' })).toBeTruthy()
   expect(ctx.agentTeams.getTask(lead.agent, task.id)).toMatchObject({

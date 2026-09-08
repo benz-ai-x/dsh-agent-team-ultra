@@ -4,8 +4,8 @@
     "repository": "https://github.com/benz-ai-x/deepseek-harness_x.git",
     "version": "0.1.2-rc.1",
     "node": "^22.19.0 || >=24.0.0",
-    "commit": "4490b43a0f67b2851e23109edf5ae6232bea223d",
-    "docsDigest": "bf09b3059638f39496e407c4fd0a07dde7d1e5d1343ea4f0218b4f2ba3fe08b0"
+    "commit": "bb9b48954821a29f712043b08b746085cc07a440",
+    "docsDigest": "265fcb73a5ebe6f62a23197255863ad8be276fc920b2dd578a678c82f46ab33b"
   },
   "localResolution": {
     "environmentVariable": "DSH_HARNESS_ROOT",

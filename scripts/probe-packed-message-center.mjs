@@ -27,6 +27,10 @@ const members = {
 const codexMessageId = 'message-codex'
 const packedWorkerName = 'packed-controlled-worker'
 const packedRequestText = '请从打包消息中心执行这项受控工作。'
+const packedPrerequisiteSubject = 'Inspect packed dependency graph'
+const packedAlternatePrerequisiteSubject = 'Approve packed dependency graph'
+const packedDependentSubject = 'Publish packed dependency graph'
+const packedDependentDescription = 'Publish only after the packed prerequisite is complete.'
 const packedProviderId = 'packed-controlled'
 const packedRuntimeEntryId = 'packed-controlled-runtime'
 const packedTeamEntryId = 'packed-agent-team'
@@ -145,9 +149,15 @@ const rendererClient = instantiate('@deepseek-ai/dsh-client-ui-renderer')
 const localeClient = instantiate('@deepseek-ai/dsh-client-locale', {
   '@deepseek-ai/dsh-client-store': clientStore,
 })
-const teamClient = instantiate('@deepseek-ai/dsh-experimental-client-ui-agent-team')
-const ultraClient = instantiate('@benz-ai-x/dsh-client-ui-agent-team-ultra', {
+const teamClient = instantiate('@deepseek-ai/dsh-experimental-client-ui-agent-team', {
   '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
+})
+const ultraClientId = handoffs.has('@benz-ai-x/dsh-client-ui-agent-team-ultra')
+  ? '@benz-ai-x/dsh-client-ui-agent-team-ultra'
+  : '@deepseek-ai/dsh-client-ui-agent-team-ultra'
+const ultraClient = instantiate(ultraClientId, {
+  '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
+  '@deepseek-ai/dsh-experimental-client-ui-agent-team/client': teamClient,
 })
 
 function appendMember(session, TeamId, SessionId, member) {
@@ -282,6 +292,19 @@ async function startHost(resume) {
       },
       signal: new AbortController().signal,
     })
+    const prerequisite = await host.agentTeams.createTask(lead, {
+      subject: packedPrerequisiteSubject,
+      description: 'Inspect the installed production task graph.',
+    })
+    await host.agentTeams.createTask(lead, {
+      subject: packedAlternatePrerequisiteSubject,
+      description: 'Approve the installed production task graph.',
+    })
+    await host.agentTeams.createTask(lead, {
+      subject: packedDependentSubject,
+      description: packedDependentDescription,
+      blockedBy: [prerequisite.id],
+    })
     const session = lead.session
     assert.deepEqual(spawned.member.memberOperations, ['messages.send'])
     assert.equal(JSON.stringify(session.snapshotEvents()).includes('memberOperations'), false)
@@ -321,6 +344,18 @@ async function startHost(resume) {
     if (recovered?.status !== 'inactive') throw new Error('recovered packed recipient is not inactive without its provider')
   }
 
+  const tasks = host.agentTeams.listTasks(lead)
+  const prerequisite = tasks.find(task => task.subject === packedPrerequisiteSubject)
+  const alternatePrerequisite = tasks.find(task => task.subject === packedAlternatePrerequisiteSubject)
+  const dependent = tasks.find(task => task.description === packedDependentDescription)
+  const expectedBlocker = resume ? alternatePrerequisite : prerequisite
+  if (prerequisite === undefined || alternatePrerequisite === undefined || dependent === undefined
+    || expectedBlocker === undefined
+    || dependent.blockedBy.length !== 1 || dependent.blockedBy[0] !== expectedBlocker.id
+    || dependent.ready !== false) {
+    throw new Error(`Host did not retain the authoritative packed task dependency: ${JSON.stringify(tasks)}`)
+  }
+
   if (routes.length !== 1 || routes[0].path !== '/api') throw new Error('Host did not expose one /api route')
   if (upgradeRoutes.length !== 1 || upgradeRoutes[0].path !== '/api/remote.mux') {
     throw new Error('Host did not expose one /api/remote.mux upgrade route')
@@ -357,6 +392,19 @@ async function startHost(resume) {
     origin,
     cookie,
     lead,
+    taskGraph: { prerequisite, alternatePrerequisite, dependent },
+    task(taskId) {
+      return host.agentTeams.getTask(lead, taskId)
+    },
+    async advanceTask(request) {
+      return await host.agentTeams.updateTask(lead, request)
+    },
+    async createTask(subject) {
+      return await host.agentTeams.createTask(lead, {
+        subject,
+        description: 'Trigger one committed packed live-view invalidation.',
+      })
+    },
     async events() {
       const stored = await host.sessionPersistence.open(SessionId(leadId), 'read')
       try {
@@ -444,9 +492,73 @@ async function startClient(host) {
     .find(entry => entry.options.id === 'messages')
   if (parentEntry === undefined || childEntry === undefined) throw new Error('packed Team owner/message entries are missing')
   const childActions = childEntry.inject()
+  if (typeof childActions.watch !== 'function') {
+    disposeRootSlot()
+    await client.fiber.dispose()
+    throw new Error('packed message child is missing the generated Team watch action')
+  }
+  const watchStats = {
+    baselines: 0,
+    invalidations: 0,
+    stale: 0,
+    failures: 0,
+    starts: 0,
+    disposes: 0,
+    listCalls: [],
+    sendCalls: 0,
+  }
+  const activeWatchSinks = new Set()
+  const watch = childActions.watch.bind(childActions)
+  childActions.watch = (sessionId, sink) => {
+    const observedSink = {
+      replace(value) {
+        watchStats.baselines += 1
+        sink.replace(value)
+      },
+      invalidated() {
+        watchStats.invalidations += 1
+        sink.invalidated()
+      },
+      stale() {
+        watchStats.stale += 1
+        sink.stale()
+      },
+      failed(error) {
+        watchStats.failures += 1
+        sink.failed(error)
+      },
+    }
+    activeWatchSinks.add(observedSink)
+    const control = watch(sessionId, observedSink)
+    return {
+      start() {
+        watchStats.starts += 1
+        control.start()
+      },
+      async dispose() {
+        activeWatchSinks.delete(observedSink)
+        watchStats.disposes += 1
+        await control.dispose()
+      },
+    }
+  }
+  let heldListResponse = null
+  const listMessages = childActions.listMessages.bind(childActions)
+  childActions.listMessages = async (sessionId, request, signal) => {
+    watchStats.listCalls.push(structuredClone(request))
+    const result = await listMessages(sessionId, request, signal)
+    const hold = heldListResponse
+    if (hold !== null && request.cursor !== undefined) {
+      heldListResponse = null
+      hold.captured.resolve({ request: structuredClone(request), result })
+      await hold.release.promise
+    }
+    return result
+  }
   const sendMessage = childActions.sendMessage.bind(childActions)
   let droppedSendResponse = null
   childActions.sendMessage = async (sessionId, request, signal) => {
+    watchStats.sendCalls += 1
     const drop = droppedSendResponse
     if (drop === null) return await sendMessage(sessionId, request, signal)
     droppedSendResponse = null
@@ -462,6 +574,23 @@ async function startClient(host) {
 
   return {
     childActions,
+    watchStats,
+    holdNextCursorPage() {
+      if (heldListResponse !== null) throw new Error('a packed cursor page is already held')
+      const captured = Promise.withResolvers()
+      const release = Promise.withResolvers()
+      heldListResponse = { captured, release }
+      return {
+        captured: captured.promise,
+        release: () => release.resolve(undefined),
+      }
+    },
+    markWatchStale() {
+      for (const sink of activeWatchSinks) sink.stale()
+    },
+    setLocale(id) {
+      locale.setLocale(id)
+    },
     dropNextSendResponse() {
       if (droppedSendResponse !== null) throw new Error('a packed send response is already armed for loss')
       droppedSendResponse = Promise.withResolvers()
@@ -509,6 +638,13 @@ function button(container, label) {
   return found
 }
 
+function ariaButton(container, label) {
+  const found = [...container.querySelectorAll('button')]
+    .find(candidate => candidate.getAttribute('aria-label') === label)
+  if (found === undefined) throw new Error(`button with aria-label ${JSON.stringify(label)} is missing`)
+  return found
+}
+
 async function click(element) {
   await act(async () => {
     element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -547,6 +683,37 @@ async function enterText(container, label, value) {
   })
 }
 
+async function enterSearch(container, label, value) {
+  const field = [...container.querySelectorAll('input[type="search"]')]
+    .find(candidate => candidate.getAttribute('aria-label') === label)
+  if (field === undefined) throw new Error(`searchbox ${JSON.stringify(label)} is missing`)
+  await act(async () => {
+    Simulate.change(field, { target: { value } })
+  })
+}
+
+async function enterInput(container, placeholder, value) {
+  const field = [...container.querySelectorAll('input')]
+    .find(candidate => candidate.getAttribute('placeholder') === placeholder)
+  if (field === undefined) throw new Error(`input ${JSON.stringify(placeholder)} is missing`)
+  await act(async () => {
+    Simulate.change(field, { target: { value } })
+  })
+  return field
+}
+
+function dependencyCheckbox(container, groupLabel, optionLabel) {
+  const group = [...container.querySelectorAll('fieldset')]
+    .find(candidate => candidate.querySelector('legend')?.textContent?.trim() === groupLabel)
+  if (group === undefined) throw new Error(`dependency group ${JSON.stringify(groupLabel)} is missing`)
+  const option = [...group.querySelectorAll('label')]
+    .find(candidate => candidate.textContent?.trim() === optionLabel)?.querySelector('input[type="checkbox"]')
+  if (option === undefined) {
+    throw new Error(`dependency option ${JSON.stringify(optionLabel)} is missing from ${JSON.stringify(groupLabel)}`)
+  }
+  return option
+}
+
 function messageButtons(container) {
   const list = container.querySelector('[aria-label="Persisted Team messages"]')
   if (list === null) return []
@@ -555,6 +722,22 @@ function messageButtons(container) {
 }
 
 async function openMessages(panel) {
+  if (panel.container.querySelector('[role="dialog"][aria-label="Agent Team"]') === null) {
+    const teamTab = await waitUntil(
+      () => button(panel.container, 'Agent Team'),
+      'packed Agent Team tab',
+    ).catch((error) => {
+      throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
+    })
+    await click(teamTab)
+  }
+  await waitUntil(() => button(panel.container, 'Messages'), 'packed Messages tab')
+  await click(button(panel.container, 'Messages'))
+  await waitUntil(() => panel.container.textContent?.includes('Persisted messages'), 'packed message center')
+  await waitUntil(() => messageButtons(panel.container).length > 0, 'packed message rows')
+}
+
+async function verifyTaskDag(panel, taskGraph) {
   const teamTab = await waitUntil(
     () => button(panel.container, 'Agent Team'),
     'packed Agent Team tab',
@@ -562,10 +745,221 @@ async function openMessages(panel) {
     throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
   })
   await click(teamTab)
-  await waitUntil(() => button(panel.container, 'Messages'), 'packed Messages tab')
-  await click(button(panel.container, 'Messages'))
-  await waitUntil(() => panel.container.textContent?.includes('Persisted messages'), 'packed message center')
-  await waitUntil(() => messageButtons(panel.container).length > 0, 'packed message rows')
+
+  const dependentLabel = `${taskGraph.dependent.id} · ${taskGraph.dependent.subject}`
+  const prerequisiteLabel = `${taskGraph.prerequisite.id} · ${taskGraph.prerequisite.subject}`
+  const dependentRow = await waitUntil(
+    () => ariaButton(panel.container, dependentLabel),
+    'packed authoritative dependent task row',
+  ).catch((error) => {
+    throw new Error(`${String(error)}; rendered DOM: ${panel.container.innerHTML}`)
+  })
+  await click(dependentRow)
+
+  const details = await waitUntil(
+    () => panel.container.querySelector('[role="region"][aria-label="Task details"]'),
+    'packed shared task details',
+  )
+  for (const expected of [
+    taskGraph.dependent.id,
+    taskGraph.dependent.subject,
+    taskGraph.prerequisite.id,
+    'Pending',
+    'Blocked by dependencies',
+  ]) {
+    if (!details.textContent.includes(expected)) throw new Error(`packed task details are missing ${JSON.stringify(expected)}`)
+  }
+  for (const expected of ['New task', 'Edit', 'Delete']) button(panel.container, expected)
+  if (details.querySelector('select') === null) throw new Error('packed task details omitted the existing owner control')
+
+  await click(button(panel.container, 'Task dependency graph'))
+  const graph = await waitUntil(
+    () => panel.container.querySelector('[role="application"][aria-label="Task dependency graph"]'),
+    'packed task dependency graph',
+  )
+  const edgeLabel = `${taskGraph.prerequisite.id} → ${taskGraph.dependent.id}`
+  const edge = [...graph.querySelectorAll('[aria-label]')]
+    .find(candidate => candidate.getAttribute('aria-label') === edgeLabel)
+  if (edge?.getAttribute('data-from-task-id') !== taskGraph.prerequisite.id
+    || edge.getAttribute('data-to-task-id') !== taskGraph.dependent.id
+    || edge.getAttribute('marker-end') !== 'url(#agent-team-task-arrow)') {
+    throw new Error(`packed task graph omitted its authoritative directed edge ${edgeLabel}`)
+  }
+  const prerequisiteNode = ariaButton(graph, prerequisiteLabel)
+  const dependentNode = ariaButton(graph, dependentLabel)
+  for (const expected of ['Unowned', 'Pending', 'Blocked by dependencies', taskGraph.prerequisite.id]) {
+    if (!dependentNode.textContent.includes(expected)) {
+      throw new Error(`packed dependent node is missing Host fact ${JSON.stringify(expected)}`)
+    }
+  }
+  if (prerequisiteNode.getAttribute('data-graph-column') !== '0'
+    || dependentNode.getAttribute('data-graph-column') !== '1') {
+    throw new Error('packed task graph did not apply its dependency-aware layout')
+  }
+
+  const zoomBefore = graph.getAttribute('data-zoom')
+  await click(ariaButton(panel.container, 'Zoom in dependency graph'))
+  await waitUntil(() => graph.getAttribute('data-zoom') !== zoomBefore, 'packed graph zoom')
+  button(panel.container, 'Fit dependency graph to view')
+
+  await act(async () => {
+    prerequisiteNode.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  })
+  await waitUntil(() => dependentNode.getAttribute('aria-pressed') === 'true', 'packed graph keyboard navigation')
+  await click(button(panel.container, 'Task list'))
+  if (ariaButton(panel.container, dependentLabel).getAttribute('aria-pressed') !== 'true') {
+    throw new Error('packed task selection did not survive graph-to-list switching')
+  }
+
+  await enterSearch(panel.container, 'Filter tasks', taskGraph.dependent.subject)
+  await waitUntil(
+    () => panel.container.textContent.includes(`Hidden dependencies: ${taskGraph.prerequisite.id}`),
+    'packed hidden-dependency list cue',
+  )
+  if (!panel.container.textContent.includes('Blocked by dependencies')) {
+    throw new Error('packed task filter changed the authoritative readiness text')
+  }
+  await click(button(panel.container, 'Task dependency graph'))
+  const filteredGraph = panel.container.querySelector('[role="application"][aria-label="Task dependency graph"]')
+  if (filteredGraph === null
+    || !filteredGraph.textContent.includes(`Hidden dependencies: ${taskGraph.prerequisite.id}`)
+    || [...filteredGraph.querySelectorAll('[aria-label]')].some(candidate => candidate.getAttribute('aria-label') === edgeLabel)) {
+    throw new Error('packed filtered graph did not distinguish hidden dependencies from Host readiness')
+  }
+  await enterSearch(panel.container, 'Filter tasks', '')
+  await waitUntil(
+    () => [...filteredGraph.querySelectorAll('[aria-label]')]
+      .some(candidate => candidate.getAttribute('aria-label') === edgeLabel),
+    'packed dependency edge after clearing filter',
+  )
+}
+
+async function verifyTaskDependencyEditing(host, client, panel, taskGraph) {
+  await click(button(panel.container, 'Task list'))
+  const dependentLabel = `${taskGraph.dependent.id} · ${taskGraph.dependent.subject}`
+  const prerequisiteLabel = `${taskGraph.prerequisite.id} · ${taskGraph.prerequisite.subject}`
+  const alternateLabel = `${taskGraph.alternatePrerequisite.id} · ${taskGraph.alternatePrerequisite.subject}`
+  await click(ariaButton(panel.container, dependentLabel))
+  await click(button(panel.container, 'Edit'))
+
+  const prerequisite = dependencyCheckbox(panel.container, 'Blocking tasks', prerequisiteLabel)
+  const alternate = dependencyCheckbox(panel.container, 'Blocking tasks', alternateLabel)
+  if (!prerequisite.checked || alternate.checked) {
+    throw new Error('packed dependency picker did not reflect the authoritative blocker')
+  }
+  await click(prerequisite)
+  await click(alternate)
+  if (prerequisite.checked || !alternate.checked) {
+    throw new Error('packed dependency picker did not retain the local dependency draft')
+  }
+  const preview = host.task(taskGraph.dependent.id)
+  if (preview.revision !== taskGraph.dependent.revision
+    || preview.blockedBy.length !== 1 || preview.blockedBy[0] !== taskGraph.prerequisite.id) {
+    throw new Error(`packed dependency preview mutated Host authority: ${JSON.stringify(preview)}`)
+  }
+
+  await click(button(panel.container, 'Save'))
+  const committed = await waitUntil(() => {
+    const current = host.task(taskGraph.dependent.id)
+    return current.revision === taskGraph.dependent.revision + 1
+      && current.blockedBy.length === 1
+      && current.blockedBy[0] === taskGraph.alternatePrerequisite.id
+      ? current
+      : false
+  }, 'packed atomic dependency edit')
+  if (committed.subject !== taskGraph.dependent.subject) {
+    throw new Error('packed atomic dependency edit lost the task body')
+  }
+
+  await click(button(panel.container, 'Task dependency graph'))
+  const graph = panel.container.querySelector('[role="application"][aria-label="Task dependency graph"]')
+  const oldEdge = `${taskGraph.prerequisite.id} → ${taskGraph.dependent.id}`
+  const newEdge = `${taskGraph.alternatePrerequisite.id} → ${taskGraph.dependent.id}`
+  await waitUntil(() => graph !== null && [...graph.querySelectorAll('[aria-label]')]
+    .some(candidate => candidate.getAttribute('aria-label') === newEdge), 'packed committed dependency edge')
+  if ([...graph.querySelectorAll('[aria-label]')]
+    .some(candidate => candidate.getAttribute('aria-label') === oldEdge)) {
+    throw new Error('packed graph retained the removed dependency edge')
+  }
+
+  await click(button(panel.container, 'Task list'))
+  await click(button(panel.container, 'Edit'))
+  const draftSubject = 'Unsaved packed dependency draft'
+  const draftInput = await enterInput(panel.container, 'Task subject', draftSubject)
+  const conflictPrerequisite = dependencyCheckbox(panel.container, 'Blocking tasks', prerequisiteLabel)
+  const conflictAlternate = dependencyCheckbox(panel.container, 'Blocking tasks', alternateLabel)
+  await click(conflictPrerequisite)
+  await click(conflictAlternate)
+  const authoritativeSubject = 'Committed by concurrent packed client'
+  const authoritative = await host.advanceTask({
+    taskId: taskGraph.dependent.id,
+    expectedRevision: committed.revision,
+    action: 'edit',
+    subject: authoritativeSubject,
+  })
+  await click(button(panel.container, 'Save'))
+
+  const englishConflict = 'The current task was reloaded; your draft remains unsaved.'
+  await waitUntil(() => panel.container.querySelector('[role="alert"]')?.textContent === englishConflict,
+    'packed English stale-draft conflict')
+  if (draftInput.value !== draftSubject || !conflictPrerequisite.checked || conflictAlternate.checked) {
+    throw new Error('packed stale CAS discarded the unsaved task/dependency draft')
+  }
+  ariaButton(panel.container, `${taskGraph.dependent.id} · ${authoritativeSubject}`)
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  const afterConflict = host.task(taskGraph.dependent.id)
+  if (afterConflict.revision !== authoritative.revision
+    || afterConflict.subject !== authoritativeSubject
+    || afterConflict.blockedBy.length !== 1
+    || afterConflict.blockedBy[0] !== taskGraph.alternatePrerequisite.id) {
+    throw new Error(`packed stale CAS retried or overwrote Host authority: ${JSON.stringify(afterConflict)}`)
+  }
+
+  await panel.dispose()
+  client.setLocale('zh')
+  const chinesePanel = await client.renderPanel()
+  await click(await waitUntil(() => button(chinesePanel.container, 'Agent Team'), '打包中文 Agent Team 入口'))
+  const chineseCurrentLabel = `${taskGraph.dependent.id} · ${authoritativeSubject}`
+  await click(await waitUntil(
+    () => ariaButton(chinesePanel.container, chineseCurrentLabel),
+    '打包中文当前权威任务',
+  ))
+  await click(button(chinesePanel.container, '编辑'))
+  const chineseDraftSubject = '未保存的打包依赖草稿'
+  const chineseDraftInput = await enterInput(chinesePanel.container, '任务标题', chineseDraftSubject)
+  const chinesePrerequisite = dependencyCheckbox(chinesePanel.container, '依赖任务', prerequisiteLabel)
+  const chineseAlternate = dependencyCheckbox(chinesePanel.container, '依赖任务', alternateLabel)
+  await click(chinesePrerequisite)
+  await click(chineseAlternate)
+  const beforeChineseConflict = host.task(taskGraph.dependent.id)
+  const chineseAuthoritativeSubject = 'Committed by second packed client'
+  const chineseAuthoritative = await host.advanceTask({
+    taskId: taskGraph.dependent.id,
+    expectedRevision: beforeChineseConflict.revision,
+    action: 'edit',
+    subject: chineseAuthoritativeSubject,
+  })
+  await click(button(chinesePanel.container, '保存'))
+  await waitUntil(
+    () => chinesePanel.container.querySelector('[role="alert"]')?.textContent === '任务当前版本已重新加载；你的草稿尚未保存。',
+    '打包中文 stale-draft conflict',
+  )
+  ariaButton(chinesePanel.container, `${taskGraph.dependent.id} · ${chineseAuthoritativeSubject}`)
+  if (chineseDraftInput.value !== chineseDraftSubject
+    || !chinesePrerequisite.checked || chineseAlternate.checked) {
+    throw new Error('打包中文 stale CAS 丢失了未保存任务/依赖草稿')
+  }
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  const afterChineseConflict = host.task(taskGraph.dependent.id)
+  if (afterChineseConflict.revision !== chineseAuthoritative.revision
+    || afterChineseConflict.subject !== chineseAuthoritativeSubject
+    || afterChineseConflict.blockedBy.length !== 1
+    || afterChineseConflict.blockedBy[0] !== taskGraph.alternatePrerequisite.id) {
+    throw new Error(`打包中文 stale CAS 重试或覆盖了 Host 权威值: ${JSON.stringify(afterChineseConflict)}`)
+  }
+  await chinesePanel.dispose()
+  client.setLocale('en')
+  return await client.renderPanel()
 }
 
 async function filterCodex(panel) {
@@ -622,11 +1016,47 @@ try {
   firstHost = await startHost(false)
   firstClient = await startClient(firstHost)
   firstPanel = await firstClient.renderPanel()
+  await verifyTaskDag(firstPanel, firstHost.taskGraph)
+  firstPanel = await verifyTaskDependencyEditing(firstHost, firstClient, firstPanel, firstHost.taskGraph)
   await openMessages(firstPanel)
+  await waitUntil(() => firstClient.watchStats.baselines > 0, 'packed Team watch baseline')
   for (const route of ['lead → dsh-worker', 'codex-worker → lead', 'claude-worker → lead']) {
     if (!firstPanel.container.textContent.includes(route)) throw new Error(`packed first page is missing ${route}`)
   }
   if (messageButtons(firstPanel.container).length !== 20) throw new Error('packed first page is not bounded to 20 rows')
+
+  firstClient.markWatchStale()
+  await waitUntil(
+    () => firstPanel.container.textContent.includes('Disconnected. Showing potentially stale Team messages.'),
+    'packed stale message view',
+  )
+  const latePage = firstClient.holdNextCursorPage()
+  await click(button(firstPanel.container, 'Load older messages'))
+  await latePage.captured
+  const invalidationsBefore = firstClient.watchStats.invalidations
+  const listCallsBefore = firstClient.watchStats.listCalls.length
+  await act(async () => {
+    await firstHost.createTask('Invalidate packed message paging')
+  })
+  await waitUntil(
+    () => firstClient.watchStats.invalidations > invalidationsBefore,
+    'packed committed Team invalidation',
+  )
+  await waitUntil(
+    () => firstClient.watchStats.listCalls.length > listCallsBefore
+      && firstClient.watchStats.listCalls.at(-1)?.cursor === undefined,
+    'packed authoritative message-page reread',
+  )
+  await waitUntil(
+    () => !firstPanel.container.textContent.includes('Disconnected. Showing potentially stale Team messages.'),
+    'packed watch recovery status',
+  )
+  latePage.release()
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  if (messageButtons(firstPanel.container).length !== 20
+    || firstClient.watchStats.sendCalls !== 0) {
+    throw new Error('packed live refresh admitted a late cursor page or automatically resent a message')
+  }
   await click(button(firstPanel.container, 'Load older messages'))
   await waitUntil(() => messageButtons(firstPanel.container).length === 22, 'packed second page')
 
@@ -703,8 +1133,28 @@ try {
   }), 'pre-restart packed UI detail')
   if (beforeDetail.content.parts[0]?.text !== 'Codex durable body') throw new Error('pre-restart detail body mismatch')
 
+  const watchCallbacksBeforeUnmount = firstClient.watchStats.baselines
+    + firstClient.watchStats.invalidations
+    + firstClient.watchStats.stale
+    + firstClient.watchStats.failures
+  const watchDisposalsBeforeUnmount = firstClient.watchStats.disposes
   await firstPanel.dispose()
   firstPanel = undefined
+  await waitUntil(
+    () => firstClient.watchStats.disposes > watchDisposalsBeforeUnmount,
+    'packed message watch renderer disposal',
+  )
+  await act(async () => {
+    await firstHost.createTask('Invalidate after packed renderer unmount')
+  })
+  await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 50)) })
+  const watchCallbacksAfterUnmount = firstClient.watchStats.baselines
+    + firstClient.watchStats.invalidations
+    + firstClient.watchStats.stale
+    + firstClient.watchStats.failures
+  if (watchCallbacksAfterUnmount !== watchCallbacksBeforeUnmount) {
+    throw new Error('packed message watch delivered after renderer unmount')
+  }
   await firstClient.dispose()
   firstClient = undefined
   await firstHost.dispose()
@@ -789,10 +1239,16 @@ try {
   await waitUntil(() => secondPanel.container.textContent.includes('Codex durable body'), 'recovered packed detail')
   if (!secondPanel.container.textContent.includes(codexMessageId)) throw new Error('recovered packed detail omitted message id')
 
+  console.log('PASS packed Team owner panel shares authoritative task list, dependency graph, selection, details, controls, navigation, and filtering')
+  console.log('PASS packed dependency picker commits one atomic CAS and preserves a bilingual stale conflict draft without retry')
   console.log('PASS packed Team owner panel reads paged DSH/Codex/Claude messages through the generated Remote and survives Host recovery')
+  console.log('PASS packed Team watch establishes a baseline, rereads on bounded invalidation, drops a late cursor page, never resends, and disposes on renderer unmount')
   console.log('PASS packed production renderer loses one committed Remote response, reaches its deadline, and preserves the exact retry intent across Host recovery')
   console.log('PASS packed Loader/AgentLoop/Team/JSONL boundary recovers one pending reply through the controlled provider without duplicate work')
   console.log('PASS packed durable-request validator rejects missing and duplicate required facts')
+} catch (error) {
+  console.error(error)
+  process.exitCode = 1
 } finally {
   deliveryRelease.resolve(undefined)
   await secondPanel?.dispose().catch(() => {})

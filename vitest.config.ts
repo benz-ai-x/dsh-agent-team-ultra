@@ -5,6 +5,10 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
+      '@deepseek-ai/dsh-experimental-client-ui-agent-team/client': fileURLToPath(new URL(
+        './.dsh/harness/packages/experimental/client-ui-agent-team/src/client/index.ts',
+        import.meta.url,
+      )),
       '@deepseek-ai/dsh-api-gateway/client': fileURLToPath(new URL(
         './.dsh/harness/packages/api/gateway/src/client/index.ts',
         import.meta.url,

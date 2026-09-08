@@ -6,7 +6,10 @@ import { mountDigitalEmployeeStudio } from './mount.ts'
 
 export { inject } from './mount.ts'
 export type { DigitalEmployeeStudioInjected, DigitalEmployeeStudioProps } from './Studio.tsx'
-export type { TeamMessageCenterInjected, TeamMessageCenterProps } from './TeamMessageCenter.tsx'
+export type {
+  TeamMessageCenterInjected, TeamMessageCenterProps, TeamMessageCenterWatchControl,
+  TeamMessageCenterWatchSink,
+} from './TeamMessageCenter.tsx'
 export type { UltraKey } from './locales.ts'
 
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {

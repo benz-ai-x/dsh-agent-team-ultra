@@ -1430,6 +1430,7 @@ describe('standalone Client bundle', () => {
       ['react/jsx-runtime', await import('react/jsx-runtime')],
       ['@deepseek-ai/cordis', await import('@deepseek-ai/cordis')],
       ['@deepseek-ai/dsh-api-gateway/client', await import('@deepseek-ai/dsh-api-gateway/client')],
+      ['@deepseek-ai/dsh-experimental-client-ui-agent-team/client', await import('@deepseek-ai/dsh-experimental-client-ui-agent-team/client')],
       ['@deepseek-ai/dsh-client-ui-primitives', await import('@deepseek-ai/dsh-client-ui-primitives')],
     ])
     const exports = handoff?.factory(specifier => {
