@@ -1,6 +1,6 @@
 # PR #61 三项审查修复
 
-本轮仅修复 PR 头 `c42b9d80532e81f6a6e83761290a0e189253ea02` 的三项已确认问题，不合并 main、不推送或更新 GitHub。Ultra 分支是 `fix/pr61-review-findings`；配套 Harness 本地提交为 `4490b43a0f67b2851e23109edf5ae6232bea223d`。
+本轮仅修复 PR 原头 `c42b9d80532e81f6a6e83761290a0e189253ea02` 的三项已确认问题。随后按用户“提交到远端 PR #61”的新指令，已将 Ultra 修复提交 `c8ed61c10e11a5a2ce62512e6ab7a1e6321ae8ca` 从本地 `fix/pr61-review-findings` 普通快进推送到 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 原分支 `feat/batch-3-studio-recovery`。锁定 Harness 提交 `4490b43a0f67b2851e23109edf5ae6232bea223d` 已先推送至维护 fork 的 [`fix/pr61-member-capabilities`](https://github.com/benz-ai-x/deepseek-harness_x/tree/fix/pr61-member-capabilities)。两个远端提交均已回读确认；未合并 main、改 GitHub 正文或发通知。
 
 ## 修复与回归
 
@@ -17,6 +17,7 @@
 - Harness 完整 build 通过；doc-sync 在重新生成源文件行号目录并同步双语记录后为 32 passed / 0 failed。全量 lint 的 4 项既有违规位于未改的 `message-read.spec.ts:541`、`team.spec.ts:1165`、`team.spec.ts:1242`，未修复或绕过。
 - Chromium 浏览器检查通过，pageErrors 为空，浏览器、Vite 与 HTTP listener 均完成清理。截图仅作为交互命中证据；组合未加载应用级主题，不作为视觉样式验收。
 - Ultra 专项回归为 3 files / 38 tests，通过旧 Codex、普通成员需求漂移、Studio 全套交互测试。最终 `pnpm verify` exit 0：582 strict checks / 0 warnings、32 files / 364 tests、八个归档安装与解析、生产 renderer/Remote/Loader 恢复、真实打包 Web 启动、Codex 和 Claude 在 JSON/SQLite 下的 create/restart 与同一成员恢复、完整卸载均通过。来源检查前使用正式 build 与 `tsc -b packages/experimental/agent-team --force` 重建声明；没有修改时间戳或放宽来源锁。
+- 发布前按 `dsh-pre-push-checks` 拉取并确认配套远端父提交 `924a622f6dc69a2e4b5beebdf218196da927dc7c`，`change-scope` 确认仅包含既有修复及配套文档，工作树干净。复用上述运行时证据；正常 pre-push 类型检查通过，未跳过钩子或强推。Ultra 发布前 `pnpm context:check:strict` 再次通过 582 项 / 0 warnings。
 
 工作日志及浏览器截图保留于 `/root/workspace/pr61-fixes.7yIVdj/`，包括 `ordinary-availability-red.log`、`member-navigation-red.log`、`codex-capabilities-red.log`、`harness-tests.log`、`harness-doc-sync-final.log`、`three-findings-green.log`、`ultra-verify.log`、`navigation-browser.log` 和 `nav-layering-after.png`。
 
@@ -24,6 +25,6 @@
 
 固定 Codex 0.149.1 生成协议的 `Thread`、`ThreadResumeResponse` 不包含已安装工具清单；不能把测试原生存储内的 `dynamicTools` 当作真实协议字段。因此，冷恢复后即便实际工具齐全，也只能显示“未确认”。本轮未增加原生私有存储读取、工具补装、线程替换或持久格式迁移。生成协议副本位于上述工作目录的 `codex-protocol/`。
 
-认证原生验收仍归 #44；本轮未申请或使用新的真实模型凭据。修复验证不代表 PR 已重新评审、推送或合并。
+认证原生验收仍归 #44；本轮未申请或使用新的真实模型凭据。修复验证与推送成功不代表 PR 已重新评审或合并。
 
-最后 GitHub 回读的 PR #61 仍为原头、OPEN、CONFLICTING；与 main 的合并冲突未纳入本轮。主工作区的 HEAD、原 HANDOFF 改动和 `.dsh/harness` 链接均保持原样，原 Harness 924a622 工作区也保持干净。
+修复推送后的 GitHub 回读为 `c8ed61c…`、OPEN、CONFLICTING；本次后续提交仅同步交接文档，与 main 的合并冲突未纳入本轮。主工作区的 HEAD、原 HANDOFF 改动和 `.dsh/harness` 链接均保持原样，原 Harness 924a622 工作区也保持干净。
