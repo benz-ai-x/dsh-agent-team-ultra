@@ -7,8 +7,8 @@ The latest request is to fix and re-review the two capability defects found at P
 - [x] Derive DSH collaboration from the exact live member's Team tools and invalidate Studio snapshots on tool changes.
 - [x] Reject native create/resume when required full collaboration lacks complete exact-handle proof; retain cleanup, identity and queued-work recovery.
 - [x] Pass the Harness owner tests and exact-module 100% coverage, build, bilingual documentation gates and normal commit hooks.
-- [ ] Complete fresh Ultra verification, including generated Remote, both DSH bindings and installed Loader capability checks.
-- [ ] Re-review the complete fixed PR diff with independent Standards and Spec agents; record final refs and local/remote delivery state.
+- [x] Complete fresh Ultra verification: 590 strict checks, 382 tests and eight-archive install/Web/recovery/uninstall, including generated Remote, both DSH bindings and installed Loader capability checks.
+- [x] Re-review the complete fixed PR diff with independent Standards and Spec agents: both report zero findings at Ultra `f5b2d4d` / Harness `57670c6b32`. Record final refs and local/remote delivery state; neither repository was pushed this round.
 
 ## Previous PR #61 repairs and conflict resolution (completed)
 
