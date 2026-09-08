@@ -13,8 +13,10 @@
 - 最终 `pnpm verify` 自然退出 0：590 strict／0 warnings，Host／Client／Typert／compatibility 构建，394 tests／35 files，八归档普通解析与安装、生产消息／DAG／CAS／watch／丢响应恢复、Web 启动、Codex／Claude JSON＋SQLite 冷恢复及完整卸载通过。日志为 worktree 父目录 `issue-38-qualified-verify.log`。首轮唯一失败是旧夹具的相对终态时间却要求完整；保留输入、用量与终态，明确验证 incomplete／无 endedAt 后重新跑完整门禁通过。
 - Node 22.22.1／pnpm 11.7.0，Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 位于 `/root/workspace/pr61-fixes.7yIVdj/harness`，来源和锁均未修改。main 仍为 `ec88d85a2ec668388ff37b0b6cba4bab3e332040`；主工作区既有 HANDOFF、3 个 stash、历史工作树和维护源码均保留。
 - 飞书 #38 完成通知已于 2026-09-08 20:22:54 成功发送，CLI 返回 `ok: true`／bot，幂等键 `ultra-38-7caa05e-qualified`；内容包含 PR #62、实现／验证结果与待评审／合并和 #44 限制。不要重复发送。凭据、收件人私有标识和私人会话不写入仓库。
-- 下一步从 #38 候选建立 #39–#43 升级集成线，不切换 B 发布线；#38 PR 不自动合并。已回读 #39–#44，固定官方比较为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`；#43 完整迁移／归档门禁与人工合并、#44 真实认证验收仍不可省略。没有开始修改新 Harness 基线。旧 `gh pr edit` 因 Projects classic GraphQL 字段失败，已用 `gh api` 仅 PATCH 同一 PR body 并回读成功，不重建 PR。
-- 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
+- #39 定向实现完成、待 Batch 4 PR 验收。隔离工作区 `/root/workspace/batch4-upgrade.VkSXdm/ultra`，分支 `feat/batch-4-harness-upgrade`，基于 #38 `4cecfe2`。真实 Host／生成 Remote 的固定路由 v2 冷恢复 tracer 从 B 的 Session 0 RED 到候选 Session 2 GREEN，保持原 member／Revision／route 并继续原成员的下一 Run；证据位于集成树 `docs/evidence/issue-39-acceptance.md`。
+- 配套 Harness 合并已正常收尾为 `3c38b1d4e8bf219750203e44b1df033ced754e92`，双亲 B `57670c6` 和固定官方 `d347e703`；已正常通过 pre-push 推送维护 fork `feat/ultra-phase-c-integration` 并回读一致，未推送官方 upstream。冻结 codec 明确维护版 Team／native／request 格式，Python 与 Web 保留旧协作断言。格式／重放 389 项、受影响文件 100% coverage、Team 258 项、built Remote／CLI Team、Web 五项、构建／类型／lint 通过。doc-sync 首轮 32/33，过期配置目录经正式生成及双语配对后失败叶检查通过；原提交钩子全部通过。
+- 仅 Batch 4 隔离树正式锁定并准备干净候选 `3c38b1d4e8`：590 strict／0 warnings、完整 Ultra build 和 v2 tracer 通过；标签 `phase-c.integration-candidate.v1` 不宣称最终资格。main、PR #62、原 B 源码和链接均保持原发布线。#40 native／UI、#41 联合迁移、#42 v2 用量、#43 真实归档门禁及人工合并、#44 真实认证仍待完成；#39 通知尚待发布记录后发送。
+- 本轮使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`、`resolving-merge-conflicts`、Harness 的 `dsh-doc`／`dsh-prose-standard`／`dsh-pre-push-checks`／`dsh-ci-test-reliability`，以及通知的 `lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
 
 ## PR #61 发布交接（历史记录，已合并）
 

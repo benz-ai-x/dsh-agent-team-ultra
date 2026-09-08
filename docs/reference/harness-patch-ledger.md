@@ -6,7 +6,8 @@
 [#34](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/34)、
 [#35](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/35)、
 [#36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36)、
-[#37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37)。中文规范中的
+[#37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37)、
+[#39](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/39)。中文规范中的
 US-01、US-02、US-03、US-15、US-18、US-19、US-20、US-24–US-26、US-28、
 US-33、US-47、US-50、US-51、US-56–US-59、US-66，D-01–D-04、D-10、
 D-14–D-16、D-21、D-23、D-25，以及 T-01、T-03、T-04、T-06、T-07、
@@ -20,12 +21,13 @@ claim that an upstream contribution was submitted or accepted.
 
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
-| 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `57670c6b320f7f240cbad360a9f691c8598e1571`, `0.1.2-rc.1` | 阶段 B 组合运行源及必需原生成员协作能力准入 / combined Phase B source with required native-member collaboration admission |
+| 官方基础 / Official foundation | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 已固定合入集成候选的官方源码 / fixed official source merged into the integration candidate |
+| 维护 fork 候选 / Maintained fork candidate | `3c38b1d4e8bf219750203e44b1df033ced754e92`, `0.1.3-alpha.1` | #39–#43 隔离集成，不是 main 发布资格 / isolated integration, not main release qualification |
+| 保留 B 发布线 / Retained B source | `57670c6b320f7f240cbad360a9f691c8598e1571`, `0.1.2-rc.1` | main／PR #62 保持原完整发布线 / main and PR #62 retain the complete B line |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675` | 锁定文档内容 / locked documentation content |
-| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.message-center.v2` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
-| Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
+| 文档摘要 / Documentation digest | `1cfdeaf1262f0101099ee245b9977a0ef93d56dcc631878f313dffea27adaf41` | 候选锁定文档内容 / candidate documentation content |
+| 扩展接口候选 / Extension API candidate | `agent-team-ultra.phase-c.integration-candidate.v1` | 仅集成候选标签，不冒充 Harness 常量或 #43 最终资格 / candidate label, not a Harness export or final qualification |
+| Session 格式 / Session format | candidate `2`; retained B `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
 | 人类消息请求 / Human message request | `1` | 必需事件原子保存请求回执、回复关联与 queued 消息 / required event atomically stores the request receipt, reply correlation, and queued message |
 | Team 投影 / Team projection | `7` | fork 增加不可变请求回执及事件派生的稳定消息 queue/delivery 索引 / fork adds immutable request receipts and an event-derived stable message queue/delivery index |
@@ -41,6 +43,18 @@ former identifies the source and documents; the latter verifies the actual
 executable closure selected by Node. Neither proves valid native user login.
 
 ## 维护变更 / Maintained changes
+
+集成提交 [3c38b1d4e8](https://github.com/benz-ai-x/deepseek-harness_x/commit/3c38b1d4e8bf219750203e44b1df033ced754e92)
+以 B `57670c6` 和固定官方 `d347e703` 为双亲。保留 Team 公共所有者、固定路由、native
+授权／回执、消息中心与 DAG；在冻结的 `0→1` codec 中显式校验维护版历史事件，再沿
+官方 `1→2` 转换。严格生产解码不接受快照占位符，只有测试重放入口恢复录制的 receipt
+token。Python SDK 与 Web 原有 Team 场景升级到真实 v2 表示，未删除旧场景断言。
+普通 Team 公共探针在候选和未修改官方源码均通过 11 组；候选定向格式／重放覆盖 389
+项、三个受影响实现文件 100% coverage，Team 258 项、built Remote、真实 CLI Team、
+Web 五项及构建／类型／文档／lint 通过。完整跨域迁移和归档门禁仍由 #41／#43 收口。
+/ The maintained merge preserves the complete B owner on the fixed official source.
+See [#39 evidence](../evidence/issue-39-acceptance.md) for commands, exact inputs,
+initial failures and qualification limits; no stock replacement or native login is claimed.
 
 维护 fork 提交 [57670c6b32](https://github.com/benz-ai-x/deepseek-harness_x/commit/57670c6b320f7f240cbad360a9f691c8598e1571) 在原生 create／resume 接受边界校验显式必需的六项成员操作，缺失证明沿用提供方世代隔离与资源清理，不改变持久格式。258 项 owning tests、目标模块 100% 覆盖和 32 项文档门禁通过；完整 lint 仍有未改 `message-read.spec.ts:541` 两项基线违规。正常 pre-push 类型检查后已推送 `fix/pr61-member-capabilities` 并回读一致，未推送官方 upstream。/ This maintained-fork commit enforces explicitly required full collaboration before accepting a native handle, retaining generation quarantine, cleanup and durable identity. No format change or official upstream publication is claimed. See [repair evidence](../evidence/pr61-capability-review-fixes.md).
 
@@ -97,8 +111,10 @@ acceptance remains mandatory in [#44](https://github.com/benz-ai-x/dsh-agent-tea
 
 [#25](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/25) 的
 [ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) 与
-`pnpm migration:audit` 区分当前源格式和未来目标资格。阶段 C 方案为 Session `2`、
-Team payload `3`、projection `4`；descriptor `3` 在固定双方源码中一致，Ultra v1
+`pnpm migration:audit` 区分当前源格式和未来目标资格。
+[ADR 0026](../adr/0026-preserve-team-identities-on-session-v2.md) 补充阶段 C 实际目标：
+Session `2`、Team payload `2`、native operation `4`（保留 `3` 读取）、message request
+`1`、Team projection `7`；descriptor `3` 在固定双方源码中一致，Ultra v1
 继续使用。native operation、发送请求和回复关联必须进入正式 schema、codec、
 生成事件词汇及投影；没有已产生的目标提交前，审计报告明确标为尚未取得运行资格。
 阶段 A 审计不改运行锁；阶段 B 按 [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) 为成员查询扩展更新锁，不提前执行阶段 C 格式迁移。

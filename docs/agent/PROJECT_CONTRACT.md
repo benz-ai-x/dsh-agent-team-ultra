@@ -104,14 +104,22 @@ success; active rollback journals require explicit recovery. Unknown, future
 or conflicting business data returns a bounded `AUDIT_*` refusal, never an empty
 catalog. Reports exclude message bodies, prompts and native transcripts.
 
-[ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) specifies Phase C
-Session 2, Team payload 3 and projection 4, formal generated vocabulary for
-native operations/send requests/replies, deterministic source-preserving
-migration, a closed pending target and completion committed last. Audit success
+[ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) specifies
+deterministic source-preserving migration, a closed pending target and completion
+committed last. [ADR 0026](../adr/0026-preserve-team-identities-on-session-v2.md)
+updates its planned identities to the implemented independent formats: Session 2,
+Team payload 2, native operation 4 with the retained 3 reader, message request 1,
+and Team projection 7. Native operations, send requests and replies belong to the
+formal generated vocabulary and codec. Audit success
 does not execute or qualify that target. Ultra v1 remains unless an incompatible
 record change requires another generation. Phase A retains the locked fork and
 its eight-archive behavior; Phase B adds collaboration before Phase C qualifies
 an actual integration commit based on the fixed official comparison.
+
+The Batch 4 integration branch pins a clean, immutable candidate for formal source
+preparation and focused tests. Its `phase-c.integration-candidate` label is not a
+completed release qualification. Main retains B until #43 records the final
+cross-feature, migration and archive gates and a human confirms the PR merge.
 
 ## Authority and state
 

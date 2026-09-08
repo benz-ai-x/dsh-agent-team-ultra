@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "upstream": {
     "repository": "https://github.com/benz-ai-x/deepseek-harness_x.git",
-    "version": "0.1.2-rc.1",
+    "version": "0.1.3-alpha.1",
     "node": "^22.19.0 || >=24.0.0",
-    "commit": "57670c6b320f7f240cbad360a9f691c8598e1571",
-    "docsDigest": "331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675"
+    "commit": "3c38b1d4e8bf219750203e44b1df033ced754e92",
+    "docsDigest": "1cfdeaf1262f0101099ee245b9977a0ef93d56dcc631878f313dffea27adaf41"
   },
   "localResolution": {
     "environmentVariable": "DSH_HARNESS_ROOT",
@@ -14,8 +14,8 @@
   "compatibility": {
     "officialFoundation": {
       "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
-      "commit": "76fda729799fe9b3848dbe2c211d4b231032b81e",
-      "version": "0.1.2-rc.1"
+      "commit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+      "version": "0.1.3-alpha.1"
     },
     "officialComparison": {
       "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
@@ -23,9 +23,9 @@
       "version": "0.1.3-alpha.1",
       "supportedRuntime": false
     },
-    "extensionApi": "agent-team-ultra.phase-b.message-center.v2",
+    "extensionApi": "agent-team-ultra.phase-c.integration-candidate.v1",
     "formats": {
-      "session": 0,
+      "session": 2,
       "teamEvent": 2,
       "teamProjection": 7,
       "messageRequest": 1,

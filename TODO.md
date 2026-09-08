@@ -19,6 +19,17 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Complete the [six-AC evidence map](docs/evidence/issue-38-acceptance.md) and final Batch 3B gate at `7caa05e`: 590 strict checks, 394 tests and eight-archive install/Web/message/DAG/native recovery/uninstall all pass; PR review and merge remain separate.
 - [x] User confirmed bot DM to the current Feishu user with Issue, implementation/test results, branch/PR and pending acceptance; report implementation completion separately from PR acceptance.
 
+## Current Batch 4 integration: Issues #39–#43
+
+- [x] Publish #38 as PR #62 and send the confirmed Feishu completion notification once; review and human merge remain separate.
+- [x] Branch from #38 `4cecfe2` in an isolated Ultra worktree; prepare the unchanged locked B source and pass strict checks.
+- [x] Observe the #39 public fixed-route cold-resume tracer fail on B's Session format 0 versus required format 2.
+- [x] Finish integrating fixed official `d347e703` into the maintained Harness as `3c38b1d4e8`, preserving the complete B Team/native/UI contracts and recorded scenarios; formal candidate source selection follows.
+- [x] Qualify clean candidate `3c38b1d4e8` without switching the B support line: formal preparation, 590 strict checks, full Ultra build, the fixed-route v2 cold-resume tracer and both 11-group public Team probes pass. See [#39 evidence](docs/evidence/issue-39-acceptance.md); PR-level acceptance remains #43.
+- [ ] Complete #40 native/UI, #41 joint migration and #42 truthful v2 usage with focused TDD and per-Issue notifications.
+- [ ] Complete #43 final batch verification, archive upgrade/uninstall and explicit compatibility lock promotion in the reviewable integration PR; no automatic merge.
+- [ ] Perform #44 genuine authenticated native acceptance after its prerequisites; controlled external boundaries are not this acceptance.
+
 ## Previous requested scope: publish and merge the reviewed PR #61 (completed)
 
 The user now authorizes pushing the reviewed companion Harness, updating PR #61, checking exact remote identities and current gates, then merging this PR. Preserve the shared main checkout and its existing edits; do not change other Issues/PRs, notify, delete branches/worktrees, or resume the historical pipeline. See [repair and publication evidence](docs/evidence/pr61-capability-review-fixes.md). GitHub PR state, mergedAt and mergeCommit are the canonical publication/merge outcome; read them before resuming and never repeat an already completed merge.
