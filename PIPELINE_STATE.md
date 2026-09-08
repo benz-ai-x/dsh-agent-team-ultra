@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T09:06:43+08:00（Asia/Shanghai）
+最后更新：2026-09-08T09:08:22+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -601,4 +601,4 @@
 ## 下一步（唯一恢复入口）
 
 1. 当前已按用户要求暂停：PR #61开发、证据提交、HTTPS push/ls-remote及PR正文收口均完成；不得在当前上下文启动review 2、合并、开后续PR或发送通知。
-2. 用户恢复后，以PR #61固定head `ad325ddd19ecc55aa9e31a147c59fb4f8a0acbc7`和Harness固定head `924a622f6dc69a2e4b5beebdf218196da927dc7c`启动全新隔离review 2；review通过后由主agent按终态流程处理。#37终态后先统一重试PR #60，不直接开工#38。
+2. 用户恢复后，先按恢复协议用`gh pr view 61`回读PR最新head；开发产品截止`a94ede79d193495d347282d50fcf9a4dc1445042`、直接证据截止`ad325ddd19ecc55aa9e31a147c59fb4f8a0acbc7`，其后只允许本状态收口提交。以该实时PR head和Harness固定head `924a622f6dc69a2e4b5beebdf218196da927dc7c`启动全新隔离review 2；review通过后由主agent按终态流程处理。#37终态后先统一重试PR #60，不直接开工#38。
