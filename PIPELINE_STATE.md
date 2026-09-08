@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T07:53:38+08:00（Asia/Shanghai）
+最后更新：2026-09-08T09:06:43+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -28,7 +28,7 @@
 | #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
 | #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | blocked：PR #60 review 连续3轮失败熔断；review 3 为3/5 AC |
-| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | developing：PR #61 review 1失败，2/6 AC，修复中 |
+| #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | in-review：开发收口完成、6/6 AC；用户要求在 review 2 前暂停，Issue 保持 open |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | dependency-paused：等Batch 2统一重试解锁#36（Batch 3B） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | dependency-paused：等#38（Batch 4） |
 | #40 | 把双 native 与协作面板迁移到新 Harness 契约 | Codex/Claude/UI migration | L | #39 | dependency-paused：等#39（Batch 4） |
@@ -45,7 +45,7 @@
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
 | Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | blocked：review 连续3轮失败熔断；Ultra/Harness 分支保留 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
-| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | developing：review 1修复中 | 1 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
+| Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | in-review：开发完成；按用户要求暂停于 review 2 前 | 1 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | dependency-paused；需人工合并 | 0 | 0 | 未创建 |
 | Batch 5 | #44 | `feat/batch-5-real-native-acceptance` | 特别复杂且为 credentialed 最终产品验收；依赖 Batch 4 合并 | dependency-paused | 0 | 0 | 未创建 |
@@ -536,6 +536,8 @@
 
 - 2026-09-08T08:53:30+08:00：用户明确要求“这个PR开发完后停止”。本上下文只完成review 1开发收口、直接证据/交接、独立commit及HTTPS push/ls-remote；禁止启动review 2、合并、开后续PR或发送通知。开发收口后的唯一恢复入口是PR #61固定最终head的全新隔离review 2；#37终态后仍须先统一重试blocked PR #60，不直接开#38。
 
+- 2026-09-08T09:06:43+08:00：开发收口远端与GitHub最终对账完成。Ultra产品提交`a94ede79d193495d347282d50fcf9a4dc1445042`、证据提交`ad325ddd19ecc55aa9e31a147c59fb4f8a0acbc7`均已HTTPS push，Ultra `ls-remote`/本地HEAD/PR #61 head精确为`ad325ddd…`且worktree clean；Harness `ls-remote`/本地HEAD精确为`924a622f6dc69a2e4b5beebdf218196da927dc7c`且worktree clean。GitHub #37仍OPEN、6/6 checked、`updatedAt=2026-09-08T00:52:57Z`。PR #61仍OPEN、非draft、CLEAN/MERGEABLE、无checks；`gh pr edit`因GitHub Classic Projects弃用错误未生效，随即改用Pull Request REST API原子更新正文，完整回读确认已为`Closes #37`、最新Harness commit、354项全量测试及“暂停于review 2前”。全量`gh issue list`仍精确为快照未终态的#18/#34–#44（#33保持CLOSED），无新增issue；另一open PR仅为已熔断#60，实时head=`f77168de74359c275d9d9f941ebbecae3a4d3c37`且CLEAN，其blocked事实未变。Batch 3A置为`in-review`仅表示开发已完成、下一步是review 2；本轮未启动review 2、未合并、未开后续PR、未发送不在通知清单内的暂停消息。
+
 ## AC 进度
 
 ### #33
@@ -598,5 +600,5 @@
 
 ## 下一步（唯一恢复入口）
 
-1. 按用户要求在PR #61 review 1开发收口、证据提交和HTTPS push/ls-remote完成后暂停；不得在当前上下文启动review 2、合并、开后续PR或发送通知。
-2. 用户恢复后，以PR #61最终固定head启动全新隔离review 2；review通过后由主agent按终态流程处理。#37终态后先统一重试PR #60，不直接开工#38。
+1. 当前已按用户要求暂停：PR #61开发、证据提交、HTTPS push/ls-remote及PR正文收口均完成；不得在当前上下文启动review 2、合并、开后续PR或发送通知。
+2. 用户恢复后，以PR #61固定head `ad325ddd19ecc55aa9e31a147c59fb4f8a0acbc7`和Harness固定head `924a622f6dc69a2e4b5beebdf218196da927dc7c`启动全新隔离review 2；review通过后由主agent按终态流程处理。#37终态后先统一重试PR #60，不直接开工#38。
