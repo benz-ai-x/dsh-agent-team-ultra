@@ -127,11 +127,18 @@ function backendForTarget(
 }
 
 function ordinaryRuntimeAvailability(
+  member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
   backend: DigitalEmployeeRuntimeBackend | undefined,
 ): DigitalEmployeeTeamMemberView['runtimeAvailability'] {
-  if (backend?.availability === 'available') return 'available'
   if (backend?.availability === 'unsupported') return 'capability-mismatch'
-  return 'unavailable'
+  if (backend?.availability !== 'available') return 'unavailable'
+  const required = member.externalRuntime?.requirements
+  if (required !== undefined && (
+    !backend.contextModes.includes(required.contextMode)
+    || required.profileCapabilities.some(capability => !backend.profileCapabilities.includes(capability))
+    || required.runtimeCapabilities.some(capability => !backend.runtimeCapabilities.includes(capability))
+  )) return 'capability-mismatch'
+  return 'available'
 }
 
 function runtimeFacts(
@@ -139,14 +146,25 @@ function runtimeFacts(
   backend: DigitalEmployeeRuntimeBackend | undefined,
   runtimeAvailability: DigitalEmployeeTeamMemberView['runtimeAvailability'],
 ): DigitalEmployeeTeamMemberRuntimeView {
+  const declaredFull = backend?.runtimeCapabilities.includes('full-collaboration') === true
+  const operations = member.memberOperations
+  const collaborationStatus = backend === undefined
+    || (member.externalRuntime !== undefined && operations === undefined)
+    ? 'unknown'
+    : declaredFull && (member.externalRuntime === undefined || (
+      operations !== undefined && (['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const)
+        .every(operation => operations.includes(operation))
+    )) ? 'full' : 'limited'
   return Object.freeze({
     ...(member.context === undefined ? {} : { contextMode: member.context }),
     provisioningPhase: memberProvisioningPhase(member.status),
     runtimeAvailability,
     runtimePresence: memberRuntimePresence(member.status),
+    collaborationStatus,
     supportedContextModes: Object.freeze([...(backend?.contextModes ?? [])]),
     profileCapabilities: Object.freeze([...(backend?.profileCapabilities ?? [])]),
-    runtimeCapabilities: Object.freeze([...(backend?.runtimeCapabilities ?? [])]),
+    runtimeCapabilities: Object.freeze((backend?.runtimeCapabilities ?? [])
+      .filter(capability => capability !== 'full-collaboration' || collaborationStatus === 'full')),
   })
 }
 
@@ -185,7 +203,7 @@ function snapshotTeamMembers(
       const actualRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute, false)
       const backend = backendForTarget(catalog, actualRuntimeTarget ?? selectedRuntimeTarget)
       return Object.freeze({
-        ...runtimeFacts(member, backend, ordinaryRuntimeAvailability(backend)),
+        ...runtimeFacts(member, backend, ordinaryRuntimeAvailability(member, backend)),
         binding: 'ordinary',
         teamId,
         memberId: member.id,

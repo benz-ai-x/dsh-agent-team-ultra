@@ -1337,6 +1337,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       nativeHandle: session.handle,
       turnId: acceptedTurnId,
       presence: session.presence,
+      memberOperations: this.memberOperations,
     }
   }
 

@@ -625,6 +625,7 @@ describe('Digital Employee Studio', () => {
           runtimeAvailability: 'available' as const,
           runtimePresence: 'idle' as const,
           supportedContextModes: ['fresh', 'fork'] as const,
+          collaborationStatus: 'full' as const,
           profileCapabilities: ['persona', 'mission', 'tool-policy', 'hooks'] as const,
           runtimeCapabilities: [
             'full-collaboration', 'workspace-write', 'exact-call-approval', 'evaluation',
@@ -645,7 +646,8 @@ describe('Digital Employee Studio', () => {
           runtimePresence: 'running' as const,
           supportedContextModes: ['fresh'] as const,
           profileCapabilities: ['persona', 'mission'] as const,
-          runtimeCapabilities: ['full-collaboration', 'evaluation', 'evidence'] as const,
+          collaborationStatus: 'unknown' as const,
+          runtimeCapabilities: ['evaluation', 'evidence'] as const,
         },
       ],
     } as unknown as DigitalEmployeeStudioView
@@ -661,6 +663,7 @@ describe('Digital Employee Studio', () => {
     expect(within(ordinary).getByText('Supported contexts: Fresh · Fork')).toBeDefined()
     expect(within(ordinary).getByText('Runtime availability: Available')).toBeDefined()
     expect(within(ordinary).getByText('Runtime presence: Idle')).toBeDefined()
+    expect(within(ordinary).getByText('Member collaboration: Full collaboration confirmed')).toBeDefined()
     expect(within(ordinary).getByText(/Profile capabilities: Persona.*Mission.*Tool policy.*Hooks/)).toBeDefined()
     expect(within(ordinary).getByText(/Runtime capabilities: Full collaboration.*Workspace write.*Exact-call approval.*Evaluation/)).toBeDefined()
 
@@ -669,8 +672,16 @@ describe('Digital Employee Studio', () => {
     expect(within(bound).getByText('Selected route: native-reviewer')).toBeDefined()
     expect(within(bound).getByText('Actual route: native-reviewer')).toBeDefined()
     expect(within(bound).getByText('Runtime presence: Running')).toBeDefined()
+    expect(within(bound).getByText('Member collaboration: Unconfirmed — installed member tools are unknown')).toBeDefined()
+    expect(within(bound).queryByText(/Full collaboration/)).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: /Reviewer One/ }))
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Unsaved review draft' } })
     fireEvent.click(within(bound).getByRole('link', { name: 'Open messages: reviewer' }))
     expect(openTeamMessages).toHaveBeenCalledWith('session-a', 'bound-member')
+    expect(screen.queryByRole('dialog', { name: 'Digital Employee Studio' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(false))
+    expect((await screen.findByLabelText('Display name') as HTMLInputElement).value).toBe('Unsaved review draft')
   })
 
   it('keeps unrostered pending and failed Bindings visible beside ordinary members', async () => {

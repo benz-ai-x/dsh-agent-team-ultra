@@ -30,6 +30,11 @@ later activity and neither starts work nor releases ownership. Final results
 settle through the member mailbox, and new delivery prompts retain the existing
 turn id beside the original operation marker for transcript-based recovery.
 
+Create and resume results confirm the six per-handle `memberOperations` because
+every query installs this generation's controlled Team MCP server, including
+resumed queries. Studio combines this live proof with the provider catalog;
+provider removal discards it without changing the persisted member identity.
+
 Cold attach reads Host-only `turns.recover` pages through the newly verified
 member grant. The Host supplies the original launch correlation, inbound
 delivery ids and committed settlements for the exact member/provider/handle;

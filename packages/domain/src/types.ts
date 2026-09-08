@@ -319,6 +319,8 @@ export interface DigitalEmployeeTeamMemberRuntimeView {
   readonly provisioningPhase: DigitalEmployeeProvisioningPhase
   readonly runtimeAvailability: DigitalEmployeeRuntimeAvailability
   readonly runtimePresence: DigitalEmployeeRuntimePresence
+  /** Full requires confirmed member tools; unknown means native recovery cannot attest the installed set. */
+  readonly collaborationStatus: 'full' | 'limited' | 'unknown'
   readonly supportedContextModes: readonly DigitalEmployeeContextMode[]
   readonly profileCapabilities: readonly DigitalEmployeeProfileCapability[]
   readonly runtimeCapabilities: readonly DigitalEmployeeRuntimeCapability[]

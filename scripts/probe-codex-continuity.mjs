@@ -166,6 +166,11 @@ try {
   const live = await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   if (checkpoint) assert.deepEqual(identity(live.instances[0]), checkpoint.identity)
   const member = ctx.agentTeams.listMembers(lead.agent).find(row => row.name === 'codex-reviewer')
+  if (queries) {
+    const studioMember = live.teamMembers.find(row => row.memberId === member.id)
+    assert.equal(studioMember.collaborationStatus, creating ? 'full' : 'unknown')
+    assert.equal(studioMember.runtimeCapabilities.includes('full-collaboration'), creating)
+  }
   assert.equal(member.id, live.instances[0].memberId)
   assert.equal(member.externalRuntime.nativeHandle, live.instances[0].nativeRuntimeHandle)
   const sent = await ctx.agentTeams.sendMessage(lead.agent, {

@@ -1013,7 +1013,7 @@ export function DigitalEmployeeStudio({
     setNotice(null)
   }, [])
 
-  const refresh = useCallback(async (preferredId?: string): Promise<boolean> => {
+  const refresh = useCallback(async (preferredId?: string, preserveEditor = false): Promise<boolean> => {
     const requestedSession = sessionId
     const generation = ++refreshGeneration.current
     const openingStreamGeneration = streamSnapshotGeneration.current
@@ -1027,6 +1027,8 @@ export function DigitalEmployeeStudio({
         return false
       }
       setView(result.value)
+      setError(null)
+      if (preserveEditor) return true
       const targetId = preferredId ?? selectedRef.current
       const selected = result.value.profiles.find(profile => profile.head.profileId === targetId)
       if (selected !== undefined) {
@@ -1049,7 +1051,6 @@ export function DigitalEmployeeStudio({
         setEvalRunLoading(false)
         setCompareEvalRunId(null)
       }
-      setError(null)
       return true
     } catch (reason: unknown) {
       if (sessionRef.current === requestedSession && refreshGeneration.current === generation) {
@@ -1521,7 +1522,7 @@ export function DigitalEmployeeStudio({
           }
           commitWindowRect(fitWindowRect(windowRectRef.current ?? initialWindowRect()))
           setOpen(true)
-          void refresh()
+          void refresh(undefined, true)
         }}
       >
         <IconUserOutline16 size={14} />
@@ -1723,6 +1724,11 @@ export function DigitalEmployeeStudio({
                               : member.profileCapabilities.map(capability => profileCapabilityLabel(capability, t)).join(' · ')}
                           </small>
                           <small>
+                            {t('collaborationStatus')}: {member.collaborationStatus === 'full'
+                              ? t('collaborationFull')
+                              : member.collaborationStatus === 'limited' ? t('collaborationLimited') : t('collaborationUnknown')}
+                          </small>
+                          <small>
                             {t('runtimeCapabilities')}: {member.runtimeCapabilities.length === 0
                               ? t('noRuntimeCapabilities')
                               : member.runtimeCapabilities.map(capability => runtimeCapabilityLabel(capability, t)).join(' · ')}
@@ -1737,6 +1743,7 @@ export function DigitalEmployeeStudio({
                             onClick={(event) => {
                               event.preventDefault()
                               openTeamMessages(sessionId, member.memberId)
+                              closeWindow()
                             }}
                           >
                             {t('openMemberMessages')}

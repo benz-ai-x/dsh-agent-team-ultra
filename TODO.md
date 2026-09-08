@@ -1,5 +1,14 @@
 # TODO
 
+## Current requested scope: PR #61 review fixes
+
+Only the three confirmed PR #61 findings are in scope. The isolated `fix/pr61-review-findings` worktree preserves main and does not push, merge, notify, or advance the historical Issue pipeline below. See [repair evidence](docs/evidence/pr61-review-fixes.md).
+
+- [x] Separate exact member operation proof from provider catalog capabilities, retaining unknown on unprovable Codex cold recovery.
+- [x] Compare ordinary external members' retained context, Profile and runtime requirements after provider replacement.
+- [x] Close Studio after public member-message navigation and retain its editing draft on reopen.
+- [x] Complete the final aggregate and local archive verification: 582 strict checks, 364 tests, eight archives, Web boot, JSON/SQLite recovery and uninstall.
+
 ## Current vertical slice
 
 - [x] Select local-only overlay delivery against the audited Harness snapshot.

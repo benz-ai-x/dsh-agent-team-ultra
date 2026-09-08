@@ -36,6 +36,13 @@ without acquiring new tools. The catalog's `memberOperations` describes new
 native sessions, not a retroactive upgrade of existing threads. See the
 [authorization decision](../../docs/adr/0017-authorize-native-team-member-queries.md).
 
+The create/resume result confirms per-handle `memberOperations` only when this
+provider generation created the thread with the complete tool set. Codex 0.149.1
+does not expose installed tools in its Thread or resume response, so a cold
+resume reports unknown even for a current thread. Studio displays that
+uncertainty instead of promoting it from the catalog. No tool installation,
+native thread replacement, or new durable Team state occurs during recovery.
+
 Member messages atomically commit their original receipt before acknowledgement
 and delivery. Retries within a live turn preserve trusted thread/turn/call identities; changed
 normalized input conflicts. Queued means durable acceptance only. Final answers

@@ -15,6 +15,8 @@ export function apply(ctx) {
     contextModes: ['fresh'],
     profileCapabilities: ['persona', 'mission'],
     runtimeCapabilities: [],
+    memberOperations: ['messages.send'],
+    bindMemberOperations() {},
     async create(request) {
       request.signal.throwIfAborted()
       control.createCalls.push(request)
@@ -33,6 +35,7 @@ export function apply(ctx) {
         nativeHandle: runtime.nativeHandle,
         turnId: runtime.initialTurnId,
         presence: 'idle',
+        memberOperations: ['messages.send'],
       }
     },
     async resume(request) {
