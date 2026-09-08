@@ -7,7 +7,7 @@
 
 ## 当前任务与完成边界
 
-- 当前持续目标固定为本轮启动快照的 **#18、#33–#44，共 13 项**；唯一进度索引为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，Issue／PR／分支事实冲突时以 `gh`／`git` 实测修正。#18 按 #44 的明确 AC 保持 open 且本轮记 skipped；#33–#44 按冻结的五个 Batch 串行推进，每个开发和评审均使用全新隔离会话。
+- 当前用户要求仅整理并修复 **PR #60** 的审查发现。本轮范围为 #34–#36 对应的 Team DAG、冲突草稿和 watch 生命周期；历史 #18、#33–#44 批处理快照不扩大当前工作范围。唯一进度索引仍为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，实时提交以 `gh`／`git` 为准。当前锁定 Harness `b78caad462…`，本轮追加验证见下方「#34–#36」小节；后文的 `806e5887…`／`ca17782…` 均为补修前历史候选。
 - 当前主工作区分支为 `feat/batch-2-task-dag-live`，从 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` 建立。PR #60 历史 review 连续失败3轮、local-gate历史红1；用户已显式启用唯一统一重试1/1，该开发和正式全量闸门现已完成，绝不能重置成普通review 4。Batch 1 的 [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 已按人工确认 merge commit 合并，#33 自动关闭；合并后 `pnpm verify` 再次通过582 strict、346 tests与完整八归档/Web/恢复/卸载。
 - #27–#32 已在本轮启动前分别合并 PR #53–#58 并关闭，不属于本次快照范围。Batch 2 冻结包含 #34、#35、#36；三项最新正文与 AC 已重读且未更新，依赖 #25/#33 已关闭，#35→#34、#36→#35 保持批内顺序。后续恢复只读 `PIPELINE_STATE.md`，不再使用历史 `/root/workspace/.ultra-checks/frozen-issues-27-44.json` 作为进度源。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
@@ -31,6 +31,11 @@
 - 实际 packed gate 安装八归档并经 production renderer、generated Remote、owner child Slot 调用 Loader 装载的真实 TeamService，组合 AgentLoop、Agent Registry、JSONL persistence 与受控 external provider。真实 durable acceptance 后刻意丢失一次返回回执，生产 UI 到达 deadline、保留 exact intent，Host 冷恢复不自动发送，provider 恢复和显式 replay 全程只见一条 required fact／一次 provider work；缺失／重复 required fact 的负控均拒绝。Harness 4 个 owning suites 186 tests、整个 Team package 376 tests（2 个既有 skip）、TS/Python SDK 快照及 Host/Client/docs/types/build 均通过。Ultra focused 为 3 files／48 tests；合并前后 `pnpm verify` 均为 582 strict／0 警告、30 files／346 tests、八归档／Web／Codex＋Claude JSON/SQLite recovery／卸载全部通过。实时重读 Issue 后六项 AC 逐条成立，仅更新六个 checkbox；PR #59 merge commit 为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Issue 已自动关闭。详见 [#33 验收证据](docs/evidence/issue-33-acceptance.md) 与 [pipeline state](PIPELINE_STATE.md)。
 
 ## #34–#36 Batch 2 唯一统一重试候选
+
+- 本轮接入 `beb16ff` 已有的六项功能修复，并以 Harness `b78caad462c3509127761904ed59ee549b6b6160` 补齐过滤后的 ArrowLeft 和公开 `createTeamWatchOwner`。任务面板与 Ultra 消息中心通过浏览器 module table 共用清理实现，各 registration 仍独立。八项去重审查发现与回归映射见 [PR #60 修复记录](docs/evidence/pr-60-review-fixes.md)。验证使用 `/root/workspace/pr60-fixes.U6WRei` 隔离工作树；原 stash 和并行开发记录保留。
+- 本轮补修后的完整 `pnpm verify` 自然退出 0：582 strict／0 warning、30 files／359 tests、八归档安装／production DAG／CAS／watch／Web／Codex＋Claude JSON与SQLite恢复／完整卸载全部通过。Harness 定向检查与真实 Web 回归通过；全仓 lint 的剩余错误属于 PR 起点前的 `message-read.spec.ts:541`，按范围保留。声明 freshness 和独立 bundle 模块映射的中途失败及修复均记入上述证据，不冒充首轮全绿。
+
+以下保留 `beb16ff`／Harness `806e5887…` 收口时的历史验证；其中的“最终”仅指当时的候选，当前来源和结果以上两条为准。
 
 - 维护 Harness 分支 `fix/ultra-34-36-task-dag-live` 最终为 `806e58873bb055e258b4623d03c9fbad41a26dc7`，本地、tracking与HTTPS `ls-remote`一致且worktree clean。重试提交按issue顺序为：#34 `ec0f240b03`，#35 `13f5fb25d7`与docs `938adcc566`，#36 `806e58873b`。公开 Team owner `TeamAction`仍只把同一`TeamView.tasks`投影为list/DAG/shared detail，不创建Client权威状态。
 - #34：blocker copy只列同一Host view里status未完成的前置项，完整历史`blockedBy`关系和DAG边保留，ready/claimability直接显示Host事实；watch完成一个dependency会同步更新提示。fit-to-view按实际视口与16px margin计算完整缩放，默认260px五行DAG得到0.35并居中；手动0.5–2 zoom、pan、keyboard与native list替代不变。两个公开用例分别先真实RED再GREEN，完整TeamAction 38/38。
@@ -276,7 +281,7 @@
 
 - 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
 - `/root/workspace/deepseek-harness` 保持干净的 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` 和完整构建，供阶段 A 的 #25 和 #48 补修环境使用。该独立环境位于 `/tmp/ultra-25-audit-fix-vHVNjX`，已按其 lock 完成源码准备、冻结安装及完整验证；未重置共享 checkout。
-- 当前 `.dsh/harness` 指向 `/root/workspace/deepseek-harness-ultra-29`，lock 为 `503ad563ff226c2afc77608c432af3a80aae3279`，Harness 分支 `fix/ultra-34-36-task-dag-live` 已推送到 fork、工作树 clean；docs digest 为 `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`。#34–#36 的来源准备、冻结安装、build、strict、focused 与 packed 验证均通过。阶段 A 的 `8b4bae0b` 独立源码及前身归档验证环境保持不变。首次或换源时先准备再安装依赖，依赖和 TypeScript 共用所选链接。
+- 本轮验证工作树的 `.dsh/harness` 指向 `/root/workspace/pr60-fixes.U6WRei/harness`，锁定 `b78caad462c3509127761904ed59ee549b6b6160`，该提交已推送到 `fix/ultra-34-36-task-dag-live`；docs digest 仍为 `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`。来源准备、冻结安装和 582 strict／0 warning 通过。原 Harness worktree 保留，首次或换源时先准备再安装依赖。
 - 飞书 CLI 已验证当前 user／bot 身份可用；认证阻塞、#21 缓存阻塞及恢复、#22 官方构建阻塞及恢复均已通知。不要在本文件记录凭据、用户标识或私人消息。
 - GitHub CLI 已完成设备授权登录，`gh auth status` 退出 0，Git 使用 SSH；`gh repo view` 已验证本仓库 `ADMIN` 权限。Issue／PR 的实际操作仍按任务边界和既有授权执行；无需重复询问已经授权的提交、推送和 PR 操作；对外消息仍须当前会话明确授权。不记录登录验证码或凭据。
 - 当前 `gh pr edit` 因已停用的 Projects classic GraphQL 字段报错；已通过 `gh api --method PATCH repos/benz-ai-x/dsh-agent-team-ultra/pulls/<number> --input <JSON文件>` 成功更新 #48、#51 正文。该错误与认证无关。
@@ -284,11 +289,13 @@
 
 ## 下一步
 
-1. 从 [pipeline state](PIPELINE_STATE.md) 回读 #34–#36 的 Harness/Ultra commits、GitHub checkbox与PR head/body实测；两仓分支均应已push且与`ls-remote`精确一致，不要merge PR #60。
-2. 开启隔离 code-review round 3：Ultra 固定 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` 到本轮最终推送head，Harness固定 `d2d870fbe40bc0e968abdac854a3aae495162bec..503ad563ff226c2afc77608c432af3a80aae3279`；只复核#34/#35/#36实时AC、review 1 A–H及review 2的墓碑consumer/async quiescent disposal。任一blocking/high即按连续第3轮失败熔断PR #60。
-3. #37+ 与 #44 真实凭据不纳入本 Batch；不得在本分支提前实现 Studio capability truth、cold provider generation replacement或v2迁移。
+1. 回读 PR #60 最终 HEAD 与 [reference lock](dsh-reference.lock.json)，按 [修复记录](docs/evidence/pr-60-review-fixes.md) 验证本轮八项去重审查发现。
+2. 后续独立评审固定 Ultra main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` 到最终 PR HEAD，以及 Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..b78caad462c3509127761904ed59ee549b6b6160`。历史熔断与唯一重试次数保留；本轮不合并 PR。
+3. 当前仅处理 PR #60；其他 PR、Issue 和真实 native 验收不在本轮范围。
 
 ## 权威材料与技能
+
+- 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 
 - 开发前必读：[AGENTS.md](AGENTS.md)、[PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md)、[TODO.md](TODO.md)、[reference lock](dsh-reference.lock.json)。
 - 领域／历史：[CONTEXT.md](CONTEXT.md)、[领域约定](docs/agents/domain.md)、[ADRs](docs/adr/)、[历史决策](docs/decisions/)、[官方兼容性研究](docs/research/2026-09-05-official-agent-team-compatibility.md)。

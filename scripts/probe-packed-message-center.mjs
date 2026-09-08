@@ -156,6 +156,7 @@ const ultraClientId = handoffs.has('@benz-ai-x/dsh-client-ui-agent-team-ultra')
   : '@deepseek-ai/dsh-client-ui-agent-team-ultra'
 const ultraClient = instantiate(ultraClientId, {
   '@deepseek-ai/dsh-api-gateway/client': gatewayClient,
+  '@deepseek-ai/dsh-experimental-client-ui-agent-team/client': teamClient,
 })
 
 function appendMember(session, TeamId, SessionId, member) {

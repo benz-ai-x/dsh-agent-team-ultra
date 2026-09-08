@@ -137,6 +137,9 @@ an actual integration commit based on the fixed official comparison.
   Clients reread the existing task view and current filtered message window.
   Each Client read class permits one in-flight read and at most one trailing
   dirty read; a page replacement blocks append from its unpublished cursor.
+  Task-panel and message-view registrations use the Team Client's public
+  `createTeamWatchOwner` with separate owners, so React-triggered closes and
+  live controls share one implementation of awaitable Fiber teardown.
   The stream carries no message page, draft, scheduler, or persistent mirror.
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
@@ -319,8 +322,11 @@ an actual integration commit based on the fixed official comparison.
   self edges, and indirect cycles remains atomic and rejected writes append no
   event. Client previews never change readiness. A stale edit reloads the
   current authoritative task while retaining an explicitly unsaved text and
-  dependency draft across a racing watch refresh with bilingual feedback; it never automatically retries an
-  overwrite. See
+  dependency draft across a racing watch refresh with bilingual feedback.
+  Only a successful conflict-triggered authority reload advances the edit base
+  for the next explicit Save; a failed reload preserves the old base and real
+  error. Deleted selected dependencies remain visible and removable in that
+  unsaved draft. No reload automatically retries an overwrite. See
   [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md) and
   [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 - The Claude Code provider qualifies only the pinned package-local Claude

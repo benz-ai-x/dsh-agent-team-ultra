@@ -33,6 +33,11 @@
 
 ## Next increment
 
+Current user scope is PR #60 only. The consolidated fixes, including filtered
+prerequisite navigation and shared browser watch ownership, are tracked in
+[the review-fix evidence](docs/evidence/pr-60-review-fixes.md). Historical batch
+plans below do not authorize starting other PRs in this task.
+
 The current task freezes the 13 Issues open at its start: parent Spec #18 plus #33–#44. Progress and recovery live in [PIPELINE_STATE.md](PIPELINE_STATE.md); gh/git remain authoritative. Batch 1 / #33 is merged and closed after two review rounds, a manual-merge confirmation, and green pre/post-merge full gates. Batch 2 / #34–#36 has completed its sole post-fuse unified retry in dependency order from main `2c5a355`: all six review-3 findings have public RED/GREEN coverage, Harness `806e5887…` and Ultra development/acceptance head `ca17782…` are pushed, the first full Ultra gate is green, all three live Issues remain open with 5/5 checked, and PR #60 has three `Closes` with full validation evidence. Only a fresh isolated review remains; this is not a fourth ordinary review round. Spec #18 remains open and is intentionally skipped until #44 completes. Current evidence and limitations are tracked in [HANDOFF.md](HANDOFF.md).
 
 - [x] [B09 / #27](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/27): [PR #53](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/53) merged as `2568444`; Issue closed, 6/6 acceptance criteria verified. Final candidate `472145a` passed Standards and Spec with zero unresolved findings. Full verification: 554 strict checks, 274 tests and eight-archive install/messaging/recovery/Web/uninstall. Harness `d5eca257c2` adds durable receipts and inactive-member reauthorization; both SDK event projections pass. Feishu completion notification succeeded.

@@ -441,6 +441,14 @@
 
 ## 下一步（唯一恢复入口）
 
+本轮用户把范围限定为 PR #60。新增收尾修复为过滤后的可见前置键盘导航、
+任务／消息视图共用公开 watch owner，并接入 `beb16ff` 的已有六项修复。
+Harness 为 `b78caad462c3509127761904ed59ee549b6b6160`；补修后的完整
+`pnpm verify` 已自然退出 0：582 strict／0 warning、359 tests 与八归档完整验证。
+逐项结果、中途声明 freshness／bundle fixture 失败及修复、PR 前既有全仓 lint
+限制见 [PR #60 修复记录](docs/evidence/pr-60-review-fixes.md)。历史计数保留，
+本轮不执行下列历史流程中的合并、其他 PR 或外部通知步骤。
+
 1. PR #60唯一统一重试（1/1）开发已完成：Harness `806e5887…`已推送，Ultra正式full gate首轮绿，#34/#35/#36均OPEN且5/5。完成#36 docs/state提交、HTTPS push与PR正文`Closes`/精确head回读后停止开发。
 2. 只由主agent创建全新隔离`/code-review`，以main `2c5a355…`、最终Ultra/Harness heads和live AC审查；本开发agent不得自行review、合并或开后续PR。历史review仍是3，本轮是唯一重试评审而非review 4。
 3. 唯一重试评审保持0 blocking/high且闸门绿才允许按merge commit合并PR #60并做main post-merge `pnpm verify`；任一blocking/high则立即恢复blocked、记录重试耗尽并通知。PR #61在此期间保持暂停，不启动review 2。

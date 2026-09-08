@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteSnapshotStream, RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-experimental-client-ui-agent-team/client'
+import { createTeamWatchOwner, type TeamWatchControl } from '@deepseek-ai/dsh-experimental-client-ui-agent-team/client'
 import type {} from '@deepseek-ai/dsh-experimental-agent-team/remote'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
@@ -20,7 +20,6 @@ import {
 import {
   TeamMessageCenter,
   type TeamMessageCenterInjected,
-  type TeamMessageCenterWatchControl,
   type TeamMessageCenterWatchSink,
 } from './TeamMessageCenter.tsx'
 import { en, NS, zh, type UltraKey } from './locales.ts'
@@ -34,7 +33,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = ['remote', 'slots', 'locale']
 
 function registerStudio(ctx: ClientContext): void {
-  const messageWatchOwner = createTeamMessageWatchOwner()
+  const messageWatchOwner = createTeamWatchOwner()
   ctx.effect(
     () => async () => { await messageWatchOwner.dispose() },
     'client-ui-agent-team-ultra: message watch controls',
@@ -131,56 +130,6 @@ function registerStudio(ctx: ClientContext): void {
 type TeamWatchBaselineFrame = Extract<TeamWatchFrame, { readonly type: 'baseline' }>
 type TeamWatchInvalidationFrame = Exclude<TeamWatchFrame, TeamWatchBaselineFrame>
 
-interface AwaitableTeamMessageWatchControl {
-  start(): void
-  dispose(): Promise<void>
-}
-
-interface TeamMessageWatchOwner {
-  own(control: AwaitableTeamMessageWatchControl): TeamMessageCenterWatchControl
-  dispose(): Promise<void>
-}
-
-/** Retain triggered message watch closes until the Client registration reaches quiescence. */
-function createTeamMessageWatchOwner(): TeamMessageWatchOwner {
-  const controls = new Set<TeamMessageCenterWatchControl>()
-  const pending = new Set<Promise<void>>()
-  const failures: unknown[] = []
-  let accepting = true
-  return {
-    own(control) {
-      let completion: Promise<void> | undefined
-      let disposed = false
-      const owned: TeamMessageCenterWatchControl = {
-        start() {
-          if (!disposed) control.start()
-        },
-        dispose(): Promise<void> {
-          if (completion !== undefined) return completion
-          disposed = true
-          controls.delete(owned)
-          const closing = control.dispose()
-          const observed = closing.catch((error: unknown) => { failures.push(error) })
-          completion = observed
-          pending.add(observed)
-          void observed.then(() => { pending.delete(observed) })
-          return observed
-        },
-      }
-      if (accepting) controls.add(owned)
-      else void owned.dispose()
-      return owned
-    },
-    async dispose() {
-      accepting = false
-      for (const control of [...controls]) void control.dispose()
-      await Promise.all([...pending])
-      if (failures.length === 1) throw failures[0]
-      if (failures.length > 1) throw new AggregateError(failures, 'Team message watch controls failed to dispose')
-    },
-  }
-}
-
 /**
  * Reconnect one logical Team change stream for the message-center child view.
  *
@@ -193,7 +142,7 @@ export function createTeamMessageWatch(
   ctx: ClientContext,
   sessionId: Parameters<TeamMessageCenterInjected['loadTeam']>[0],
   sink: TeamMessageCenterWatchSink,
-): AwaitableTeamMessageWatchControl {
+): TeamWatchControl {
   const stream = ctx.remote.$stream<TeamWatchFrame>({
     name: 'Agent Team message change stream',
     open: signal => ctx.remote.agentTeams.watch(sessionId, signal),
