@@ -100,6 +100,42 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
+  it('refuses an unqualified explicit peer link before initializing its profile', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ultra-peer-link-admission-'))
+    temporary.push(root)
+    const peer = join(root, 'peer')
+    mkdirSync(peer)
+    writeFileSync(join(peer, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-brand', version: '0.1.3-alpha.1' }))
+    const result = spawnSync(process.execPath, [
+      join(project, 'scripts/compatible-dsh.mjs'), '--lock-local-peers', 'plugin', '--profile', 'web', 'add', `link:${peer}`,
+    ], { cwd: project, encoding: 'utf8', env: { ...process.env, DSH_HOME: join(root, 'business-data') } })
+    expect(result.status).toBe(1)
+    expect(JSON.parse(result.stderr)).toMatchObject({ code: 'ULTRA_COMPAT_INSTALLATION_INVALID' })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it('preserves a conflicting user override and profile manifest instead of silently replacing them', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ultra-peer-override-conflict-'))
+    temporary.push(root)
+    const directory = join(root, 'profiles/web')
+    mkdirSync(directory, { recursive: true })
+    const manifest = JSON.stringify({ name: 'user-profile', private: true, description: 'Retain this setting.' }) + '\n'
+    const settings = "packages: []\n# Retain this comment.\noverrides:\n  '@deepseek-ai/dsh-brand': 'PRIVATE_CUSTOM_OVERRIDE'\n"
+    writeFileSync(join(directory, 'package.json'), manifest)
+    writeFileSync(join(directory, 'pnpm-workspace.yaml'), settings)
+    writeFileSync(join(directory, 'cordis.patch.yml'), '[]\n')
+    const peer = realpathSync(join(project, '.dsh/harness/packages/util/brand'))
+    const result = spawnSync(process.execPath, [
+      join(project, 'scripts/compatible-dsh.mjs'), '--lock-local-peers', 'plugin', '--profile', 'web', 'add', `link:${peer}`,
+    ], { cwd: project, encoding: 'utf8', env: { ...process.env, DSH_HOME: root } })
+    expect(result.status).toBe(1)
+    expect(JSON.parse(result.stderr)).toMatchObject({ code: 'ULTRA_COMPAT_INSTALLATION_INVALID' })
+    expect(result.stderr).not.toContain('PRIVATE_CUSTOM_OVERRIDE')
+    expect(readFileSync(join(directory, 'package.json'), 'utf8')).toBe(manifest)
+    expect(readFileSync(join(directory, 'pnpm-workspace.yaml'), 'utf8')).toBe(settings)
+    expect(existsSync(join(directory, 'node_modules'))).toBe(false)
+  })
+
   it('reports a missing compatibility proof before importing the Host implementation', () => {
     const root = installedPackage()
     rmSync(join(root, 'lib/compatibility.json'))
@@ -112,10 +148,11 @@ describe('installed Ultra compatibility admission', () => {
   it('rejects a same-version Team with missing extensions before importing it or opening business data', () => {
     const root = installedPackage()
     const team = join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team')
+    const version = JSON.parse(readFileSync(join(team, 'package.json'), 'utf8')).version
     rmSync(team)
     mkdirSync(team)
     writeFileSync(join(team, 'package.json'), JSON.stringify({
-      name: '@deepseek-ai/dsh-experimental-agent-team', version: '0.1.2-rc.1', type: 'module', main: 'index.js',
+      name: '@deepseek-ai/dsh-experimental-agent-team', version, type: 'module', main: 'index.js',
     }))
     writeFileSync(join(team, 'index.js'), `
       import { mkdirSync } from 'node:fs'

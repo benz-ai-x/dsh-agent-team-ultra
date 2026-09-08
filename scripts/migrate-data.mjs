@@ -49,8 +49,8 @@ try {
   const sourceStorage = options.get(`--${backend}`)
   const target = options.get('--target')
   const maximumWrites = options.has('--max-writes') ? Number(options.get('--max-writes')) : Infinity
-  if (maximumWrites !== Infinity && (!Number.isSafeInteger(maximumWrites) || maximumWrites < 1)) {
-    refuse('MIGRATION_ARGUMENTS', '--max-writes must be a positive safe integer')
+  if (maximumWrites !== Infinity && (!Number.isSafeInteger(maximumWrites) || maximumWrites < 0)) {
+    refuse('MIGRATION_ARGUMENTS', '--max-writes must be a non-negative safe integer')
   }
   let writes = 0
   const afterWrite = () => {
@@ -83,6 +83,7 @@ try {
   lease = openSync(join(target, '.ultra-migration.lock'), 'a+', 0o600)
   try { flockSync(lease, 'exnb') }
   catch { refuse('MIGRATION_TARGET_BUSY', 'Another operator owns this target; retry after it finishes') }
+  if (maximumWrites === 0) refuse('MIGRATION_PAUSED', 'Paused before the first publication; retry with the same source and target')
   let previous
   if (existsSync(manifestPath)) {
     previous = readJson(manifestPath)

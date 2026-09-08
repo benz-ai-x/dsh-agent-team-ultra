@@ -29,11 +29,11 @@ describe('Agent Team Ultra profile overlay', () => {
       '@deepseek-ai/dsh-storage-sqlite': '0.1.3-alpha.1',
       '@benz-ai-x/dsh-agent-team-ultra': '0.1.0',
       '@benz-ai-x/dsh-client-ui-agent-team-ultra': '0.1.0',
-      '@deepseek-ai/dsh-experimental-agent-team': '0.1.2-rc.1',
+      '@deepseek-ai/dsh-experimental-agent-team': '0.1.3-alpha.1',
       '@benz-ai-x/dsh-agent-team-claude-code': '0.1.0',
       '@benz-ai-x/dsh-agent-team-codex': '0.1.0',
-      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.2-rc.1',
-      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.2-rc.1',
+      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.3-alpha.1',
+      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.3-alpha.1',
     })
     expect(Object.values(manifest.peerDependenciesMeta ?? {}).every(meta => meta.optional === true)).toBe(true)
     expect(manifest.devDependencies?.['@benz-ai-x/dsh-agent-team-codex']).toBe(

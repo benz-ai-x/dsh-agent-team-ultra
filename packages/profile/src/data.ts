@@ -35,7 +35,7 @@ export const Config: z<Config> = z.object({
 /** All child registrations and database handles belong to this Loader Fiber. */
 export async function apply(ctx: Context, config: Config): Promise<void> {
   assertUltraMigrationReady(config.sessions.root,
-    config.storage.backend === 'json' ? config.storage.root : config.storage.path)
+    config.storage.backend === 'json' ? config.storage.root : config.storage.path, config.storage.backend)
   await ctx.plugin(Persistence, config.sessions)
   if (config.storage.backend === 'json') await ctx.plugin(JsonStorage, { root: config.storage.root })
   else await ctx.plugin(SqliteStorage, {

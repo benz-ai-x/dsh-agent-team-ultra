@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requirePreparedHarness } from './harness-source.mjs'
+import { archivePackageRoots, qualifiedHarnessPeerRoots } from './local-package-closure.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const { lock, harnessRoot: harness } = requirePreparedHarness(root)
@@ -22,51 +23,13 @@ function shellWord(value) {
   return `'${value.replaceAll("'", "'\"'\"'")}'`
 }
 
-const packageRoots = [
-  join(harness, 'packages', 'experimental', 'agent-team'),
-  join(root, 'packages', 'codex'),
-  join(root, 'packages', 'claude-code'),
-  join(harness, 'packages', 'experimental', 'tool-agent-team'),
-  join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
-  join(root, 'packages', 'domain'),
-  join(root, 'packages', 'ui'),
-  join(root, 'packages', 'profile'),
-]
-const pinnedPeerRoots = [
-  join(harness, 'vendor', 'cordis'),
-  join(harness, 'vendor', 'loader'),
-  join(harness, 'packages', 'core', 'agent'),
-  join(harness, 'packages', 'util', 'brand'),
-  join(harness, 'packages', 'runtime-diagnostics', 'invariants'),
-  join(harness, 'packages', 'llm', 'llm'),
-  join(harness, 'packages', 'sandbox', 'sandbox-policy'),
-  join(harness, 'packages', 'core', 'session'),
-  join(harness, 'packages', 'session', 'session-persistence'),
-  join(harness, 'packages', 'session', 'session-projection'),
-  join(harness, 'packages', 'storage', 'storage-domain'),
-  join(harness, 'packages', 'subagent', 'subagent'),
-  join(harness, 'packages', 'core', 'system-prompt'),
-  join(harness, 'packages', 'core', 'tools'),
-  join(harness, 'packages', 'typert', 'protocol'),
-  join(harness, 'packages', 'interaction', 'user-approval'),
-  join(harness, 'packages', 'sdk', 'protocol'),
-  join(harness, 'packages', 'subprocess', 'subprocess'),
-  join(harness, 'packages', 'util', 'timeout'),
-  join(harness, 'packages', 'api', 'gateway'),
-  join(harness, 'packages', 'api', 'remotes'),
-  join(harness, 'packages', 'api', 'session-controller'),
-  join(harness, 'packages', 'client', 'locale'),
-  join(harness, 'packages', 'client', 'ui-conversation'),
-  join(harness, 'packages', 'client', 'ui-primitives'),
-  join(harness, 'packages', 'client', 'ui-renderer'),
-  join(harness, 'packages', 'client', 'ui-session'),
-  join(harness, 'packages', 'client', 'ui-slots'),
-]
+const packageRoots = archivePackageRoots(root, harness)
 const packageNames = packageRoots.map(packageRoot => {
   const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
   if (typeof manifest.name !== 'string') throw new Error(`${packageRoot}: package name is missing`)
   return manifest.name
 })
+const pinnedPeerRoots = qualifiedHarnessPeerRoots(root, harness, new Set(packageNames))
 const archives = []
 
 for (const packageRoot of packageRoots) {
@@ -95,7 +58,7 @@ console.log('For an existing old Claude Code installation, stop Web and remove i
 console.log(`${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web remove --config.offline=true --config.auto-install-peers=false '@deepseek-ai/dsh-experimental-agent-team-claude-code'`)
 console.log(`Install the ${archives.length} archives into a DSH Web profile with:`)
 console.log([
-  `${shellWord(process.execPath)} ${shellWord(checkedCli)} plugin --profile web add`,
+  `${shellWord(process.execPath)} ${shellWord(checkedCli)} --lock-local-peers plugin --profile web add`,
   ...archives.map(archive => `  ${shellWord(`file:${archive}`)}`),
   ...pinnedPeerRoots.map(packageRoot => `  ${shellWord(`link:${packageRoot}`)}`),
 ].join(' \\\n'))

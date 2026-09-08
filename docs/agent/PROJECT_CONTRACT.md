@@ -643,13 +643,16 @@ direct constructor call could bypass Loader validation.
 
 Delivery is a local-only overlay bound to the audited Harness commit in
 `dsh-reference.lock.json`. The upstream Agent Team packages are private, so
-this workspace is not npm-publishable. `pack:local` creates the five Ultra
-archives and the three pinned private Agent Team archives, then emits a local
-archive installation command whose unpublished peer dependencies resolve from
-the audited Harness checkout. Verification installs all eight archives,
-resolves both Codex and Claude Code runtime families, boots a real DSH Web
-profile, removes the eight overlay packages, and proves no Ultra, Codex, or
-Claude Code Loader row or package remains.
+this workspace is not npm-publishable. `pack:local` derives the archive set from
+the actual Profile contributions and local overlay dependency closure; package
+subpaths do not create extra archives. Every other qualified Harness package
+resolves from the audited checkout. The explicit `--lock-local-peers` installation
+option pins both direct and nested dependencies in the profile workspace settings,
+preserves unrelated settings and refuses conflicting overrides. Verification
+installs and removes the entire derived archive set, resolves both Codex and
+Claude Code runtime families, boots a real DSH Web profile, and proves no Ultra,
+Codex, or Claude Code Loader row or package remains. The current set contains
+five Ultra and three Harness archives; this is an observed result, not a fixed count.
 
 Non-goals for the first increment: nested Teams, cross-process Team delivery,
 filesystem locks/worktrees, profile hot-rebinding of existing employees,

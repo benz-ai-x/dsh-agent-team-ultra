@@ -1,6 +1,6 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-08（Asia/Shanghai）。用户使用中文。
+交接日期：2026-09-09（Asia/Shanghai）。用户使用中文。
 
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
@@ -19,7 +19,12 @@
 - #40 实现及定向验证已完成：Ultra 145／145、Harness Team UI 63／63、真实 built native Loader 1／1 通过，原 SDK／payload 不变。证据提交 `dcc022c` 已推送 PR #63；Issue OPEN／4/5 AC，最终收口留给 #43。飞书通知于 21:29:32 成功发送，幂等键 `ultra-40-dcc022c-focused`，不要重发。
 - #41 实现与定向验证完成，提交 `04b2c9f2ed1e3e1f8357dd774881f41b44d916e4` 已推送 PR #63 并回读一致；Issue OPEN／2/6 AC，只勾选源保护／pending／完成最后提交和支持边界／脱敏。70／70 tests、5 文件（audit 37、execution 24、公开业务／Profile 9）、648 strict／0 warnings、完整 build 和 67 个本地文档链接通过。JSON／SQLite 真实迁移保留源与原身份，支持重试／临时前缀恢复／分歧拒绝、checkpoint／Run 重建及 Eval 历史／Gate 失效。完整历史归档、逐写入中断矩阵仍留给 #43；B 黄金输入不含 Ultra/native，不夸大历史证明。
 - #41 Profile `data` 联合检查实际 Session／storage roots 后才注册真实持久化，同一 Fiber 释放；pending／混合根与两种后端生命周期通过。Harness 候选未改。README／ADR 0027 明确目标 JSON `storage`（不是默认 `storages`）、双路径配置、源停写、SDK 历史／认证不复制及 Linux 限制。飞书通知于 22:59 由 Ali Agent CLI bot 成功发送（ok: true），幂等键 `ultra-41-04b2c9f-focused`，不要重发。
-- #42 实现与定向验证完成，正在提交发布，尚未发送完成通知。真实 Agent Loop／Session v2／Host／生成 Remote RED → GREEN 修复失败 attempt 用量（14＋7 原返回 7）、缺失流终态仍 complete、部分 aggregate 冒充完整 total；live／settled／cold 与 JSON／SQLite 累计快照不重复计数、原 Run/member/Revision/route 保留。112／112、7 文件回归通过；DSH/native 迁移重建各 2／2，通过最终 build、648 strict／0 warnings。日志 `issue42-focused-owner.log` 与 `issue42-*-regression.log`，证据在集成树 `docs/evidence/issue-42-acceptance.md`。#43 最终历史→Studio／归档／全中断矩阵及 #44 认证未完成，没有正式 review 或自动合并。
+- #42 实现与定向验证完成，提交 `61fb4f6bb56de13c63d186b29039b55ea5b1bf68` 已推送 PR #63 并回读一致，Issue OPEN／4/5 AC。飞书完成通知已于 23:13 成功发送（ok: true／bot），幂等键 `ultra-42-61fb4f6-focused`，不要重发。真实 Agent Loop／Session v2／Host／生成 Remote RED → GREEN 修复失败 attempt 用量（14＋7 原返回 7）、缺失流终态仍 complete、部分 aggregate 冒充完整 total；live／settled／cold 与 JSON／SQLite 累计快照不重复计数、原 Run/member/Revision/route 保留。112／112、7 文件回归通过；DSH/native 迁移重建各 2／2，通过最终 build、648 strict／0 warnings。日志 `issue42-focused-owner.log` 与 `issue42-*-regression.log`，证据在集成树 `docs/evidence/issue-42-acceptance.md`。#43 最终历史→Studio／归档／全中断矩阵及 #44 认证未完成，没有正式 review 或自动合并。
+- #43 实现与集中验证进行中，尚未提交、通知或勾选 AC。归档集合改为实际 Profile 入口与本地依赖闭包推导（当前 8 包，不固定数量），包含 `/data` 普通解析；所有非归档 Harness 依赖来自同一构建证明。真实安装曾发现内部 registry `dsh-brand 0.1.3-alpha.2` 与锁定 alpha.1 不符，现由显式 `--lock-local-peers` 约束顶层／嵌套依赖，固定 profile pnpm 11.7.0，并直接链接已核验 SDK／平台载荷；不放宽预检、不更换 SDK 或复制认证。冲突 override 与未核验来源在安装前拒绝，已有配置保留。
+- #43 新增真实 Profile Loader 回归先 RED 后 GREEN：完成目录内的错误 storage 子路径、后端或 Session 布局拒绝；目标已有迁移锁但首次 manifest 尚未发布也拒绝业务写入。`--max-writes 0` 暂停首次发布前。JSON／SQLite 完整耐久发布边界矩阵 2／2（189.04 秒）通过，每个边界重试、完整目标复用、源字节不变及原 Profile／Run／成员冷恢复；原 execution／来源／Profile 52／52 与安装拒绝 21／21，通过当前 648 strict／0 warnings。日志为 Batch 4 父目录 `issue43-all-writes-green.log`、`issue43-focused-regression.log`、`issue43-install-admission.log`。
+- #43 历史 Codex（`debde06`）／Claude（`081357d`）前身、以及 B 发布候选 PR #62（`4cecfe2`）均已真实归档创建 JSON／SQLite 员工，调用运维入口发布隔离目标，再以新归档的实际 `/data` Loader 恢复原 member／Revision／native handle 并续跑。B 双 native 完整查询、任务回执、原生操作、源保护、迁移后 Web 和无强杀退出、卸载通过：`issue43-b-direct-product-upgrade.log`。历史独立证据为 `issue43-codex-isolated-upgrade.log`／`issue43-claude-stable-toolchain-upgrade.log`；后续安装工具链及 SDK 链接改动仍需最终复验。控制式外部产品不等于 #44 的真实认证。
+- #43 官方／fork 11 组语义及不支持来源／stock 导入前拒绝通过 `issue43-official-fork-comparison.log`。完整 `pnpm verify` 已退出 0：648 strict／0 warnings，430 tests／39 files，JSON 13 次耐久发布／14 个边界、SQLite 7 次／8 个边界，实际闭包归档／数据入口／双 native 冷恢复／Web／卸载通过；`issue43-complete-candidate-verify.log` SHA-256 为 `b0bbad1003969d12ca54fa2ab0cc794ac32228604d1a845850d30f01cd1b9b55`。最终历史重验 `issue43-final-codex-history.log`／`issue43-final-claude-history.log` 也均通过，每次 Web 退出 0／无强杀。`tdd` 的 Studio 联合测试入口补充确认尚未收到，未写该新测试；支持标签未提升，#44／正式 review／人工合并未完成。
+- 历史前身工作树位于 Batch 4 父目录 `codex-predecessor`／`claude-predecessor`，锁定干净 Harness `8b4bae0`。各自正式 prepare、frozen/offline install、strict、build 通过；历史 Harness 曾缺失 brand→Cordis 安装链接，已正常 frozen/offline 重装恢复，源码与锁 clean。保留所有 worktree、原日志、主工作区既有变更及 stash；只操作隔离测试数据。
 - 本轮使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`、`resolving-merge-conflicts`、Harness 的 `dsh-doc`／`dsh-prose-standard`／`dsh-pre-push-checks`／`dsh-ci-test-reliability`，以及通知的 `lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
 
 ## PR #61 发布交接（历史记录，已合并）

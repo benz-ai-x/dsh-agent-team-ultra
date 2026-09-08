@@ -21,10 +21,12 @@ Session 均在私有副本操作。真实 codec、Ultra v0→v1、checkpoint 与
 相同文件只复用；外来文件、来源变化或分歧拒绝覆盖。文件与目录同步，独占进程锁
 随退出释放，只回收可证明为目标预期前缀的临时写入。重新审计目标和静止源后最后
 原子提交 `complete`；错误不会通过完成标记冒充成功。投入业务后的目标不是同步副本。
+目标已领取迁移锁但尚无 manifest 时也视为 pending，首次发布前的中断不能开放业务写入。
 
 公开 Profile `data` Loader 行先联合准入实际 Session／storage 路径，再以同一 Fiber
 挂载真实持久化、所选 JSON／SQLite 与 Domain。迁移路径必须属于同一个已完成且
-资格匹配的根；无标记的新安装可用默认路径。旧的独立数据行被 overlay 禁用，避免
+资格匹配的根，并精确对应其 `sessions`、`storage`／`storage.sqlite` 布局和后端，不能
+仅以共同祖先放行另一个空目录。无迁移标记或锁的新安装可用默认路径。旧的独立数据行被 overlay 禁用，避免
 只保护业务 Host 却已经让底层写入 pending 数据。此保护不约束旧二进制或 stock。
 
 Run Index 是派生数据，可从真实工作轮次重建；native 仅有持久关联而无 SDK 终态时

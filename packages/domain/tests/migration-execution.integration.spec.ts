@@ -454,6 +454,31 @@ describe('operator joint migration', () => {
     expect(bytes(parent)).toEqual(before)
   }, 10_000)
 
+  it('refuses a different storage directory inside the completed migration before it can create an empty domain', async () => {
+    const source = await workflow()
+    await source.invoke('save', { expectedHeadRevision: null, profile, runtimeTarget: target })
+    await source.ctx.fiber.dispose()
+    mkdirSync(join(source.root, 'sessions'), { recursive: true })
+    const parent = mkdtempSync(join(tmpdir(), 'ultra-exact-migration-layout-'))
+    cleanups.push(async () => { rmSync(parent, { recursive: true, force: true }) })
+    const destination = join(parent, 'target')
+    const migrated = migrate(source.root, destination)
+    expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0)
+    const before = bytes(parent)
+    const ctx = new Context()
+    cleanups.push(async () => { await ctx.fiber.dispose() })
+    await ctx.plugin(Storage)
+    await ctx.plugin(Loader)
+    const resolver = createRequire(join(project, 'packages/profile/package.json'))
+    await expect(ctx.loader.create({
+      name: pathToFileURL(resolver.resolve('@benz-ai-x/dsh-agent-team-ultra-profile/data')).href,
+      config: { sessions: { root: join(destination, 'sessions') }, storage: { backend: 'json', root: join(destination, 'storages') } },
+    })).rejects.toThrow(/Joint migration completion does not match/)
+    expect(ctx.get('sessionPersistence')).toBeUndefined()
+    expect(ctx.storage.backend.names()).toEqual([])
+    expect(bytes(parent)).toEqual(before)
+  }, 10_000)
+
   it.each(['json', 'sqlite'] as const)('rebuilds the missing %s Run Index before the completion marker opens the target', async backend => {
     const source = await workflow(backend)
     await source.invoke('save', { expectedHeadRevision: null, profile, runtimeTarget: target })

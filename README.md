@@ -74,7 +74,7 @@ pnpm verify
 
 依赖链接、TypeScript、Vitest 的源码别名、Typert 生成和打包均使用这份选择。检查器同时核对声明路径与 `node_modules` 实际解析；混入其他来源会报告实际路径并拒绝继续。需要并行验证其他源码时，先建立独立 Ultra checkout，再在其中执行相同准备步骤。
 
-`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要、源码来源和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；八包本地归档的干净安装及两类原生运行时解析；真实 DSH Web profile 的组合/启动；最后卸载并检查 Loader 与包残留。
+`pnpm verify` 会依次完成：严格校验 Harness commit、文档摘要、源码来源和链接产物新鲜度；Host/Client 构建；官方 Typert 代码生成；完整的单元、Cordis、Loader、Client 与生命周期测试；实际 package closure 的本地归档干净安装及两类原生运行时解析；真实 DSH Web profile 的组合/启动；最后卸载并检查 Loader 与包残留。
 
 ## 安装到本地 DSH Web
 
@@ -84,10 +84,10 @@ pnpm verify
 pnpm run pack:local
 ```
 
-该命令会先执行严格上下文校验和构建，然后在 `artifacts/agent-team-ultra/` 生成五个 Ultra 包与三个锁定 Harness private Agent Team 包。固定版本的部分 DSH peers 尚未发布到 registry，因此命令会打印完整的本地安装指令：八个产品包使用 `file:` 归档，未发布 peers 使用锁定 Harness checkout 的 `link:`。使用本次打印的八个归档路径，勿用目录通配符包含历史旧包；核心形式如下：
+该命令会先执行严格上下文校验和构建，然后从 Profile 的实际包入口及其本地 overlay 依赖闭包推导归档集合，在 `artifacts/agent-team-ultra/` 输出归档。`/data` 等子入口属于同一个包，不另算归档；当前结果是五个 Ultra 包与三个锁定 Harness private Agent Team 包，数量不是脚本常量。其余构建证明中的 Harness 依赖全部来自锁定 checkout 的 `link:`。使用本次打印的完整 `file:`／`link:` 参数，勿用目录通配符混入历史旧包；核心形式如下：
 
 ```text
-node scripts/compatible-dsh.mjs plugin --profile web add <八个 file: 归档参数> <锁定 Harness 的 link: peer 参数>
+node scripts/compatible-dsh.mjs --lock-local-peers plugin --profile web add <本次全部 file: 归档参数> <锁定 Harness 的 link: peer 参数>
 ```
 
 随后先检查最终配置，再启动 Web：
@@ -99,6 +99,10 @@ DSH_HOME=/absolute/path/to/isolated-dsh-home pnpm dsh:checked web --no-open --po
 ```
 
 安装与启动必须使用同一个 `DSH_HOME`；上例路径需要替换为安装时所用路径，端口需选择未占用值。打印的安装命令使用本仓库绝对路径的预检入口，仍调用所选锁定 CLI。安装前核对源码、文档和构建产物，安装完成后及每次启动前检查真实依赖；错误提交、缺包、同版本错误产物或不合格 SDK 返回 `ULTRA_COMPAT_*` 诊断，拒绝加载业务服务。
+
+`--lock-local-peers` 是显式安装选项：只接受构建证明内、来自当前选定 Harness 的链接，并把这些链接合入该 profile 的 `pnpm-workspace.yaml` overrides，约束嵌套依赖与顶层依赖，同时写入本仓库声明的 `packageManager`（pnpm 11.7.0）。其他设置保留；已有不同的 package manager 或同名不同值的 override 会拒绝安装，须停机核对后人工协调，不静默覆盖。此配置随该本地 Harness 安装保留，不把 overlay 归档改成源码链接；否则 Team 内部的版本范围可能另装较新的 registry 包，触发正确的兼容拒绝。
+
+该选项也从构建证明推导已核验 SDK 的直接链接及 override，复用本次依赖安装内的 Codex／Claude SDK 与平台载荷；不更换 SDK 版本、不读取或复制认证、配置和 native 历史。链接依赖该工作树的已安装 SDK，与 Harness peer 链接一样属于本地安装环境；勿在卸载／重新绑定前移除其源目录。迁移测试中的旧 SDK 链接由隔离测试 profile 显式解除后重绑，不允许运维入口静默覆盖用户冲突配置。
 
 配置结果中应在 `agent-team-ultra-compatibility` 组内出现 `agent-team`、`agent-team-codex`、`agent-team-claude-code`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team` 和 `ui-agent-team-ultra` 七个稳定行。完整 `pnpm build` 在 Host、Typert、Profile 和 Client 产物生成后生成兼容性证明；单独的 `build:host`／`build:client` 是中间构建。组入口在导入时检查私有依赖，并在首次加载和配置更新时检查实际 Loader 源目录，成功后才加载子插件。检查包含 Ultra Host、UI、Profile 及各包实际解析的依赖，不使用 `NODE_PATH`。直接导入 Host 包也会先检查；Client 入口保持浏览器安全。两个冲突的全局 continuable 控制行禁用，普通 `subagent` 与 `subagent_fork` 保持 one-shot。
 
@@ -121,8 +125,9 @@ node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offli
 
 - Codex：`pnpm verify:codex-upgrade /absolute/path/to/built-previous-checkout`，前身固定为 `debde06ce5c75658f9ad741cbfc8d535df118455`。
 - Claude Code：`pnpm verify:claude-upgrade /absolute/path/to/built-previous-checkout`，前身固定为 `081357d17f7a0535b75bb7d3133177febddee4a2`。
+- B 发布线双 native：`pnpm verify:b-upgrade /absolute/path/to/built-b-checkout`，B 候选固定为 PR #62 的 `4cecfe2808182c64124abd6634597bd8c46ec5f8`。
 
-两个入口按各版本 Profile 声明的完整包身份集合核对归档，不固定包数量。验证会在隔离 `DSH_HOME` 中打包和安装新旧归档，经真实 Loader、生成 Remote、JSON／SQLite 存储验证原身份恢复、后续消息、目录移除／回归、Web 启动及完整卸载。Codex app-server 通道和 Claude SDK API 使用确定性外部边界替身；发货 adapter、受控进程桥接、SDK/payload 资格检查与权限策略均使用实际归档代码。真实认证后的产品验收仍由 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44) 完成。
+这些入口按各版本 Profile 声明的完整包身份集合核对归档，不固定包数量。验证在隔离 `DSH_HOME` 中安装旧归档并生成真实 JSON／SQLite 业务数据，再调用迁移运维入口发布到另一完整目标；新归档经真实 `/data` Loader、生成 Remote 恢复原身份、续发消息，检查目录移除／回归、源字节不变、配置到迁移目标的 Web 正常退出及完整卸载。SDK 外部历史与业务迁移目标分开，不伪装成迁移器复制出的 native 历史。Codex app-server 通道和 Claude SDK API 使用确定性外部边界替身；发货 adapter、受控进程桥接、SDK/payload 资格检查与权限策略均使用实际归档代码。真实认证后的产品验收仍由 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44) 完成。传入 `--keep-failed` 可保留失败测试的隔离目录供诊断，成功运行自动清理其临时数据。
 
 ## 只读升级审计
 
@@ -150,7 +155,7 @@ pnpm migration:execute --sessions /absolute/source/sessions --sqlite /absolute/s
 
 命令先审计源，只在私有副本执行真实 codec、Ultra v0→v1 和 checkpoint／Run Index 重建，随后发布目标；不原地升级源。`ultra-migration-manifest.json` 先为 `pending`，业务写入保持关闭；目标文件与源身份校验通过后，最后原子发布 `complete`。没有业务不兼容字段变化，因此不新增 Ultra 代际。原生 Run 只从持久关联重建，缺少 SDK 终态时保持 `unknown`／`incomplete`，不伪造成功；既有 Eval Run 保留，Host 重启重新判定 Promotion Gate。
 
-进程中断后用**相同源、相同候选和相同目标**重试。相同文件复用，不覆盖分歧或未知文件；只回收可证明为预期内容前缀的运维临时文件。`--max-writes N` 可在第 N 次耐久发布后暂停，返回 `MIGRATION_PAUSED`（退出 1）；它不是业务启动开关。已完成且未投入业务的相同目标再次执行会校验并返回 `reused: true`，不重写。业务写入后不要把它当同步命令重复运行。成功退出 0，失败退出 1，输出有界的 `MIGRATION_*`／`AUDIT_*`；纯 JSON 可用 `node scripts/migrate-data.mjs` 加同样参数。报告不含 prompt、消息正文、凭据或 native transcript。
+进程中断后用**相同源、相同候选和相同目标**重试。相同文件复用，不覆盖分歧或未知文件；只回收可证明为预期内容前缀的运维临时文件。`--max-writes N` 可在第 N 次耐久发布后暂停，0 表示领取目标锁后、首次发布前暂停，均返回 `MIGRATION_PAUSED`（退出 1）；它不是业务启动开关。只留下迁移锁、尚未发布 manifest 的目标也拒绝业务准入。已完成且未投入业务的相同目标再次执行会校验并返回 `reused: true`，不重写。业务写入后不要把它当同步命令重复运行。成功退出 0，失败退出 1，输出有界的 `MIGRATION_*`／`AUDIT_*`；纯 JSON 可用 `node scripts/migrate-data.mjs` 加同样参数。报告不含 prompt、消息正文、凭据或 native transcript。
 
 目标是数据集，**不是完整 DSH_HOME**：Session 位于 `target/sessions`；JSON 位于 `target/storage`（注意不是默认的 `storages`），SQLite 位于 `target/storage.sqlite`。完成后在已安装 Ultra 的 Profile overlay 后追加对公开数据行的配置，JSON 例如：
 

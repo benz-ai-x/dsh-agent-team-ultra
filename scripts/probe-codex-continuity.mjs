@@ -12,21 +12,24 @@ import { probeStudioCapabilities } from './probe-studio-capabilities.mjs'
 import { NativeProduct } from '../packages/codex/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const [profileDirectory, phase, stateDirectory, backend = 'json', sourceDirectory = root] = process.argv.slice(2)
+const [profileDirectory, phase, stateDirectory, backend = 'json', sourceDirectory = root, continuityDirectory = stateDirectory] = process.argv.slice(2)
 const { harnessRoot } = requirePreparedHarness(resolve(sourceDirectory))
 assert.ok(profileDirectory && stateDirectory && ['before', 'after', 'query-new', 'query-resume'].includes(phase))
 assert.ok(['json', 'sqlite'].includes(backend))
 const creating = phase === 'before' || phase === 'query-new'
 const queries = phase.startsWith('query-')
 mkdirSync(stateDirectory, { recursive: true })
+mkdirSync(continuityDirectory, { recursive: true })
 const installed = createRequire(join(profileDirectory, 'package.json'))
 const imported = name => import(pathToFileURL(installed.resolve(name)).href)
 const harness = path => import(pathToFileURL(join(harnessRoot, path, 'lib/index.js')).href)
 await imported('@benz-ai-x/dsh-agent-team-ultra-profile')
-const patches = yaml.load(readFileSync(installed.resolve('@benz-ai-x/dsh-agent-team-ultra-profile/cordis.patch.yml'), 'utf8'))
+const { entryListSchema } = await harness('vendor/include')
+const patches = yaml.load(readFileSync(installed.resolve('@benz-ai-x/dsh-agent-team-ultra-profile/cordis.patch.yml'), 'utf8'), { schema: entryListSchema })
 const entries = patches.flatMap(patch => patch.insert ?? []).flatMap(entry => entry.group ? entry.config : [entry])
 const runtimeEntry = entries.find(entry => entry.id === 'agent-team-codex')
 const hostEntry = entries.find(entry => entry.id === 'agent-team-ultra')
+const dataEntry = entries.find(entry => entry.id === 'agent-team-ultra-data')
 assert.ok(runtimeEntry && hostEntry)
 assert.equal(runtimeEntry.name, phase === 'before'
   ? '@deepseek-ai/dsh-experimental-agent-team-codex' : '@benz-ai-x/dsh-agent-team-codex')
@@ -34,7 +37,7 @@ const runtimeRequire = createRequire(installed.resolve(runtimeEntry.name))
 const sdkManifestPath = runtimeRequire.resolve('@openai/codex/package.json')
 const sdkManifest = JSON.parse(readFileSync(sdkManifestPath, 'utf8'))
 assert.equal(sdkManifest.version, '0.149.1')
-const native = new NativeProduct(join(stateDirectory, 'native.json'), resolve(dirname(sdkManifestPath), sdkManifest.bin.codex))
+const native = new NativeProduct(join(continuityDirectory, 'native.json'), resolve(dirname(sdkManifestPath), sdkManifest.bin.codex))
 const [
   { Context }, { Loader }, { default: AgentLoop }, { mountAgentLoopTestDependencies },
   { SessionId }, { default: Persistence }, { default: Projections }, { default: Query },
@@ -68,7 +71,7 @@ const identity = instance => Object.fromEntries([
   'runtimeTarget', 'resolvedRuntimeTarget', 'nativeRuntimeHandle', 'requiredCapabilities', 'provisioningPhase',
 ].map(key => [key, instance[key]]))
 const request = { launchRequestId: '55555555-5555-4555-8555-555555555555', profileId: 'codex-reviewer', assignment: 'Review this immutable change.' }
-const checkpointPath = join(stateDirectory, 'checkpoint.json')
+const checkpointPath = join(continuityDirectory, 'checkpoint.json')
 const checkpoint = creating ? undefined : JSON.parse(readFileSync(checkpointPath, 'utf8'))
 async function until(read, check) {
   const deadline = Date.now() + 10000
@@ -82,23 +85,37 @@ async function until(read, check) {
 try {
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(Projections)
-  await ctx.plugin(Persistence, { root: join(stateDirectory, 'sessions') })
+  await ctx.plugin(Storage)
+  const loaderFiber = ctx.plugin(Loader, { baseUrl: pathToFileURL(join(profileDirectory, 'package.json')).href })
+  await loaderFiber
+  const loaderRow = entry => ({ ...entry, name: pathToFileURL(installed.resolve(entry.name)).href })
+  const dataRows = dataEntry ? [{
+    ...loaderRow(dataEntry), config: {
+      sessions: { root: join(stateDirectory, 'sessions') },
+      storage: backend === 'json' ? { backend, root: join(stateDirectory, 'storage') }
+        : { backend, path: join(stateDirectory, 'storage.sqlite'), journalMode: 'delete' },
+    },
+  }] : []
+  if (dataRows.length) {
+    await ctx.loader.root.update(dataRows)
+    await ctx.loader.await()
+  } else {
+    // Historical archives predate the joint data entry.
+    await ctx.plugin(Persistence, { root: join(stateDirectory, 'sessions') })
+    await ctx.plugin(backend === 'json' ? JsonStorage : SqliteStorage,
+      backend === 'json' ? { root: join(stateDirectory, 'storage') } : { path: join(stateDirectory, 'storage.sqlite'), journalMode: 'delete' })
+    await ctx.plugin(StorageDomain, { backend })
+  }
   await ctx.plugin(UnusedSearch)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(Subagents)
   await ctx.plugin(Teams)
-  await ctx.plugin(Storage)
-  await ctx.plugin(backend === 'json' ? JsonStorage : SqliteStorage,
-    backend === 'json' ? { root: join(stateDirectory, 'storage') } : { path: join(stateDirectory, 'storage.sqlite'), journalMode: 'delete' })
-  await ctx.plugin(StorageDomain, { backend })
   await ctx.plugin(NativeTransport)
   const lead = creating
     ? await ctx.agents.create({ sessionId: SessionId('codex-upgrade-lead') })
     : await ctx.agents.resume({ resumeSessionId: SessionId('codex-upgrade-lead') })
-  const loaderFiber = ctx.plugin(Loader, { baseUrl: pathToFileURL(join(profileDirectory, 'package.json')).href })
-  await loaderFiber
-  const loaderRow = entry => ({ ...entry, name: pathToFileURL(installed.resolve(entry.name)).href })
-  await ctx.loader.root.update([loaderRow(hostEntry), loaderRow(runtimeEntry)])
+  const loaderRows = [...dataRows, loaderRow(hostEntry), loaderRow(runtimeEntry)]
+  await ctx.loader.root.update(structuredClone(loaderRows))
   await ctx.loader.await()
   await ctx.plugin(TypertRegistry)
   await ctx.plugin(Gateway)
@@ -297,7 +314,7 @@ try {
   await assert.rejects(ctx.agentTeams.readTeammateRuntimeEvidence(lead.agent, 'codex-reviewer', {
     limit: 10, signal: new AbortController().signal,
   }), error => error.code === 'TEAM_RUNTIME_UNAVAILABLE')
-  await ctx.loader.root.update([loaderRow(hostEntry), loaderRow(runtimeEntry)])
+  await ctx.loader.root.update(structuredClone(loaderRows))
   await ctx.loader.await()
   const restored = await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   assert.deepEqual(identity(restored.instances[0]), identity(live.instances[0]))
@@ -305,9 +322,14 @@ try {
   if (queries && creating) await probeStudioCapabilities({
     ctx, installed: name => pathToFileURL(installed.resolve(name)).href,
     harnessUrl: path => pathToFileURL(join(harnessRoot, path, 'lib/index.js')).href,
-    entries: [loaderRow(hostEntry), loaderRow(runtimeEntry)], LlmAdapter, SessionId,
+    entries: structuredClone(loaderRows), LlmAdapter, SessionId,
   })
   await loaderFiber.dispose()
+  if (dataRows.length) {
+    assert.equal(ctx.get('sessionPersistence'), undefined)
+    assert.equal(ctx.get('storageDomain'), undefined)
+    assert.deepEqual(ctx.storage.backend.names(), [])
+  }
   assert.equal(native.live.size, 0)
   console.log(JSON.stringify({ phase, backend, package: runtimeEntry.name, profileRevision: 1,
     memberId: member.id, nativeRuntimeHandle: member.externalRuntime.nativeHandle, turns: thread.turns.length,

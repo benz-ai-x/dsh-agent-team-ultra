@@ -19,8 +19,10 @@ function sha256(value: unknown): boolean {
   return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 }
 
-function checkedMigrationRoot(path: string): string | undefined {
-  let migrationRoot: string | undefined
+interface MigrationRoot { directory: string; backend: 'json' | 'sqlite' }
+
+function checkedMigrationRoot(path: string): MigrationRoot | undefined {
+  let migrationRoot: MigrationRoot | undefined
   const visited = new Set<string>()
   const roots = [resolve(path)]
   if (existsSync(path)) roots.push(realpathSync(path))
@@ -28,6 +30,9 @@ function checkedMigrationRoot(path: string): string | undefined {
     if (visited.has(directory)) break
     visited.add(directory)
     const manifestPath = join(directory, 'ultra-migration-manifest.json')
+    if (!existsSync(manifestPath) && existsSync(join(directory, '.ultra-migration.lock'))) {
+      throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_PENDING')
+    }
     if (existsSync(manifestPath)) {
       let manifest: unknown
       try {
@@ -60,10 +65,10 @@ function checkedMigrationRoot(path: string): string | undefined {
         throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_MISMATCH')
       }
       const concrete = realpathSync(directory)
-      if (migrationRoot !== undefined && migrationRoot !== concrete) {
+      if (migrationRoot !== undefined && migrationRoot.directory !== concrete) {
         throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_MISMATCH')
       }
-      migrationRoot = concrete
+      migrationRoot = { directory: concrete, backend: manifest.backend as 'json' | 'sqlite' }
     }
     const parent = dirname(directory)
     if (parent === directory) break
@@ -73,9 +78,18 @@ function checkedMigrationRoot(path: string): string | undefined {
 }
 
 /** Admit actual configured roots only when they share one completed migration. */
-export function assertUltraMigrationReady(...paths: readonly string[]): void {
-  const roots = paths.map(checkedMigrationRoot)
-  if (roots.some(root => root !== roots[0])) {
+export function assertUltraMigrationReady(path: string, storagePath?: string, storageBackend?: 'json' | 'sqlite'): void {
+  const roots = [path, ...(storagePath === undefined ? [] : [storagePath])].map(checkedMigrationRoot)
+  if (roots.some(root => root?.directory !== roots[0]?.directory)) {
     throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_MISMATCH')
+  }
+  const migration = roots[0]
+  if (migration !== undefined && storagePath !== undefined) {
+    const concrete = (value: string) => existsSync(value) ? realpathSync(value) : resolve(value)
+    if (concrete(path) !== join(migration.directory, 'sessions')
+      || concrete(storagePath) !== join(migration.directory, migration.backend === 'json' ? 'storage' : 'storage.sqlite')
+      || (storageBackend !== undefined && storageBackend !== migration.backend)) {
+      throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_MISMATCH')
+    }
   }
 }
