@@ -1,34 +1,54 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-07（Asia/Shanghai）。用户使用中文。
+交接日期：2026-09-08（Asia/Shanghai）。用户使用中文。
 
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
 ## 当前任务与完成边界
 
-- 当前持续目标固定为本轮启动快照的 **#18、#33–#44，共 13 项**；唯一进度索引为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，Issue／PR／分支事实冲突时以 `gh`／`git` 实测修正。#18 按 #44 的明确 AC 保持 open 且本轮记 skipped；#33–#44 按冻结的五个 Batch 串行推进，每个开发和评审均使用全新隔离会话。
-- 当前主工作区分支为 `feat/batch-1-message-send-reply`，从 main `08585631ea6e618a3adbf7143046d00fde00f5d7` 建立。[PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 的两轮 Standards／Spec 隔离评审已收敛为 0 finding，正式 post-review `pnpm verify` 也全绿；#33 六项 AC 已勾选但 Issue 保持 open。该 PR 新增 public Remote 与 persistent schema，命中人工合并清单；飞书【需决策】通知发送成功，用户已于 2026-09-07 15:40（Asia/Shanghai）明确确认按冻结 merge commit 方式合并。
-- #27–#32 已在本轮启动前分别合并 PR #53–#58 并关闭，不属于本次快照范围。Batch 2 冻结包含 #34、#35、#36，而 #36 依赖 #33；因此 #59 人工合并前不启动 #34。后续恢复只读 `PIPELINE_STATE.md`，不再使用历史 `/root/workspace/.ultra-checks/frozen-issues-27-44.json` 作为进度源。
+- 最新用户已明确授权仅合并 **PR #60**。全新隔离双轴审查已完成：固定 Ultra `22c0436429ccf449283bf3ecc33c2d0a497144ad`／main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`、Harness `b78caad462c3509127761904ed59ee549b6b6160`；Standards 为 1 个 P2、1 个 P3，Spec 为 2 个 P2，无 blocking/high，达到既定门槛但不是零问题。此次只追加合并交接，不修改运行时代码、锁或剩余发现，不启动 PR #61 或其他工作。历史 review=3、唯一统一重试=1/1、local-gate 历史红=1 均保留。
+- 剩余发现：Standards P2 是同 Team 服务替换时未发送草稿保留的真实 Slot/Fiber 组合验证缺口（尚未动态复现草稿丢失），P3 是公开 watch 文档遗漏 Lead-only 权限及拒绝条件；Spec 两个 P2 是删除最后一个任务后墓碑详情被空列表条件隐藏，以及 50 行 DAG 的 Fit 百分位舍入裁切。后两者已由独立公开组件探针复现，五行 Fit／仍有其他任务的对照通过；不以既有套件全绿声称这些发现已修复。审查证据在 `/root/workspace/pr60-review.QNJYiG/review-checks.json`。
+- 本次合并前重新运行的完整 `pnpm verify` 已自然退出 0：582 strict／0 warning、Host／Client／Typert／compatibility 构建、30 files／359 tests，以及八归档安装、production DAG／CAS／watch、Web、Codex／Claude JSON＋SQLite 恢复和完整卸载均通过。日志为 `/root/workspace/pr60-merge.h817ck/pre-merge-verify.log`；与已审查头的差异仅有本次三份交接文档，运行时和锁不变。
+- 合并方式保持普通 merge commit，执行时固定 GitHub live head，不绕过保护规则；PR 的 `state`／`mergedAt`／`mergeCommit` 和 main 的 Git 历史是实际完成凭据。唯一进度索引仍为 [PIPELINE_STATE.md](PIPELINE_STATE.md)。本记录后的更改只允许合并 PR #60、同步本地 main 与合并后验证；保留来源分支、既有 stash 和其他工作树，不发送外部通知。
+- 以下为开发阶段历史记录；其中“等待全新评审”“本轮不合并”以及 `806e5887…`／`ca17782…` 已被上面的最新审查与用户合并授权取代，不再作为当前阻塞。
+- 当前主工作区分支为 `feat/batch-2-task-dag-live`，从 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` 建立。PR #60 历史 review 连续失败3轮、local-gate历史红1；用户已显式启用唯一统一重试1/1，该开发和正式全量闸门现已完成，绝不能重置成普通review 4。Batch 1 的 [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 已按人工确认 merge commit 合并，#33 自动关闭；合并后 `pnpm verify` 再次通过582 strict、346 tests与完整八归档/Web/恢复/卸载。
+- #27–#32 已在本轮启动前分别合并 PR #53–#58 并关闭，不属于本次快照范围。Batch 2 冻结包含 #34、#35、#36；三项最新正文与 AC 已重读且未更新，依赖 #25/#33 已关闭，#35→#34、#36→#35 保持批内顺序。后续恢复只读 `PIPELINE_STATE.md`，不再使用历史 `/root/workspace/.ultra-checks/frozen-issues-27-44.json` 作为进度源。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
 - #19 已推送到 `fix/19-host-profile-evaluation`（`3046af5`），main 起点为 `c3c96c926f1ba05b04e7ca82a6d531a0570e0a84`；#20 为 `fix/20-host-launch-recovery`（`1185bd0`），#21 为 `fix/21-locked-source-preparation`（`a8adac0`），#22 为 `fix/22-runtime-compatibility-preflight`（`0ccd4c0`），#23 为 `fix/23-ultra-codex-runtime`（`7ad2602`），#24 为 `fix/24-ultra-claude-code-runtime`（`ef3ecde`）。#25 的 PR 分支 `fix/25-read-only-migration-audit` 本轮已整合 main 并补修至 `5539b5e0d214e4a34397cd3c6fa2bec3611dd16b`。历史 #26 分支 `fix/26-authorized-codex-team-queries` 已整合 main `ce6cb395682ce5c23d11c7542c8ea172f1fabd3a`；原有开发内容已备份并恢复，升级脚本修复已接入 main 的共享驱动。远端为 [benz-ai-x/dsh-agent-team-ultra](https://github.com/benz-ai-x/dsh-agent-team-ultra)，实时提交／推送状态以 Git 为准。
 - **历史轮次按当时指示在开发和验证后关闭 #19–#26；本轮 #27 起须在 PR 验收、评审和合并后关闭。PR #45–#52 已按用户逐项授权合并；PR #48 的评审发现和额外模块类型漏检已修复，最终 Standards / Spec 均为 0 项未解决发现。PR #51 已完成 main 整合，修复缓存与 Team 历史审计两项 P2，通过完整验证和双轴复审后合并。** 用户已完成 `gh` 设备授权登录，本仓库权限为 `ADMIN`。此前的认证阻塞已经解决，不能继续将其列为未完成原因。
-- 阶段 A 的既有开发和验证记录保留；PR #48 已完成修复、完整验证与双轴复审，并合并到 main。PR #45–#52 已合并。该阶段 main 为 `62531191d909a890394d7e922259a8e63eb80f32`。#26 的阶段 B native 授权与 Codex 查询通道已开发、验证并合并 [PR #52](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/52)，Issue 已关闭；#27–#32 已完成，#33 PR #59 第 1 轮修复待双轴复审，#34–#44 待处理。阶段 C 的 Harness 集成、锁定和真实 native 验收仍需完成，父 Spec #18 保持 open。
+- 阶段 A 的既有开发和验证记录保留；PR #45–#52 已合并，#27–#33 也已通过各自复审、验证和合并流程进入 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`。Batch 2 的 #34–#36 唯一统一重试已修复review 3的2 high与4 medium，Harness最终head `806e58873bb055e258b4623d03c9fbad41a26dc7`与Ultra development/acceptance head `ca17782415c4a209a972c4b42636f52edaa72121`已推送并由HTTPS回读；Ultra精确prepare/install/build、focused 25/25和首次正式`pnpm verify`均绿。六个live marker已逐一通过双读/单字节/完整回读证明恢复，三项均保持OPEN且5/5；PR正文完整回读为3个`Closes`、0个`Refs`。开发收口后唯一入口是全新隔离review；本agent不评审或合并。PR #61/#37开发成果保持暂停于review 2前。阶段 C 与#44仍未完成，父Spec #18保持open。
 - 本轮先按用户指示创建 #19 的 PR，再依照“继续”按顺序创建 #20–#25 的 PR、评审并关闭已完成 Issue。评审使用各自固定提交的独立工作区，未把 #26 WIP 混入 PR。#25 的补修在 `/tmp/ultra-25-audit-fix-vHVNjX` 完成，其锁定 Harness 与主工作区 #26 的来源分别验证。
 
 - **#19–#26 Acceptance criteria 已同步**：按用户要求，以 main `6253119`、PR #45–#52 的实际合并记录、逐项代码／测试断言和既有验证日志重新审计 39 项验收条件。已实际将 GitHub #19／#20／#21 各 4 项，#22／#23／#24 各 5 项，#25／#26 各 6 项全部勾选，并逐项回读确认；仅改变该小节的复选框，正文与 closed 状态保留。#25 的完成范围是只读审计和迁移设计，#26 为授权查询，阶段 C 迁移及 #44 真实认证 native 验收仍是后续任务。本轮 strict 554 项／0 警告通过，未重复运行既有通过的完整测试；逐项证据及更新前后快照在 `/tmp/ultra-19-26-acceptance-audit/audit.json`。
 
 - **再次回读核对 #19–#26（最新：2026-09-06 14:30，Asia/Shanghai）**：GitHub main 仍为 `6253119`，39 项验收文字与逐项审计一致且均已勾选；8 个对应合并提交都在当前 main 中。最终完整验证记录中的 112 个输入 SHA-256 与现有文件全部一致，锁定 Harness `fdfdbaeb0e` 工作区干净。本次重新运行 strict，554 项／0 警告通过；既有运行时验证仍适用，未重复运行完整测试，也无需重复写入 GitHub 正文。最新回读快照和证据映射保存在 `/tmp/ultra-19-26-latest-recheck.json`，严格检查日志为 `/tmp/ultra-19-26-latest-strict.log`；前次记录保留于 `/tmp/ultra-19-26-recheck-9heliuay/recheck.json`。
 
-## #33 当前状态与 #32 完成状态
+## #33 与 #32 完成状态
 
 - **#32 已完成（2026-09-07，Asia/Shanghai）**：分支 `fix/32-team-message-center` 从 main `5ab1c5a2c5e16b6832edbdef8dd1473bc913e022` 建立；[PR #58](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/58) 已普通合并为 `08585631ea6e618a3adbf7143046d00fde00f5d7`，Issue 自动关闭并回读为六项 AC 全部勾选。维护 Harness 分支 `fix/ultra-32-team-message-read` 已提交并推送 `c2940ac5039b744f962d2b264c03a6e9fb33af07`。Team projection stateVersion 6 从既有 queue／delivered 事件重建 message id、sequence 和 time 索引；Host 以精确 live Lead、持久 flush 和固定 committed cursor 提供有界 metadata list 与按需安全 detail。伪造参与者、过期身份、跨 Team／变更查询／损坏／未来 cursor 均拒绝。没有新增 Team event、Session、native-operation 或 Ultra storage 格式。
 - Harness 的 Agent Teams Client 继续唯一拥有入口、弹窗和导航，并发布公开 session-scoped `agent-team.panel.view`。Ultra 通过生成 `agentTeams.view/listMessages/getMessage` Remote 注册一个稳定 `messages` 子视图，显示 sender／recipient／event time 与 pending／delivered／unknown，明确投递不代表已读或任务完成。正文只在选择后加载；literal text、脱离附件的图片元数据和显式 omissions 可见，Studio Snapshot／Run Index／list／cursor 不含正文，也不读取 raw native transcript。ADR 0023 记录权限、内容、cursor 和 Slot 边界；#33 仍负责发送／回复，#36 负责实时订阅／重连，#44 负责真实认证 native 验收。
 - TDD RED 为 Harness 8 项缺失行为和 Ultra 缺少 UI。首轮固定 SHA Standards／Spec 审查进一步发现：owner Client 绕过保留的 injected-hook surface、筛选／刷新未清除 pending detail、roster 错误被 list 结果覆盖且刷新不重试、cursor 可包含 flush 后追加事实、Team dispose 不等待已接纳读取、稳定 id 未显示，以及缺少实际归档 owner UI 到 Host 的完整链路。各项均先用 RED 复现后修复。首轮复审确认这些问题全部关闭，同时新增发现打包探针手工替代 renderer、README／补丁账本仍引用首版 pin；现已改为 production renderer、root、session scope 和 child Slot 实际组装，同一 `renderSlot` 故障注入稳定以预期错误退出，来源身份和 `eea13874ce`／`c2940ac503` 记录也已同步。最终 Harness 两个 owner 包 **271 tests／10 files** 通过，reader 九项测试的语句／分支／函数／行均为 100%；built-lib Remote、Host／Client build 和 32／32 doc-sync 通过。最新 `pnpm verify` 通过 **582 strict／0 警告、340 tests／30 files**，八归档的真实 owner UI 经认证 HTTP 分两页读取 22 条 DSH／Codex／Claude 消息，按需显示正文和稳定 id，Host 重启后复用 committed cursor；真实 Web、Codex／Claude 新建与恢复、完整卸载均成功。两个历史升级与维护／官方 11 组对照也已复跑通过。最终 head `47aac4f72456db6292cdb9e0a8ea900d92f9a21a` 的 Standards／Spec 精确复审均为 0 项未解决发现；merge tree 与该 head 相同。飞书完成通知成功，日志 `/root/workspace/.ultra-checks/32-completed-feishu.log`。逐项记录见 [#32 验收证据](docs/evidence/issue-32-acceptance.md)。
 
-- **#33 PR #59 两轮评审与正式闸门已通过，等待人工合并（2026-09-07，Asia/Shanghai）**：维护 Harness `fix/ultra-33-team-message-send` 的补充证据提交已推送为 `d2d870fbe40bc0e968abdac854a3aae495162bec`。Team owner 新增 exact-Lead-only `submitMessage` 与 generated `agentTeams/sendMessage`，按 `(Team, Host sender, request id)` 用 canonical fingerprint 持久重放／冲突；required `team/message/request-committed@1` 原子保存 accepted receipt、同 Team reply 和 queued message，projection 7／checkpoint／旧格式重建／未来格式拒绝均已同步，keyless recorded Session 现由 TypeScript/Python SDK 双侧快照证明。提交后投递由 Team 生命周期拥有，caller 断开、Host 重启或 provider 缺失不会新建消息；provider 回归只送达原 message，只有 delivered 事实改变阶段。跨 Team reply、普通 teammate、接受前取消和坏输入均在无持久副作用下拒绝。
+- **#33 PR #59 已完成（2026-09-07，Asia/Shanghai）**：维护 Harness `fix/ultra-33-team-message-send` 的补充证据提交已推送为 `d2d870fbe40bc0e968abdac854a3aae495162bec`。Team owner 新增 exact-Lead-only `submitMessage` 与 generated `agentTeams/sendMessage`，按 `(Team, Host sender, request id)` 用 canonical fingerprint 持久重放／冲突；required `team/message/request-committed@1` 原子保存 accepted receipt、同 Team reply 和 queued message，projection 7／checkpoint／旧格式重建／未来格式拒绝均已同步，keyless recorded Session 现由 TypeScript/Python SDK 双侧快照证明。提交后投递由 Team 生命周期拥有，caller 断开、Host 重启或 provider 缺失不会新建消息；provider 回归只送达原 message，只有 delivered 事实改变阶段。跨 Team reply、普通 teammate、接受前取消和坏输入均在无持久副作用下拒绝。
 - Ultra 在既有 Team owner `messages` Slot 中加入中英文发送／回复 composer：首个 await 前冻结 Team-scoped UUID 意图，并须先向 `sessionStorage` 写入和读回精确内容；保留失败时不调用 Remote，保留草稿并给出双语“未发送”诊断。每次提交有 15 秒确认 deadline；永不 settle 的 Remote 被 abort 并转为 unknown，完整 request／recipient／reply／正文留待显式同请求 retry。换 Session、卸载和新意图清理 timer/abort，迟到 settle 不改 UI。刷新和重挂载不自动重发。持续 watch／自动刷新／重连状态机仍属于 #36；真实凭据 canary 仍属于 #44。
-- 实际 packed gate 安装八归档并经 production renderer、generated Remote、owner child Slot 调用 Loader 装载的真实 TeamService，组合 AgentLoop、Agent Registry、JSONL persistence 与受控 external provider。真实 durable acceptance 后刻意丢失一次返回回执，生产 UI 到达 deadline、保留 exact intent，Host 冷恢复不自动发送，provider 恢复和显式 replay 全程只见一条 required fact／一次 provider work；缺失／重复 required fact 的负控均拒绝。Harness 4 个 owning suites 186 tests、整个 Team package 376 tests（2 个既有 skip）、TS/Python SDK 快照及 Host/Client/docs/types/build 均通过。Ultra focused 为 3 files／48 tests；最终 `pnpm verify` 为 582 strict／0 警告、30 files／346 tests、八归档／Web／Codex＋Claude JSON/SQLite recovery／卸载全部通过。实时重读 Issue 后六项 AC 逐条成立，已用二次读取和零正文差异断言只勾选六个 checkbox；Issue 按流程保持 open。详见 [#33 验收证据](docs/evidence/issue-33-acceptance.md) 与 [pipeline state](PIPELINE_STATE.md)。
+- 实际 packed gate 安装八归档并经 production renderer、generated Remote、owner child Slot 调用 Loader 装载的真实 TeamService，组合 AgentLoop、Agent Registry、JSONL persistence 与受控 external provider。真实 durable acceptance 后刻意丢失一次返回回执，生产 UI 到达 deadline、保留 exact intent，Host 冷恢复不自动发送，provider 恢复和显式 replay 全程只见一条 required fact／一次 provider work；缺失／重复 required fact 的负控均拒绝。Harness 4 个 owning suites 186 tests、整个 Team package 376 tests（2 个既有 skip）、TS/Python SDK 快照及 Host/Client/docs/types/build 均通过。Ultra focused 为 3 files／48 tests；合并前后 `pnpm verify` 均为 582 strict／0 警告、30 files／346 tests、八归档／Web／Codex＋Claude JSON/SQLite recovery／卸载全部通过。实时重读 Issue 后六项 AC 逐条成立，仅更新六个 checkbox；PR #59 merge commit 为 `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`，Issue 已自动关闭。详见 [#33 验收证据](docs/evidence/issue-33-acceptance.md) 与 [pipeline state](PIPELINE_STATE.md)。
+
+## #34–#36 Batch 2 唯一统一重试候选
+
+- 本轮接入 `beb16ff` 已有的六项功能修复，并以 Harness `b78caad462c3509127761904ed59ee549b6b6160` 补齐过滤后的 ArrowLeft 和公开 `createTeamWatchOwner`。任务面板与 Ultra 消息中心通过浏览器 module table 共用清理实现，各 registration 仍独立。八项去重审查发现与回归映射见 [PR #60 修复记录](docs/evidence/pr-60-review-fixes.md)。验证使用 `/root/workspace/pr60-fixes.U6WRei` 隔离工作树；原 stash 和并行开发记录保留。
+- 本轮补修后的完整 `pnpm verify` 自然退出 0：582 strict／0 warning、30 files／359 tests、八归档安装／production DAG／CAS／watch／Web／Codex＋Claude JSON与SQLite恢复／完整卸载全部通过。Harness 定向检查与真实 Web 回归通过；全仓 lint 的剩余错误属于 PR 起点前的 `message-read.spec.ts:541`，按范围保留。声明 freshness 和独立 bundle 模块映射的中途失败及修复均记入上述证据，不冒充首轮全绿。
+
+以下保留 `beb16ff`／Harness `806e5887…` 收口时的历史验证；其中的“最终”仅指当时的候选，当前来源和结果以上两条为准。
+
+- 维护 Harness 分支 `fix/ultra-34-36-task-dag-live` 最终为 `806e58873bb055e258b4623d03c9fbad41a26dc7`，本地、tracking与HTTPS `ls-remote`一致且worktree clean。重试提交按issue顺序为：#34 `ec0f240b03`，#35 `13f5fb25d7`与docs `938adcc566`，#36 `806e58873b`。公开 Team owner `TeamAction`仍只把同一`TeamView.tasks`投影为list/DAG/shared detail，不创建Client权威状态。
+- #34：blocker copy只列同一Host view里status未完成的前置项，完整历史`blockedBy`关系和DAG边保留，ready/claimability直接显示Host事实；watch完成一个dependency会同步更新提示。fit-to-view按实际视口与16px margin计算完整缩放，默认260px五行DAG得到0.35并居中；手动0.5–2 zoom、pan、keyboard与native list替代不变。两个公开用例分别先真实RED再GREEN，完整TeamAction 38/38。
+- Harness最终验证：TeamAction 42/42，TeamAction/browser/Fiber owner 55/55，Host+Client owner 115/115；built Remote 1/1、Team Web replay 3/3、snapshot corpus 2/2、GUI 283 files／3925 pass／1既有skip、doc-sync 32/32、full typecheck、production Host/Client/Web build、focused lint、i18n/pairing/generated与`git diff --check`全绿。Ultra #34 archive继续以真实Host task API经production renderer→Slot→generated Remote→AgentLoop/Team/JSONL验证list/DAG/detail。逐项证据见 [#34 验收证据](docs/evidence/issue-34-acceptance.md)。
+- #35：编辑期间watch仍不推进edit-start base。第一次CAS冲突成功重读权威revision时保留旧草稿，只为下一次用户显式Save推进base，绝不自动重交；重读失败保留真实错误、旧base与草稿，不显示假成功。并发删除已选dependency时，picker保留明确英中unavailable/deleted原生checkbox，用户可取消，预览仍不算Host提交。三条公开行为均先RED后GREEN；正式双语Agent Note/README pairing同步。Host missing/self/indirect-cycle、role、A/B/C ready与tombstone契约不变。逐项证据见 [#35 验收证据](docs/evidence/issue-35-acceptance.md)。
+- #36：公开`agentTeams/watch`与Fiber ownership不变；TeamAction不再为每个pending-read invalidation分配Promise/resolver waiter，而是每generation共用一个completion和dirty bit，同时最多一条权威read。公开`async_hooks`测试在首读和trailing读各灌入4096次失效，均保持常数completion并最终发布最后一次Host authority。message page/roster原有有界coalesce、old-generation fence、same-Team draft、Team切换、stale/disconnected/unavailable英中文案与no-resend保持。逐项证据见 [#36 验收证据](docs/evidence/issue-36-acceptance.md)。
+- Ultra精确锁定上述Harness与不变docs digest `d4028c4f…e767`；正式prepare/install成功，Client声明按source guard要求用官方4GiB project `tsc -b --force`重发后build与strict 582/0通过。message/mount owning 25/25。唯一统一重试正式`pnpm verify`第1轮即通过582 strict／0 warning、30 files／359 tests与8归档：production task DAG/dependency CAS/watch、真实Web、Codex/Claude JSON+SQLite recovery、registration release及完整uninstall均绿。历史local-gate红仍1、连续红0。精确恢复点只以 [pipeline state](PIPELINE_STATE.md) 为准。
+- #34/#35/#36勾选前各marker均连续两次fresh读取并确认OPEN/body/updatedAt稳定；每次PATCH只改唯一checkbox字节，反向替换恢复before全文，写后完整回读一致。三项现在均OPEN、5 checked / 0 unchecked，因此PR正文应从三个`Refs`改为三个`Closes`；只有合并才关闭Issue。唯一后续入口是最终heads上的全新隔离review，禁止把历史review 3或本次唯一重试1/1重置。
+- PR #60正文已通过REST单字段更新并完整回读，SHA-256 `b9dcb11a…da754`，记录全部RED/GREEN、Harness精确head、full gate和3个`Closes`。Ultra `ca17782…`为development/acceptance head；本交接只追加最终state-only记录，不改变已验证产品。最终review须用GitHub API返回的live PR head与Harness `806e5887…`，不要复用旧`/tmp/dsh-agent-team-ultra-pr60-review-40fdd6fe`。
 
 - **#31 已完成（2026-09-07，Asia/Shanghai）**：分支 `fix/31-conversation-profile-launch` 的固定起点为 `1a74d7fe28b11b8c014e648c9bb43bf246112539`；[PR #57](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/57) 已普通合并为 `5ab1c5a2c5e16b6832edbdef8dd1473bc913e022`，Issue 自动关闭并回读为 6／6 AC checked。三个固定 Lead 对话工具列出／读取既有 Profile 并沿 Studio 同一 Host 流程启动 Active Revision；普通 teammate 由自身作用域显式屏蔽，Evaluation Worker 在发布前排除，名称冲突拒绝启动并回滚。
 - 持久 `tool/call` id 与精确 Team／Lead 确定性生成 canonical UUIDv8 Launch Request ID；同 call 重放、规范化等价输入、改输入冲突、新意图、pending Binding、Team 接纳前后取消、服务替换及 JSON／SQLite 冷恢复均收敛到至多一个永久成员／Binding。实际 AgentLoop 请求包含三个工具且 Lead Session 持久 call/result；generated Remote `spawn` 与 Studio 返回相同实例。
@@ -265,7 +285,7 @@
 
 - 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
 - `/root/workspace/deepseek-harness` 保持干净的 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` 和完整构建，供阶段 A 的 #25 和 #48 补修环境使用。该独立环境位于 `/tmp/ultra-25-audit-fix-vHVNjX`，已按其 lock 完成源码准备、冻结安装及完整验证；未重置共享 checkout。
-- 当前 `.dsh/harness` 指向 `/root/workspace/deepseek-harness-ultra-29`，lock 为 `d2d870fbe40bc0e968abdac854a3aae495162bec`，Harness 分支 `fix/ultra-33-team-message-send` 已推送且工作树 clean；docs digest 为 `9e71a33224fa8755fd225764705ea16b6cc7df351edbf908e184153bf2048d8a`。第 1 轮评审修复后的来源准备、冻结安装、build、strict、focused、packed 与完整验证均通过。阶段 A 的 `8b4bae0b` 独立源码及前身归档验证环境保持不变。首次或换源时先准备再安装依赖，依赖和 TypeScript 共用所选链接。
+- 本轮验证工作树的 `.dsh/harness` 指向 `/root/workspace/pr60-fixes.U6WRei/harness`，锁定 `b78caad462c3509127761904ed59ee549b6b6160`，该提交已推送到 `fix/ultra-34-36-task-dag-live`；docs digest 仍为 `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`。来源准备、冻结安装和 582 strict／0 warning 通过。原 Harness worktree 保留，首次或换源时先准备再安装依赖。
 - 飞书 CLI 已验证当前 user／bot 身份可用；认证阻塞、#21 缓存阻塞及恢复、#22 官方构建阻塞及恢复均已通知。不要在本文件记录凭据、用户标识或私人消息。
 - GitHub CLI 已完成设备授权登录，`gh auth status` 退出 0，Git 使用 SSH；`gh repo view` 已验证本仓库 `ADMIN` 权限。Issue／PR 的实际操作仍按任务边界和既有授权执行；无需重复询问已经授权的提交、推送和 PR 操作；对外消息仍须当前会话明确授权。不记录登录验证码或凭据。
 - 当前 `gh pr edit` 因已停用的 Projects classic GraphQL 字段报错；已通过 `gh api --method PATCH repos/benz-ai-x/dsh-agent-team-ultra/pulls/<number> --input <JSON文件>` 成功更新 #48、#51 正文。该错误与认证无关。
@@ -273,12 +293,15 @@
 
 ## 下一步
 
-1. #33 开发、AC 6/6 与 PR #59 第 1 轮修复均完成；Harness 修复已推送到 `ultra/fix/ultra-33-team-message-send`，Ultra 修复只在本地 branch HEAD，禁止由本修复会话 push。
-2. 主 agent 复核两仓 SHA／clean 状态后，以新精确 Ultra HEAD 重跑 Standards 与 Spec 两个隔离 review 轴；当前 review 轮数 1、local-gate 红灯轮数 0。无 blocking/high finding 后再按冻结流程执行 local gate 和人工合并通知。
-3. #33 只有在 PR 通过、合并与 Issue 关闭后才完成流程并进入 #34；父 Spec #18 保持 open，#36 watch/reconnect 与 #44 真实凭据边界不得提前混入。
-4. 按本轮用户授权，通过已确认身份与收件人发送每项完成／合并结果及阻塞飞书通知；发送失败必须在当前会话明确报告。
+1. 先回读 PR #60 的 `state`／`mergeCommit` 与本地 Git 状态；若已 MERGED，不重复合并。运行时审查基准为 `22c0436`，本交接提交只更新 HANDOFF／TODO／PIPELINE_STATE。
+2. 合并前完整 `pnpm verify` 通过后，使用固定 live head 的普通 merge；再同步本地 main，确认合并树与通过验证的候选一致并执行 post-merge `pnpm verify`。验证日志保存在 `/root/workspace/pr60-merge.h817ck/`，进程退出码必须确认，不能仅凭日志前半段判绿。
+3. 当前仅处理 PR #60；剩余 3 个 P2、1 个 P3 保留为已知问题，其他 PR、Issue 和真实 native 验收不在本轮范围。
 
 ## 权威材料与技能
+
+- 本次合并使用 `dsh-plugin-dev` 的锁定来源和完整归档验证要求；未重新启动代码审查、冲突修复或其他 PR 的开发。
+
+- 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 
 - 开发前必读：[AGENTS.md](AGENTS.md)、[PROJECT_CONTRACT.md](docs/agent/PROJECT_CONTRACT.md)、[TODO.md](TODO.md)、[reference lock](dsh-reference.lock.json)。
 - 领域／历史：[CONTEXT.md](CONTEXT.md)、[领域约定](docs/agents/domain.md)、[ADRs](docs/adr/)、[历史决策](docs/decisions/)、[官方兼容性研究](docs/research/2026-09-05-official-agent-team-compatibility.md)。

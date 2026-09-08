@@ -124,6 +124,14 @@ _Avoid_: Transport response, delivery acknowledgement, task completion
 The Lead-only view composed inside the Agent Teams owner panel that pages persisted Team message metadata, loads sanitized intentional content on demand, and submits or explicitly retries one Message Submission Intent through generated Remote operations.
 _Avoid_: Studio transcript, Run timeline, native history browser
 
+**Team Change Watch Generation**:
+One exact-live-Lead stream lifetime that starts with a complete authoritative Team view, then coalesces committed message and task changes into bounded invalidation markers. Clients serialize each class of authoritative reread with one in-flight operation and at most one trailing dirty read; reconnect restores reads only, while stale pages, callbacks, drafts, and settlements from another Team or service generation are fenced.
+_Avoid_: Event log, message feed, Client task store, resend trigger
+
+**Shared Task Panel**:
+The Agent-Team-owned list, dependency graph, and shared detail that project one authoritative Team task board. Selection, filtering, layout, and viewport state are disposable presentation; task identity, revision, ownership, readiness, blockers, and mutations remain Host facts.
+_Avoid_: Client task store, Studio graph, scheduler
+
 **Committed Message Window**:
 A fixed Team-message query identified by the Team, normalized filters, and a durable Session sequence cutoff. Continuations preserve that cutoff so later events cannot reorder rows or rewrite observed delivery facts.
 _Avoid_: Live subscription, offset page, authority token

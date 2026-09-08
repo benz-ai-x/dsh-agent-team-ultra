@@ -1,0 +1,104 @@
+---
+status: accepted
+---
+
+# Project one authoritative Team task board into list and graph views
+
+[Issue #34](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/34) adds an
+interactive dependency graph beside the shared task list;
+[Issue #35](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/35) edits
+its dependencies, and
+[Issue #36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36) follows
+committed changes. The Agent Team owner remains the only task authority and UI
+composition owner: list, graph, detail, and live refresh project one Host Team,
+while every write continues through the existing revision-checked mutation API.
+
+## 中文规范
+
+公开 Agent Team 面板把同一份 Host `TeamTaskView` 同时投影为列表、依赖图和共享
+详情。节点 id 是真实 `TeamTaskId`；每条边从 `blockedBy` 中的前置任务指向依赖任务。
+Owner、状态、可认领性、blocker、Revision 和墓碑语义均来自 Team owner，不从可见
+节点、Client 草稿或图布局推导。公开 `getTask` Remote 只把当前 Session key 交给 Host
+解析精确 live Lead，并委托同一任务板详情读取。
+
+Client 只保留可丢弃的显示状态：当前选中 id、列表／图模式、筛选文本及 viewport
+变换。筛选可隐藏节点和边，但必须列出被隐藏的 blocker，且不得改变权威 readiness。
+自动布局由真实依赖关系确定；缩放、平移、适配视野与键盘焦点都不提交任务写入。
+原生按钮列表始终作为图的等价替代，列表与图打开同一详情，并复用原创建、编辑、
+分配／取消分配、完成、重开和删除控件。
+
+依赖选择同样只投影当前 `TeamView.tasks`：原生 checkbox 使用真实 task id，Client
+预览不改变 Host 图或 readiness。创建提交完整依赖集合；编辑把正文、scope 和完整依赖
+放进一次带开始编辑时钉住的 `expectedRevision` 的 `edit`。Host 继续在同一提交边界校验引用、角色、
+自环和间接环，失败不增加 Revision 或事件。CAS 冲突时 Client 重新读取当前权威任务，
+在竞态 watch refresh 后仍保留明确标为未保存的正文和依赖草稿；中英文反馈都不自动覆盖重试。
+
+该边界刻意不引入第二套任务存储、自动调度器、图数据库、文件锁或成员启动逻辑，
+也不把任务面板放进 Ultra Studio。无额外图形依赖的确定性布局使 production bundle
+保持 browser-safe；公开 Team owner Slot 和所有现有注册仍随其 Fiber 释放。
+
+#36 在这条边界增加 exact-live-Lead `agentTeams/watch`：每个 stream generation 先给
+完整权威 `TeamView` baseline，之后消息或任务的持久提交只合并为一个有界
+`invalidated` 信号。信号不携带消息页、任务 patch 或 Client 草稿；DAG 重读同一任务
+view，消息中心以当前筛选、无旧 continuation cursor 重读同一持久页。DAG、消息页和
+roster 各自通过一个 in-flight/dirty latch 串行权威读取，burst 至多追加一次重读；消息
+replacement 发布前禁用旧 cursor append。旧 cursor 页、旧
+Team／service callback 和迟到提交受 generation 隔离。carrier 断开保留最后权威数据并
+明确标为 stale；重连只恢复读取，不能自动重发已保存意图。切 Team 会释放旧 stream、
+读取、timer 和 pending submit；同 Team service 替换保留未保存草稿，被中断的 exact
+request 只转为 unknown。Host follower、generated Remote、Gateway、locale、Slot 和 UI
+control 均由对应 Fiber／renderer 生命周期释放，仍不形成旁路状态。
+
+## English counterpart
+
+The public Agent Team panel projects the same Host `TeamTaskView` values into
+the list, dependency graph, and shared detail. Node ids are real
+`TeamTaskId`s, and every edge points from a prerequisite named in `blockedBy`
+to its dependent. Owner, status, claimability, blockers, revision, and
+tombstone semantics come from the Team owner, never from visible nodes, Client
+drafts, or graph layout. The public `getTask` Remote supplies only a current
+Session key for exact-live-Lead resolution and delegates detail reads to that
+same task board.
+
+The Client retains only disposable presentation state: selected id, list or
+graph mode, filter text, and viewport transform. Filtering may hide nodes and
+edges, but reports hidden blockers and cannot alter authoritative readiness.
+Automatic layout follows real dependencies; zoom, pan, fit, and keyboard focus
+perform no task mutation. A native-button list remains the graph's equivalent
+alternative. Both views open one detail and reuse the existing create, edit,
+assign or release, complete, reopen, and delete controls.
+
+Dependency selection likewise projects only the current `TeamView.tasks`.
+Native checkboxes use real task ids, and a Client preview changes neither the
+Host graph nor readiness. Create submits the complete dependency set. Edit
+places text, scopes, and the complete dependency set in one `edit` carrying the
+`expectedRevision` pinned when editing starts. The Host validates references, role, self edges,
+and indirect cycles within that same commit boundary; rejection appends no
+revision or event. On a CAS conflict, the Client reloads the current
+authoritative task while retaining explicitly unsaved text and dependency
+drafts. Neither the English nor Chinese feedback automatically retries an
+overwrite, and a racing watch refresh cannot clear that conflict state.
+
+This boundary deliberately adds no second task store, scheduler, graph
+database, file lock, member launch, or parallel Studio panel. A deterministic
+layout without another graph dependency keeps the production bundle
+browser-safe, while the public Team owner Slot and existing registrations
+remain Fiber-scoped.
+
+Issue #36 extends that boundary with exact-live-Lead `agentTeams/watch`. Every
+stream generation starts with a complete authoritative `TeamView` baseline;
+durable message or task commits then coalesce into one bounded `invalidated`
+signal. The signal carries no message page, task patch, or Client draft. The
+DAG rereads the same task view, while the message center replaces the current
+filtered page without an old continuation cursor. DAG, message-page, and roster
+authority reads each use one in-flight/dirty latch, so a burst adds at most one
+trailing read; the last published cursor cannot append while its replacement is
+unpublished. Generation fences reject
+old cursor pages, prior-Team or prior-service callbacks, and late settlements.
+Carrier loss retains the last authoritative data as explicitly stale;
+reconnect restores reads and never resends a saved intent. A Team change
+releases the prior stream, reads, timer, and pending submission. Same-Team
+service replacement preserves an unsaved draft and marks an interrupted exact
+request unknown. Host followers, generated Remote, Gateway, locale, Slot, and
+UI controls all end with their owning Fiber or renderer, so no side-channel
+state is introduced.

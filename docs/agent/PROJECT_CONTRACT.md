@@ -131,6 +131,16 @@ an actual integration commit based on the fixed official comparison.
   explicit omissions. Delivery stages are acknowledgements, never read status
   or task completion. See
   [ADR 0023](../adr/0023-compose-persisted-team-message-reads.md).
+- The Team owner's generated `agentTeams/watch` stream authorizes the exact
+  live Lead and begins with one complete authoritative `TeamView`. Later
+  committed message or task changes coalesce into a bounded invalidation;
+  Clients reread the existing task view and current filtered message window.
+  Each Client read class permits one in-flight read and at most one trailing
+  dirty read; a page replacement blocks append from its unpublished cursor.
+  Task-panel and message-view registrations use the Team Client's public
+  `createTeamWatchOwner` with separate owners, so React-triggered closes and
+  live controls share one implementation of awaitable Fiber teardown.
+  The stream carries no message page, draft, scheduler, or persistent mirror.
 - Only an exact live Agent Team Lead may view or mutate the shared profile
   catalog, launch a Digital Employee, or invoke an exported headless mutation.
 - The fixed `ultra_profile_list`, `ultra_profile_detail`, and
@@ -298,9 +308,27 @@ an actual integration commit based on the fixed official comparison.
   original result before CAS; changed input conflicts. Wait observes later Team
   activity for 10 seconds to 1 hour, ends on cancellation or grant revocation,
   and stores no receipt. Wait, claim and dependency readiness never start members
-  or acquire file locks; interruption preserves task ownership. The current
-  task UI reads authoritative Team state, and native execution permissions stay
-  fixed. See [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md).
+  or acquire file locks; interruption preserves task ownership. The public
+  Shared Task Panel projects one authoritative Team view into an accessible
+  list, dependency graph, and shared detail. Real task ids and
+  blocker-to-dependent edges retain Host owner/status/readiness facts; filter,
+  selection, layout, zoom, pan, fit, and keyboard focus are disposable Client
+  state and never alter readiness or revision. Both views reuse the existing
+  task mutation controls and generated Remote boundary. Native execution
+  permissions stay fixed. Dependency create/edit uses native real-id
+  checkboxes and submits the complete dependency set through the existing Team
+  mutation boundary. Edit combines text, scopes, and dependencies in one CAS
+  with the `expectedRevision` pinned when editing starts; Host validation of references, role,
+  self edges, and indirect cycles remains atomic and rejected writes append no
+  event. Client previews never change readiness. A stale edit reloads the
+  current authoritative task while retaining an explicitly unsaved text and
+  dependency draft across a racing watch refresh with bilingual feedback.
+  Only a successful conflict-triggered authority reload advances the edit base
+  for the next explicit Save; a failed reload preserves the old base and real
+  error. Deleted selected dependencies remain visible and removable in that
+  unsaved draft. No reload automatically retries an overwrite. See
+  [ADR 0019](../adr/0019-persist-native-task-operation-receipts.md) and
+  [ADR 0025](../adr/0025-project-one-authoritative-task-board-into-list-and-graph.md).
 - The Claude Code provider qualifies only the pinned package-local Claude
   Agent SDK `0.3.241` and Claude Code `2.1.241` native payload. It never
   searches `PATH`; a missing, mismatched, or unqualified payload leaves the
@@ -460,7 +488,9 @@ an actual integration commit based on the fixed official comparison.
   stores its bounded retry fields by Team. Double-clicks share that request;
   an unknown transport outcome preserves a reviewable draft, and reload never
   sends it automatically. Only an explicit same-request retry or refresh acts.
-  Continuous watch and reconnect state belong to #36.
+  Team watch generations fence late pages, callbacks, and settlements across
+  filter, Team, and service changes. Carrier loss retains the last committed
+  view as stale; reconnect restores reads only and never submits an intent.
 - Every physical stream generation begins with exactly one complete baseline.
   Later frames are complete replacements, never partial entity patches.
 - Storage-domain, Runtime Backend generation, Agent roster, Team turn, approval,
@@ -469,6 +499,14 @@ an actual integration commit based on the fixed official comparison.
 - The Client uses the stock Gateway generation supervisor and snapshot
   validator. An update before its opening baseline, or a duplicate baseline,
   fails the stream instead of publishing an ambiguous model.
+- The Agent Team stream uses the same Gateway lifecycle but its post-baseline
+  frame is only `invalidated`, not a copied message/task patch. A Client
+  invalidation replaces the current message window without a continuation
+  cursor; replacement serializes burst rereads and disables the last published
+  continuation cursor until the replacement publishes. A pending old page
+  cannot append after that replacement. Team or
+  service replacement aborts old reads/submissions, preserves only the
+  appropriate Team-scoped unsaved intent, and ignores every late generation.
 - Carrier loss keeps the last accepted complete snapshot visible as stale.
   Terminal disconnection, opening load, complete empty data, pending work,
   conflicts, runtime availability/capability failures, business rejection, and
