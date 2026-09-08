@@ -480,6 +480,15 @@ Focused Linux verification is not the final historical archive or native-auth ga
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text
   or multiplied across cumulative provider snapshots.
+- On Session v2, the pinned `expandAssistantStream` helper reads the last usage
+  snapshot of each durable `assistant/attempt`; `assistant/message` top-level
+  usage remains authoritative and its embedded copy is not added twice. Live
+  frames do not enter this canonical fold. Failed 14 plus committed 7 yields
+  one 21-token Run, including after cold recovery. Missing stream termination
+  remains incomplete even when a turn-end exists; historical messages with an
+  empty stream retain their committed authority. An aggregate total is omitted
+  when any counted usage report lacks it, rather than presenting a partial
+  total as the complete Run total. Bounded raw-free Run Index shape is unchanged.
 - Approval timeline items contain only source-proven call, request, policy,
   and decision identities. `waiting-approval` requires a live unresolved
   same-process or provider-native correlation; a persisted unmatched ask is

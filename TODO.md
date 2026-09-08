@@ -28,7 +28,9 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Qualify clean candidate `3c38b1d4e8` without switching the B support line: formal preparation, 590 strict checks, full Ultra build, the fixed-route v2 cold-resume tracer and both 11-group public Team probes pass. See [#39 evidence](docs/evidence/issue-39-acceptance.md); PR-level acceptance remains #43.
 - [x] Complete #40 native/UI focused validation on the same candidate: Ultra 145 tests, Harness Team UI 63 tests and real built native Loader 1 test pass; see [#40 evidence](docs/evidence/issue-40-acceptance.md). Final PR acceptance remains #43.
 - [x] Implement #41 isolated joint migration, write admission and deterministic recovery: 70 focused tests / 5 files, 648 strict checks and full build pass. See [#41 evidence](docs/evidence/issue-41-acceptance.md); complete historical archives and every-write interruption matrix remain #43.
-- [ ] Publish #41 and send its per-Issue notification, then complete #42 truthful v2 usage with focused TDD and notification.
+- [x] Publish #41 as `04b2c9f` on PR #63 and send its per-Issue bot notification once; Issue remains OPEN / 2 of 6 AC, with full historical acceptance deferred to #43.
+- [x] Implement #42 truthful v2 usage: public Agent Loop / Session / generated Remote RED → GREEN for failed-attempt usage, missing stream terminal and partial aggregate totals; focused 112 tests / 7 files pass. See [#42 evidence](docs/evidence/issue-42-acceptance.md).
+- [ ] Publish #42 and send its per-Issue notification; final historical v2-to-Studio and packed acceptance remains #43.
 - [ ] Complete #43 final batch verification, archive upgrade/uninstall and explicit compatibility lock promotion in the reviewable integration PR; no automatic merge.
 - [ ] Perform #44 genuine authenticated native acceptance after its prerequisites; controlled external boundaries are not this acceptance.
 
