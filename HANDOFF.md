@@ -8,12 +8,12 @@
 ## 当前任务与完成边界
 
 - 用户已确认持续从 #38 开始按 `tdd` 开发，并在每个 Issue 完成后通过飞书 CLI 通知。PR 范围保持 #38、#39–#43、#44；Issue 定向验证，完整跨功能／冒烟／错误冒泡／真实归档验证在最终 PR 候选收口。未验 AC 不勾选，Issue 合并后关闭，父 Spec #18 不修改；开发授权不自动包含 PR 合并。
-- #38 实现与自动化验收完成，待 PR 发布／评审和人工合并。独立工作区 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`；实现提交 `c91a3b7`，最终验证提交 `7caa05e3a951dac88eaf93067d0db1985088d966`。尚未推送或创建 PR；远端 AC 仍待按证据更新。
+- #38 实现与自动化验收完成，已推送并创建 [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62)，待正式评审及人工合并。独立工作区 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`；实现提交 `c91a3b7`，最终验证提交 `7caa05e3a951dac88eaf93067d0db1985088d966`。GitHub 回读 OPEN／CLEAN、无远端 checks；六条 AC 按证据勾选，Issue 保持 OPEN，标题／标签／指派及父 Spec #18 均未改。
 - [验收记录](docs/evidence/issue-38-acceptance.md) 逐项映射六条 AC。真实公开入口 RED → GREEN 修复 run/view/watch 冷读取清理、旧 Lead 的 DSH／Codex 详情、双 native 宽限期诊断、Codex 恢复终态及无效原生结束时间。共享 JSON／SQLite 场景保留原 member／handle、丢失回执去重、任务所有权与 DAG、另一 provider、评测、Run 和 watch；迟到旧代际通知与重复旧 Fiber 清理不影响新工作。
 - 最终 `pnpm verify` 自然退出 0：590 strict／0 warnings，Host／Client／Typert／compatibility 构建，394 tests／35 files，八归档普通解析与安装、生产消息／DAG／CAS／watch／丢响应恢复、Web 启动、Codex／Claude JSON＋SQLite 冷恢复及完整卸载通过。日志为 worktree 父目录 `issue-38-qualified-verify.log`。首轮唯一失败是旧夹具的相对终态时间却要求完整；保留输入、用量与终态，明确验证 incomplete／无 endedAt 后重新跑完整门禁通过。
 - Node 22.22.1／pnpm 11.7.0，Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 位于 `/root/workspace/pr61-fixes.7yIVdj/harness`，来源和锁均未修改。main 仍为 `ec88d85a2ec668388ff37b0b6cba4bab3e332040`；主工作区既有 HANDOFF、3 个 stash、历史工作树和维护源码均保留。
-- 飞书身份及收件人已经确认；当前 user／bot 服务端验证 ready。使用 CLI bot 私信当前登录用户，内容含编号、实现／测试、分支／PR及待验收项；尚未发送 #38 完成消息，PR 发布后发送。凭据和私人会话不写入仓库。
-- 下一步发布 #38 并通知，然后从其候选建立 #39–#43 升级集成线，不切换 B 发布线。已回读 #39–#44，固定官方比较为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`；#43 完整迁移／归档门禁与人工合并、#44 真实认证验收仍不可省略。没有开始修改新 Harness 基线。
+- 飞书 #38 完成通知已于 2026-09-08 20:22:54 成功发送，CLI 返回 `ok: true`／bot，幂等键 `ultra-38-7caa05e-qualified`；内容包含 PR #62、实现／验证结果与待评审／合并和 #44 限制。不要重复发送。凭据、收件人私有标识和私人会话不写入仓库。
+- 下一步从 #38 候选建立 #39–#43 升级集成线，不切换 B 发布线；#38 PR 不自动合并。已回读 #39–#44，固定官方比较为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`；#43 完整迁移／归档门禁与人工合并、#44 真实认证验收仍不可省略。没有开始修改新 Harness 基线。旧 `gh pr edit` 因 Projects classic GraphQL 字段失败，已用 `gh api` 仅 PATCH 同一 PR body 并回读成功，不重建 PR。
 - 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
 
 ## PR #61 发布交接（历史记录，已合并）
