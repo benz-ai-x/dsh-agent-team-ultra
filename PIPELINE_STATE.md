@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T09:46:54+08:00（Asia/Shanghai）
+最后更新：2026-09-08T09:57:16+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -368,6 +368,7 @@
 - 同次真相对账：`git fetch origin --prune`成功；`origin/main=2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`。PR #60仍OPEN、非draft、CLEAN/MERGEABLE、无CI checks、head=`f77168de74359c275d9d9f941ebbecae3a4d3c37`；#34/#35/#36均OPEN且各3/5 AC。Ultra当前已切回clean `feat/batch-2-task-dag-live@f77168d`；保留Harness工作树`/root/workspace/deepseek-harness-ultra-29`与其HTTPS远端分支均为clean `503ad563ff226c2afc77608c432af3a80aae3279`。
 - PR #61仍OPEN、非draft、CLEAN/MERGEABLE、无CI checks，开发产品/证据已完成且#37为6/6 AC；其Ultra head=`c42b9d80532e81f6a6e83761290a0e189253ea02`，Harness head=`924a622f6dc69a2e4b5beebdf218196da927dc7c`。本次只暂停其review 2，不回滚、不混入PR #60产品diff。
 - 已用官方`DSH_HARNESS_ROOT=/root/workspace/deepseek-harness-ultra-29 pnpm prepare:harness`恢复PR #60精确源，`pnpm install`自然退出0，开工`pnpm context:check:strict`通过582 checks / 0 warnings。下一步把live #34/#35/#36全文、6项失败AC及review 3的2 high/4 medium交给全新隔离TDD修复上下文；先新增公开行为RED，再做最小GREEN，禁止删除/skip/放宽断言。
+- 2026-09-08T09:57:16+08:00：PR #60正文已通过Pull Request API原子更新并完整回读：明确历史review熔断仍为3轮、当前执行唯一统一重试1/1、PR #61 review 2暂停、三项仍各3/5且继续`Refs`，并把当前state-only head更新为`2d456fa780a11d91bf5d1dcb2459709e797a28a8`。GitHub刚接收新head时mergeability短暂回报`UNKNOWN`，不冒充冲突；开发后必须重新读取稳定结果。
 
 ## AC 进度
 
