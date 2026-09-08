@@ -4,6 +4,7 @@ import { EvaluationWorkflow } from './evaluation-workflow.ts'
 import { TEAM_OWN_TOOL_NAMES } from './profile-capabilities.ts'
 import { authorityRemoteError } from './host-errors.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { TeamMemberView } from '@deepseek-ai/dsh-experimental-agent-team'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { runtimeTargetRoutingId, snapshotRequiredCapabilities } from './runtime.ts'
@@ -126,6 +127,11 @@ function backendForTarget(
     : catalog.backends.find(candidate => candidate.routingId === runtimeTargetRoutingId(target))
 }
 
+function hasNativeCollaboration(member: TeamMemberView): boolean {
+  return (['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const)
+    .every(operation => member.memberOperations?.includes(operation))
+}
+
 function ordinaryRuntimeAvailability(
   member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
   backend: DigitalEmployeeRuntimeBackend | undefined,
@@ -137,24 +143,30 @@ function ordinaryRuntimeAvailability(
     !backend.contextModes.includes(required.contextMode)
     || required.profileCapabilities.some(capability => !backend.profileCapabilities.includes(capability))
     || required.runtimeCapabilities.some(capability => !backend.runtimeCapabilities.includes(capability))
+    || (member.externalRuntime?.nativeHandle !== undefined
+      && required.runtimeCapabilities.includes('full-collaboration') && !hasNativeCollaboration(member))
   )) return 'capability-mismatch'
   return 'available'
 }
 
 function runtimeFacts(
+  host: DigitalEmployeeHostContext,
   member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
   backend: DigitalEmployeeRuntimeBackend | undefined,
   runtimeAvailability: DigitalEmployeeTeamMemberView['runtimeAvailability'],
 ): DigitalEmployeeTeamMemberRuntimeView {
   const declaredFull = backend?.runtimeCapabilities.includes('full-collaboration') === true
   const operations = member.memberOperations
+  const dshAgent = member.externalRuntime === undefined ? host.ctx.agents.get(member.id) : undefined
+  const dshTools = dshAgent?.ctx.tools.schemas(dshAgent).map(tool => tool.name)
   const collaborationStatus = backend === undefined
     || (member.externalRuntime !== undefined && operations === undefined)
+    || (member.externalRuntime === undefined && dshTools === undefined)
     ? 'unknown'
-    : declaredFull && (member.externalRuntime === undefined || (
-      operations !== undefined && (['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const)
-        .every(operation => operations.includes(operation))
-    )) ? 'full' : 'limited'
+    : declaredFull && (member.externalRuntime === undefined
+      ? ['list_agents', 'team_task_list', 'team_task_get', 'send_message', 'team_task_update', 'wait_agent']
+        .every(name => dshTools?.includes(name))
+      : hasNativeCollaboration(member)) ? 'full' : 'limited'
   return Object.freeze({
     ...(member.context === undefined ? {} : { contextMode: member.context }),
     provisioningPhase: memberProvisioningPhase(member.status),
@@ -169,6 +181,7 @@ function runtimeFacts(
 }
 
 function snapshotTeamMembers(
+  host: DigitalEmployeeHostContext,
   roster: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>,
   teamId: string,
   catalog: DigitalEmployeeRuntimeCatalog,
@@ -183,7 +196,7 @@ function snapshotTeamMembers(
         const backend = backendForTarget(catalog, instance.resolvedRuntimeTarget
           ?? (instance.runtimeTarget.kind === 'legacy-inherit-lead' ? undefined : instance.runtimeTarget))
         return Object.freeze({
-          ...runtimeFacts(member, backend, instance.runtimeAvailability),
+          ...runtimeFacts(host, member, backend, instance.runtimeAvailability),
           provisioningPhase: instance.provisioningPhase,
           binding: 'profile-bound',
           teamId,
@@ -203,7 +216,7 @@ function snapshotTeamMembers(
       const actualRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute, false)
       const backend = backendForTarget(catalog, actualRuntimeTarget ?? selectedRuntimeTarget)
       return Object.freeze({
-        ...runtimeFacts(member, backend, ordinaryRuntimeAvailability(member, backend)),
+        ...runtimeFacts(host, member, backend, ordinaryRuntimeAvailability(member, backend)),
         binding: 'ordinary',
         teamId,
         memberId: member.id,
@@ -281,7 +294,7 @@ export class StudioProjection {
       if (actual !== undefined) historicalTargets.push(actual)
     }
     const runtimeCatalog = this.host.runtimeBackends.snapshot(historicalTargets)
-    const teamMembers = snapshotTeamMembers(roster, membership.id, runtimeCatalog, instances)
+    const teamMembers = snapshotTeamMembers(this.host, roster, membership.id, runtimeCatalog, instances)
     return Object.freeze({
       profiles: Object.freeze(profiles),
       runtimeCatalog,

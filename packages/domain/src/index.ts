@@ -140,6 +140,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     let stopSessionStart = (): void => undefined
     let stopSessionEvent = (): void => undefined
     let stopDomainChanged = (): void => undefined
+    let stopToolsChanged = (): void => undefined
     this.ctx.effect(() => async () => {
       this.host.closeAdmission()
       const conversationToolDisposal = this.conversationTools.dispose()
@@ -152,6 +153,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
       try { stopSessionStart() } catch (error: unknown) { failures.push(error) }
       try { stopSessionEvent() } catch (error: unknown) { failures.push(error) }
       try { stopDomainChanged() } catch (error: unknown) { failures.push(error) }
+      try { stopToolsChanged() } catch (error: unknown) { failures.push(error) }
       this.runWorkflow.clearApprovals()
       try { this.capabilities.disposeAll() } catch (error: unknown) { failures.push(error) }
       await this.launchWorkflow.whenSettled()
@@ -195,6 +197,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
     stopDomainChanged = this.ctx.on('domain/changed', (change: DomainChanged) => {
       if (change.domain === 'agent_team_ultra_v1') this.studioSnapshots.invalidate()
     })
+    stopToolsChanged = this.ctx.on('tools/change', () => { this.studioSnapshots.invalidate() })
     this.host.restoreRuntimeGeneration()
     await this.evaluationWorkflow.repairInterrupted()
     this.host.openAdmission()

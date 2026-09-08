@@ -1,12 +1,12 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08（Asia/Shanghai，PR #61 合并冲突处理）
+最后更新：2026-09-08（Asia/Shanghai，仅 PR #61 能力修复与复查）
 
 本文件保留历史批处理进度，当前授权仅以下节为准。恢复时先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
 ## 最新范围与门槛
 
-最新用户要求是 `$resolving-merge-conflicts pr#61`。只在独立 worktree 整合 main `9835db4` 与 PR #61 已发布头 `2491023`，同时合并其 Harness `4490b43` 与 main 锁定的 `b78caad462`。保留两侧契约，运行组合回归和完整归档验证，再提交并推送原分支；不合并 PR #61，不修改其他 PR／Issue，不推进旧流水线或发送通知。
+最新用户要求是修复并复查 PR #61。只在既有独立 worktree 修复 `b7a5ec6` 评审的两类能力问题：精确 DSH 成员工具事实，以及原生必需完整协作的 create／resume 准入。配套 Harness 本地提交为 `57670c6b320f7f240cbad360a9f691c8598e1571`；新锁验证与双轴复查以 [当前证据](docs/evidence/pr61-capability-review-fixes.md) 为准。本轮未推送，不合并 PR #61，不修改其他 PR／Issue，不推进旧流水线或发送通知。历史计数保持原样。
 
 PR #60 已合并为 `9835db4361dcad500b3be09ef69f78420d71a6ab`，#34–#36 已 CLOSED 且各 5/5 AC。PR #61 与 #37 仍 OPEN；三项修复发布证据见 [修复说明](docs/evidence/pr61-review-fixes.md)。本次 Harness 合并为 `bb9b48954821a29f712043b08b746085cc07a440`；组合验证已通过：316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates，Ultra 完整 `pnpm verify` 为 582 strict／0 warnings、378 tests／32 files 与八归档恢复／Web／卸载。Ultra merge `309c778ed665ea78538a234a2897d4907eeb0a6f` 与 Harness merge 均已正常推送原分支并回读一致，发布后 strict 再次通过 582／0。本次交接只追加文档，不改变已验证产品；证据及不变的限制见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，不继承旧测试数或改变历史 review／重试计数。
 
@@ -647,6 +647,6 @@ Host／Client／Typert／compatibility 构建与八归档安装／恢复／Web�
 
 ## 下一步（唯一恢复入口）
 
-1. PR #61 冲突处理已完成，代码 merge `309c778` 与配套 Harness `bb9b489548` 已发布；恢复时核对 live head、两侧 commit／clean 状态和 PR mergeability，不重复操作。
-2. 等待用户下一步指令；不因本次验证通过而合并 PR #61，不修改 Issue 正文，不启动 #38–#44 或发送通知。
+1. PR #61 上轮冲突处理已发布；当前继续完成两类能力修复的新锁验证、完整归档 gate 与独立双轴复查。恢复时核对两侧本地提交和 live PR head，不把旧测试数当作本轮结果。
+2. 完成后报告本地／远端状态；不自动推送或合并 PR #61，不修改 Issue 正文，不启动 #38–#44 或发送通知。
 3. PR #60 已合并，保留其历史 review／重试记录与已知低优先级发现，不重复重试或扩大修复。

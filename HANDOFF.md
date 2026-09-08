@@ -7,6 +7,15 @@
 
 ## 当前任务与完成边界
 
+- 最新请求为“修复，复查”并继续：只处理 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 在 `b7a5ec6` 审查发现的两类能力问题。主工作区 `/root/workspace/dsh-agent-team-ultra` 的 main、既有 `HANDOFF.md` 改动与来源链接均保留；不合并 PR，不改变其他 Issue／PR，不通知或恢复历史流水线。
+- 修复仍在 `/root/workspace/pr61-fixes.7yIVdj/ultra` 的 `fix/pr61-review-findings`，配套 Harness 为相邻 `harness` 的 `fix/pr61-member-capabilities`。Harness 本地提交 `57670c6b320f7f240cbad360a9f691c8598e1571` 已通过正常提交钩子，Ultra lock 与正式 docs digest 已同步；本轮未推送任一远端，远端 PR 头仍须实时回读。
+- DSH 成员完整协作由精确 live Agent 的六项 Team 工具证明，工具注册／卸载通知驱动 Studio 快照刷新。原生 create／resume 若明确要求完整协作，必须返回精确 handle 的全部六项成员操作；缺失或不完整时拒绝，沿用世代隔离及等待资源清理。同一成员身份可由恢复后的新注册重新接续排队工作；没有该必需项的有限／未确认成员仍允许运行。
+- 已有公开调用 RED／GREEN；Harness 258 项 owning tests 和目标模块四项 100% coverage 通过，完整 build、15 项快速文档检查与 32 项 doc-sync 通过。新测试 lint 已修复；全量 lint 仅剩未改 `message-read.spec.ts:541` 两项基线违规。Ultra 新锁构建、普通／Profile-bound DSH 和原生成员 Remote 回归、完整八归档 gate 与双轴复查仍在进行，不能提前宣称通过。
+- 下一步：完成 Ultra `pnpm verify`，按 `code-review` 固定完整 PR diff 并由独立 Standards／Spec agents 复查；修复新发现后记录最终提交和本地／远端状态。权威需求为 [#37 AC2](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37)、[Spec #18 1.1 D-11](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 与既有 ADR。详见 [本轮证据](docs/evidence/pr61-capability-review-fixes.md)。
+- 环境仍为 Node 22.22.1／pnpm 11.7.0；使用 `code-review`、`dsh-plugin-dev`，Harness 使用 `dsh-ci-test-reliability`、`dsh-pre-push-checks`、`dsh-doc`、`dsh-prose-standard`。本轮只同步能力 owner 的中英契约，没有新持久格式或权限扩张。
+
+## 上轮 PR #61 冲突处理（历史记录）
+
 - 最新用户要求使用 `resolving-merge-conflicts` 解决 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 与 main 的冲突。仅在独立 worktree 整合、验证并推送原 PR 分支；不把 PR #61 合并进 main，不推进其他 Issue／PR，不发送通知。
 - Ultra：`/root/workspace/pr61-fixes.7yIVdj/ultra`，本地 `fix/pr61-review-findings`，起点 `2491023814b71ce267cd55883459e2096d42e0e0`，合入 main `9835db4361dcad500b3be09ef69f78420d71a6ab`。主工作区 main、原 HANDOFF 改动和来源链接保持不动。PR #60 已合并，#34–#36 已关闭且各 5/5 AC。
 - Harness：`/root/workspace/pr61-fixes.7yIVdj/harness`，`fix/pr61-member-capabilities`，以 `4490b43a0f67b2851e23109edf5ae6232bea223d` 和 `b78caad462c3509127761904ed59ee549b6b6160` 为双亲合并为 `bb9b48954821a29f712043b08b746085cc07a440`，已正常推送维护 fork 同名分支且远端回读一致；未推送官方 upstream。新 lock 及正式 docs digest 已同步，worktree clean。

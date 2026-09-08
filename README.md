@@ -29,6 +29,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - 消息中心：从现有 Agent Teams 面板按成员、方向和投递阶段分页浏览持久消息；正文仅在选择后读取，私有 block 明确省略，投递不表示已读或任务完成。公开 Team watch 每个连接世代先给完整 Host baseline，后续仅用有界 invalidation 触发同一筛选的权威重读；page／roster 各自同时最多一次读取，任务视图的任意 burst 共用一个 completion 与 dirty bit，直到最后一次失效后的权威读取发布，replacement 期间旧 cursor 不能开始 append。断线保留明确 stale 页面，重连从不自动重发消息意图。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
+- 实际协作能力：Studio 按精确 DSH 成员当前可见的 Team 工具显示，工具卸载／恢复会刷新快照；原生启动／恢复若明确要求完整协作，必须返回该 handle 的全部六项成员操作证明，否则拒绝并清理资源。不要求完整协作的成员仍可显示有限或未确认。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
 - Hook：安全的声明式 `session-start`、`before-step`、`before-tool`、`after-tool` 行为，不执行任意 JavaScript 或 shell。
 - 生命周期：不可变 Profile Revision、内容指纹、Head CAS、显式激活/回滚、归档/恢复、不可变启动快照和完整 Fiber 清理。

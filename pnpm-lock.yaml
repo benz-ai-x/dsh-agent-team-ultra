@@ -161,6 +161,9 @@ importers:
       '@deepseek-ai/dsh-experimental-agent-team':
         specifier: link:../../.dsh/harness/packages/experimental/agent-team
         version: link:../../.dsh/harness/packages/experimental/agent-team
+      '@deepseek-ai/dsh-experimental-tool-agent-team':
+        specifier: link:../../.dsh/harness/packages/experimental/tool-agent-team
+        version: link:../../.dsh/harness/packages/experimental/tool-agent-team
       '@deepseek-ai/dsh-llm':
         specifier: link:../../.dsh/harness/packages/llm/llm
         version: link:../../.dsh/harness/packages/llm/llm

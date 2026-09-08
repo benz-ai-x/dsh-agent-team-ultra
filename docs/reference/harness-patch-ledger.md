@@ -21,9 +21,9 @@ claim that an upstream contribution was submitted or accepted.
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
 | 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `bb9b48954821a29f712043b08b746085cc07a440`, `0.1.2-rc.1` | 阶段 B 持久消息、共享任务面板、Team live watch 与精确成员能力／导航的组合运行源 / combined Phase B persisted-message, Shared Task Panel, Team live-watch, exact-member capability and navigation source |
+| 维护 fork / Maintained fork | `57670c6b320f7f240cbad360a9f691c8598e1571`, `0.1.2-rc.1` | 阶段 B 组合运行源及必需原生成员协作能力准入 / combined Phase B source with required native-member collaboration admission |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `265fcb73a5ebe6f62a23197255863ad8be276fc920b2dd578a678c82f46ab33b` | 锁定文档内容 / locked documentation content |
+| 文档摘要 / Documentation digest | `331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675` | 锁定文档内容 / locked documentation content |
 | 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.message-center.v2` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
 | Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
@@ -41,6 +41,8 @@ former identifies the source and documents; the latter verifies the actual
 executable closure selected by Node. Neither proves valid native user login.
 
 ## 维护变更 / Maintained changes
+
+本轮本地提交 `57670c6b320f7f240cbad360a9f691c8598e1571` 在原生 create／resume 接受边界校验显式必需的六项成员操作，缺失证明沿用提供方世代隔离与资源清理，不改变持久格式。258 项 owning tests、目标模块 100% 覆盖和 32 项文档门禁通过；完整 lint 仍有未改 `message-read.spec.ts:541` 两项基线违规。本轮尚未推送。/ This local commit enforces explicitly required full collaboration before accepting a native handle, retaining generation quarantine, cleanup and durable identity. No format change or upstream publication is claimed. See [repair evidence](../evidence/pr61-capability-review-fixes.md).
 
 提交链接固定到维护仓库。下列变更尚未被本清单证明已合入官方仓库；阶段 C 按
 [#39](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/39) 重新移植和验证，
