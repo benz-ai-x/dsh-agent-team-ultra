@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T11:23:13+08:00（Asia/Shanghai）
+最后更新：2026-09-08T11:32:42+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -385,6 +385,7 @@
 - 2026-09-08T11:13:16+08:00：#34 Ultra资格提交`2188736`（`chore: qualify Team DAG retry fixes (#34)`）已形成，包含精确lock、README、patch ledger、#34直接证据与恢复后的统一进度索引；提交前cached diff-check通过。精确新锁下Ultra message-center + public mount owning suites一次自然退出0：2 files / 25 tests，既有分页/live、same-Team replacement、Team切换与Fiber quiescence均无回归。现在启动本次唯一统一重试的第1次正式`pnpm verify`；只有该命令的本PR失败才增加连续full-red，连续2轮立即熔断。
 - 2026-09-08T11:15:36+08:00：唯一统一重试正式Ultra `pnpm verify`第1轮即自然退出0：strict 582/0；Host/Client、Typert与compatibility build；Vitest 30 files / 359 tests；8 archive pack/install；production task list/DAG、atomic dependency CAS/conflict draft、message page与Team watch；真实Web；Codex/Claude JSON+SQLite查询/任务/等待/成员恢复；`registrationsReleased=true`与完整uninstall全部PASS。无需第2轮，连续formal full-red保持0、历史local-gate红仍1。下一步只同步#35/#36直接证据、TODO/HANDOFF和本状态，fresh双读live issue正文后逐一做唯一checkbox marker更新；不把旧review轮数重置，不进入review或merge。
 - 2026-09-08T11:23:13+08:00：完成代码和full gate后，按#34→#35→#36逐一恢复六个review 3撤回marker。每次更新都在写前连续两次fresh `gh issue view`确认OPEN、body和updatedAt完全稳定，只把目标唯一`[ ]`字符改为`[x]`，断言仅一个byte index变化、反向替换与before全文相同，并在写后完整回读目标body/state。#34两个marker分别由updatedAt `2026-09-07T18:53:53Z`→`2026-09-08T03:22:20Z`→`03:22:32Z`，最终body SHA-256 `7bfa3f3f…83fa7`；#35为`18:53:57Z`→`03:22:43Z`→`03:22:53Z`，最终`cbf6a18a…2d33c`；#36为`18:54:00Z`→`03:23:03Z`→`03:23:13Z`，最终`a9222c57…dacb`。三项均保持OPEN且5 checked / 0 unchecked；AC进度据此更新，PR可推荐`Closes #34/#35/#36`但合并前不关闭Issue。
+- 2026-09-08T11:32:42+08:00：Ultra重试提交按#34→#35→#36形成并推送：`2188736d97`（精确Harness lock/#34）、`d7d72b70f5`（#35 evidence）、`ca17782415`（#36 evidence/TODO/HANDOFF/state）；HTTPS `ls-remote`与本地/tracking均精确为`ca17782415c4a209a972c4b42636f52edaa72121`，worktree clean。PR #60正文写前连续`gh pr view`稳定为OPEN/non-draft/head `ca17782…`；`gh pr edit`因Projects Classic GraphQL退役提示在写前exit1，改用REST只更新`body`成功。第一次readback验证器错误地对expected去除末尾换行而误报不等，随即只读比对证明两侧长度6915且首差异位置为EOF；修正后完整正文逐字节相等，SHA-256 `b9dcb11a…da754`，精确3个`Closes #34/#35/#36`、0个`Refs`，PR仍OPEN/non-draft/CLEAN/MERGEABLE、0 checks。正文明确`ca17782…`为development/acceptance head，并允许本记录形成一个不改产品/验收行为的最终state-only handoff commit；review须冻结GitHub live head。
 
 ## AC 进度
 
