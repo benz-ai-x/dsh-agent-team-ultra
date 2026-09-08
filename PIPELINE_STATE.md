@@ -1,6 +1,6 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T11:11:56+08:00（Asia/Shanghai）
+最后更新：2026-09-08T11:23:13+08:00（Asia/Shanghai）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- | --- | --- |
 | #18 | Spec: Agent Team Ultra vNext — 官方基础与明确的 Ultra 扩展（中英双语） | 父规范 | L | #19–#44 | skipped：#44 AC 明确要求“不关闭或修改父 Spec”；保持 open 作为规范索引 |
 | #33 | 从消息中心幂等发送和关联回复 | Harness Team mailbox/format；Ultra Remote/UI | L | #27、#32（均 closed） | merged：PR #59 已关闭 Issue；post-merge verify 通过 |
-| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | developing：PR #60 唯一统一重试，当前3/5 AC；历史review熔断仍保留 |
-| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | developing：PR #60 唯一统一重试，当前3/5 AC；历史review熔断仍保留 |
-| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | developing：PR #60 唯一统一重试，当前3/5 AC；历史review熔断仍保留 |
+| #34 | 让共享任务列表和 DAG 共用任务详情 | Harness Team UI；task projection | L | #25（closed） | in-review：唯一统一重试开发/full gate完成，5/5 AC；历史review熔断仍保留 |
+| #35 | 点选任务依赖并保留并发冲突草稿 | Team task API；DAG UI | L | #34 | in-review：唯一统一重试开发/full gate完成，5/5 AC；历史review熔断仍保留 |
+| #36 | 让消息中心与 DAG 实时刷新并正确重连 | Team watch/Remote/UI lifecycle | L | #33、#35 | in-review：唯一统一重试开发/full gate完成，5/5 AC；历史review熔断仍保留 |
 | #37 | 在 Studio 如实区分普通成员、档案绑定与协作能力 | Ultra Snapshot/Studio/navigation | L | #30–#32（均 closed） | in-review：PR #61开发收口、6/6 AC；按最新用户指令暂停于review 2前 |
 | #38 | 完成协作期间的冷恢复与 provider 代际替换 | Host/provider lifecycle/recovery | L | #36、#37 | dependency-paused：等Batch 2统一重试解锁#36（Batch 3B） |
 | #39 | 在固定官方新基线上接通基础 Team 与固定路由 | Harness 基线/公共 Team 契约 | L | #38 | dependency-paused：等#38（Batch 4） |
@@ -44,7 +44,7 @@
 | Batch / PR | Issue（PR 内按编号） | 分支 | 理由与依赖顺序 | PR 状态 | review 轮数 | local-gate 红灯轮数 | PR |
 | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | Batch 1 | #33 | `feat/batch-1-message-send-reply` | 单项特别复杂：跨 Ultra/Harness、引入必需持久事件/codec/投影，且接手时已有未提交 #33 WIP；独立 PR 控制 review 体量 | merged | 2 | 0 | [#59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) |
-| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | developing：执行熔断后的唯一统一重试（1/1）；历史review连续失败3轮 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
+| Batch 2 | #34、#35、#36 | `feat/batch-2-task-dag-live` | 同一公开 Team 面板、task id/revision 与 watch 契约；依序 #34 → #35 → #36 | in-review：唯一统一重试（1/1）开发与full gate完成，等待全新隔离review；历史review连续失败3轮 | 3 | 1 | [#60](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/60) |
 | Batch 3A | #37 | `feat/batch-3-studio-recovery` | 原Batch 3因#38硬依赖已熔断#36而拆分；#37只依赖已关闭#30–#32，是当前唯一非依赖项 | in-review：开发完成；按最新用户指令暂停review 2，先处理PR #60 | 1 | 1 | [#61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) |
 | Batch 3B | #38 | `feat/batch-3b-provider-recovery` | 保留原Batch 3语义；硬依赖#36/#37，需等Batch 3A完成且Batch 2统一重试成功 | dependency-paused | 0 | 0 | 未创建 |
 | Batch 4 | #39、#40、#41、#42、#43 | `feat/batch-4-harness-v2-upgrade` | 五个 issue 明文要求基线、契约、数据、用量修复共用升级集成分支，依序 #39 → #40 → #41/#42 → #43 | planned；需人工合并 | 0 | 0 | 未创建 |
@@ -382,6 +382,9 @@
 - 2026-09-08T11:05:28+08:00：等待协调期间再次fresh读取GitHub：#34/#35/#36正文、state与updatedAt均未变，仍OPEN/3-of-5；PR #60仍OPEN、非draft、CLEAN/MERGEABLE、无checks、head/remote=`40fdd6fe…`，PR #61未修改。确认Ultra worktree clean、目标branch未被其他worktree占用且local/HTTPS ref一致后，以可逆`git switch feat/batch-2-task-dag-live`恢复指定工作树到`40fdd6fe…`。历史review=3、local-gate历史红=1、当前唯一统一重试=1/1均不重置；下一步只更新精确Harness lock/直接证据并运行Ultra正式prepare/install/build与focused/full gate。
 - 2026-09-08T11:10:02+08:00：Ultra lock/README/patch ledger/#34直接证据已指向已推送Harness `806e5887…`，正式`prepare:harness`自然退出0并精确回报commit与docs digest `d4028c4f…e767`；`pnpm install --frozen-lockfile`自然退出0。首次post-lock `pnpm build`在任何Ultra产品编译前由source guard退出1：仅三条Harness Client built-types freshness检查失败，commit/digest/clean均已通过。该增量声明时间戳问题不是产品RED或正式`pnpm verify`，不增加local-gate红轮；按既有官方恢复路径只对`client-ui-agent-team` project执行4GiB `tsc -b --force`重发声明，再原样重跑build，禁止弱化guard或手改lib。
 - 2026-09-08T11:11:56+08:00：Harness owning Client project以4GiB官方`tsc -b --force`自然退出0，Harness tracked worktree仍clean；Ultra原样`pnpm build`随后自然退出0，Host/Client、四个bundle、Typert Remote和compatibility全部精确绑定`806e5887…`。独立`pnpm context:check:strict`恢复582 checks / 0 warnings，证明commit/docs digest/link resolution/main+types freshness与生成物一致。#34 lock/README/ledger/direct evidence及共享PIPELINE现可形成重试首个Ultra issue-boundary提交；#35/#36直接证据仍分别提交，不重排issue顺序。
+- 2026-09-08T11:13:16+08:00：#34 Ultra资格提交`2188736`（`chore: qualify Team DAG retry fixes (#34)`）已形成，包含精确lock、README、patch ledger、#34直接证据与恢复后的统一进度索引；提交前cached diff-check通过。精确新锁下Ultra message-center + public mount owning suites一次自然退出0：2 files / 25 tests，既有分页/live、same-Team replacement、Team切换与Fiber quiescence均无回归。现在启动本次唯一统一重试的第1次正式`pnpm verify`；只有该命令的本PR失败才增加连续full-red，连续2轮立即熔断。
+- 2026-09-08T11:15:36+08:00：唯一统一重试正式Ultra `pnpm verify`第1轮即自然退出0：strict 582/0；Host/Client、Typert与compatibility build；Vitest 30 files / 359 tests；8 archive pack/install；production task list/DAG、atomic dependency CAS/conflict draft、message page与Team watch；真实Web；Codex/Claude JSON+SQLite查询/任务/等待/成员恢复；`registrationsReleased=true`与完整uninstall全部PASS。无需第2轮，连续formal full-red保持0、历史local-gate红仍1。下一步只同步#35/#36直接证据、TODO/HANDOFF和本状态，fresh双读live issue正文后逐一做唯一checkbox marker更新；不把旧review轮数重置，不进入review或merge。
+- 2026-09-08T11:23:13+08:00：完成代码和full gate后，按#34→#35→#36逐一恢复六个review 3撤回marker。每次更新都在写前连续两次fresh `gh issue view`确认OPEN、body和updatedAt完全稳定，只把目标唯一`[ ]`字符改为`[x]`，断言仅一个byte index变化、反向替换与before全文相同，并在写后完整回读目标body/state。#34两个marker分别由updatedAt `2026-09-07T18:53:53Z`→`2026-09-08T03:22:20Z`→`03:22:32Z`，最终body SHA-256 `7bfa3f3f…83fa7`；#35为`18:53:57Z`→`03:22:43Z`→`03:22:53Z`，最终`cbf6a18a…2d33c`；#36为`18:54:00Z`→`03:23:03Z`→`03:23:13Z`，最终`a9222c57…dacb`。三项均保持OPEN且5 checked / 0 unchecked；AC进度据此更新，PR可推荐`Closes #34/#35/#36`但合并前不关闭Issue。
 
 ## AC 进度
 
@@ -396,26 +399,26 @@
 
 ### #34
 
-- [ ] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
+- [x] 节点使用真实 Task id，边从前置任务指向依赖任务；owner、状态、claimability 与 blocker 来自同一 Host 任务状态。
 - [x] 列表/图切换保留选择，节点打开同一详情及原有创建、编辑、分配/取消分配、完成、重开和删除控件。
-- [ ] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
+- [x] 提供自动布局、缩放、平移、适配视野、键盘导航和列表替代；过滤显示隐藏依赖提示，不改变 readiness。
 - [x] 复用现有 Team 任务 API/权限/Revision，不创建第二套状态、自动调度、文件锁或启动成员。
 - [x] 通过公开 Team UI 组成同一面板，提供中英文状态文案与打包 UI 验证。
 
 ### #35
 
 - [x] 图与列表共用同一 Task id/expectedRevision；选取或删除依赖都由真实 Team API 校验引用、角色、自环和间接环。
-- [ ] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
-- [ ] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
+- [x] 创建 A/B/C 并令 C 依赖 A/B，只有 A/B 全部完成后 C 可认领，边和 blocker 提示同步正确。
+- [x] 两个 Client 并发编辑得到冲突和当前权威版本，旧草稿明确未保存，不自动覆盖重试。
 - [x] 删除墓碑、重开、所有权保留和过滤隐藏依赖时展示仍正确；Client 预览不视为提交。
 - [x] 过期 Lead、跨 Team 与无权限写入拒绝且无持久副作用；点选依赖具备键盘/列表替代及中英文反馈。
 
 ### #36
 
-- [ ] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
+- [x] 在 Team 公开变化订阅边界先建立完整 baseline，再以有界失效重新读取权威消息页/任务视图；不维护第二份持久状态。
 - [x] 处理分页/live 竞争、筛选变更、迟到页、切 Team 与服务替换；旧代际页、草稿和提交不能进入新 Team。
 - [x] 重连只恢复读取，不自动重发；避免漏页、重复消息、错误 cursor 或用 pending 状态冒充完成。
-- [ ] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
+- [x] 消息和 DAG 共用 Host 提交事实，保持空/加载/stale/disconnected/冲突/不可用及中英文文案。
 - [x] 新增 watch、Remote、locale、Slot 随 Fiber 完整释放；真实生成协议和打包 UI 覆盖竞态与卸载。
 
 其余 issue 的逐项 AC 在对应 Batch 开工时从 GitHub 最新正文复制到本节，避免状态文件把未来可能更新的正文冒充真相。
@@ -437,6 +440,6 @@
 
 ## 下一步（唯一恢复入口）
 
-1. PR #60已进入唯一统一重试（1/1）：用全新隔离上下文按TDD修复review 3的2 high与4 medium，并以#34→#35→#36顺序逐项重拉live AC、补公开行为RED/GREEN、更新直接证据和独立issue提交。
-2. 开发完成后运行Ultra/Harness owning验证及Ultra `pnpm verify`；重新安全勾选满足的AC，PR正文按结果使用`Closes`或`Refs`，再用全新隔离`/code-review`仅审固定diff与live AC。
-3. 唯一重试评审与闸门全绿才允许按merge commit合并PR #60并做main post-merge `pnpm verify`；任一blocking/high则立即恢复blocked、记录重试耗尽并通知。PR #61在此期间保持暂停，不启动review 2。
+1. PR #60唯一统一重试（1/1）开发已完成：Harness `806e5887…`已推送，Ultra正式full gate首轮绿，#34/#35/#36均OPEN且5/5。完成#36 docs/state提交、HTTPS push与PR正文`Closes`/精确head回读后停止开发。
+2. 只由主agent创建全新隔离`/code-review`，以main `2c5a355…`、最终Ultra/Harness heads和live AC审查；本开发agent不得自行review、合并或开后续PR。历史review仍是3，本轮是唯一重试评审而非review 4。
+3. 唯一重试评审保持0 blocking/high且闸门绿才允许按merge commit合并PR #60并做main post-merge `pnpm verify`；任一blocking/high则立即恢复blocked、记录重试耗尽并通知。PR #61在此期间保持暂停，不启动review 2。
