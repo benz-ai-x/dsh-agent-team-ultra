@@ -1116,20 +1116,28 @@ describe('durable external-agent route integration', () => {
     ])
     const latestRun = remote.runs.find(run => run.canonicalTurnId === 'fake-turn-2')
     if (latestRun === undefined) throw new Error('restarted delivery Run is missing')
-    await expect(resumedCtx.digitalEmployees.runEvidence(
+    const latestDetail = await resumedCtx.digitalEmployees.runEvidence(
       leadHandle.agent,
       { runId: latestRun.runId },
       SIGNAL,
-    )).resolves.toMatchObject({
+    )
+    // This legacy provider reports epoch-relative integers (5, 15, 25), not
+    // current Unix milliseconds. Keep its identity/usage proof without claiming
+    // a complete end time before the real Team accepted this work.
+    expect(latestDetail).toMatchObject({
       ok: true,
       value: {
         run: {
           terminal: 'completed',
           usage: { inputTokens: 12, outputTokens: 2, totalTokens: 14 },
-          completeness: { status: 'complete' },
+          completeness: {
+            status: 'incomplete',
+            diagnostic: 'provider terminal time precedes Host acceptance; completion time is unavailable',
+          },
         },
       },
     })
+    expect(latestDetail).not.toHaveProperty('value.run.endedAt')
     expect(JSON.stringify(remote)).not.toContain('never-cross-the-host-boundary')
     expect(oneShot).not.toHaveBeenCalled()
     expect(secondOneShot).not.toHaveBeenCalled()

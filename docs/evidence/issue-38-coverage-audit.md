@@ -63,6 +63,7 @@ adapter，只控制外部协议／SDK；现有归档连续性探针也已使用�
 - `native-clock-red.log` 固定不一致时钟证明详情虚报完整并保留早于开始的 endedAt。修复保留真实 terminal 和原生时间线，不伪造完成时间；`native-clock-green.log`：完整 JSON／SQLite 共享恢复与 Run 回归 11 tests 通过。最终 PR 完整门禁仍未执行。
 - `combined-recovery-final.log`：共享场景加强后 3 tests 通过，覆盖旧代际迟到通知不改变新工作、重复旧 Fiber 清理不影响新 grant、冷恢复后原 handle 完成原任务并使依赖任务 ready。`recovery-focused.log` 的较早相关回归为 111 tests／11 files 通过，不替代最终门禁。
 - `snapshot-lifecycle-first.log`：直接 view 的真实冷 Run repair 未静止而 Host 已卸载，4 tests 中 1 项 RED。`snapshot-lifecycle-green.log`：跟踪直接 repair 后 4 项通过；`snapshot-lifecycle-matrix.log`：扩展 JSON／SQLite 的 run、view、watch 与旧 Lead 回归共 7 项通过。
+- 实现提交 `c91a3b7116ed2862384f812b751ec665c8daa5af` 首次完整验证为 393 通过／1 失败，尚未进入归档阶段（`issue-38-final-verify.log`）。唯一失败是旧内存 native 夹具输出 `5/15/25` 作为终态时间却要求当前真实 Team 的完整时间；保留输入并明确断言 incomplete、原终态／用量及缺失 endedAt。对应真实恢复、旧路由和 Run fold 共 17 tests 通过（`legacy-clock-expectation-green.log`）；仍须对最终候选重跑完整门禁。
 
 ## 后续执行
 
