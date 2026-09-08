@@ -26,7 +26,8 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Observe the #39 public fixed-route cold-resume tracer fail on B's Session format 0 versus required format 2.
 - [x] Finish integrating fixed official `d347e703` into the maintained Harness as `3c38b1d4e8`, preserving the complete B Team/native/UI contracts and recorded scenarios; formal candidate source selection follows.
 - [x] Qualify clean candidate `3c38b1d4e8` without switching the B support line: formal preparation, 590 strict checks, full Ultra build, the fixed-route v2 cold-resume tracer and both 11-group public Team probes pass. See [#39 evidence](docs/evidence/issue-39-acceptance.md); PR-level acceptance remains #43.
-- [ ] Complete #40 native/UI, #41 joint migration and #42 truthful v2 usage with focused TDD and per-Issue notifications.
+- [x] Complete #40 native/UI focused validation on the same candidate: Ultra 145 tests, Harness Team UI 63 tests and real built native Loader 1 test pass; see [#40 evidence](docs/evidence/issue-40-acceptance.md). Final PR acceptance remains #43.
+- [ ] Complete #41 joint migration and #42 truthful v2 usage with focused TDD and per-Issue notifications.
 - [ ] Complete #43 final batch verification, archive upgrade/uninstall and explicit compatibility lock promotion in the reviewable integration PR; no automatic merge.
 - [ ] Perform #44 genuine authenticated native acceptance after its prerequisites; controlled external boundaries are not this acceptance.
 
