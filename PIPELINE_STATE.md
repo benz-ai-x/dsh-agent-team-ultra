@@ -1,12 +1,12 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08（Asia/Shanghai，仅 PR #61 能力修复与复查）
+最后更新：2026-09-08（Asia/Shanghai，仅 PR #61 已审查修复的发布与合并）
 
 本文件保留历史批处理进度，当前授权仅以下节为准。恢复时先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
 
 ## 最新范围与门槛
 
-最新用户要求是修复并复查 PR #61。只在既有独立 worktree 修复 `b7a5ec6` 评审的两类能力问题：精确 DSH 成员工具事实，以及原生必需完整协作的 create／resume 准入。配套 Harness 本地提交为 `57670c6b320f7f240cbad360a9f691c8598e1571`；新锁验证与双轴复查以 [当前证据](docs/evidence/pr61-capability-review-fixes.md) 为准。本轮未推送，不合并 PR #61，不修改其他 PR／Issue，不推进旧流水线或发送通知。历史计数保持原样。
+最新用户已授权推送已审查的配套 Harness、更新 PR #61，核对远端一致且没有新增失败后合并该 PR。Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 已通过正常 pre-push 类型检查并推送维护 fork，Ultra `9aa53d96e56efafbce93100b9f25327f6168b1a6` 已推送原 PR 分支，两侧回读一致。发布交接只改文档；证据见 [修复与发布记录](docs/evidence/pr61-capability-review-fixes.md)。不修改其他 PR／Issue 正文，不推进旧流水线、删除分支／worktree 或发送通知，历史计数保持原样。合并采用精确 head 的普通 merge commit，不绕过门禁；最终状态以 PR #61 的 GitHub mergedAt／mergeCommit 为准。
 
 本轮已完成：Ultra `f5b2d4d`／Harness `57670c6b32` 的完整 PR 独立复查为 Standards 0、Spec 0；Ultra `pnpm verify` 为 590 strict／0 warnings、382 tests 和八归档安装／Web／双存储恢复／卸载通过。Harness 258 owning tests、目标模块 100% coverage、32 doc gates、2 Remote／Loader 与 5 Web 回放通过。完整 lint 的两项未改基线诊断仍保留；本轮最终交接只改文档。
 
@@ -649,6 +649,6 @@ Host／Client／Typert／compatibility 构建与八归档安装／恢复／Web�
 
 ## 下一步（唯一恢复入口）
 
-1. PR #61 两类能力修复、完整验证和独立双轴复查已完成，本地候选通过；恢复时核对两侧本地提交和 live PR head，不把本地修复当成已发布。
-2. 等待用户进一步的推送或合并指令；不自动推送或合并 PR #61，不修改 Issue 正文，不启动 #38–#44 或发送通知。
+1. PR #61 修复、完整验证、独立双轴复查和代码推送已完成。恢复时回读 GitHub PR 状态及 mergeCommit；若已 MERGED，不重复合并；否则只在最终远端提交与已核验候选一致且门禁允许时执行本次已授权的合并。
+2. 合并后的其他工作等待用户新指令；不修改 Issue 正文，不启动 #38–#44，不清理分支／worktree 或发送通知。
 3. PR #60 已合并，保留其历史 review／重试记录与已知低优先级发现，不重复重试或扩大修复。

@@ -42,7 +42,7 @@ executable closure selected by Node. Neither proves valid native user login.
 
 ## 维护变更 / Maintained changes
 
-本轮本地提交 `57670c6b320f7f240cbad360a9f691c8598e1571` 在原生 create／resume 接受边界校验显式必需的六项成员操作，缺失证明沿用提供方世代隔离与资源清理，不改变持久格式。258 项 owning tests、目标模块 100% 覆盖和 32 项文档门禁通过；完整 lint 仍有未改 `message-read.spec.ts:541` 两项基线违规。本轮尚未推送。/ This local commit enforces explicitly required full collaboration before accepting a native handle, retaining generation quarantine, cleanup and durable identity. No format change or upstream publication is claimed. See [repair evidence](../evidence/pr61-capability-review-fixes.md).
+维护 fork 提交 [57670c6b32](https://github.com/benz-ai-x/deepseek-harness_x/commit/57670c6b320f7f240cbad360a9f691c8598e1571) 在原生 create／resume 接受边界校验显式必需的六项成员操作，缺失证明沿用提供方世代隔离与资源清理，不改变持久格式。258 项 owning tests、目标模块 100% 覆盖和 32 项文档门禁通过；完整 lint 仍有未改 `message-read.spec.ts:541` 两项基线违规。正常 pre-push 类型检查后已推送 `fix/pr61-member-capabilities` 并回读一致，未推送官方 upstream。/ This maintained-fork commit enforces explicitly required full collaboration before accepting a native handle, retaining generation quarantine, cleanup and durable identity. No format change or official upstream publication is claimed. See [repair evidence](../evidence/pr61-capability-review-fixes.md).
 
 提交链接固定到维护仓库。下列变更尚未被本清单证明已合入官方仓库；阶段 C 按
 [#39](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/39) 重新移植和验证，

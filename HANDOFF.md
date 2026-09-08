@@ -7,12 +7,12 @@
 
 ## 当前任务与完成边界
 
-- 最新请求为“修复，复查”并继续：只处理 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 在 `b7a5ec6` 审查发现的两类能力问题。主工作区 `/root/workspace/dsh-agent-team-ultra` 的 main、既有 `HANDOFF.md` 改动与来源链接均保留；不合并 PR，不改变其他 Issue／PR，不通知或恢复历史流水线。
-- 修复仍在 `/root/workspace/pr61-fixes.7yIVdj/ultra` 的 `fix/pr61-review-findings`，配套 Harness 为相邻 `harness` 的 `fix/pr61-member-capabilities`。Harness 本地提交 `57670c6b320f7f240cbad360a9f691c8598e1571` 已通过正常提交钩子，Ultra lock 与正式 docs digest 已同步；本轮未推送任一远端，远端 PR 头仍须实时回读。
+- 最新用户已授权按建议依序推送配套 Harness、更新 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61)，核对远端和检查后合并该 PR。只交付已经修复并复查通过的两类能力问题；不修改其他 PR／Issue 正文，不通知或恢复历史流水线，不删除分支或 worktree。主工作区 `/root/workspace/dsh-agent-team-ultra` 的 main、既有 `HANDOFF.md` 改动与来源链接均保留。
+- 修复工作区仍为 `/root/workspace/pr61-fixes.7yIVdj/ultra` 的 `fix/pr61-review-findings`，配套 Harness 为相邻 `harness` 的 `fix/pr61-member-capabilities`。Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 已经正常 pre-push 类型检查后推送维护 fork 同名分支，Git 与 GitHub 回读一致；没有推送官方 upstream。Ultra `9aa53d96e56efafbce93100b9f25327f6168b1a6` 已正常推送原 PR 分支并回读一致。当前交接只补充发布记录，不修改已验证代码或锁。
 - DSH 成员完整协作由精确 live Agent 的六项 Team 工具证明，工具注册／卸载通知驱动 Studio 快照刷新。原生 create／resume 若明确要求完整协作，必须返回精确 handle 的全部六项成员操作；缺失或不完整时拒绝，沿用世代隔离及等待资源清理。同一成员身份可由恢复后的新注册重新接续排队工作；没有该必需项的有限／未确认成员仍允许运行。
 - Harness 258 项 owning tests 和目标模块四项 100% coverage、完整 build、15 项快速文档检查、32 项 doc-sync、2 项 built Remote／Loader、5 项 Web 回放通过。全量 lint 仅剩未改 `message-read.spec.ts:541` 两项基线违规。Ultra 完整 `pnpm verify` 自然退出 0：590 strict／0 warnings、382 tests／32 files、八归档安装／解析、production DAG／CAS／watch、Web、Codex／Claude JSON＋SQLite 冷恢复和卸载通过；新增 packed 能力探针在两种存储下均通过。夹具同步为 `f5b2d4d08e6f4f5381ccd8ba1803bf189c35b3fc`，运行源码／锁／脚本与修复提交 `06b736e` 一致。
-- 双轴复查固定 Ultra `9835db4…f5b2d4d`（50 文件）、Harness `b78caad…57670c6`（48 文件）的完整差异：Standards 0 项、Spec 0 项，各轴最高严重度均为无；本地修复通过。最后交接仅改本记录、TODO、PIPELINE_STATE 和证据，不改变已验证且已审查的运行源码、测试、锁或脚本。下一步仅在用户进一步要求后推送；当前 PR 远端仍是 `b7a5ec6`，Harness 远端仍是 `bb9b489548`。权威需求为 [#37 AC2](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37)、[Spec #18 1.1 D-11](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 与既有 ADR。详见 [本轮证据](docs/evidence/pr61-capability-review-fixes.md)。
-- 环境仍为 Node 22.22.1／pnpm 11.7.0；使用 `code-review`、`dsh-plugin-dev`，Harness 使用 `dsh-ci-test-reliability`、`dsh-pre-push-checks`、`dsh-doc`、`dsh-prose-standard`。本轮只同步能力 owner 的中英契约，没有新持久格式或权限扩张。
+- 双轴复查固定 Ultra `9835db4…f5b2d4d`（50 文件）、Harness `b78caad…57670c6`（48 文件）的完整差异：Standards 0 项、Spec 0 项，各轴最高严重度均为无。发布前 strict 再次通过 590／0；两侧远端没有 Actions 运行或 check runs，PR 没有评审线程。合并使用普通 merge commit 和精确 `--match-head-commit`，不强推、不绕过门禁。最终 `state`／`mergedAt`／`mergeCommit` 以 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 的 GitHub 记录为准；恢复时先回读，若已 MERGED 不重复合并。权威需求为 [#37 AC2](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37)、[Spec #18 1.1 D-11](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 与既有 ADR。详见 [修复与发布证据](docs/evidence/pr61-capability-review-fixes.md)。
+- 环境仍为 Node 22.22.1／pnpm 11.7.0；修复阶段使用 `code-review`、`dsh-plugin-dev` 及 Harness 测试／文档技能，当前发布使用 `dsh-plugin-dev`、`dsh-pre-push-checks` 并核对既有 `dsh-ci-test-reliability` 证据。没有新持久格式或权限扩张。发布日志为相邻目录的 `publish-pr61-*.log`；原始修复验证日志保持不变。
 
 ## 上轮 PR #61 冲突处理（历史记录）
 

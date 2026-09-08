@@ -41,8 +41,18 @@
 
 结论：Standards 0 项／最高无；Spec 0 项／最高无。本地修复候选通过，两个轴不合并或重排严重度。最终交接提交只同步本记录、TODO、PIPELINE_STATE 和 HANDOFF，不改变已验证且已审查的运行源码、测试、锁或脚本。
 
-## 交付与限制
+## 修复结束时的交付状态（历史）
 
 本轮尚未推送 Ultra 或 Harness；最新远端回读 PR #61 仍为 OPEN、`b7a5ec68a23c6cd298a5d260510089859b9a54f4`、MERGEABLE／CLEAN，Harness 远端 `fix/pr61-member-capabilities` 仍为 `bb9b48954821a29f712043b08b746085cc07a440`。未合并 PR 或改变主工作区，main 仍为 `9835db4`，原 `HANDOFF.md` 的 SHA-256 保持 `72b197878e7b6cd80ae871bb3c3b9b80a22725a62156c6779794518f5c6d1c4d`。
 
 仍为 source-linked、local-only 交付；确定性 native 边界测试不等于 #44 的真实认证产品验收。使用 `dsh-plugin-dev` 组织公开 Host／Loader／卸载验证，用 `code-review` 分别报告 Standards 和 Spec；Harness 文档与测试技能限定了双语 owner 契约、资源清理和验证范围。
+
+## 本次授权发布与合并
+
+用户明确要求按照“先推送配套 Harness，再更新 PR #61，核对后合并”的建议执行。上节“尚未推送”是修复结束时的历史状态，不是当前阻塞。
+
+- 配套 Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 已正常推送维护 fork 的 `fix/pr61-member-capabilities`；pre-push 类型检查通过，`ls-remote` 与 GitHub commit API 均回读一致。没有推送官方 upstream。
+- Ultra 修复及验证交接 `9aa53d96e56efafbce93100b9f25327f6168b1a6` 已正常推送原 PR 分支 `feat/batch-3-studio-recovery`，GitHub head 回读一致。随后发布交接只更新文档，运行源码、测试、锁和脚本保持与已审查候选一致。
+- main 仍为审查基点 `9835db4361dcad500b3be09ef69f78420d71a6ab`。推送前 strict 590／0 通过；既有完整验证适用于未变的运行时，不把同一份验证冒充新跑。两侧已发布代码没有 Actions 运行或 check runs，PR 没有评审线程。
+- 合并使用普通 merge commit，固定最终远端 head，不强推、不使用管理员绕过、不删除分支或 worktree。最终是否合并及合并 SHA 以 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61) 的 `state`、`mergedAt`、`mergeCommit` 为唯一结果；恢复时先回读，避免重复合并。原有 `Closes #37` 关联保留，其他 Issue／PR 不在本轮范围。
+- 主工作区及原 HANDOFF 改动保持不动。当前发布使用 `dsh-plugin-dev` 与 `dsh-pre-push-checks`，保留原 `dsh-ci-test-reliability` 证据和两项 lint 基线限制。日志为 `/root/workspace/pr61-fixes.7yIVdj/publish-pr61-*.log`。
