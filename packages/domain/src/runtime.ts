@@ -674,9 +674,9 @@ export class RuntimeBackendRegistry {
           contextModes: resolved === undefined ? [] : dshContextModes,
           profileCapabilities: resolved === undefined ? [] : ALL_PROFILE_CAPABILITIES,
           runtimeCapabilities: resolved === undefined
-            ? []
-            : [
-                'full-collaboration', 'workspace-write', 'exact-call-approval',
+              ? []
+              : [
+                'full-collaboration', 'exact-call-approval',
                 'sandbox', 'evaluation', 'evidence', 'usage',
               ],
           ...(reasoning === undefined ? {} : { reasoning }),

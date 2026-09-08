@@ -118,7 +118,7 @@ describe('conversational Ultra Profile tools', () => {
         supportedContextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
         runtimeCapabilities: [
-          'full-collaboration', 'workspace-write', 'exact-call-approval',
+          'full-collaboration', 'exact-call-approval',
           'sandbox', 'evaluation', 'evidence', 'usage',
         ],
       },
@@ -137,7 +137,7 @@ describe('conversational Ultra Profile tools', () => {
         supportedContextModes: ['fresh'],
         profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
         runtimeCapabilities: [
-          'full-collaboration', 'workspace-write', 'exact-call-approval',
+          'full-collaboration', 'exact-call-approval',
           'sandbox', 'evaluation', 'evidence', 'usage',
         ],
       },

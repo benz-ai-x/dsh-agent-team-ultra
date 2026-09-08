@@ -1446,6 +1446,11 @@ export function DigitalEmployeeStudio({
   const profiles = view?.profiles ?? []
   const teamMembers = view?.teamMembers ?? []
   const instances = view?.instances ?? []
+  const unjoinedInstances = instances.filter(instance => !teamMembers.some(member =>
+    member.binding === 'profile-bound'
+      && instance.memberId !== undefined
+      && member.memberId === instance.memberId
+      && member.memberName === instance.memberName))
   const runs = view?.runs ?? []
   const evalSets = view?.evalSets ?? []
   const evalRuns = view?.evalRuns ?? []
@@ -1665,7 +1670,7 @@ export function DigitalEmployeeStudio({
 
                 <h3>{t('instances')}</h3>
                 <div className={css.instances} id={`${workspaceId}-instances`}>
-                  {teamMembers.length === 0 && instances.length === 0 && (
+                  {teamMembers.length === 0 && unjoinedInstances.length === 0 && (
                     <p className={css.muted}>{t('noInstances')}</p>
                   )}
                   {teamMembers.map(member => {
@@ -1740,11 +1745,17 @@ export function DigitalEmployeeStudio({
                       </div>
                     )
                   })}
-                  {teamMembers.length === 0 && instances.map(instance => (
-                    <div key={`${instance.teamId}/${instance.memberName}`} className={css.instance}>
+                  {unjoinedInstances.map(instance => (
+                    <div
+                      key={`${instance.teamId}/${instance.memberName}/${instance.launchRequestId ?? instance.profileId}`}
+                      role="group"
+                      aria-label={`${instance.memberName} · ${t('profileBoundEmployee')}`}
+                      className={css.instance}
+                    >
                       <StateDot state={instance.provisioningPhase === 'failed' ? 'error' : instance.provisioningPhase === 'pending' ? 'ongoing' : 'done'} />
                       <span>
                         <strong>{instance.memberName}</strong>
+                        <small>{t('profileBoundEmployee')}</small>
                         <small>{t('provisioningState')}: {t(provisioningPhaseKey(instance.provisioningPhase))} · r{instance.profileRevision}</small>
                         <small>{t('runtimeAvailabilityState')}: {t(instanceAvailabilityKey(instance.runtimeAvailability))}</small>
                         <small>{t('runtimePresenceState')}: {t(runtimePresenceKey(instance.runtimePresence))}</small>

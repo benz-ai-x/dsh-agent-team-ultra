@@ -88,8 +88,10 @@ export function snapshotInstance(host: DigitalEmployeeHostContext, caller: Agent
 function snapshotOrdinaryRuntimeTarget(
   member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
   route: typeof member.requestedRoute,
+  includeExternalReservation: boolean,
 ): SelectableDigitalEmployeeRuntimeTarget | undefined {
-  if (member.externalRuntime !== undefined && member.provider !== undefined) {
+  if (member.externalRuntime !== undefined && member.provider !== undefined
+    && (includeExternalReservation || member.externalRuntime.nativeHandle !== undefined)) {
     return Object.freeze({ kind: 'external-agent', provider: member.provider })
   }
   if (route?.provider === undefined || route.model === undefined) return undefined
@@ -164,6 +166,7 @@ function snapshotTeamMembers(
           ?? (instance.runtimeTarget.kind === 'legacy-inherit-lead' ? undefined : instance.runtimeTarget))
         return Object.freeze({
           ...runtimeFacts(member, backend, instance.runtimeAvailability),
+          provisioningPhase: instance.provisioningPhase,
           binding: 'profile-bound',
           teamId,
           memberId: member.id,
@@ -178,8 +181,8 @@ function snapshotTeamMembers(
             : { actualRuntimeTarget: Object.freeze({ ...instance.resolvedRuntimeTarget }) }),
         })
       }
-      const selectedRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.requestedRoute)
-      const actualRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute)
+      const selectedRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.requestedRoute, true)
+      const actualRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute, false)
       const backend = backendForTarget(catalog, actualRuntimeTarget ?? selectedRuntimeTarget)
       return Object.freeze({
         ...runtimeFacts(member, backend, ordinaryRuntimeAvailability(backend)),
@@ -254,8 +257,8 @@ export class StudioProjection {
     for (const run of evalRuns) historicalTargets.push(run.runtimeTarget)
     for (const member of roster) {
       if (member.role !== 'teammate') continue
-      const selected = snapshotOrdinaryRuntimeTarget(member, member.requestedRoute)
-      const actual = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute)
+      const selected = snapshotOrdinaryRuntimeTarget(member, member.requestedRoute, true)
+      const actual = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute, false)
       if (selected !== undefined) historicalTargets.push(selected)
       if (actual !== undefined) historicalTargets.push(actual)
     }

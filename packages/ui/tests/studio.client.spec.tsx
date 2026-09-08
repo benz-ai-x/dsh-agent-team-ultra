@@ -673,6 +673,60 @@ describe('Digital Employee Studio', () => {
     expect(openTeamMessages).toHaveBeenCalledWith('session-a', 'bound-member')
   })
 
+  it('keeps unrostered pending and failed Bindings visible beside ordinary members', async () => {
+    const loaded = view([profile()])
+    const withReservations = {
+      ...loaded,
+      teamMembers: [{
+        binding: 'ordinary' as const,
+        teamId: 'session-a',
+        memberId: 'ordinary-member',
+        memberName: 'ordinary-reviewer',
+        provisioningPhase: 'active' as const,
+        runtimeAvailability: 'available' as const,
+        runtimePresence: 'idle' as const,
+        supportedContextModes: ['fresh'] as const,
+        profileCapabilities: [] as const,
+        runtimeCapabilities: [] as const,
+      }],
+      instances: [
+        {
+          teamId: 'session-a',
+          memberName: 'pending-reviewer',
+          profileId: 'pending-profile',
+          profileRevision: 3,
+          runtimeTarget: { kind: 'dsh-model' as const, provider: 'test-provider', model: 'test-model' },
+          requiredCapabilities: { contextMode: 'fresh' as const, profileCapabilities: [] as const },
+          provisioningPhase: 'pending' as const,
+          runtimeAvailability: 'available' as const,
+          runtimePresence: 'inactive' as const,
+        },
+        {
+          teamId: 'session-a',
+          memberName: 'failed-reviewer',
+          profileId: 'failed-profile',
+          profileRevision: 7,
+          runtimeTarget: { kind: 'external-agent' as const, provider: 'native-reviewer' },
+          requiredCapabilities: { contextMode: 'fresh' as const, profileCapabilities: [] as const },
+          provisioningPhase: 'failed' as const,
+          runtimeAvailability: 'available' as const,
+          runtimePresence: 'inactive' as const,
+          error: 'Teammate provisioning failed.',
+        },
+      ],
+    } as unknown as DigitalEmployeeStudioView
+    render(<DigitalEmployeeStudio {...props({
+      load: vi.fn(async () => ({ ok: true, value: withReservations })),
+    })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Digital employees/ }))
+
+    const pending = await screen.findByRole('group', { name: 'pending-reviewer · Profile-bound employee' })
+    expect(pending.textContent).toContain('Provisioning: Provisioning · r3')
+    const failed = screen.getByRole('group', { name: 'failed-reviewer · Profile-bound employee' })
+    expect(failed.textContent).toContain('Provisioning: Failed · r7')
+    expect(within(failed).getByText('Teammate provisioning failed.')).toBeDefined()
+  })
+
   it('shows the opaque native handle for an external instance', async () => {
     const loaded = view([profile()])
     const withInstance: DigitalEmployeeStudioView = {

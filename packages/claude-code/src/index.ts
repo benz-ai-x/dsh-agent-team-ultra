@@ -337,7 +337,7 @@ function isToolResultContinuation(entry: SessionMessage): boolean {
 
 function assertRequirements(requirements: TeammateRuntimeRequirements): void {
   const allowedProfiles = new Set(['persona', 'mission', 'context', 'memory'])
-  const allowedRuntime = new Set(['sandbox', 'evidence', 'usage'])
+  const allowedRuntime = new Set(['full-collaboration', 'sandbox', 'evidence', 'usage'])
   if (
     requirements.contextMode !== 'fresh'
     || requirements.profileCapabilities.some(value => !allowedProfiles.has(value))

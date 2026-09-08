@@ -1,7 +1,10 @@
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import Subprocess, { type SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
-import { TeammateLaunchRequestId } from '@deepseek-ai/dsh-experimental-agent-team'
+import {
+  TeammateLaunchRequestId,
+  type TeammateRuntimeCapability,
+} from '@deepseek-ai/dsh-experimental-agent-team'
 import { expect, vi } from 'vitest'
 import { workflow } from '../../../domain/tests/fixtures/host-workflow.ts'
 import { NativeProduct as CodexProduct } from '../../../codex/tests/fixtures/native-product.mjs'
@@ -17,7 +20,11 @@ vi.mock('@anthropic-ai/claude-agent-sdk', async (original) => ({
   getSessionMessages: (...args: Parameters<NativeProduct['getSessionMessages']>) => sdk.native!.getSessionMessages(...args),
 }))
 
-export async function claudeWorkflow(backend: 'json' | 'sqlite' = 'json', options: { root?: string; resumeLead?: boolean } = {},
+export async function claudeWorkflow(backend: 'json' | 'sqlite' = 'json', options: {
+  root?: string
+  resumeLead?: boolean
+  runtimeCapabilities?: readonly TeammateRuntimeCapability[]
+} = {},
   configure?: (native: NativeProduct, host: Awaited<ReturnType<typeof workflow>>) => void) {
   const host = await workflow(backend, options)
   const native = new NativeProduct(join(host.root, 'claude-native.json'), claudeCodePackageBin, { teamTools: true })
@@ -48,7 +55,11 @@ export async function claudeWorkflow(backend: 'json' | 'sqlite' = 'json', option
     runtime: {
       kind: 'external-agent', provider: 'claude-code', launchRequestId: TeammateLaunchRequestId('claude-query-boundary'),
       profile: { persona: 'Be precise.', mission: 'Review source.', context: [], memory: [], toolPolicy: { mode: 'inherit', names: [] }, hooks: [] },
-      requirements: { contextMode: 'fresh', profileCapabilities: ['persona', 'mission'], runtimeCapabilities: ['sandbox'] },
+      requirements: {
+        contextMode: 'fresh',
+        profileCapabilities: ['persona', 'mission'],
+        runtimeCapabilities: options.runtimeCapabilities ?? ['sandbox'],
+      },
     },
   })
   const handle = launched.member.externalRuntime!.nativeHandle!

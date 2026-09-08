@@ -447,6 +447,9 @@ export class LaunchWorkflow {
           error.message,
         ))
       }
+      if (authoritative === reservation) {
+        return spawnRejected(failure('team-rejected', 'Teammate provisioning failed.'))
+      }
       throw error
     }
   }
