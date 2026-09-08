@@ -26,6 +26,7 @@ async function bench(
 ) {
   const ctx = new Context()
   const calls: { readonly method: string; readonly args: readonly unknown[] }[] = []
+  const openTeamPanel = vi.fn()
 
   class RemoteService extends Service {
     readonly disposeMount = vi.fn(async () => undefined)
@@ -89,6 +90,7 @@ async function bench(
     sendMessage: answer('team/sendMessage', { ok: true, value: {} }),
   }
   const disposeAgentTeams = ctx.reflect.provide('remote.agentTeams', agentTeams as never)
+  ctx.provide('agentTeamPanelNavigation', { open: openTeamPanel })
   ctx.provide('conversation', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
   await ctx.plugin(SlotRegistry).await()
@@ -119,7 +121,7 @@ async function bench(
   const messageEntry = () => ctx.slots.entries('agent-team.panel.view')
     .find(candidate => candidate.component === TeamMessageCenter)
   return {
-    ctx, fiber, activation, calls, disposeRoot, disposeTeamOwner, entry, messageEntry, remote,
+    ctx, fiber, activation, calls, disposeRoot, disposeTeamOwner, entry, messageEntry, openTeamPanel, remote,
     agentTeams, disposeAgentTeams,
   }
 }
@@ -127,7 +129,7 @@ async function bench(
 describe('Digital Employee Studio mount lifecycle', () => {
   it('registers one disposable slot after mounting the generated Remote', async () => {
     const runtime = await bench()
-    expect(inject).toEqual(['remote', 'slots', 'locale'])
+    expect(inject).toEqual(['remote', 'slots', 'locale', 'agentTeamPanelNavigation'])
     expect(runtime.remote.mount).toHaveBeenCalledWith(REMOTE)
     expect(runtime.entry()).toMatchObject({
       options: { id: 'agent-team-ultra', order: 21 },
@@ -139,6 +141,12 @@ describe('Digital Employee Studio mount lifecycle', () => {
     })
 
     const actions = (runtime.entry()!.inject as unknown as () => DigitalEmployeeStudioInjected)()
+    actions.openTeamMessages('lead-session', 'worker-session')
+    expect(runtime.openTeamPanel).toHaveBeenCalledWith({
+      teamSessionId: 'lead-session',
+      viewId: 'messages',
+      memberId: 'worker-session',
+    })
     await actions.load('lead-session')
     const sink = {
       replace: vi.fn(),

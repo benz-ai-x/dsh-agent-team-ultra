@@ -48,7 +48,9 @@ export class NativeProduct {
     const completion = Promise.withResolvers()
     const send = frame => output.write(`${JSON.stringify(frame)}\n`)
     const reply = (frame, result) => send({ id: frame.id, result })
-    const policy = thread => ({ approvalPolicy: 'never', sandbox: { type: 'readOnly', networkAccess: false }, thread })
+    // Codex 0.149.1 Thread/ThreadResumeResponse do not expose installed dynamic tools.
+    const snapshot = ({ dynamicTools, ...thread }) => thread
+    const policy = thread => ({ approvalPolicy: 'never', sandbox: { type: 'readOnly', networkAccess: false }, thread: snapshot(thread) })
     const persist = () => writeFileSync(this.path, `${JSON.stringify(this.data)}\n`)
     let buffer = ''
     input.on('data', chunk => {
@@ -93,7 +95,7 @@ export class NativeProduct {
             break
           }
           case 'thread/list':
-            reply(frame, { data: Object.values(this.data.threads).filter(thread => thread.projectId === params.projectId) })
+            reply(frame, { data: Object.values(this.data.threads).filter(thread => thread.projectId === params.projectId).map(snapshot) })
             break
           case 'thread/start': {
             assert.equal(params.ephemeral, false)

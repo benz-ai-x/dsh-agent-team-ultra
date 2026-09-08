@@ -12,7 +12,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 
 锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
 
-当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支与提交 `b78caad462c3509127761904ed59ee549b6b6160`，以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取、Lead-only 持久消息分页与公开面板 Slot、按 Team／发送者隔离且可关联同 Team 原消息的幂等人类提交、从同一 Host 任务视图投影的列表／依赖图／详情和单 revision 依赖编辑，以及 baseline-first、共享常数空间刷新周期的有界 Team 变化订阅；任务 blocker 文案只呈现未完成前置项，fit-to-view 完整容纳普通多行图，冲突重载成功后仅为下一次显式保存推进编辑基准，已删除的依赖草稿仍可核对和取消。过滤后的键盘导航会选择可见前置，任务面板和消息中心共用公开 watch owner 以等待卸载完成。由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支，精确提交以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、正交的完整协作／workspace 写入能力、精确成员操作证明、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取、Lead-only 持久消息分页、公开面板 Slot 与指定成员的公开面板导航、按 Team／发送者隔离且可关联同 Team 原消息的幂等人类提交、从同一 Host 任务视图投影的列表／依赖图／详情和单 revision 依赖编辑，以及 baseline-first、共享常数空间刷新周期的有界 Team 变化订阅；任务 blocker 文案只呈现未完成前置项，fit-to-view 完整容纳普通多行图，冲突重载成功后仅为下一次显式保存推进编辑基准，已删除的依赖草稿仍可核对和取消。过滤后的键盘导航会选择可见前置，任务面板和消息中心共用公开 watch owner 以等待卸载完成。由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 下一版本规格
 
@@ -29,6 +29,7 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 - 消息中心：从现有 Agent Teams 面板按成员、方向和投递阶段分页浏览持久消息；正文仅在选择后读取，私有 block 明确省略，投递不表示已读或任务完成。公开 Team watch 每个连接世代先给完整 Host baseline，后续仅用有界 invalidation 触发同一筛选的权威重读；page／roster 各自同时最多一次读取，任务视图的任意 burst 共用一个 completion 与 dirty bit，直到最后一次失效后的权威读取发布，replacement 期间旧 cursor 不能开始 append。断线保留明确 stale 页面，重连从不自动重发消息意图。
 - 人格与任务：独立的 persona、长期 mission 和每次创建时的 assignment。
 - 工具栈：继承全部、仅允许所选、或禁用所选；Agent Team 自有协作工具由 Team 子作用域保留。
+- 实际协作能力：Studio 按精确 DSH 成员当前可见的 Team 工具显示，工具卸载／恢复会刷新快照；原生启动／恢复若明确要求完整协作，必须返回该 handle 的全部六项成员操作证明，否则拒绝并清理资源。不要求完整协作的成员仍可显示有限或未确认。
 - 上下文与记忆：有序、可启停的上下文块和策展式长期记忆块。
 - Hook：安全的声明式 `session-start`、`before-step`、`before-tool`、`after-tool` 行为，不执行任意 JavaScript 或 shell。
 - 生命周期：不可变 Profile Revision、内容指纹、Head CAS、显式激活/回滚、归档/恢复、不可变启动快照和完整 Fiber 清理。

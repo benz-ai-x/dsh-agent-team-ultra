@@ -674,8 +674,11 @@ export class RuntimeBackendRegistry {
           contextModes: resolved === undefined ? [] : dshContextModes,
           profileCapabilities: resolved === undefined ? [] : ALL_PROFILE_CAPABILITIES,
           runtimeCapabilities: resolved === undefined
-            ? []
-            : ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage'],
+              ? []
+              : [
+                'full-collaboration', 'exact-call-approval',
+                'sandbox', 'evaluation', 'evidence', 'usage',
+              ],
           ...(reasoning === undefined ? {} : { reasoning }),
           ...(resolved === undefined ? { diagnostic: INVALID_DSH_DIAGNOSTIC } : {}),
         }))

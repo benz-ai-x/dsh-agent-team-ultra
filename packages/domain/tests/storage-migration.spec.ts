@@ -197,7 +197,7 @@ function installAgentRuntime(
 ): { readonly leader: Agent; readonly child: Agent } {
   const childCtx = {
     systemPrompt: { section: () => () => undefined, context: () => () => undefined },
-    tools: { restrict: () => () => undefined },
+    tools: { restrict: () => () => undefined, schemas: () => [] },
     on: () => () => undefined,
   } as unknown as Context
   const leader = {

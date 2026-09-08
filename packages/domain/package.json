@@ -78,6 +78,7 @@
     "@deepseek-ai/dsh-api-gateway": "link:../../.dsh/harness/packages/api/gateway",
     "@deepseek-ai/dsh-brand": "link:../../.dsh/harness/packages/util/brand",
     "@deepseek-ai/dsh-experimental-agent-team": "link:../../.dsh/harness/packages/experimental/agent-team",
+    "@deepseek-ai/dsh-experimental-tool-agent-team": "link:../../.dsh/harness/packages/experimental/tool-agent-team",
     "@deepseek-ai/dsh-llm": "link:../../.dsh/harness/packages/llm/llm",
     "@deepseek-ai/dsh-sandbox-policy": "link:../../.dsh/harness/packages/sandbox/sandbox-policy",
     "@deepseek-ai/dsh-session": "link:../../.dsh/harness/packages/core/session",

@@ -71,7 +71,7 @@ export class RunWorkflow {
         return Object.freeze({ ok: true as const, value: folded.detail })
       } catch (error: unknown) {
         if (signal.aborted) throw error
-        return runRejected(failure('evidence-unavailable', `DSH Session evidence unavailable: ${errorText(error)}`))
+        return runRejected(failure('evidence-unavailable', 'DSH Session evidence is unavailable.'))
       }
     }
     if (stored.owner.kind !== 'team-member') {
@@ -96,7 +96,7 @@ export class RunWorkflow {
       return Object.freeze({ ok: true as const, value: folded.detail })
     } catch (error: unknown) {
       if (signal.aborted) throw error
-      return runRejected(failure('evidence-unavailable', `external runtime evidence unavailable: ${errorText(error)}`))
+      return runRejected(failure('evidence-unavailable', 'External runtime evidence is unavailable.'))
     }
   }
 

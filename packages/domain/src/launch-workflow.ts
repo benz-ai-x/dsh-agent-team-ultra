@@ -1,6 +1,6 @@
 import { DigitalEmployeeHostContext } from './host-context.ts'
 import { ProfileCapabilityInstaller, TEAM_OWN_TOOL_NAMES } from './profile-capabilities.ts'
-import { errorText, failure, externalRuntimeFailure } from './host-errors.ts'
+import { failure, externalRuntimeFailure } from './host-errors.ts'
 import { snapshotProfile } from './profile-snapshot.ts'
 import { Buffer } from 'node:buffer'
 import { isDeepStrictEqual } from 'node:util'
@@ -409,6 +409,9 @@ export class LaunchWorkflow {
     } catch (error: unknown) {
       const roster = this.host.ctx.agentTeams.listMembers(caller)
       const authoritative = reconcileBindingFromRoster(reservation, roster)
+      const safeRuntimeFailure = error instanceof TeammateRuntimeError
+        ? externalRuntimeFailure(error)
+        : undefined
       const retryablePreRoster = authoritative === reservation
         && (signal.aborted
           || (error instanceof TeammateRuntimeError && error.code === 'TEAM_RUNTIME_UNAVAILABLE'))
@@ -419,7 +422,7 @@ export class LaunchWorkflow {
             ...reservation,
             ...(provisionedMemberId === undefined ? {} : { memberId: provisionedMemberId }),
             provisioningPhase: 'failed',
-            error: errorText(error),
+            error: safeRuntimeFailure?.message ?? 'Teammate provisioning failed.',
           })
         : Object.freeze(authoritative)
       try {
@@ -432,7 +435,7 @@ export class LaunchWorkflow {
       }
       if (signal.aborted) signal.throwIfAborted()
       if (error instanceof TeammateRuntimeError) {
-        return spawnRejected(externalRuntimeFailure(error))
+        return spawnRejected(safeRuntimeFailure!)
       }
       if (error instanceof TeamError) {
         return spawnRejected(failure(
@@ -443,6 +446,9 @@ export class LaunchWorkflow {
               : 'team-rejected',
           error.message,
         ))
+      }
+      if (authoritative === reservation) {
+        return spawnRejected(failure('team-rejected', 'Teammate provisioning failed.'))
       }
       throw error
     }

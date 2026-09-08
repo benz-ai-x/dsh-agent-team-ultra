@@ -5,7 +5,8 @@
 [#33](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/33)、
 [#34](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/34)、
 [#35](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/35)、
-[#36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36)。中文规范中的
+[#36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36)、
+[#37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37)。中文规范中的
 US-01、US-02、US-03、US-15、US-18、US-19、US-20、US-24–US-26、US-28、
 US-33、US-47、US-50、US-51、US-56–US-59、US-66，D-01–D-04、D-10、
 D-14–D-16、D-21、D-23、D-25，以及 T-01、T-03、T-04、T-06、T-07、
@@ -20,9 +21,9 @@ claim that an upstream contribution was submitted or accepted.
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
 | 官方基础 / Official foundation | `76fda729799fe9b3848dbe2c211d4b231032b81e`, `0.1.2-rc.1` | 当前 fork 与较新官方基线的共同祖先 / common ancestor of the maintained fork and comparison baseline |
-| 维护 fork / Maintained fork | `b78caad462c3509127761904ed59ee549b6b6160`, `0.1.2-rc.1` | 阶段 B 持久消息、共享任务面板与 Team live watch 运行源 / Phase B persisted-message, Shared Task Panel, and Team live-watch runtime source |
+| 维护 fork / Maintained fork | `57670c6b320f7f240cbad360a9f691c8598e1571`, `0.1.2-rc.1` | 阶段 B 组合运行源及必需原生成员协作能力准入 / combined Phase B source with required native-member collaboration admission |
 | 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767` | 锁定文档内容 / locked documentation content |
+| 文档摘要 / Documentation digest | `331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675` | 锁定文档内容 / locked documentation content |
 | 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-b.message-center.v2` | Ultra 声明的组合资格标签，不冒充 Harness 导出常量 / Ultra qualification label, not a Harness export |
 | Session 格式 / Session format | fork `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
@@ -40,6 +41,8 @@ former identifies the source and documents; the latter verifies the actual
 executable closure selected by Node. Neither proves valid native user login.
 
 ## 维护变更 / Maintained changes
+
+维护 fork 提交 [57670c6b32](https://github.com/benz-ai-x/deepseek-harness_x/commit/57670c6b320f7f240cbad360a9f691c8598e1571) 在原生 create／resume 接受边界校验显式必需的六项成员操作，缺失证明沿用提供方世代隔离与资源清理，不改变持久格式。258 项 owning tests、目标模块 100% 覆盖和 32 项文档门禁通过；完整 lint 仍有未改 `message-read.spec.ts:541` 两项基线违规。正常 pre-push 类型检查后已推送 `fix/pr61-member-capabilities` 并回读一致，未推送官方 upstream。/ This maintained-fork commit enforces explicitly required full collaboration before accepting a native handle, retaining generation quarantine, cleanup and durable identity. No format change or official upstream publication is claimed. See [repair evidence](../evidence/pr61-capability-review-fixes.md).
 
 提交链接固定到维护仓库。下列变更尚未被本清单证明已合入官方仓库；阶段 C 按
 [#39](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/39) 重新移植和验证，
@@ -82,6 +85,8 @@ executable closure selected by Node. Neither proves valid native user login.
 | [806e58873b](https://github.com/benz-ai-x/deepseek-harness_x/commit/806e58873bb055e258b4623d03c9fbad41a26dc7) | 每个Team watch generation以一个共享Promise completion和dirty bit吸收任意失效burst，读期间及trailing读期间均保持常数回调空间，并在最后一次失效后发布最终Host authority / absorb any invalidation burst per Team-watch generation with one shared Promise completion and dirty bit, keeping callback state constant during both the initial and trailing read and publishing final Host authority after the last invalidation | no persistent or public API change | public sink `async_hooks` 4096+4096 invalidation RED/GREEN; TeamAction 42/42; GUI 3925 pass/1 skip; build, built Remote, Web replay 3/3, corpus 2/2, type/docs/lint gates | same maintained branch; PR #60 sole unified retry (#36) |
 
 补充 [b78caad462](https://github.com/benz-ai-x/deepseek-harness_x/commit/b78caad462c3509127761904ed59ee549b6b6160)：过滤后 ArrowLeft 跳过隐藏前置；公开浏览器专用 `createTeamWatchOwner` 供任务面板与消息视图复用，保持各 registration 独立并等待全部异步关闭。持久格式不变。验证责任为键盘 component/真实 Web 回归、watch owner 100% 覆盖率、两侧 Fiber/service replacement 与 packed module-table 导入。/ Filtered ArrowLeft skips hidden prerequisites; the public browser-only watch owner shares teardown code across task and message views while retaining independent registrations. Persistent formats are unchanged; component, Web, owner coverage, Fiber, and packed tests qualify this PR #60 change.
+
+补充 [bb9b489548](https://github.com/benz-ai-x/deepseek-harness_x/commit/bb9b48954821a29f712043b08b746085cc07a440)：以 `4490b43` 与 `b78caad462` 为双亲，保留 PR #61 精确成员操作证明、普通成员能力降级校验、公开面板导航，以及 main 的 DAG／依赖 CAS／有界 watch。生成目录与双语资料使用正式命令更新；既有 native 参数诊断测试对齐单次 edit 支持 dependency 的文案，不弱化拒绝或 revision 断言。owning 单测 316 项、built Remote／Loader 2 项、真实 Web 回放 5 项、docs 32 项和完整 build 通过。全量 lint 剩余两条未改 `message-read.spec.ts` 基线违规，变更文件和提交钩子通过。/ Merge the PR #61 and main sources while retaining exact-member proof, downgrade checks, navigation, DAG/CAS and bounded watch. No persistent format change; validation and the unchanged lint limitation are recorded above.
 
 表中列出可重跑的测试责任，不表示本次运行了每个上游测试或真实产品 canary。
 The test column identifies validation owners, not a claim that all those suites

@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import yaml from 'js-yaml'
 import { requirePreparedHarness } from './harness-source.mjs'
 import { PROFILE_TOOL_NAMES, runPackedProfileConversation } from './probe-conversation-profile.mjs'
+import { probeStudioCapabilities } from './probe-studio-capabilities.mjs'
 import { NativeProduct } from '../packages/codex/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -166,6 +167,11 @@ try {
   const live = await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   if (checkpoint) assert.deepEqual(identity(live.instances[0]), checkpoint.identity)
   const member = ctx.agentTeams.listMembers(lead.agent).find(row => row.name === 'codex-reviewer')
+  if (queries) {
+    const studioMember = live.teamMembers.find(row => row.memberId === member.id)
+    assert.equal(studioMember.collaborationStatus, creating ? 'full' : 'unknown')
+    assert.equal(studioMember.runtimeCapabilities.includes('full-collaboration'), creating)
+  }
   assert.equal(member.id, live.instances[0].memberId)
   assert.equal(member.externalRuntime.nativeHandle, live.instances[0].nativeRuntimeHandle)
   const sent = await ctx.agentTeams.sendMessage(lead.agent, {
@@ -296,6 +302,11 @@ try {
   const restored = await until(current, value => value.instances[0]?.runtimePresence === 'idle')
   assert.deepEqual(identity(restored.instances[0]), identity(live.instances[0]))
   assert.equal(Object.keys(native.data.threads).length, 1)
+  if (queries && creating) await probeStudioCapabilities({
+    ctx, installed: name => pathToFileURL(installed.resolve(name)).href,
+    harnessUrl: path => pathToFileURL(join(harnessRoot, path, 'lib/index.js')).href,
+    entries: [loaderRow(hostEntry), loaderRow(runtimeEntry)], LlmAdapter, SessionId,
+  })
   await loaderFiber.dispose()
   assert.equal(native.live.size, 0)
   console.log(JSON.stringify({ phase, backend, package: runtimeEntry.name, profileRevision: 1,

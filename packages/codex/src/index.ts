@@ -734,6 +734,7 @@ interface NativeSession {
   readonly projectId: string
   readonly child: SubprocessHandle
   readonly connection: CodexConnection
+  readonly memberOperations: TeammateRuntimeCreateResult['memberOperations']
   readonly recoveredInputs: Map<string, string>
   readonly deliveries: Map<string, ReturnType<typeof TeammateRuntimeTurnId>>
   readonly evidence: TeammateRuntimeEvidenceItem[]
@@ -750,7 +751,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly displayName = 'Codex'
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
-  readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
+  readonly runtimeCapabilities = ['full-collaboration', 'sandbox', 'evidence', 'usage'] as const
   readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly correlations = new Map<string, string>()
@@ -910,11 +911,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       }
       const turn = await session.connection.startTurn(texts, inputId, request.signal)
       this.observeTurn(session, turn)
-      return {
-        nativeHandle: session.handle,
-        turnId: TeammateRuntimeTurnId(turn.id),
-        presence: 'running',
-      }
+      return this.result(session, TeammateRuntimeTurnId(turn.id))
     } catch (error: unknown) {
       if (session !== undefined) await this.disposeSession(session).catch(() => {})
       if (error instanceof TeammateRuntimeError) throw error
@@ -1001,7 +998,8 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       const thread = listed === undefined
         ? await connection.startThread(nativeProjectId, profileInstructions(profile), this.config, signal)
         : await connection.resumeThread(listed.id, nativeProjectId, this.config, signal)
-      const session = this.makeSession(key, nativeProjectId, thread, child, connection)
+      const session = this.makeSession(key, nativeProjectId, thread, child, connection,
+        listed === undefined ? this.memberOperations : undefined)
       sessionForEvents = session
       this.sessions.set(session.handle, session)
       this.watchProcess(session)
@@ -1018,6 +1016,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     thread: ThreadSnapshot,
     child: SubprocessHandle,
     connection: CodexConnection,
+    memberOperations?: TeammateRuntimeCreateResult['memberOperations'],
   ): NativeSession {
     const inputs = recoveredInputs(thread.turns)
     const ownedTurns = new Set([...inputs].filter(([id]) => id.startsWith('dsh-launch:') || id.startsWith('dsh-delivery:'))
@@ -1028,6 +1027,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       projectId,
       child,
       connection,
+      memberOperations,
       recoveredInputs: inputs,
       deliveries: recoveredDeliveries(inputs),
       evidence: [],
@@ -1172,6 +1172,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       nativeHandle: session.handle,
       ...(acceptedTurnId === undefined ? {} : { turnId: acceptedTurnId }),
       presence: session.presence,
+      ...(session.memberOperations === undefined ? {} : { memberOperations: session.memberOperations }),
     }
   }
 

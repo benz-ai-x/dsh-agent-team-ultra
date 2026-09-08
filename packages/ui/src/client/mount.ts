@@ -11,6 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { createTeamWatchOwner, type TeamWatchControl } from '@deepseek-ai/dsh-experimental-client-ui-agent-team/client'
 import type {} from '@deepseek-ai/dsh-experimental-agent-team/remote'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import {
   DigitalEmployeeStudio,
@@ -30,7 +31,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-export const inject = ['remote', 'slots', 'locale']
+export const inject = ['remote', 'slots', 'locale', 'agentTeamPanelNavigation']
 
 function registerStudio(ctx: ClientContext): void {
   const messageWatchOwner = createTeamWatchOwner()
@@ -40,6 +41,13 @@ function registerStudio(ctx: ClientContext): void {
   )
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'client-ui-agent-team-ultra: dictionaries')
   const actions: DigitalEmployeeStudioInjected = {
+    openTeamMessages(sessionId, memberId) {
+      ctx.agentTeamPanelNavigation.open({
+        teamSessionId: sessionId,
+        viewId: 'messages',
+        memberId: memberId as SessionId,
+      })
+    },
     async load(sessionId) {
       return await ctx.remote.digitalEmployees.view(sessionId)
     },
@@ -192,7 +200,13 @@ export async function mountDigitalEmployeeStudio(
   contribution: TypertRemoteContribution,
 ): Promise<() => Promise<void>> {
   const disposeRemote = await ctx.remote.$mount(contribution)
-  const ui = ctx.inject(['remote.digitalEmployees', 'remote.agentTeams', 'slots', 'locale'], registerStudio)
+  const ui = ctx.inject([
+    'remote.digitalEmployees',
+    'remote.agentTeams',
+    'slots',
+    'locale',
+    'agentTeamPanelNavigation',
+  ], registerStudio)
   try {
     await ui
   } catch (error) {

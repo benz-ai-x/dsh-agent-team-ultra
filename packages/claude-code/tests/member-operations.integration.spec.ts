@@ -6,6 +6,21 @@ import * as codex from '../../codex/lib/index.js'
 import { claudeWorkflow, mountClaudeRuntime } from './fixtures/member-workflow.ts'
 
 describe('Claude Code authorized Team operations', () => {
+  it('accepts its advertised full-collaboration demand for create and resume', async () => {
+    const first = await claudeWorkflow('json', {
+      runtimeCapabilities: ['full-collaboration', 'sandbox'],
+    })
+    expect(first.member.externalRuntime?.requirements.runtimeCapabilities)
+      .toEqual(['full-collaboration', 'sandbox'])
+    await first.ctx.fiber.dispose()
+
+    const resumed = await claudeWorkflow('json', { root: first.root, resumeLead: true })
+    expect(resumed.member.id).toBe(first.member.id)
+    expect(resumed.handle).toBe(first.handle)
+    expect(resumed.member.externalRuntime?.requirements.runtimeCapabilities)
+      .toEqual(['full-collaboration', 'sandbox'])
+  })
+
   it('enforces UTF-8 request limits and the complete escaped MCP response limit', async () => {
     const { ctx, lead, client } = await claudeWorkflow()
     const empty = { operation: 'messages.send', target: 'lead', text: '' }

@@ -52,7 +52,7 @@ import {
   summarizeEvalRun,
 } from './evaluation.ts'
 import { ProfileCapabilityInstaller, TEAM_OWN_TOOL_NAMES, PLUGIN_SOURCE } from './profile-capabilities.ts'
-import { errorText, failure } from './host-errors.ts'
+import { externalRuntimeFailure, failure } from './host-errors.ts'
 import { snapshotProfileRevision, profileFromRevision } from './profile-snapshot.ts'
 
 interface InFlightEvaluation {
@@ -85,6 +85,14 @@ class EvaluationTimeoutError extends Error {
     super(`evaluation Case exceeded ${maxElapsedMs}ms`)
     this.name = 'EvaluationTimeoutError'
   }
+}
+
+function evaluationDiagnostic(error: unknown): string {
+  if (error instanceof TeammateRuntimeError) return externalRuntimeFailure(error).message
+  if (error instanceof EvaluationTimeoutError) return 'Evaluation Case exceeded its elapsed-time ceiling.'
+  if (error instanceof EvaluationCancelledError) return 'Evaluation Case was cancelled.'
+  if (error instanceof TeamError) return 'Agent Team rejected the Evaluation Case.'
+  return 'Evaluation Case failed.'
 }
 
 function evaluationSessionId(evalRunId: string, caseId: string): SessionId {
@@ -556,7 +564,7 @@ export class EvaluationWorkflow {
                   ? 'environment-unavailable'
                   : 'failed',
             assertions: Object.freeze([]),
-            diagnostic: errorText(error),
+            diagnostic: evaluationDiagnostic(error),
             startedAt,
             endedAt: Date.now(),
           })

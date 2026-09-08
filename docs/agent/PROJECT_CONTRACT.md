@@ -228,6 +228,16 @@ an actual integration commit based on the fixed official comparison.
 
 ## Capability semantics
 
+- Studio derives DSH collaboration from the exact live member's visible Team
+  tools, and refreshes its snapshot when tools are registered or removed. A
+  backend catalog declaration alone cannot prove member collaboration.
+- Native create/resume requests explicitly requiring `full-collaboration`
+  must confirm all six member operations for the exact returned handle. Missing
+  or partial proof fails with `TEAM_RUNTIME_CAPABILITY_MISMATCH` before
+  attachment or a new grant. Existing provider-generation quarantine awaits
+  cleanup; another registration can recover the retained member identity.
+  Requests without this requirement may still run with limited or unknown
+  collaboration. No persistent format or native identity changes.
 - A `dsh-model` Runtime Target pins the exact DSH provider/model and optional
   supported reasoning effort. An `external-agent` target pins one durable
   provider identity. `legacy-inherit-lead` is migration-only and cannot be

@@ -4,17 +4,24 @@ import { EvaluationWorkflow } from './evaluation-workflow.ts'
 import { TEAM_OWN_TOOL_NAMES } from './profile-capabilities.ts'
 import { authorityRemoteError } from './host-errors.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { TeamMemberView } from '@deepseek-ai/dsh-experimental-agent-team'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { snapshotRequiredCapabilities } from './runtime.ts'
+import { runtimeTargetRoutingId, snapshotRequiredCapabilities } from './runtime.ts'
 import { legacyInheritLeadRuntimeTarget, type DigitalEmployeeBindingV1 } from './storage.ts'
 import { bindingRuntimePresence } from './launch.ts'
 import type {
   DigitalEmployeeInstanceView,
   DigitalEmployeeRunIndexRecord,
+  DigitalEmployeeRuntimeBackend,
+  DigitalEmployeeRuntimeCatalog,
+  DigitalEmployeeRuntimePresence,
   DigitalEmployeeStudioView,
   DigitalEmployeeStudioFrame,
+  DigitalEmployeeTeamMemberRuntimeView,
+  DigitalEmployeeTeamMemberView,
   ProfileToolOption,
+  SelectableDigitalEmployeeRuntimeTarget,
 } from './types.ts'
 import { StudioSnapshotFeed } from './studio-feed.ts'
 import { summarizeEvalRun } from './evaluation.ts'
@@ -75,8 +82,149 @@ export function snapshotInstance(host: DigitalEmployeeHostContext, caller: Agent
         binding,
         binding.memberId === undefined ? undefined : host.ctx.agents.get(SessionId(binding.memberId)),
       ),
-    ...(binding.error === undefined ? {} : { error: binding.error }),
+    ...(binding.error === undefined ? {} : { error: 'Teammate provisioning failed.' }),
   })
+}
+
+function snapshotOrdinaryRuntimeTarget(
+  member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
+  route: typeof member.requestedRoute,
+  includeExternalReservation: boolean,
+): SelectableDigitalEmployeeRuntimeTarget | undefined {
+  if (member.externalRuntime !== undefined && member.provider !== undefined
+    && (includeExternalReservation || member.externalRuntime.nativeHandle !== undefined)) {
+    return Object.freeze({ kind: 'external-agent', provider: member.provider })
+  }
+  if (route?.provider === undefined || route.model === undefined) return undefined
+  return Object.freeze({
+    kind: 'dsh-model',
+    provider: route.provider,
+    model: route.model,
+    ...(route.reasoningEffort === undefined ? {} : { reasoningEffort: String(route.reasoningEffort) }),
+  })
+}
+
+function memberProvisioningPhase(
+  status: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number]['status'],
+): DigitalEmployeeTeamMemberView['provisioningPhase'] {
+  if (status === 'provisioning') return 'pending'
+  if (status === 'failed') return 'failed'
+  return 'active'
+}
+
+function memberRuntimePresence(
+  status: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number]['status'],
+): DigitalEmployeeRuntimePresence {
+  return status === 'running' || status === 'idle' ? status : 'inactive'
+}
+
+function backendForTarget(
+  catalog: DigitalEmployeeRuntimeCatalog,
+  target: SelectableDigitalEmployeeRuntimeTarget | undefined,
+): DigitalEmployeeRuntimeBackend | undefined {
+  return target === undefined
+    ? undefined
+    : catalog.backends.find(candidate => candidate.routingId === runtimeTargetRoutingId(target))
+}
+
+function hasNativeCollaboration(member: TeamMemberView): boolean {
+  return (['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const)
+    .every(operation => member.memberOperations?.includes(operation))
+}
+
+function ordinaryRuntimeAvailability(
+  member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
+  backend: DigitalEmployeeRuntimeBackend | undefined,
+): DigitalEmployeeTeamMemberView['runtimeAvailability'] {
+  if (backend?.availability === 'unsupported') return 'capability-mismatch'
+  if (backend?.availability !== 'available') return 'unavailable'
+  const required = member.externalRuntime?.requirements
+  if (required !== undefined && (
+    !backend.contextModes.includes(required.contextMode)
+    || required.profileCapabilities.some(capability => !backend.profileCapabilities.includes(capability))
+    || required.runtimeCapabilities.some(capability => !backend.runtimeCapabilities.includes(capability))
+    || (member.externalRuntime?.nativeHandle !== undefined
+      && required.runtimeCapabilities.includes('full-collaboration') && !hasNativeCollaboration(member))
+  )) return 'capability-mismatch'
+  return 'available'
+}
+
+function runtimeFacts(
+  host: DigitalEmployeeHostContext,
+  member: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>[number],
+  backend: DigitalEmployeeRuntimeBackend | undefined,
+  runtimeAvailability: DigitalEmployeeTeamMemberView['runtimeAvailability'],
+): DigitalEmployeeTeamMemberRuntimeView {
+  const declaredFull = backend?.runtimeCapabilities.includes('full-collaboration') === true
+  const operations = member.memberOperations
+  const dshAgent = member.externalRuntime === undefined ? host.ctx.agents.get(member.id) : undefined
+  const dshTools = dshAgent?.ctx.tools.schemas(dshAgent).map(tool => tool.name)
+  const collaborationStatus = backend === undefined
+    || (member.externalRuntime !== undefined && operations === undefined)
+    || (member.externalRuntime === undefined && dshTools === undefined)
+    ? 'unknown'
+    : declaredFull && (member.externalRuntime === undefined
+      ? ['list_agents', 'team_task_list', 'team_task_get', 'send_message', 'team_task_update', 'wait_agent']
+        .every(name => dshTools?.includes(name))
+      : hasNativeCollaboration(member)) ? 'full' : 'limited'
+  return Object.freeze({
+    ...(member.context === undefined ? {} : { contextMode: member.context }),
+    provisioningPhase: memberProvisioningPhase(member.status),
+    runtimeAvailability,
+    runtimePresence: memberRuntimePresence(member.status),
+    collaborationStatus,
+    supportedContextModes: Object.freeze([...(backend?.contextModes ?? [])]),
+    profileCapabilities: Object.freeze([...(backend?.profileCapabilities ?? [])]),
+    runtimeCapabilities: Object.freeze((backend?.runtimeCapabilities ?? [])
+      .filter(capability => capability !== 'full-collaboration' || collaborationStatus === 'full')),
+  })
+}
+
+function snapshotTeamMembers(
+  host: DigitalEmployeeHostContext,
+  roster: ReturnType<DigitalEmployeeHostContext['ctx']['agentTeams']['listMembers']>,
+  teamId: string,
+  catalog: DigitalEmployeeRuntimeCatalog,
+  instances: readonly DigitalEmployeeInstanceView[],
+): readonly DigitalEmployeeTeamMemberView[] {
+  return Object.freeze(roster
+    .filter(member => member.role === 'teammate')
+    .map((member): DigitalEmployeeTeamMemberView => {
+      const instance = instances.find(candidate =>
+        candidate.memberId === member.id && candidate.memberName === member.name)
+      if (instance !== undefined) {
+        const backend = backendForTarget(catalog, instance.resolvedRuntimeTarget
+          ?? (instance.runtimeTarget.kind === 'legacy-inherit-lead' ? undefined : instance.runtimeTarget))
+        return Object.freeze({
+          ...runtimeFacts(host, member, backend, instance.runtimeAvailability),
+          provisioningPhase: instance.provisioningPhase,
+          binding: 'profile-bound',
+          teamId,
+          memberId: member.id,
+          memberName: member.name,
+          profileId: instance.profileId,
+          profileRevision: instance.profileRevision,
+          selectedRuntimeTarget: instance.runtimeTarget.kind === 'legacy-inherit-lead'
+            ? legacyInheritLeadRuntimeTarget
+            : Object.freeze({ ...instance.runtimeTarget }),
+          ...(instance.resolvedRuntimeTarget === undefined
+            ? {}
+            : { actualRuntimeTarget: Object.freeze({ ...instance.resolvedRuntimeTarget }) }),
+        })
+      }
+      const selectedRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.requestedRoute, true)
+      const actualRuntimeTarget = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute, false)
+      const backend = backendForTarget(catalog, actualRuntimeTarget ?? selectedRuntimeTarget)
+      return Object.freeze({
+        ...runtimeFacts(host, member, backend, ordinaryRuntimeAvailability(member, backend)),
+        binding: 'ordinary',
+        teamId,
+        memberId: member.id,
+        memberName: member.name,
+        ...(selectedRuntimeTarget === undefined ? {} : { selectedRuntimeTarget }),
+        ...(actualRuntimeTarget === undefined ? {} : { actualRuntimeTarget }),
+      })
+    }))
 }
 
 /** Owns complete browser-safe snapshots and their replaceable stream generation. */
@@ -110,6 +258,7 @@ export class StudioProjection {
       .filter(tool => !TEAM_OWN_TOOL_NAMES.has(tool.name))
       .map(tool => Object.freeze({ name: tool.name, description: tool.description }))
       .sort((left, right) => left.name.localeCompare(right.name))
+    const roster = this.host.ctx.agentTeams.listMembers(caller)
     const instances = [...this.host.storage.bindingEntries()]
       .map(([, binding]) => binding)
       .filter(binding => binding.teamId === membership.id)
@@ -137,10 +286,20 @@ export class StudioProjection {
       if (binding.teamId === membership.id) historicalTargets.push(binding.runtimeTarget)
     }
     for (const run of evalRuns) historicalTargets.push(run.runtimeTarget)
+    for (const member of roster) {
+      if (member.role !== 'teammate') continue
+      const selected = snapshotOrdinaryRuntimeTarget(member, member.requestedRoute, true)
+      const actual = snapshotOrdinaryRuntimeTarget(member, member.resolvedRoute, false)
+      if (selected !== undefined) historicalTargets.push(selected)
+      if (actual !== undefined) historicalTargets.push(actual)
+    }
+    const runtimeCatalog = this.host.runtimeBackends.snapshot(historicalTargets)
+    const teamMembers = snapshotTeamMembers(this.host, roster, membership.id, runtimeCatalog, instances)
     return Object.freeze({
       profiles: Object.freeze(profiles),
-      runtimeCatalog: this.host.runtimeBackends.snapshot(historicalTargets),
+      runtimeCatalog,
       tools: Object.freeze(tools),
+      teamMembers,
       instances: Object.freeze(instances),
       runs: Object.freeze(runs),
       evalSets: Object.freeze(evalSets),

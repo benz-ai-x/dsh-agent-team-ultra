@@ -959,6 +959,113 @@ describe('TeamMessageCenter', () => {
     })
   })
 
+  it('retains addressed member filters through watch refreshes and newer navigation revisions', async () => {
+    const listMessages = vi.fn(() => ok(page))
+    let sink: Parameters<TeamMessageCenterInjected['watch']>[1] | undefined
+    const injected = actions({
+      listMessages,
+      watch: (_sessionId, nextSink) => {
+        sink = nextSink
+        return { start() {}, dispose: () => Promise.resolve() }
+      },
+    })
+    const rendered = render(<TeamMessageCenter {...{
+      ...props(injected),
+      selectedMemberId: WORKER,
+      navigationRevision: 7,
+    }} />)
+
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, {
+        limit: 20,
+        filters: { memberId: WORKER },
+      })
+    })
+    expect((screen.getByLabelText('Member') as HTMLSelectElement).value).toBe(WORKER)
+
+    const beforeBaseline = listMessages.mock.calls.length
+    act(() => { sink?.replace(team) })
+    await waitFor(() => { expect(listMessages.mock.calls.length).toBeGreaterThan(beforeBaseline) })
+    expect(listMessages).toHaveBeenLastCalledWith(LEAD, { limit: 20, filters: { memberId: WORKER } })
+
+    fireEvent.change(screen.getByLabelText('Member'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, { limit: 20 })
+    })
+
+    rendered.rerender(<TeamMessageCenter {...{
+      ...props(injected),
+      selectedMemberId: WORKER,
+      navigationRevision: 8,
+    }} />)
+    await waitFor(() => {
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, {
+        limit: 20,
+        filters: { memberId: WORKER },
+      })
+    })
+    expect((screen.getByLabelText('Member') as HTMLSelectElement).value).toBe(WORKER)
+
+    const beforeInvalidation = listMessages.mock.calls.length
+    act(() => { sink?.invalidated() })
+    await waitFor(() => { expect(listMessages.mock.calls.length).toBeGreaterThan(beforeInvalidation) })
+    expect(listMessages).toHaveBeenLastCalledWith(LEAD, { limit: 20, filters: { memberId: WORKER } })
+  })
+
+  it('fences a held watch page when member navigation replaces its filters', async () => {
+    const held = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>>()
+    const nextTeam: TeamView = {
+      ...team,
+      members: [...team.members, {
+        id: NEXT_WORKER, name: 'next-worker', role: 'teammate', status: 'inactive', diagnostics: [],
+      }],
+    }
+    const nextPage: TeamMessagePage = {
+      ...page,
+      items: [{ ...page.items[0]!, recipient: { id: NEXT_WORKER, name: 'next-worker' } }],
+    }
+    const listMessages = vi.fn<TeamMessageCenterInjected['listMessages']>()
+      .mockImplementationOnce(() => ok(page))
+      .mockImplementationOnce(() => held.promise)
+      .mockImplementation(() => ok(nextPage))
+    const sendMessage = vi.fn(actions().sendMessage)
+    let sink: Parameters<TeamMessageCenterInjected['watch']>[1] | undefined
+    const injected = actions({
+      listMessages, sendMessage, loadTeam: () => ok(nextTeam),
+      watch: (_sessionId, nextSink) => {
+        sink = nextSink
+        return { start() {}, dispose: () => Promise.resolve() }
+      },
+    })
+    const initial = { ...props(injected), selectedMemberId: WORKER, navigationRevision: 1 }
+    const rendered = render(<TeamMessageCenter {...initial} />)
+    try {
+      await screen.findByText('lead → worker')
+      act(() => { sink?.invalidated() })
+      expect(listMessages).toHaveBeenCalledTimes(2)
+      rendered.rerender(<TeamMessageCenter {...initial} selectedMemberId={NEXT_WORKER} navigationRevision={2} />)
+      expect(listMessages).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        held.resolve({ ok: true, value: page })
+        await held.promise
+      })
+      await screen.findByText('lead → next-worker')
+      expect(screen.queryByText('lead → worker')).toBeNull()
+      expect(listMessages).toHaveBeenCalledTimes(3)
+      expect(listMessages).toHaveBeenLastCalledWith(LEAD, { limit: 20, filters: { memberId: NEXT_WORKER } })
+      expect((screen.getByLabelText('Member') as HTMLSelectElement).value).toBe(NEXT_WORKER)
+      expect(sendMessage).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => {
+        rendered.unmount()
+        held.resolve({ ok: true, value: page })
+        await held.promise
+      })
+    }
+  })
+
   it('covers empty, unavailable and unknown states while discarding stale session responses', async () => {
     const firstTeam = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['loadTeam']>>>()
     const firstPage = Promise.withResolvers<Awaited<ReturnType<TeamMessageCenterInjected['listMessages']>>>()

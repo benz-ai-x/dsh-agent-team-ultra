@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createServer } from 'node:http'
+import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -305,6 +306,8 @@ async function startHost(resume) {
       blockedBy: [prerequisite.id],
     })
     const session = lead.session
+    assert.deepEqual(spawned.member.memberOperations, ['messages.send'])
+    assert.equal(JSON.stringify(session.snapshotEvents()).includes('memberOperations'), false)
     for (const member of Object.values(members)) appendMember(session, TeamId, SessionId, member)
     for (let index = 0; index < 19; index += 1) {
       appendMessage(session, TeamId, TeamMessageId, SessionId, {
@@ -329,6 +332,7 @@ async function startHost(resume) {
     })
     await host.sessions.flush(session)
     await host.loader.remove(packedRuntimeEntryId)
+    assert.equal(host.agentTeams.listMembers(lead).find(member => member.name === packedWorkerName)?.memberOperations, undefined)
     if (host.agentTeams.listMembers(lead).find(member => member.name === packedWorkerName)?.status !== 'inactive') {
       throw new Error('Loader removal did not make the controlled packed recipient inactive')
     }
@@ -336,6 +340,7 @@ async function startHost(resume) {
     const resumed = await host.agents.resume({ resumeSessionId: SessionId(leadId), agentOptions: {} })
     lead = resumed.agent
     const recovered = host.agentTeams.listMembers(lead).find(member => member.name === packedWorkerName)
+    assert.equal(recovered?.memberOperations, undefined)
     if (recovered?.status !== 'inactive') throw new Error('recovered packed recipient is not inactive without its provider')
   }
 

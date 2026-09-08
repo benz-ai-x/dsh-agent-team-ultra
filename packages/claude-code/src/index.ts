@@ -337,7 +337,7 @@ function isToolResultContinuation(entry: SessionMessage): boolean {
 
 function assertRequirements(requirements: TeammateRuntimeRequirements): void {
   const allowedProfiles = new Set(['persona', 'mission', 'context', 'memory'])
-  const allowedRuntime = new Set(['sandbox', 'evidence', 'usage'])
+  const allowedRuntime = new Set(['full-collaboration', 'sandbox', 'evidence', 'usage'])
   if (
     requirements.contextMode !== 'fresh'
     || requirements.profileCapabilities.some(value => !allowedProfiles.has(value))
@@ -393,7 +393,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
   readonly displayName = 'Claude Code'
   readonly contextModes = ['fresh'] as const
   readonly profileCapabilities = ['persona', 'mission', 'context', 'memory'] as const
-  readonly runtimeCapabilities = ['sandbox', 'evidence', 'usage'] as const
+  readonly runtimeCapabilities = ['full-collaboration', 'sandbox', 'evidence', 'usage'] as const
   readonly memberOperations = ['members.list', 'tasks.list', 'tasks.get', 'messages.send', 'tasks.update', 'wait'] as const
   private readonly sessions = new Map<string, NativeSession>()
   private readonly creations = new Map<string, Promise<TeammateRuntimeCreateResult>>()
@@ -1337,6 +1337,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       nativeHandle: session.handle,
       turnId: acceptedTurnId,
       presence: session.presence,
+      memberOperations: this.memberOperations,
     }
   }
 

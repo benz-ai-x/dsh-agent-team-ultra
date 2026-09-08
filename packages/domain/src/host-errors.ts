@@ -31,11 +31,14 @@ export function authorityRemoteError(
 export function externalRuntimeFailure(error: TeammateRuntimeError): DigitalEmployeeFailure {
   switch (error.code) {
     case 'TEAM_RUNTIME_UNAVAILABLE':
-      return failure('runtime-target-unavailable', error.message)
+      return failure('runtime-target-unavailable', 'Runtime Target is currently unavailable.')
     case 'TEAM_RUNTIME_CAPABILITY_MISMATCH':
-      return failure('runtime-capability-mismatch', error.message)
+      return failure(
+        'runtime-capability-mismatch',
+        'Runtime Target cannot enforce the requested Profile capabilities.',
+      )
     case 'TEAM_RUNTIME_IDENTITY_CONFLICT':
     case 'TEAM_RUNTIME_INVALID_PROVIDER':
-      return failure('runtime-route-invalid', error.message)
+      return failure('runtime-route-invalid', 'Runtime Target identity is invalid.')
   }
 }

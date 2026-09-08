@@ -428,7 +428,7 @@ async function harness(options: {
     }
     const childCtx = {
       systemPrompt: { section: sections, context: contexts },
-      tools: { restrict: restriction },
+      tools: { restrict: restriction, schemas: () => [] },
       on: (event: string) => {
         childEvents.push(event)
         return scopeDisposer()
@@ -486,7 +486,8 @@ async function harness(options: {
       'persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks',
     ].filter(value => provider.profileCapabilities.includes(value as never))) as never,
     runtimeCapabilities: Object.freeze([
-      'exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage',
+      'full-collaboration', 'workspace-write', 'exact-call-approval',
+      'sandbox', 'evaluation', 'evidence', 'usage',
     ].filter(value => provider.runtimeCapabilities.includes(value as never))) as never,
     ...(provider.evaluationTools === undefined
       ? {}
@@ -588,6 +589,50 @@ function runtimeEmitSessionEvent(ctx: Context, agent: Agent, event: SessionEvent
 }
 
 describe('Digital Employee profile contract', () => {
+  it('withholds an ordinary external teammate actual target until native acceptance', async () => {
+    const runtime = await harness()
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission'],
+      runtimeCapabilities: [],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    runtime.roster.push({
+      id: 'ordinary-native',
+      name: 'ordinary-native',
+      role: 'teammate',
+      status: 'provisioning',
+      provider: 'native-reviewer',
+      context: 'fresh',
+      requestedRoute: {},
+      externalRuntime: {
+        kind: 'external-agent',
+        launchRequestId: 'ordinary-native-request',
+        requestFingerprint: 'ordinary-native-fingerprint',
+        requirements: {
+          contextMode: 'fresh',
+          profileCapabilities: [],
+          runtimeCapabilities: [],
+        },
+      },
+      diagnostics: [],
+    })
+
+    const member = runtime.ctx.digitalEmployees.studioView(runtime.leader).teamMembers
+      .find(candidate => candidate.memberId === 'ordinary-native')
+    expect(member).toMatchObject({
+      binding: 'ordinary',
+      provisioningPhase: 'pending',
+      selectedRuntimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+    expect(member).not.toHaveProperty('actualRuntimeTarget')
+
+    await registration()
+    await runtime.fiber.dispose()
+  })
+
   it('creates immutable candidates and no-ops unchanged normalized saves with Head CAS', async () => {
     const runtime = await harness()
     const service = runtime.ctx.digitalEmployees as unknown as {
@@ -1639,6 +1684,22 @@ describe('Digital Employee profile contract', () => {
       },
     })
     expect(JSON.stringify(detail)).not.toContain('SECRET_NATIVE_PAYLOAD')
+
+    const evidencePoison = 'credential=run-secret configPath=/private/run.json rawPayload=RUN_TRANSCRIPT'
+    runtime.readTeammateRuntimeEvidence.mockRejectedValueOnce(new Error(evidencePoison))
+    const unavailable = await runtime.ctx.digitalEmployees.runEvidence(
+      runtime.leader,
+      { runId: delivery.runId },
+      new AbortController().signal,
+    )
+    expect(unavailable).toMatchObject({
+      ok: false,
+      error: {
+        code: 'evidence-unavailable',
+        message: 'External runtime evidence is unavailable.',
+      },
+    })
+    expect(JSON.stringify(unavailable)).not.toContain(evidencePoison)
     await registration()
     await runtime.fiber.dispose()
   })
@@ -2035,6 +2096,88 @@ describe('Digital Employee profile contract', () => {
     await runtime.fiber.dispose()
   })
 
+  it('redacts provider diagnostics from public launch errors and Studio snapshots', async () => {
+    const poison = 'credential=super-secret configPath=/private/provider.json rawPayload=SECRET_NATIVE_TRANSCRIPT'
+    const runtime = await harness({
+      spawnErrorBeforeRosterOnce: new TeammateRuntimeError(
+        poison,
+        'TEAM_RUNTIME_CAPABILITY_MISMATCH',
+      ),
+    })
+    const registration = runtime.ctx.digitalEmployees.registerExternalRuntimeProvider(catalogExternalProvider({
+      id: 'native-reviewer',
+      displayName: 'Native Reviewer',
+      contextModes: ['fresh'],
+      profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
+      runtimeCapabilities: [],
+    }))
+    await runtime.ctx.digitalEmployees.whenRuntimeCatalogSettled()
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: { kind: 'external-agent', provider: 'native-reviewer' },
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    await expect(runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: 'runtime-capability-mismatch',
+        message: 'Runtime Target cannot enforce the requested Profile capabilities.',
+      },
+    })
+    const bindingKey = digitalEmployeeBindingKey('lead', 'code-reviewer')
+    await runtime.bindings.put(bindingKey, {
+      ...(runtime.bindings.get(bindingKey) as Record<string, unknown>),
+      error: poison,
+    })
+    const snapshot = runtime.ctx.digitalEmployees.studioView(runtime.leader)
+    expect(snapshot.instances[0]?.error).toBe('Teammate provisioning failed.')
+    expect(JSON.stringify(snapshot)).not.toContain(poison)
+    expect(JSON.stringify(snapshot)).not.toContain('super-secret')
+    expect(JSON.stringify(snapshot)).not.toContain('/private/provider.json')
+    expect(JSON.stringify(snapshot)).not.toContain('SECRET_NATIVE_TRANSCRIPT')
+
+    await registration()
+    await runtime.fiber.dispose()
+  })
+
+  it('contains unclassified continuable errors at the public launch boundary', async () => {
+    const poison = 'configPath=/private/continuable.json token=secret nativePayload=RAW_TRANSCRIPT'
+    const runtime = await harness({ spawnErrorBeforeRosterOnce: new Error(poison) })
+    await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
+      expectedHeadRevision: null,
+      profile: draft(),
+      runtimeTarget: DEFAULT_RUNTIME_TARGET,
+    })
+    await runtime.ctx.digitalEmployees.activateProfile(runtime.leader, {
+      profileId: 'code-reviewer', revision: 1, expectedHeadRevision: 1,
+    })
+
+    const result = await runtime.ctx.digitalEmployees.spawnProfile(runtime.leader, {
+      launchRequestId: LAUNCH_REQUEST_ID,
+      profileId: 'code-reviewer',
+    }, new AbortController().signal)
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'team-rejected', message: 'Teammate provisioning failed.' },
+    })
+    expect(JSON.stringify(result)).not.toContain(poison)
+
+    const snapshot = runtime.ctx.digitalEmployees.studioView(runtime.leader)
+    expect(snapshot.instances[0]).toMatchObject({
+      provisioningPhase: 'failed',
+      error: 'Teammate provisioning failed.',
+    })
+    expect(JSON.stringify(snapshot)).not.toContain(poison)
+    await runtime.fiber.dispose()
+  })
+
   it('repairs a contradictory Binding from the authoritative roster on service restart', async () => {
     const runtime = await harness()
     await runtime.ctx.digitalEmployees.saveProfile(runtime.leader, {
@@ -2147,6 +2290,16 @@ describe('Digital Employee profile contract', () => {
     expect([...runtime.bindings.records.values()][0]).toMatchObject({
       provisioningPhase: 'failed',
       resolvedRuntimeTarget: { kind: 'dsh-model', provider: 'test-provider', model: 'other-model' },
+    })
+    const snapshot = runtime.ctx.digitalEmployees.studioView(runtime.leader)
+    expect(snapshot.instances[0]).toMatchObject({
+      provisioningPhase: 'failed',
+      error: 'Teammate provisioning failed.',
+    })
+    expect(snapshot.teamMembers.find(member => member.memberId === 'child')).toMatchObject({
+      binding: 'profile-bound',
+      provisioningPhase: 'failed',
+      runtimeAvailability: 'available',
     })
     await runtime.fiber.dispose()
   })
@@ -2327,6 +2480,9 @@ describe('Digital Employee profile contract', () => {
 
     const initial = runtime.ctx.digitalEmployees.studioView(runtime.leader).runtimeCatalog
     expect(initial.generation).toBe(1)
+    const resolvedDshModel = initial.backends.find(backend =>
+      backend.routingId === 'dsh-model/test-provider/test-model')
+    expect(resolvedDshModel?.runtimeCapabilities).not.toContain('workspace-write')
     expect(initial.backends.find(backend => backend.routingId === 'dsh-model/test-provider/test-model'))
       .toMatchObject({
           routingId: 'dsh-model/test-provider/test-model',
@@ -2338,7 +2494,10 @@ describe('Digital Employee profile contract', () => {
           displayName: 'Duplicate Label',
           contextModes: ['fresh', 'fork'],
           profileCapabilities: ['persona', 'mission', 'context', 'memory', 'tool-policy', 'hooks'],
-          runtimeCapabilities: ['exact-call-approval', 'sandbox', 'evaluation', 'evidence', 'usage'],
+          runtimeCapabilities: [
+            'full-collaboration', 'exact-call-approval',
+            'sandbox', 'evaluation', 'evidence', 'usage',
+          ],
           reasoning: {
             efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
             defaultEffort: 'low',
