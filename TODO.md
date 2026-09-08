@@ -38,7 +38,20 @@ prerequisite navigation and shared browser watch ownership, are tracked in
 [the review-fix evidence](docs/evidence/pr-60-review-fixes.md). Historical batch
 plans below do not authorize starting other PRs in this task.
 
-The current task freezes the 13 Issues open at its start: parent Spec #18 plus #33–#44. Progress and recovery live in [PIPELINE_STATE.md](PIPELINE_STATE.md); gh/git remain authoritative. Batch 1 / #33 is merged and closed after two review rounds, a manual-merge confirmation, and green pre/post-merge full gates. Batch 2 / #34–#36 has completed its sole post-fuse unified retry in dependency order from main `2c5a355`: all six review-3 findings have public RED/GREEN coverage, Harness `806e5887…` and Ultra development/acceptance head `ca17782…` are pushed, the first full Ultra gate is green, all three live Issues remain open with 5/5 checked, and PR #60 has three `Closes` with full validation evidence. Only a fresh isolated review remains; this is not a fourth ordinary review round. Spec #18 remains open and is intentionally skipped until #44 completes. Current evidence and limitations are tracked in [HANDOFF.md](HANDOFF.md).
+The fresh isolated review of Ultra `22c0436` and Harness `b78caad462` is complete:
+Standards has one P2 and one P3; Spec has two P2 findings. There are no
+blocking/high findings, meeting the agreed gate without claiming zero issues.
+The user has explicitly authorized merging PR #60. Only merge handoff documents
+change in this turn; runtime code, the lock, and these known findings remain
+unchanged. Complete pre/post-merge `pnpm verify` is required, with evidence under
+`/root/workspace/pr60-merge.h817ck/`. Read GitHub PR state and merge commit before
+resuming; never repeat an already completed merge. Details and limitations are
+recorded in [HANDOFF.md](HANDOFF.md) and [PIPELINE_STATE.md](PIPELINE_STATE.md).
+
+The historical batch snapshot below remains context only. Its pending-review
+wording for #34–#36 is superseded by the fresh review and merge authorization
+above; neither that snapshot nor merging #60 authorizes work on PR #61 or #37–#44.
+Spec #18 stays open. Historical review count 3 and sole retry 1/1 are unchanged.
 
 - [x] [B09 / #27](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/27): [PR #53](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/53) merged as `2568444`; Issue closed, 6/6 acceptance criteria verified. Final candidate `472145a` passed Standards and Spec with zero unresolved findings. Full verification: 554 strict checks, 274 tests and eight-archive install/messaging/recovery/Web/uninstall. Harness `d5eca257c2` adds durable receipts and inactive-member reauthorization; both SDK event projections pass. Feishu completion notification succeeded.
 - [x] [B10 / #28](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/28): [PR #54](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/54) merged as `e728af1`; Issue closed, 5/5 acceptance criteria verified. Final candidate `1120425` passed independent Standards/Spec with zero unresolved findings after fixing retry-budget and shared-diagnostic defects. Harness `7119c51c8d` passes 224 tests / 100% business-source coverage. Final full verify passes 562 strict checks, 282 tests / 24 files and eight-archive task/wait/receipt/recovery/Web/uninstall. Feishu completion notification succeeded. See [acceptance evidence](docs/evidence/issue-28-acceptance.md).

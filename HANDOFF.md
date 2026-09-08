@@ -7,7 +7,11 @@
 
 ## 当前任务与完成边界
 
-- 当前用户要求仅整理并修复 **PR #60** 的审查发现。本轮范围为 #34–#36 对应的 Team DAG、冲突草稿和 watch 生命周期；历史 #18、#33–#44 批处理快照不扩大当前工作范围。唯一进度索引仍为 [PIPELINE_STATE.md](PIPELINE_STATE.md)，实时提交以 `gh`／`git` 为准。当前锁定 Harness `b78caad462…`，本轮追加验证见下方「#34–#36」小节；后文的 `806e5887…`／`ca17782…` 均为补修前历史候选。
+- 最新用户已明确授权仅合并 **PR #60**。全新隔离双轴审查已完成：固定 Ultra `22c0436429ccf449283bf3ecc33c2d0a497144ad`／main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3`、Harness `b78caad462c3509127761904ed59ee549b6b6160`；Standards 为 1 个 P2、1 个 P3，Spec 为 2 个 P2，无 blocking/high，达到既定门槛但不是零问题。此次只追加合并交接，不修改运行时代码、锁或剩余发现，不启动 PR #61 或其他工作。历史 review=3、唯一统一重试=1/1、local-gate 历史红=1 均保留。
+- 剩余发现：Standards P2 是同 Team 服务替换时未发送草稿保留的真实 Slot/Fiber 组合验证缺口（尚未动态复现草稿丢失），P3 是公开 watch 文档遗漏 Lead-only 权限及拒绝条件；Spec 两个 P2 是删除最后一个任务后墓碑详情被空列表条件隐藏，以及 50 行 DAG 的 Fit 百分位舍入裁切。后两者已由独立公开组件探针复现，五行 Fit／仍有其他任务的对照通过；不以既有套件全绿声称这些发现已修复。审查证据在 `/root/workspace/pr60-review.QNJYiG/review-checks.json`。
+- 本次合并前重新运行的完整 `pnpm verify` 已自然退出 0：582 strict／0 warning、Host／Client／Typert／compatibility 构建、30 files／359 tests，以及八归档安装、production DAG／CAS／watch、Web、Codex／Claude JSON＋SQLite 恢复和完整卸载均通过。日志为 `/root/workspace/pr60-merge.h817ck/pre-merge-verify.log`；与已审查头的差异仅有本次三份交接文档，运行时和锁不变。
+- 合并方式保持普通 merge commit，执行时固定 GitHub live head，不绕过保护规则；PR 的 `state`／`mergedAt`／`mergeCommit` 和 main 的 Git 历史是实际完成凭据。唯一进度索引仍为 [PIPELINE_STATE.md](PIPELINE_STATE.md)。本记录后的更改只允许合并 PR #60、同步本地 main 与合并后验证；保留来源分支、既有 stash 和其他工作树，不发送外部通知。
+- 以下为开发阶段历史记录；其中“等待全新评审”“本轮不合并”以及 `806e5887…`／`ca17782…` 已被上面的最新审查与用户合并授权取代，不再作为当前阻塞。
 - 当前主工作区分支为 `feat/batch-2-task-dag-live`，从 main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` 建立。PR #60 历史 review 连续失败3轮、local-gate历史红1；用户已显式启用唯一统一重试1/1，该开发和正式全量闸门现已完成，绝不能重置成普通review 4。Batch 1 的 [PR #59](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/59) 已按人工确认 merge commit 合并，#33 自动关闭；合并后 `pnpm verify` 再次通过582 strict、346 tests与完整八归档/Web/恢复/卸载。
 - #27–#32 已在本轮启动前分别合并 PR #53–#58 并关闭，不属于本次快照范围。Batch 2 冻结包含 #34、#35、#36；三项最新正文与 AC 已重读且未更新，依赖 #25/#33 已关闭，#35→#34、#36→#35 保持批内顺序。后续恢复只读 `PIPELINE_STATE.md`，不再使用历史 `/root/workspace/.ultra-checks/frozen-issues-27-44.json` 作为进度源。
 - 权威需求为 [Spec #18，修订 1.1](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)，中文为规范主版。已读取父 Spec 和 #19–#44 的任务、依赖与验收内容；全部实现和最终验收完成前保持父 Spec open。
@@ -289,11 +293,13 @@
 
 ## 下一步
 
-1. 回读 PR #60 最终 HEAD 与 [reference lock](dsh-reference.lock.json)，按 [修复记录](docs/evidence/pr-60-review-fixes.md) 验证本轮八项去重审查发现。
-2. 后续独立评审固定 Ultra main `2c5a355deefcf3c9dfc3384787e9cfe3de4678e3` 到最终 PR HEAD，以及 Harness `d2d870fbe40bc0e968abdac854a3aae495162bec..b78caad462c3509127761904ed59ee549b6b6160`。历史熔断与唯一重试次数保留；本轮不合并 PR。
-3. 当前仅处理 PR #60；其他 PR、Issue 和真实 native 验收不在本轮范围。
+1. 先回读 PR #60 的 `state`／`mergeCommit` 与本地 Git 状态；若已 MERGED，不重复合并。运行时审查基准为 `22c0436`，本交接提交只更新 HANDOFF／TODO／PIPELINE_STATE。
+2. 合并前完整 `pnpm verify` 通过后，使用固定 live head 的普通 merge；再同步本地 main，确认合并树与通过验证的候选一致并执行 post-merge `pnpm verify`。验证日志保存在 `/root/workspace/pr60-merge.h817ck/`，进程退出码必须确认，不能仅凭日志前半段判绿。
+3. 当前仅处理 PR #60；剩余 3 个 P2、1 个 P3 保留为已知问题，其他 PR、Issue 和真实 native 验收不在本轮范围。
 
 ## 权威材料与技能
+
+- 本次合并使用 `dsh-plugin-dev` 的锁定来源和完整归档验证要求；未重新启动代码审查、冲突修复或其他 PR 的开发。
 
 - 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 

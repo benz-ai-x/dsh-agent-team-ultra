@@ -1,8 +1,22 @@
 # Open Issues 批处理状态
 
-最后更新：2026-09-08T11:32:42+08:00（Asia/Shanghai）
+最后更新：2026-09-08（Asia/Shanghai，PR #60 合并授权交接）
 
 本文件是本轮批处理的唯一进度索引。恢复时必须先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。
+
+## 最新范围与门槛
+
+用户已明确授权合并 PR #60，未授权开始其他 PR 或发送通知。独立审查已固定
+Ultra `22c0436429ccf449283bf3ecc33c2d0a497144ad`、main `2c5a355…` 和 Harness
+`b78caad462c3509127761904ed59ee549b6b6160` 完成：Standards 1 P2 + 1 P3，
+Spec 2 P2，均无 blocking/high；不是零问题通过。剩余发现与复现边界见
+[HANDOFF.md](HANDOFF.md)。历史 review=3、唯一重试=1/1、local-gate 历史红=1
+保留；下文旧“等待全新隔离 review”状态仅为历史，不再阻塞本次授权合并。
+此次仅追加三份交接文档，不修改产品代码、Harness 锁、Issue 正文或其他 PR。
+合并前后均运行 `pnpm verify`；日志在 `/root/workspace/pr60-merge.h817ck/`。
+本次 pre-merge 全量门禁已自然退出 0：582 strict／0 warning、359 tests／30 files、
+Host／Client／Typert／compatibility 构建与八归档安装／恢复／Web／卸载全部通过。
+实际合并完成以 GitHub PR `state`／`mergedAt`／`mergeCommit` 及 main Git 历史为准。
 
 ## 阶段 0：冻结运行约定
 
@@ -441,14 +455,6 @@
 
 ## 下一步（唯一恢复入口）
 
-本轮用户把范围限定为 PR #60。新增收尾修复为过滤后的可见前置键盘导航、
-任务／消息视图共用公开 watch owner，并接入 `beb16ff` 的已有六项修复。
-Harness 为 `b78caad462c3509127761904ed59ee549b6b6160`；补修后的完整
-`pnpm verify` 已自然退出 0：582 strict／0 warning、359 tests 与八归档完整验证。
-逐项结果、中途声明 freshness／bundle fixture 失败及修复、PR 前既有全仓 lint
-限制见 [PR #60 修复记录](docs/evidence/pr-60-review-fixes.md)。历史计数保留，
-本轮不执行下列历史流程中的合并、其他 PR 或外部通知步骤。
-
-1. PR #60唯一统一重试（1/1）开发已完成：Harness `806e5887…`已推送，Ultra正式full gate首轮绿，#34/#35/#36均OPEN且5/5。完成#36 docs/state提交、HTTPS push与PR正文`Closes`/精确head回读后停止开发。
-2. 只由主agent创建全新隔离`/code-review`，以main `2c5a355…`、最终Ultra/Harness heads和live AC审查；本开发agent不得自行review、合并或开后续PR。历史review仍是3，本轮是唯一重试评审而非review 4。
-3. 唯一重试评审保持0 blocking/high且闸门绿才允许按merge commit合并PR #60并做main post-merge `pnpm verify`；任一blocking/high则立即恢复blocked、记录重试耗尽并通知。PR #61在此期间保持暂停，不启动review 2。
+1. 回读 PR #60 与 main：若 PR 已 MERGED，记录真实 merge commit，不重复合并；若仍 OPEN，确认 live head 仅比审查头 `22c0436` 多本次交接文档且完整合并前 `pnpm verify` 自然退出 0。
+2. 按最新用户授权，仅对 PR #60 使用固定 live head 的普通 merge commit；不使用管理员绕过，不删除来源分支，不修改其他 PR 或主动更新 Issue 正文。
+3. 合并后安全同步本地 main，核对 merge 双亲和 tree，运行 main post-merge `pnpm verify` 并回读 PR 状态。保留原有 stash、独立工作树及 3 P2 + 1 P3 已知问题；PR #61 继续暂停，本次不发送通知。
