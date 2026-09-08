@@ -20,9 +20,9 @@
 - #41 实现与定向验证完成，提交 `04b2c9f2ed1e3e1f8357dd774881f41b44d916e4` 已推送 PR #63 并回读一致；Issue OPEN／2/6 AC，只勾选源保护／pending／完成最后提交和支持边界／脱敏。70／70 tests、5 文件（audit 37、execution 24、公开业务／Profile 9）、648 strict／0 warnings、完整 build 和 67 个本地文档链接通过。JSON／SQLite 真实迁移保留源与原身份，支持重试／临时前缀恢复／分歧拒绝、checkpoint／Run 重建及 Eval 历史／Gate 失效。完整历史归档、逐写入中断矩阵仍留给 #43；B 黄金输入不含 Ultra/native，不夸大历史证明。
 - #41 Profile `data` 联合检查实际 Session／storage roots 后才注册真实持久化，同一 Fiber 释放；pending／混合根与两种后端生命周期通过。Harness 候选未改。README／ADR 0027 明确目标 JSON `storage`（不是默认 `storages`）、双路径配置、源停写、SDK 历史／认证不复制及 Linux 限制。飞书通知于 22:59 由 Ali Agent CLI bot 成功发送（ok: true），幂等键 `ultra-41-04b2c9f-focused`，不要重发。
 - #42 实现与定向验证完成，提交 `61fb4f6bb56de13c63d186b29039b55ea5b1bf68` 已推送 PR #63 并回读一致，Issue OPEN／4/5 AC。飞书完成通知已于 23:13 成功发送（ok: true／bot），幂等键 `ultra-42-61fb4f6-focused`，不要重发。真实 Agent Loop／Session v2／Host／生成 Remote RED → GREEN 修复失败 attempt 用量（14＋7 原返回 7）、缺失流终态仍 complete、部分 aggregate 冒充完整 total；live／settled／cold 与 JSON／SQLite 累计快照不重复计数、原 Run/member/Revision/route 保留。112／112、7 文件回归通过；DSH/native 迁移重建各 2／2，通过最终 build、648 strict／0 warnings。日志 `issue42-focused-owner.log` 与 `issue42-*-regression.log`，证据在集成树 `docs/evidence/issue-42-acceptance.md`。#43 最终历史→Studio／归档／全中断矩阵及 #44 认证未完成，没有正式 review 或自动合并。
-- #43 实现与集中验证进行中，尚未提交、通知或勾选 AC。归档集合改为实际 Profile 入口与本地依赖闭包推导（当前 8 包，不固定数量），包含 `/data` 普通解析；所有非归档 Harness 依赖来自同一构建证明。真实安装曾发现内部 registry `dsh-brand 0.1.3-alpha.2` 与锁定 alpha.1 不符，现由显式 `--lock-local-peers` 约束顶层／嵌套依赖，固定 profile pnpm 11.7.0，并直接链接已核验 SDK／平台载荷；不放宽预检、不更换 SDK 或复制认证。冲突 override 与未核验来源在安装前拒绝，已有配置保留。
+- #43 运行时与验证修复已提交为 `35f050ca1587e68724deed4717c793f90f661185`，正常推送 PR #63 并回读远端一致；Issue／PR 正文已更新验收进度，仍 OPEN／DRAFT，AC 勾选、标题、标签和指派均保留，未发送 #43 完成通知。归档集合改为实际 Profile 入口与本地依赖闭包推导（当前 8 包，不固定数量），包含 `/data` 普通解析；所有非归档 Harness 依赖来自同一构建证明。真实安装曾发现内部 registry `dsh-brand 0.1.3-alpha.2` 与锁定 alpha.1 不符，现由显式 `--lock-local-peers` 约束顶层／嵌套依赖，固定 profile pnpm 11.7.0，并直接链接已核验 SDK／平台载荷；不放宽预检、不更换 SDK 或复制认证。冲突 override 与未核验来源在安装前拒绝，已有配置保留。
 - #43 新增真实 Profile Loader 回归先 RED 后 GREEN：完成目录内的错误 storage 子路径、后端或 Session 布局拒绝；目标已有迁移锁但首次 manifest 尚未发布也拒绝业务写入。`--max-writes 0` 暂停首次发布前。JSON／SQLite 完整耐久发布边界矩阵 2／2（189.04 秒）通过，每个边界重试、完整目标复用、源字节不变及原 Profile／Run／成员冷恢复；原 execution／来源／Profile 52／52 与安装拒绝 21／21，通过当前 648 strict／0 warnings。日志为 Batch 4 父目录 `issue43-all-writes-green.log`、`issue43-focused-regression.log`、`issue43-install-admission.log`。
-- #43 历史 Codex（`debde06`）／Claude（`081357d`）前身、以及 B 发布候选 PR #62（`4cecfe2`）均已真实归档创建 JSON／SQLite 员工，调用运维入口发布隔离目标，再以新归档的实际 `/data` Loader 恢复原 member／Revision／native handle 并续跑。B 双 native 完整查询、任务回执、原生操作、源保护、迁移后 Web 和无强杀退出、卸载通过：`issue43-b-direct-product-upgrade.log`。历史独立证据为 `issue43-codex-isolated-upgrade.log`／`issue43-claude-stable-toolchain-upgrade.log`；后续安装工具链及 SDK 链接改动仍需最终复验。控制式外部产品不等于 #44 的真实认证。
+- #43 历史 Codex（`debde06`）／Claude（`081357d`）前身、以及 B 发布候选 PR #62（`4cecfe2`）均已真实归档创建 JSON／SQLite 员工，调用运维入口发布隔离目标，再以新归档的实际 `/data` Loader 恢复原 member／Revision／native handle 并续跑。B 双 native 完整查询、任务回执、原生操作、源保护、迁移后 Web 和无强杀退出、卸载通过：`issue43-b-direct-product-upgrade.log`。最终脚本、固定安装工具链及 SDK 链接已复验通过，历史最终证据为 `issue43-final-codex-history.log`／`issue43-final-claude-history.log`。控制式外部产品不等于 #44 的真实认证。
 - #43 官方／fork 11 组语义及不支持来源／stock 导入前拒绝通过 `issue43-official-fork-comparison.log`。完整 `pnpm verify` 已退出 0：648 strict／0 warnings，430 tests／39 files，JSON 13 次耐久发布／14 个边界、SQLite 7 次／8 个边界，实际闭包归档／数据入口／双 native 冷恢复／Web／卸载通过；`issue43-complete-candidate-verify.log` SHA-256 为 `b0bbad1003969d12ca54fa2ab0cc794ac32228604d1a845850d30f01cd1b9b55`。最终历史重验 `issue43-final-codex-history.log`／`issue43-final-claude-history.log` 也均通过，每次 Web 退出 0／无强杀。`tdd` 的 Studio 联合测试入口补充确认尚未收到，未写该新测试；支持标签未提升，#44／正式 review／人工合并未完成。
 - 历史前身工作树位于 Batch 4 父目录 `codex-predecessor`／`claude-predecessor`，锁定干净 Harness `8b4bae0`。各自正式 prepare、frozen/offline install、strict、build 通过；历史 Harness 曾缺失 brand→Cordis 安装链接，已正常 frozen/offline 重装恢复，源码与锁 clean。保留所有 worktree、原日志、主工作区既有变更及 stash；只操作隔离测试数据。
 - 本轮使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`、`resolving-merge-conflicts`、Harness 的 `dsh-doc`／`dsh-prose-standard`／`dsh-pre-push-checks`／`dsh-ci-test-reliability`，以及通知的 `lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
@@ -339,13 +339,13 @@
 
 ## 下一步
 
-1. 取得公开测试边界确认后，从本 worktree 继续 #38 的首个 RED → GREEN；只按 live Issue 运行必要定向测试，最终 Batch 3B PR 再做集中完整验收。
-2. 取得飞书通知方式确认后，每个 Issue 实现完成时报告实际结果与待验收项；未完成或未验证的内容不冒报完成。随后按 #39–#43 → #44 的依赖／集成分支顺序推进；合并权限与真实 native 认证另行核实。
+1. 在 `/root/workspace/batch4-upgrade.VkSXdm/ultra` 继续 #43；收到 Studio 公开组件入口补充确认后，接入迁移后真实 Host／生成 Remote 验证显示与错误冒泡。已推送运行时 `35f050c` 的完整 verify／历史升级证据可用于不改运行候选的说明文档收尾。
+2. Studio 联合验收通过后，按实际改动重跑受影响验证并让最终完整门禁覆盖新候选，再提升支持资格、同步各 Issue 的 AC 证据并通知 #43 完成；正式 review／人工合并与 #44 真实认证验收尚未执行，不能用当前受控 SDK 证据替代。#38–#42 飞书通知已成功，不重复发送。
 3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
 ## 权威材料与技能
 
-- 当前使用 `tdd` 确认公开测试边界并准备逐条 RED → GREEN，使用 `dsh-plugin-dev` 核对锁定来源／持久化／生命周期与构建，使用 `lark-im`／`lark-shared` 核对通知身份；新测试和通知尚待确认。以下技能记录属于各历史轮次。
+- 当前使用 `tdd` 在已确认的公开 Host／生成 Remote、真实 Team／Session／JSON／SQLite／Fiber、运维 CLI 及 Profile data 入口执行 RED → GREEN；新增 Studio 联合入口仍待补充确认。`dsh-plugin-dev` 约束锁定来源／持久化／生命周期与构建；`lark-im`／`lark-shared` 按已确认 bot 身份发送 #38–#42 通知。以下其余技能记录属于各历史轮次。
 
 - 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 

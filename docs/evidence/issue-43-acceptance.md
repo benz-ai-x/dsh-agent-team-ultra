@@ -5,7 +5,8 @@
 `tdd` 要求补充确认；未写该新测试，未提升支持锁、正式 review、合并或执行 #44。
 PR #63 保持草稿，Issue 保持 OPEN，未把未验证 AC 勾选为完成。
 
-输入是 Ultra 父提交 `61fb4f6bb56de13c63d186b29039b55ea5b1bf68` 加本证据所在提交。
+已验证的运行时提交是 Ultra `35f050ca1587e68724deed4717c793f90f661185`，
+已正常推送 PR #63 并回读远端一致；后续提交仅同步本文和交接的发布状态。
 运行时代码、依赖声明和脚本经以下门禁后只补充说明文档；不把旧日志当成新版重新执行。
 Linux arm64，Node 22.22.1，构建及新安装的 pnpm 11.7.0。来源见
 [锁文件](../../dsh-reference.lock.json) 和 [补丁清单](../reference/harness-patch-ledger.md)：
@@ -60,8 +61,8 @@ Linux arm64，Node 22.22.1，构建及新安装的 pnpm 11.7.0。来源见
 分歧拒绝、未知／未来格式、checkpoint／Run 重建、保留 Eval Run 而失效旧 Gate。
 这不是在每条 fsync／文件系统调用中注入掉电，也不扩大为跨平台文件系统资格。
 
-收口文档检查另通过 648 strict／0 warnings、118 个已有本地链接（新增 TODO 链接随后
-核验）和 `git diff --check`；日志 `issue43-document-final-strict.log`、`issue43-document-links.log`。
+发布记录更新后另通过 648 strict／0 warnings、本地 Markdown 文件目标检查和
+`git diff --check`；日志 `issue43-postpublish-strict.log`、`issue43-postpublish-links.log`。
 
 历史升级使用各自真实旧归档创建业务源，停止旧 context 后由当前运维入口联合迁移，
 **不原地打开旧 Sessions 来冒充迁移验收**。SDK 外部状态位于独立连续性目录，不由
