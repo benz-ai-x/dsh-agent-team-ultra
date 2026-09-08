@@ -7,6 +7,19 @@
 
 ## 当前任务与完成边界
 
+- 用户已授权从 [#38](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/38) 开始按 `tdd` 开发，并在每个 Issue 完成后通过飞书 CLI 报告结果。继续采用 live Issue 中已经确认的三个 PR 范围：#38、#39–#43、#44；Issue 只做必要定向验证，完整跨功能／冒烟／错误冒泡／真实归档验收集中在最终 PR 候选。未跑的 AC 不勾选；父 Spec #18 保持 open，开发授权不自动包含合并。
+- #38 已实时读取，仍为 OPEN／ready-for-agent、6 条 AC 未勾选；依赖 #36、#37 均为 CLOSED。PR #61 已合并到 main `ec88d85a2ec668388ff37b0b6cba4bab3e332040`，旧 TODO／PIPELINE_STATE 中的暂停范围和未合并状态不能覆盖本节。
+- 独立 Ultra worktree 为 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`，从上述 main 创建。主工作区既有 HANDOFF、3 个 stash、本地分支、维护 Harness 与所有历史证据均保留；没有提交、推送或创建 PR。
+- 环境仍为 Node 22.22.1／pnpm 11.7.0，锁定 Harness `57670c6b320f7f240cbad360a9f691c8598e1571`，链接到 `/root/workspace/pr61-fixes.7yIVdj/harness`。已正式 prepare 后 frozen/offline install；独立工作区 strict 590／0 和未改代码的完整 build 均自然退出 0。日志为新 worktree 父目录的 `pre-edit-strict.log`、`baseline-build.log`。没有改来源锁或维护 Harness。
+- 已完成公开边界 RED → GREEN：真实 JSON／SQLite 冷 Run 读取在 Host 卸载结束前必须静止；DSH 与 Codex 的异步 Run 读取在 Lead 退出后必须拒绝旧身份；Codex 与 Claude 的慢进程退出必须区分清理 abort 宽限期和实际静止。相关三个新测试文件共 6 tests 通过，日志 `claude-quiescence-green.log`，此前各自 RED 日志均保留。运行时代码已修改，尚未完成 #38 或创建 PR。
+- 共享恢复场景已通过：真实 Team／JSON／SQLite、对话工具启动、丢失消息／任务回执、任务所有权、另一 provider、评测、Run 与 watch 共存。按 RED → GREEN 修复 Codex 恢复遗漏终态证据，以及原生结束时间早于 Host 接受时间导致无效 Run 冷启动失败；保留真实时间线并明确标记完成时间不可用，不伪造时间。加强的原 handle 接续、迟到旧代际通知、冷恢复后完成原任务并解锁 DAG 均通过，日志 `combined-recovery-final.log`；夹具接线失败不算产品 RED。
+- [#38 覆盖审计](docs/evidence/issue-38-coverage-audit.md) 保留开工盘点并追加实际 RED／GREEN。直接 view 准备在卸载后才结束已由公开入口复现，并将直接 Run repair 纳入等待；JSON／SQLite 的 run、view、watch 共六种组合与旧 Lead 回归全部通过（7 tests，`snapshot-lifecycle-matrix.log`）。此前相关 11 文件 111 tests 通过（`recovery-focused.log`），最终完整门禁尚待执行。
+- 用户已明确确认测试边界及持续完成范围：真实 Host／生成 Remote、Team／Session 与 JSON／SQLite 持久化、Cordis Fiber 移除／替换，仅外部 SDK／进程使用受控替身。原确认阻塞已解除，从现有 worktree 开始逐个 RED → GREEN，不重复建立工作区。
+- 飞书通知已确认由 CLI bot 私信当前登录用户，内容为“编号、实现／测试结果、分支／PR、待验收项”。尚未发送完成消息；实现完成与 PR 验收完成分别报告，不因通知要求提前勾选或关闭 Issue。凭据与私人会话不写入仓库。
+- 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im` 和 `lark-shared`；没有启动新代码审查、多代理或真实 native 认证验收。完整 #38–#44 目标仍未完成，继续按三批次与依赖推进。
+
+## PR #61 发布交接（历史记录，已合并）
+
 - 最新用户已授权按建议依序推送配套 Harness、更新 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61)，核对远端和检查后合并该 PR。只交付已经修复并复查通过的两类能力问题；不修改其他 PR／Issue 正文，不通知或恢复历史流水线，不删除分支或 worktree。主工作区 `/root/workspace/dsh-agent-team-ultra` 的 main、既有 `HANDOFF.md` 改动与来源链接均保留。
 - 修复工作区仍为 `/root/workspace/pr61-fixes.7yIVdj/ultra` 的 `fix/pr61-review-findings`，配套 Harness 为相邻 `harness` 的 `fix/pr61-member-capabilities`。Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 已经正常 pre-push 类型检查后推送维护 fork 同名分支，Git 与 GitHub 回读一致；没有推送官方 upstream。Ultra `9aa53d96e56efafbce93100b9f25327f6168b1a6` 已正常推送原 PR 分支并回读一致。当前交接只补充发布记录，不修改已验证代码或锁。
 - DSH 成员完整协作由精确 live Agent 的六项 Team 工具证明，工具注册／卸载通知驱动 Studio 快照刷新。原生 create／resume 若明确要求完整协作，必须返回精确 handle 的全部六项成员操作；缺失或不完整时拒绝，沿用世代隔离及等待资源清理。同一成员身份可由恢复后的新注册重新接续排队工作；没有该必需项的有限／未确认成员仍允许运行。
@@ -317,13 +330,13 @@
 
 ## 下一步
 
-1. PR #61 冲突处理、组合验证和原分支发布已完成；恢复时只读核对 live head 是否包含 `309c778`、Harness lock 是否为 `bb9b489548` 及远端 mergeability，不重复合并或重做修复。
-2. 等待用户决定是否重新评审或合并 PR #61；通过验证与推送不等于审查批准，也不授权直接合并。
-3. 其他 PR、Issue、流水线、通知和真实 native 验收仍不在本轮范围；保留主工作区与其他 worktree 的原状态。
+1. 取得公开测试边界确认后，从本 worktree 继续 #38 的首个 RED → GREEN；只按 live Issue 运行必要定向测试，最终 Batch 3B PR 再做集中完整验收。
+2. 取得飞书通知方式确认后，每个 Issue 实现完成时报告实际结果与待验收项；未完成或未验证的内容不冒报完成。随后按 #39–#43 → #44 的依赖／集成分支顺序推进；合并权限与真实 native 认证另行核实。
+3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
 ## 权威材料与技能
 
-- 本次 PR #61 冲突处理使用 `resolving-merge-conflicts` 保留双方原意，使用 `dsh-plugin-dev` 执行精确来源与完整归档验证；未启动新代码审查或其他 PR 的开发。以下技能记录属于各历史轮次。
+- 当前使用 `tdd` 确认公开测试边界并准备逐条 RED → GREEN，使用 `dsh-plugin-dev` 核对锁定来源／持久化／生命周期与构建，使用 `lark-im`／`lark-shared` 核对通知身份；新测试和通知尚待确认。以下技能记录属于各历史轮次。
 
 - 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 

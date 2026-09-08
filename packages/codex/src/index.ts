@@ -771,7 +771,16 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
   bindMemberOperations(request: TeammateRuntimeMemberOperationsRequest): void {
     const session = this.session(request.nativeHandle)
     session.connection.bindMemberOperations(request.grant)
-    for (const terminal of session.recoveredTerminals.splice(0)) this.queueSettlement(session, terminal)
+    for (const terminal of session.recoveredTerminals.splice(0)) {
+      this.addEvidence(session, {
+        id: evidenceId('turn', session.handle, terminal.id),
+        kind: 'turn',
+        timestamp: terminal.timestamp,
+        turnId: TeammateRuntimeTurnId(terminal.id),
+        outcome: terminal.outcome,
+      })
+      this.queueSettlement(session, terminal)
+    }
   }
 
   async create(request: TeammateRuntimeCreateRequest): Promise<TeammateRuntimeCreateResult> {
@@ -873,7 +882,19 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     if (request.kind !== 'runtime') return
     const session = this.sessions.get(request.nativeHandle)
     if (session === undefined) return
-    await this.disposeSession(session)
+    const reportGrace = () => {
+      this.ctx.logger.warn('agent-team-codex: cleanup abort grace elapsed; still waiting for native process exit')
+    }
+    if (request.signal.aborted) reportGrace()
+    else request.signal.addEventListener('abort', reportGrace, { once: true })
+    try {
+      await this.disposeSession(session)
+      if (request.signal.aborted) {
+        this.ctx.logger.info('agent-team-codex: native cleanup reached quiescence after abort grace')
+      }
+    } finally {
+      request.signal.removeEventListener('abort', reportGrace)
+    }
   }
 
   async close(): Promise<void> {

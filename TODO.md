@@ -1,6 +1,25 @@
 # TODO
 
-## Current requested scope: publish and merge the reviewed PR #61
+## Current requested scope: TDD development from Issue #38
+
+The user has authorized reading the remaining Issues, starting development at
+[#38](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/38), and reporting
+each completed Issue through Feishu CLI. The live Issue validation plans retain
+three PR batches: #38, #39–#43, and #44. Issue-local verification stays focused;
+complete cross-feature and packed validation belongs to the final PR candidate.
+This development request does not itself authorize merging PRs or closing
+unverified Issues. Parent Spec #18 stays open.
+
+- [x] Read live #38 and confirm #36 / #37 are closed; preserve main's local handoff and all stashes.
+- [x] Create `feat/batch-3b-provider-recovery` from main `ec88d85`, prepare locked Harness `57670c6b32`, install frozen dependencies, and pass 590 strict checks / 0 warnings.
+- [x] Build the unchanged baseline, including Host, Client, generated Typert, and compatibility proof.
+- [x] Audit all six #38 AC against existing public tests and packed probes; distinguish real persistence from memory-only fixtures in the [coverage audit](docs/evidence/issue-38-coverage-audit.md). This is not acceptance.
+- [x] User confirmed the public TDD seams: real Host/generated Remote, Team/Session and JSON/SQLite persistence, and Cordis Fiber lifecycle; only external SDK/process boundaries are controlled.
+- [x] Reproduce and fix #38 Run read/view disposal, retired Lead reads, native cleanup diagnostics, recovered terminal evidence and invalid native completion times through public RED → GREEN slices; the combined real-persistence recovery scenario passes.
+- [ ] Run affected tests and maintain one AC-to-evidence map; run the full cross-feature/archive gate on the final Batch 3B PR candidate.
+- [x] User confirmed bot DM to the current Feishu user with Issue, implementation/test results, branch/PR and pending acceptance; report implementation completion separately from PR acceptance.
+
+## Previous requested scope: publish and merge the reviewed PR #61 (completed)
 
 The user now authorizes pushing the reviewed companion Harness, updating PR #61, checking exact remote identities and current gates, then merging this PR. Preserve the shared main checkout and its existing edits; do not change other Issues/PRs, notify, delete branches/worktrees, or resume the historical pipeline. See [repair and publication evidence](docs/evidence/pr61-capability-review-fixes.md). GitHub PR state, mergedAt and mergeCommit are the canonical publication/merge outcome; read them before resuming and never repeat an already completed merge.
 
@@ -54,7 +73,7 @@ The user now authorizes pushing the reviewed companion Harness, updating PR #61,
 
 ## Next increment
 
-PR #60 is historical: it was merged as `9835db4361dcad500b3be09ef69f78420d71a6ab`; #34–#36 are closed with 5/5 AC. Its final review retained three P2 findings and one P3 finding, recorded in [HANDOFF.md](HANDOFF.md) and [review-fix evidence](docs/evidence/pr-60-review-fixes.md). Those findings are not claimed fixed by this integration. Historical review count 3 and sole retry 1/1 remain unchanged. Current authorization is only publication and merge of the reviewed PR #61; the batch plan below does not authorize further work.
+PR #60 is historical: it was merged as `9835db4361dcad500b3be09ef69f78420d71a6ab`; #34–#36 are closed with 5/5 AC. Its final review retained three P2 findings and one P3 finding, recorded in [HANDOFF.md](HANDOFF.md) and [review-fix evidence](docs/evidence/pr-60-review-fixes.md). Those findings are not claimed fixed by this integration. Historical review count 3 and sole retry 1/1 remain unchanged. Current development scope and validation timing are stated above and in the live Issues; old pipeline permissions do not expand merge authority.
 
 - [x] [B09 / #27](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/27): [PR #53](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/53) merged as `2568444`; Issue closed, 6/6 acceptance criteria verified. Final candidate `472145a` passed Standards and Spec with zero unresolved findings. Full verification: 554 strict checks, 274 tests and eight-archive install/messaging/recovery/Web/uninstall. Harness `d5eca257c2` adds durable receipts and inactive-member reauthorization; both SDK event projections pass. Feishu completion notification succeeded.
 - [x] [B10 / #28](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/28): [PR #54](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/54) merged as `e728af1`; Issue closed, 5/5 acceptance criteria verified. Final candidate `1120425` passed independent Standards/Spec with zero unresolved findings after fixing retry-budget and shared-diagnostic defects. Harness `7119c51c8d` passes 224 tests / 100% business-source coverage. Final full verify passes 562 strict checks, 282 tests / 24 files and eight-archive task/wait/receipt/recovery/Web/uninstall. Feishu completion notification succeeded. See [acceptance evidence](docs/evidence/issue-28-acceptance.md).
@@ -68,7 +87,7 @@ PR #60 is historical: it was merged as `9835db4361dcad500b3be09ef69f78420d71a6ab
 - [x] [B18 / #36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36): sole unified retry complete on Batch 2. Qualified Harness `806e5887…` publishes the generated watch catalog, uses one shared completion/dirty bit per task refresh generation under 4096+4096 invalidations, and makes TeamAction Fiber teardown await Remote watch quiescence. Ultra likewise owns every message watch close at the Client context lifecycle while preserving immediate React cleanup; old-cursor fencing, page/roster coalescing, bilingual lifecycle states, and no-resend remain intact. Live body was updated one marker at a time with other bytes unchanged; PR #60 was merged as `9835db4`; Issue is closed with 5/5 AC. The main lock at `b78caad462` includes subsequent review fixes. See [acceptance evidence](docs/evidence/issue-36-acceptance.md) and [pipeline state](PIPELINE_STATE.md).
 
 [Batch 3A / #37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37): implementation, two capability repairs and independent re-review are complete; both axes report zero findings. The repaired code was published through `9aa53d9`, locking Harness `57670c6b32`. Publication-only documentation follows. Merge and linked Issue closure are read from [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61), not inferred from the Issue's 6/6 checked AC. See [current evidence](docs/evidence/pr61-capability-review-fixes.md).
-- [ ] #38–#44 remain outside this task; #38 still depends on #37, while #36 is already closed. Parent Spec #18 stays open.
+- [ ] Start #38 on Batch 3B: #36 and #37 are closed, and PR #61 is merged as `ec88d85`. Continue #39–#43 and #44 in their approved batch/dependency order, without treating unrun PR acceptance as complete. Parent Spec #18 stays open.
 
 - [ ] Deliver [vNext Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) through its A/B/C phases and all acceptance criteria; specification publication does not mark implementation complete.
 - [x] [A01 / #19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19): shared Host context, Profile release, isolated evaluation, and capability installation consolidation implemented on `fix/19-host-profile-evaluation`. Full `pnpm verify` passes 164 tests and eight-archive install/boot/uninstall. [PR #45](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/45), reviewed at `3046af5` with no Standards/Spec findings, was merged into `main` as `c6ea879` on explicit user authorization. Issue closed.

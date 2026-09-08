@@ -25,6 +25,8 @@ import DigitalEmployeeService from '../../lib/index.js'
 import { TYPERT } from '../../lib/typert.host.js'
 import type { DigitalEmployeeProfileDraft } from '../../src/types.ts'
 
+export { ToolCallId } from '@deepseek-ai/dsh-llm'
+
 export const target = { kind: 'dsh-model', provider: 'workflow', model: 'reviewer' } as const
 export const profile: DigitalEmployeeProfileDraft = {
   id: 'reviewer',
@@ -43,6 +45,7 @@ export const profile: DigitalEmployeeProfileDraft = {
 
 export class WorkflowAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
+  beforeStream: ((options: GenerateOptions) => Promise<void>) | undefined
   catalogGate: Promise<void> | undefined
   readonly catalogEntered = Promise.withResolvers<void>()
 
@@ -62,6 +65,7 @@ export class WorkflowAdapter extends LlmAdapter {
 
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     this.requests.push(options)
+    await this.beforeStream?.(options)
     yield { type: 'block-start', index: 0, blockType: 'text' }
     yield { type: 'text-delta', index: 0, text: 'finding PRIVATE_OUTPUT' }
     yield { type: 'block-end', index: 0, block: { type: 'text', text: 'finding PRIVATE_OUTPUT' } }
@@ -82,7 +86,7 @@ afterEach(async () => {
 
 export async function workflow(
   backend: 'json' | 'sqlite' = 'json',
-  options: { root?: string; resumeLead?: boolean } = {},
+  options: { root?: string; resumeLead?: boolean; disposalTimeoutMs?: number } = {},
 ) {
   const root = options.root ?? await mkdtemp(join(tmpdir(), 'ultra-host-workflow-'))
   const ctx = new Context()
@@ -99,7 +103,7 @@ export async function workflow(
   await ctx.plugin(SandboxPolicy)
   await ctx.plugin(Subagents)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
-  await ctx.plugin(TeamService)
+  await ctx.plugin(TeamService, { disposalTimeoutMs: options.disposalTimeoutMs })
   await ctx.plugin(Storage)
   if (backend === 'json') await ctx.plugin(JsonStorage, { root: join(root, 'storage') })
   else await ctx.plugin(await import('@deepseek-ai/dsh-storage-sqlite'), { path: join(root, 'storage.sqlite'), journalMode: 'delete' })

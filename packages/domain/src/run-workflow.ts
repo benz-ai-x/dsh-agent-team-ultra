@@ -25,6 +25,7 @@ function runRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeRunResult
 /** Rebuilds bounded Run projections from canonical Session and runtime evidence. */
 export class RunWorkflow {
   private readonly runRepairs = new Set<Promise<void>>()
+  private readonly runReads = new Set<Promise<GetDigitalEmployeeRunResult>>()
   private readonly pendingApprovals = new Map<string, Set<string>>()
 
   constructor(private readonly host: DigitalEmployeeHostContext) {}
@@ -33,17 +34,29 @@ export class RunWorkflow {
 
   clearApprovals(): void { this.pendingApprovals.clear() }
 
-  async whenSettled(): Promise<void> { await Promise.allSettled([...this.runRepairs]) }
+  async whenSettled(): Promise<void> { await Promise.allSettled([...this.runRepairs, ...this.runReads]) }
 
   /** Public Host Run inspector guarded by exact live Lead authority. */
-  async runEvidence(
+  runEvidence(
     caller: Agent,
     request: GetDigitalEmployeeRunRequest,
     signal: AbortSignal,
   ): Promise<GetDigitalEmployeeRunResult> {
+    const operation = this.inspectRun(caller, request, signal)
+    this.runReads.add(operation)
+    void operation.finally(() => { this.runReads.delete(operation) }).catch(() => undefined)
+    return operation
+  }
+
+  private async inspectRun(
+    caller: Agent,
+    request: GetDigitalEmployeeRunRequest,
+    callerSignal: AbortSignal,
+  ): Promise<GetDigitalEmployeeRunResult> {
     if (!this.host.admissionOpen) return runRejected(failure('service-disposed', 'Digital Employee service is disposing'))
     const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return runRejected(authorityFailure)
+    const signal = AbortSignal.any([callerSignal, this.host.lifecycle.signal])
     signal.throwIfAborted()
     const membership = this.host.ctx.agentTeams.membership(caller)
     const stored = this.host.storage.getRun(request.runId)
@@ -56,6 +69,9 @@ export class RunWorkflow {
           return runRejected(failure('evidence-unavailable', 'Run canonical DSH correlation is invalid'))
         }
         const events = await this.loadOwnSessionEvents(stored.canonicalSource.sessionId, signal)
+        signal.throwIfAborted()
+        const authorityFailure = this.host.mutationFailure(caller)
+        if (authorityFailure !== undefined) return runRejected(authorityFailure)
         const folded = foldDshRunEvidence(
           this.dshRunBindingFromIndex(stored),
           SessionId(stored.canonicalSource.sessionId),
@@ -68,6 +84,9 @@ export class RunWorkflow {
           return runRejected(failure('evidence-unavailable', 'canonical DSH turn is no longer inspectable'))
         }
         await this.host.storage.putRun(folded.index, this.host.config.maxRuns)
+        signal.throwIfAborted()
+        const responseFailure = this.host.mutationFailure(caller)
+        if (responseFailure !== undefined) return runRejected(responseFailure)
         return Object.freeze({ ok: true as const, value: folded.detail })
       } catch (error: unknown) {
         if (signal.aborted) throw error
@@ -85,6 +104,9 @@ export class RunWorkflow {
         limit: this.host.config.maxRunEvidenceItems,
         signal,
       })
+      signal.throwIfAborted()
+      const authorityFailure = this.host.mutationFailure(caller)
+      if (authorityFailure !== undefined) return runRejected(authorityFailure)
       const folded = foldExternalRunEvidence(
         stored,
         page.items,
@@ -93,6 +115,9 @@ export class RunWorkflow {
         page.pendingApprovals,
       )
       await this.host.storage.putRun(folded.index, this.host.config.maxRuns)
+      signal.throwIfAborted()
+      const responseFailure = this.host.mutationFailure(caller)
+      if (responseFailure !== undefined) return runRejected(responseFailure)
       return Object.freeze({ ok: true as const, value: folded.detail })
     } catch (error: unknown) {
       if (signal.aborted) throw error
@@ -230,7 +255,14 @@ export class RunWorkflow {
   }
 
   /** Repair all Run rows owned by one exact live Team Lead. */
-  async repairTeamRuns(caller: Agent): Promise<void> {
+  repairTeamRuns(caller: Agent): Promise<void> {
+    const operation = this.repairAdmittedTeamRuns(caller)
+    this.runRepairs.add(operation)
+    void operation.finally(() => { this.runRepairs.delete(operation) }).catch(() => undefined)
+    return operation
+  }
+
+  private async repairAdmittedTeamRuns(caller: Agent): Promise<void> {
     if (!this.host.hasStorage || this.host.lifecycle.signal.aborted || this.host.ctx.agents.get(caller.id) !== caller) return
     const membership = this.host.ctx.agentTeams.tryMembership(caller)
     if (membership?.role !== 'lead') return

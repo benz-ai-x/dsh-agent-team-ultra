@@ -8,7 +8,7 @@ import * as codex from '../../lib/index.js'
 import { NativeProduct } from './native-product.mjs'
 
 export async function queryWorkflow(configure?: (native: NativeProduct) => void, backend: 'json' | 'sqlite' = 'json',
-  options: { root?: string; resumeLead?: boolean } = {}) {
+  options: { root?: string; resumeLead?: boolean; disposalTimeoutMs?: number } = {}) {
   const host = await workflow(backend, options)
   const require = createRequire(import.meta.url)
   const manifestPath = require.resolve('@openai/codex/package.json')

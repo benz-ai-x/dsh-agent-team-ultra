@@ -590,7 +590,20 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
   async dispose(request: TeammateRuntimeDisposeRequest): Promise<void> {
     if (request.kind !== 'runtime') return
     const session = this.sessions.get(request.nativeHandle)
-    if (session !== undefined) await this.disposeSession(session)
+    if (session === undefined) return
+    const reportGrace = () => {
+      this.ctx.logger.warn('agent-team-claude-code: cleanup abort grace elapsed; still waiting for native process exit')
+    }
+    if (request.signal.aborted) reportGrace()
+    else request.signal.addEventListener('abort', reportGrace, { once: true })
+    try {
+      await this.disposeSession(session)
+      if (request.signal.aborted) {
+        this.ctx.logger.info('agent-team-claude-code: native cleanup reached quiescence after abort grace')
+      }
+    } finally {
+      request.signal.removeEventListener('abort', reportGrace)
+    }
   }
 
   async close(): Promise<void> {

@@ -15,6 +15,11 @@ platform payload. It preserves read-only sandboxing, approval `never`, disabled
 network, the `codex` route, native project correlations, thread handles, and
 Fiber-owned process cleanup. Package renaming changes no durable format.
 
+Cleanup closes admission and revokes the old generation before waiting for its
+process to exit. If the Team cleanup abort grace expires first, a warning says
+that cleanup is still waiting; a separate completion message follows actual
+quiescence. The grace period is not a hard unload deadline.
+
 New native threads install `team_members_list`, `team_tasks_list`,
 `team_tasks_get`, `team_message_send`, `team_task_update`, and `team_wait` through
 the qualified app-server dynamic-tool protocol.
@@ -48,7 +53,8 @@ and delivery. Retries within a live turn preserve trusted thread/turn/call ident
 normalized input conflicts. Queued means durable acceptance only. Final answers
 and explicit failed/interrupted notices use the same mailbox under a separate
 settlement identity. Cold resume recovers native terminal output and replays its
-settlement receipt. Codex marks orphan running turns interrupted after process
+settlement receipt and restores bounded terminal Run evidence after the new grant
+is bound. Codex marks orphan running turns interrupted after process
 restart; their dead tool RPC callbacks cannot be restored. Host receipt recovery
 and native interrupted-turn recovery are verified separately. Mailbox delivery
 to an inactive member first verifies its identity and binds a fresh grant. Reasoning, interim commentary and complete native transcripts
