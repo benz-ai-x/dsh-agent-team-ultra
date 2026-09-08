@@ -428,7 +428,7 @@ async function harness(options: {
     }
     const childCtx = {
       systemPrompt: { section: sections, context: contexts },
-      tools: { restrict: restriction },
+      tools: { restrict: restriction, schemas: () => [] },
       on: (event: string) => {
         childEvents.push(event)
         return scopeDisposer()

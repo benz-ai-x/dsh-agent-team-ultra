@@ -8,7 +8,7 @@
 
 最新用户要求是修复并复查 PR #61。只在既有独立 worktree 修复 `b7a5ec6` 评审的两类能力问题：精确 DSH 成员工具事实，以及原生必需完整协作的 create／resume 准入。配套 Harness 本地提交为 `57670c6b320f7f240cbad360a9f691c8598e1571`；新锁验证与双轴复查以 [当前证据](docs/evidence/pr61-capability-review-fixes.md) 为准。本轮未推送，不合并 PR #61，不修改其他 PR／Issue，不推进旧流水线或发送通知。历史计数保持原样。
 
-PR #60 已合并为 `9835db4361dcad500b3be09ef69f78420d71a6ab`，#34–#36 已 CLOSED 且各 5/5 AC。PR #61 与 #37 仍 OPEN；三项修复发布证据见 [修复说明](docs/evidence/pr61-review-fixes.md)。本次 Harness 合并为 `bb9b48954821a29f712043b08b746085cc07a440`；组合验证已通过：316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates，Ultra 完整 `pnpm verify` 为 582 strict／0 warnings、378 tests／32 files 与八归档恢复／Web／卸载。Ultra merge `309c778ed665ea78538a234a2897d4907eeb0a6f` 与 Harness merge 均已正常推送原分支并回读一致，发布后 strict 再次通过 582／0。本次交接只追加文档，不改变已验证产品；证据及不变的限制见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，不继承旧测试数或改变历史 review／重试计数。
+上轮冲突处理已经完成：PR #60 已合并为 `9835db4361dcad500b3be09ef69f78420d71a6ab`，#34–#36 已 CLOSED 且各 5/5 AC。PR #61 与 #37 仍 OPEN；三项修复发布证据见 [修复说明](docs/evidence/pr61-review-fixes.md)。当时 Harness 合并为 `bb9b48954821a29f712043b08b746085cc07a440`；组合验证为 316 owning tests、2 Remote／Loader、5 Web replay、32 doc gates，Ultra 完整 `pnpm verify` 为 582 strict／0 warnings、378 tests／32 files 与八归档恢复／Web／卸载。Ultra merge `309c778ed665ea78538a234a2897d4907eeb0a6f` 与 Harness merge 均已正常推送原分支并回读一致，发布后 strict 再次通过 582／0。该轮证据及限制见 [冲突处理记录](docs/evidence/pr61-merge-resolution.md)，不作为本轮修复代码的验证结果，也不改变历史 review／重试计数。
 
 ### 历史 PR #60 合并门槛（保留证据，不是当前授权）
 
