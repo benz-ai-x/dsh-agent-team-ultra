@@ -60,9 +60,9 @@ Issue 再建立重复的全量流程。
   `f36cc441c016ba7e1005718943f86f865aabb1af26397a771d2b0f03c49a97c8`。
   单独 `query-new → query-resume` 同样失败，排除仅全量执行时的资源问题。
 - 定位：Claude 的历史恢复用 `Date.now()` 代替缺失原生时间，把已知终态但未知
-  完成时间的 Run 标为 complete。修复仅采用对应历史终态自己的合法时间；未知
-  时间用既有非负证据边界的 0 表示，Host 保留 terminal，但不发布 endedAt，
-  完整性明确 incomplete。不能借用重启时钟或前一 assistant stage 的时间。
+  完成时间的 Run 标为 complete。`6d5499f` 第一轮改用 0，虽使 endedAt 缺省、
+  Run incomplete，却仍在时间线显示伪造的 1970 年；Standards 独立复查判定一项
+  P2，Spec 该轮为 0。不是可交付修复，不能借用重启时钟、epoch 或前一 stage 时间。
 - 同一公开 Host／生成 Remote 回归保留有日期历史的 complete＋`5 / 2 / 7`，
   新增 result-only 历史的 incomplete＋无 endedAt／usage。修复前 1 pass／1 fail：
   `pr63-studio-native-time-red.log`，SHA-256
@@ -70,6 +70,22 @@ Issue 再建立重复的全量流程。
   修复后 Claude operations 全文件 37／37：`pr63-studio-native-time-green.log`，
   SHA-256 `d802aaf908bb3bfa9cf10ee9f6ae3dc0a0a5af448452fe7ffb8285ceb44694db`。
   调试标记已移除，归档与完整门禁须以修复后新 build 重跑。
+- Standards P2 的公开 Remote 负向回归看到实际 `{ kind: 'turn', timestamp: 0 }`：
+  `pr63-studio-native-undated-red.log`，SHA-256
+  `91504cd0cf5e42c807ae2d628ecb4ef1f450fb7f46d60edf2711192be50bae72`。
+  最终改为省略无来源时间的证据项，provider 页保持 incomplete；独立 Team
+  settlement 保留原 outcome／turn／单次回执，Run 证据保持 unknown-terminal、
+  无 endedAt。发货 Studio 检查无 epoch 日期，并等待实际 Remote 的时间线或
+  明确“无规范证据”结果，而非把索引占位当详情。
+- 四个既有中断／不可信历史场景此前期待伪造时间的 terminal 项；更新为零项、
+  incomplete，并保留／补强真实 Team 结算、拒绝迟到结果和脱敏断言。初次回归
+  33 pass／4 fail 的日志 `pr63-studio-native-undated-first-green.log` 保留。
+  更新后 `pr63-studio-native-undated-green.log` 37／37；整个 Claude 套件的最终
+  结果见 `pr63-studio-native-undated-suite.log`（7 files／62 tests）。
+- 发现 Standards P2 后停止旧 `6d5499f` 的全量运行，退出 143；日志
+  `pr63-studio-candidate-final-verify.log`，SHA-256
+  `de3d2cb0c339b3b333cf5d72a6ef7ba8b40c73e9f1c640ce9f09aab8605d5ff7`。
+  仅终止已核对的本轮验证进程组，不影响其他工作；不计为完整通过。
 
 ## 固定环境与来源恢复
 

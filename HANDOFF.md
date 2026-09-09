@@ -10,6 +10,7 @@
 - 用户先要求合并 PR #63，随后明确同意先补齐“历史迁移 → 真实 Host／生成 Remote → 发货 Studio”的 Run／用量／完整性／错误冒泡验收，并在通过后提升支持资格、复查、合并及同步 main。只处理 PR #63；#44 真实认证 native、父 Spec #18、通知和原 worktree／stash 清理不在本轮范围内。下节“不合并／未确认”仅是先前修复轮的历史授权。
 - 开工 strict 因共享 Harness 的原 `.git/worktrees/harness2` 消失而失败。共享 `/root/workspace/deepseek-harness` 现为官方 `5dda764`，未修改它；从维护远端取回精确 `3c38b1d4e8` 至 `/root/workspace/pr63-source-repair.UKB4f7/c-harness.git`，新索引确认现有 C 源码所有 tracked 字节完全一致，才修复 C `.git` 指针。原指针备份在同目录 `c-harness-original-git.txt`；保留该管理目录，源码／build／锁均不变。重新 strict 648／0 warnings 通过，日志 `pr63-studio-restored-strict.log`。
 - 发货 Studio 联合入口已接入四组既有归档门禁。`c5ceeb4` 的完整测试 447／447 通过，但归档验收揭示 Claude 冷恢复把缺失历史时间替换为重启时钟；同一公开 Host／生成 Remote 用例 RED → GREEN 修正，Claude operations 37／37。详情和原失败日志保留在 [当前联合验收证据](docs/evidence/pr63-studio-acceptance.md)；不把文件名中的 green 当成通过。
+- 第一轮用 0 替代未知时间的 `6d5499f` 被 Standards 发现 P2：UI 会显示 1970 年；已停止该候选的未完成全量运行。最终省略无日期规范证据，保留独立 Team settlement，页面明确 incomplete，Studio 检查无 epoch 日期。公开 RED → GREEN 后 Claude 全套 62／62 通过，等待新候选完整门禁及复查。
 - 当前在原 PR #63 工作树复验上述修复；升级资格、最终验证／复查及合并尚未完成。使用 `tdd`、`dsh-plugin-dev`、`diagnosing-bugs`、`code-review`，不把旧的绿灯或受控 SDK 当成新联合验收及 #44 认证。
 
 ## PR #63 审查修复与同步（前一轮记录）

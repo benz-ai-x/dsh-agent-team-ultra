@@ -488,6 +488,11 @@ Focused Linux verification is not the final historical archive or native-auth ga
   Recovery restores only source-timed terminal evidence, not the whole historical
   tool/usage timeline, so its page-level completeness stays incomplete for that
   provider generation, including subsequent work on the same native history.
+  Claude likewise omits undated historical evidence rather than substituting
+  the recovery clock, epoch zero, or another assistant stage's time. Its separate
+  Team settlement retains the known outcome, while evidence gaps keep the page
+  incomplete for that provider generation. Fully source-timed history remains
+  eligible for complete evidence.
 - Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text

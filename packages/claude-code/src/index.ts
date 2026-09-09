@@ -150,6 +150,7 @@ interface NativeSession {
   readonly launchRequestId: string
   readonly memberId: string
   readonly evidence: TeammateRuntimeEvidenceItem[]
+  evidenceIncomplete: boolean
   readonly deliveries: Map<string, ReturnType<typeof TeammateRuntimeTurnId>>
   readonly deliveryOperations: Map<string, Promise<TeammateRuntimeDeliverResult>>
   recoveryMessages: readonly SessionMessage[] | undefined
@@ -172,7 +173,7 @@ interface ActiveTurn {
 
 interface TurnTerminal {
   readonly outcome: TurnOutcome
-  readonly timestamp: number
+  readonly timestamp: number | undefined
   readonly text: string
 }
 
@@ -582,7 +583,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         ...(end < session.evidence.length
           ? { nextCursor: TeammateRuntimeEvidenceCursor(String(end)) }
           : {}),
-        complete: end === session.evidence.length,
+        complete: !session.evidenceIncomplete && end === session.evidence.length,
       }
     })
   }
@@ -945,13 +946,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     void turn.done.then((terminal) => {
       if (session.current !== turn || session.disposed) return
       session.current = undefined
-      this.addEvidence(session, {
-        id: evidenceId('turn', session.handle, turn.id),
-        kind: 'turn',
-        timestamp: terminal.timestamp,
-        turnId: turn.id,
-        outcome: terminal.outcome,
-      })
+      this.recordTerminalEvidence(session, turn.id, terminal)
       session.presence = 'idle'
       this.emitPresence(session, 'idle')
       this.queueSettlement(session, turn.id, terminal)
@@ -1182,9 +1177,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       const committed = settlements.get(work.id)
       if (transcript === undefined && committed === undefined) continue
       if (work.deliveryId !== undefined) session.deliveries.set(work.deliveryId, work.id)
-      // A recovered terminal without a native timestamp must not acquire the
-      // restart time. Zero keeps the Run's completion time explicitly unavailable.
-      let timestamp = 0
+      let timestamp: number | undefined
       let nativeTerminal: TurnTerminal | undefined
       let inputTokens = 0
       let outputTokens = 0
@@ -1208,8 +1201,9 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
             ? 'completed'
             : undefined
         if (committed !== undefined && terminalOutcome !== undefined && terminalOutcome !== committed.outcome) break
-        timestamp = Number.isSafeInteger(parsedTimestamp) && parsedTimestamp >= 0 ? parsedTimestamp : 0
-        this.recordAssistantTools(session, work.id, raw, timestamp)
+        timestamp = Number.isSafeInteger(parsedTimestamp) && parsedTimestamp >= 0 ? parsedTimestamp : undefined
+        if (timestamp === undefined) session.evidenceIncomplete = true
+        else this.recordAssistantTools(session, work.id, raw, timestamp)
         const usage = claudeUsage(message.usage)
         if (message.usage !== undefined) sawUsage = true
         if (message.usage !== undefined && usage === undefined) validUsage = false
@@ -1241,10 +1235,10 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         }
       }
       const terminal: TurnTerminal = committed === undefined
-        ? nativeTerminal ?? { outcome: 'interrupted', timestamp: 0, text: terminalText('interrupted', '') }
-        : { outcome: committed.outcome, timestamp: nativeTerminal?.timestamp ?? 0, text: committed.text }
+        ? nativeTerminal ?? { outcome: 'interrupted', timestamp: undefined, text: terminalText('interrupted', '') }
+        : { outcome: committed.outcome, timestamp: nativeTerminal?.timestamp, text: committed.text }
       await this.queueSettlement(session, work.id, terminal)
-      if (sawUsage) {
+      if (sawUsage && timestamp !== undefined) {
         const usage = validUsage ? Object.freeze({
           inputTokens, outputTokens,
           totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens,
@@ -1257,11 +1251,21 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
           ...(usage === undefined ? {} : { usage }),
         })
       }
-      this.addEvidence(session, {
-        id: evidenceId('turn', session.handle, work.id),
-        kind: 'turn', timestamp: terminal.timestamp, turnId: work.id, outcome: terminal.outcome,
-      })
+      this.recordTerminalEvidence(session, work.id, terminal)
     }
+  }
+
+  private recordTerminalEvidence(session: NativeSession, id: ReturnType<typeof TeammateRuntimeTurnId>, terminal: TurnTerminal): void {
+    // The timestamp-required evidence boundary cannot represent an undated
+    // terminal. Its independent Team settlement still preserves the outcome.
+    if (terminal.timestamp === undefined) {
+      session.evidenceIncomplete = true
+      return
+    }
+    this.addEvidence(session, {
+      id: evidenceId('turn', session.handle, id),
+      kind: 'turn', timestamp: terminal.timestamp, turnId: id, outcome: terminal.outcome,
+    })
   }
 
   private addEvidence(session: NativeSession, item: TeammateRuntimeEvidenceItem): void {
@@ -1311,6 +1315,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       launchRequestId,
       memberId,
       evidence: [],
+      evidenceIncomplete: false,
       deliveries: new Map(),
       deliveryOperations: new Map(),
       recoveryMessages: undefined,

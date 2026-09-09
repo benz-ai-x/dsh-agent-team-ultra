@@ -176,11 +176,14 @@ export async function probePackedStudio({ ctx, installed, harnessRoot, lead, mem
     for (const row of rows) {
       await click(row)
       const link = await until(() => dialog.querySelector('a[aria-label="Canonical source"]'), 'generated Remote Run detail')
-      await until(() => dialog.querySelector('main time'), 'canonical Run timeline from Remote')
+      await until(() => dialog.querySelector('main time') || dialog.querySelector('main').textContent
+        .includes('No normalized evidence is available for this Run.'), 'canonical Run detail from Remote')
       const turn = link.textContent.replace('Canonical source: ', '')
       displayedTurns.add(turn)
       assert.ok(dialog.querySelector('main').textContent.includes('Run evidence'))
       assert.ok(dialog.querySelector('main').textContent.includes('Evidence completeness:'))
+      assert.ok([...dialog.querySelectorAll('main time')].every(time => time.textContent !== new Date(0).toLocaleString()),
+        'unknown historical times must not appear as a fabricated epoch date')
       if (historicalTurns.includes(turn)) assert.ok(dialog.querySelector('main').textContent
         .includes('Evidence completeness: incomplete'), 'the original fixture has no recoverable terminal time')
     }
