@@ -29,7 +29,7 @@ declare module '@deepseek-ai/cordis' {
 
 /** Ultra B0: Profile catalog and official DSH teammate bindings, scoped to one Host lifetime. */
 export class DigitalEmployeeService extends TypertRemoteService {
-  static inject = ['agents', 'agentTeams', 'sessionPersistence', 'storageDomain', 'subagents', 'systemPrompt', 'tools']
+  static inject = ['agents', 'agentTeams', 'sessionPersistence', 'storageDomain', 'subagents', 'systemPrompt', 'tools', 'ultraBaselineData']
   static Config = Config
   private readonly host: DigitalEmployeeHostContext
   private readonly profiles: ProfileLifecycle
@@ -47,7 +47,7 @@ export class DigitalEmployeeService extends TypertRemoteService {
   }
 
   protected async [Service.init](): Promise<void> {
-    this.host.attachStorage(await openDigitalEmployeeStorage(this.ctx.storageDomain))
+    this.host.attachStorage(await openDigitalEmployeeStorage(this.ctx.storageDomain, this.ctx.ultraBaselineData))
     const stops: Array<() => void> = []
     this.ctx.effect(() => async () => {
       this.host.closeAdmission()

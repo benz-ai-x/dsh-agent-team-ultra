@@ -2,7 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { assertUltraCompatibility } from '@benz-ai-x/dsh-agent-team-ultra/compatibility'
-import { assertBaselineData } from '@benz-ai-x/dsh-agent-team-ultra/baseline-data'
+import { assertBaselineData, BaselineDataError, type BaselineDataAdmission } from '@benz-ai-x/dsh-agent-team-ultra/baseline-data'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { assertLoaderCompatibility } from './loader-compatibility.ts'
 
@@ -23,4 +23,14 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   await ctx.plugin(Persistence, { root: paths.sessions, compression: 'none' })
   await ctx.plugin(JsonStorage, { root: paths.storage })
   await ctx.plugin(StorageDomain, { backend: 'json' })
+  await ctx.inject(['storageDomain'], scope => {
+    const facility = scope.storageDomain
+    const admission = Object.freeze<BaselineDataAdmission>({
+      assert(current) {
+        if (current !== facility) throw new BaselineDataError('data owner does not own the selected storage facility')
+        assertBaselineData(paths.root)
+      },
+    })
+    scope.provide('ultraBaselineData', admission)
+  })
 }

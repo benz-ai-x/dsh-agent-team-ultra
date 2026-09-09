@@ -61,11 +61,12 @@ try {
   assert.ok(!/id: agent-team-(codex|claude-code)/.test(dump), 'retired runtime in Loader')
   console.log('PASS ' + archives.length + ' archives: real CLI installation, ordinary resolution and official Loader composition')
   const marker = readFileSync(join(home, 'ultra-b0/ultra-b0.json'))
-  // Exercise the same public behavior suite against the actual installed Host and Typert bytes.
+  // Exercise the same public behavior suite against the installed Profile, Host and Typert bytes.
   const product = run(process.execPath, [join(root, 'node_modules/vitest/vitest.mjs'), 'run',
     'packages/domain/tests/b0-workflow.integration.spec.ts', 'packages/ui/tests/packed-studio.client.spec.tsx'],
   'installed Host/Studio/generated Remote workflow', {
     ULTRA_PACKED_DOMAIN: join(installed, '@benz-ai-x/dsh-agent-team-ultra'),
+    ULTRA_PACKED_PROFILE: join(installed, '@benz-ai-x/dsh-agent-team-ultra-profile'),
     ULTRA_PACKED_UI: join(installed, '@benz-ai-x/dsh-client-ui-agent-team-ultra'),
   })
   process.stdout.write(product)

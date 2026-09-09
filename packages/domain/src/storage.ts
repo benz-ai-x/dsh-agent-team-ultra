@@ -5,6 +5,7 @@ import { defineDomain, domainTable, type Domain, type DomainFacility } from '@de
 import { z } from 'zod'
 import { digitalEmployeeProfileDraftSchema, digitalEmployeeProfileSchema, launchRequestIdSchema } from './spec.ts'
 import { snapshotProfile, snapshotProfileDraft, snapshotProfileHead, snapshotProfileRevision } from './profile-snapshot.ts'
+import type { BaselineDataAdmission } from './baseline-data.ts'
 import type { DigitalEmployeeProfile, DigitalEmployeeProfileDraft, DigitalEmployeeProfileHead, DigitalEmployeeProfileRevision } from './types.ts'
 
 export interface DigitalEmployeeBinding {
@@ -210,7 +211,8 @@ export class DigitalEmployeeStorage {
   async close(): Promise<void> { await this.domain.close() }
 }
 
-export async function openDigitalEmployeeStorage(facility: DomainFacility): Promise<DigitalEmployeeStorage> {
+export async function openDigitalEmployeeStorage(facility: DomainFacility, admission: BaselineDataAdmission): Promise<DigitalEmployeeStorage> {
+  admission.assert(facility)
   const domain = await facility.open(digitalEmployeeDomainSpec)
   try {
     const storage = new DigitalEmployeeStorage(domain)

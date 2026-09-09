@@ -1,6 +1,16 @@
 /** Node-only B0 admission. No Harness import or business registration precedes it. */
 import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
+import type { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
+
+/** The data owner's read-only admission for its exact live storage facility. */
+export interface BaselineDataAdmission {
+  assert(facility: DomainFacility): void
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context { ultraBaselineData: BaselineDataAdmission }
+}
 
 const markerName = 'ultra-b0.json'
 const unpublishedRecordName = /^\.[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.tmp$/u

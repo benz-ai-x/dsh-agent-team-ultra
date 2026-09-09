@@ -63,7 +63,7 @@ describe('official DSH-only B0 through generated Remote and real storage/Team', 
     if (mode === 'missing') await rm(path)
     else await writeFile(path, altered)
     const refused = ctx.plugin(DigitalEmployeeService)
-    await expect(Promise.resolve(refused).then(() => 'admitted')).rejects.toThrow(/retained Revision history/)
+    await expect(Promise.resolve(refused).then(() => 'admitted')).rejects.toThrow(mode === 'missing' ? /retained Revision history/ : /B0_DATA/)
     expect(ctx.digitalEmployees).toBeUndefined()
     await refused.dispose()
     if (mode === 'missing') await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -79,27 +79,77 @@ describe('official DSH-only B0 through generated Remote and real storage/Team', 
   it.each(['malformed', 'future'] as const)('refuses a cold %s Head without losing the Profile or resetting its CAS', async mode => {
     const root = await mkdtemp(join(tmpdir(), 'ultra-b0-head-admission-'))
     cleanups.push(() => rm(root, { recursive: true, force: true }))
-    const first = await workflow('json', { root })
+    const first = await workflow({ root })
     await activated(first)
     await first.ctx.fiber.dispose()
     const path = join(root, 'storage/agent_team_ultra_b0/profile_heads', profile.id + '.json')
     const original = await readFile(path)
     const altered = mode === 'future' ? JSON.stringify({ ...JSON.parse(original.toString()), version: 2 }) : '{broken'
     await writeFile(path, altered)
-    await expect(workflow('json', { root })).rejects.toThrow(/B0_DATA/)
+    await expect(workflow({ root })).rejects.toThrow(/B0_DATA/)
     expect(await readFile(path, 'utf8')).toBe(altered)
     await writeFile(path, original)
-    const second = await workflow('json', { root })
+    const second = await workflow({ root })
     expect(second.ctx.digitalEmployees.studioView(second.lead.agent).profiles[0]?.head).toMatchObject({
       profileId: profile.id, headRevision: 2, activeRevision: 1,
     })
     expect(await second.invoke('save', { expectedHeadRevision: null, profile })).toMatchObject({ ok: false, error: { code: 'profile-conflict' } })
   })
 
+  it.each(['malformed', 'future'] as const)('refuses a %s Head on Loader re-enable without replacing the data owner or resetting CAS', async mode => {
+    const fixture = await workflow()
+    await activated(fixture)
+    const { ctx, lead, invoke, root } = fixture
+    const dataFiber = ctx.loader.resolve('agent-team-ultra-data')!.fiber
+    const path = join(root, 'storage/agent_team_ultra_b0/profile_heads', profile.id + '.json')
+    const original = await readFile(path)
+    const altered = mode === 'future' ? JSON.stringify({ ...JSON.parse(original.toString()), version: 2 }) : '{broken'
+    await ctx.loader.update('agent-team-ultra', { disabled: true })
+    expect(ctx.digitalEmployees).toBeUndefined()
+    await writeFile(path, altered)
+    await expect(ctx.loader.update('agent-team-ultra', { disabled: false })).rejects.toThrow(/B0_DATA/)
+    expect(ctx.loader.resolve('agent-team-ultra-data')!.fiber).toBe(dataFiber)
+    expect(ctx.digitalEmployees).toBeUndefined()
+    expect(await readFile(path, 'utf8')).toBe(altered)
+    await writeFile(path, original)
+    await ctx.loader.update('agent-team-ultra', { disabled: false })
+    expect(ctx.digitalEmployees.studioView(lead.agent).profiles[0]?.head).toMatchObject({
+      headRevision: 2, activeRevision: 1, latestRevision: 1,
+    })
+    expect(await invoke('save', { expectedHeadRevision: null, profile })).toMatchObject({ ok: false, error: { code: 'profile-conflict' } })
+    expect(await invoke('save', { expectedHeadRevision: 2, profile: { ...profile, mission: 'after recovery' } })).toMatchObject({
+      ok: true, value: { head: { headRevision: 3, latestRevision: 2, activeRevision: 1 } },
+    })
+  })
+
+  it('withdraws data admission with its Loader owner and restores the same Profile on re-enable', async () => {
+    const fixture = await workflow()
+    await activated(fixture)
+    const { ctx, lead, invoke } = fixture
+    const previous = ctx.digitalEmployees
+    expect(ctx.ultraBaselineData).toBeDefined()
+    await ctx.loader.update('agent-team-ultra-data', { disabled: true })
+    expect(ctx.ultraBaselineData).toBeUndefined()
+    expect(ctx.digitalEmployees).toBeUndefined()
+    expect(await previous.saveProfile(lead.agent, { expectedHeadRevision: 2, profile })).toMatchObject({
+      ok: false, error: { code: 'service-disposed' },
+    })
+    await ctx.loader.update('agent-team-ultra-data', { disabled: false })
+    expect(ctx.ultraBaselineData).toBeDefined()
+    await vi.waitFor(async () => {
+      expect((await invoke('view') as DigitalEmployeeStudioView).profiles[0]?.head).toMatchObject({
+        headRevision: 2, activeRevision: 1, latestRevision: 1,
+      })
+    })
+    expect(await invoke('save', { expectedHeadRevision: null, profile })).toMatchObject({
+      ok: false, error: { code: 'profile-conflict' },
+    })
+  })
+
   it('reuses an unpublished immutable Revision after a cold Head-publication interruption', async () => {
     const root = await mkdtemp(join(tmpdir(), 'ultra-b0-orphan-revision-'))
     cleanups.push(() => rm(root, { recursive: true, force: true }))
-    const first = await workflow('json', { root })
+    const first = await workflow({ root })
     await activated(first)
     const path = join(root, 'storage/agent_team_ultra_b0/profile_heads', profile.id + '.json')
     const previous = await readFile(path)
@@ -108,7 +158,7 @@ describe('official DSH-only B0 through generated Remote and real storage/Team', 
     await first.ctx.fiber.dispose()
     // Replay the durable cut after Revision r2, before publishing its Head.
     await writeFile(path, previous)
-    const second = await workflow('json', { root })
+    const second = await workflow({ root })
     expect(second.ctx.digitalEmployees.studioView(second.lead.agent).profiles[0]?.history.map(row => row.revision)).toEqual([1])
     expect(await second.invoke('save', { expectedHeadRevision: 2, profile: next })).toMatchObject({
       ok: true, value: { head: { latestRevision: 2, headRevision: 3 }, revision: { revision: 2 } },
@@ -202,7 +252,7 @@ describe('official DSH-only B0 through generated Remote and real storage/Team', 
   it.each(['active', 'pending', 'unproven'] as const)('recovers a cold %s Binding only with canonical child proof, never a replacement', async phase => {
     const root = await mkdtemp(join(tmpdir(), 'ultra-b0-cold-'))
     cleanups.push(() => rm(root, { recursive: true, force: true }))
-    const first = await workflow('json', { root })
+    const first = await workflow({ root })
     await activated(first)
     const request = { profileId: profile.id, launchRequestId: randomUUID(), assignment: 'cold proof' }
     const result = await first.invoke('spawn', request) as SpawnDigitalEmployeeResult
@@ -219,7 +269,7 @@ describe('official DSH-only B0 through generated Remote and real storage/Team', 
       if (phase === 'unproven') document.record.initialPromptFingerprint = 'a'.repeat(64)
       await writeFile(path, JSON.stringify(document))
     }
-    const second = await workflow('json', { root, resumeLead: true })
+    const second = await workflow({ root, resumeLead: true })
     expect(await second.invoke('spawn', request)).toMatchObject({ ok: true, value: phase === 'unproven'
       ? { provisioningPhase: 'pending', profileRevision: 1 }
       : { memberId: id, profileRevision: 1, provisioningPhase: 'active' } })
