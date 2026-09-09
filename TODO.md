@@ -2,6 +2,7 @@
 
 用户于 2026-09-09 授权本地清理。当前工作分支：`chore/official-dsh-only-baseline`。
 用户随后明确要求“建 PR”，该发布已完成。PR #64 三项审查修复及复查完成后，用户授权“推送 PR”；修复已提交并推送原分支，不自动合并或关闭旧 Issues。
+随后审查发现服务单独重载遗漏 B0 数据准入；修复及复查完成后，用户明确授权“合并 PR64”。重载修复 `0dc70ac` 已提交并推送原 PR 分支，合并状态以 PR／Git 回读为准。
 产品边界以 [ADR 0028](docs/adr/0028-establish-official-dsh-only-baseline.md) 和
 [项目契约](docs/agent/PROJECT_CONTRACT.md) 为准；[验收记录](docs/evidence/b0-baseline-acceptance.md) 区分自动化与真实账号验证。
 
@@ -29,7 +30,7 @@
 - [x] 补充发货 Client bundle 的 Chromium 截图，明确使用演示数据，不作为真实账号验收。
 - [x] B0 已提交为 `19e07a5` 并推送原分支，创建 [PR #64](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/64) → main；回读 OPEN／非草稿／MERGEABLE／CLEAN，PR head、远端与本地一致。随后只同步发布交接文档，不自动合并。
 
-## PR #64 审查修复（当前）
+## PR #64 首轮审查修复（此前已推送）
 
 - [x] Standards P1：恢复已发布 Revision 历史连续性校验；中间记录缺失、损坏、未来封装拒绝开放写入，恢复原字节后可继续；未发布孤立 Revision 仍可安全重试。
 - [x] Spec P1：可写后端注册前拒绝损坏／未知 B0 per-record 封装与布局，保留原字节；官方未发布 UUID 临时文件保留，不当作正式记录。真实 CLI 与冷 Host 准入回归通过。
@@ -38,10 +39,18 @@
 - [x] 最终本地候选独立复查通过：Standards 0 项／原 P1 关闭；Spec 0 项／原 P1、P2 关闭。两轴另行重跑 4 项／14 项定向回归均通过；结果及指纹见验收记录与根交接。
 - [x] 用户授权后将三项修复提交为 `dd5cfa8` 并推送到 PR #64，回读确认远端包含该提交；随后仅同步发布文档。worktree `/tmp/ultra-pr64-review.p7Wub1/ultra`，主目录 main 不变。
 
+## PR #64 服务重载准入修复与合并授权（当前）
+
+- [x] 实际 Loader 停用／启用回归先证明坏 Head 被忽略；data owner 提供绑定固定根与 facility 的只读准入能力，每次 Domain 打开前必检。
+- [x] 损坏／未来 Head 拒绝且保留字节；恢复后历史、激活状态及 CAS 不重置；data Fiber 停用撤销准入与 Host，再启用恢复原 Profile。
+- [x] 本地与安装版共用实际 Profile data／兼容性 Group；完整 `pnpm verify`：496 strict／0 warnings、64 tests／9 files、安装版 21 tests／2 files，六归档安装／Web 正常退出／卸载保留数据通过。
+- [x] 冻结候选独立复查通过：Standards 0 项／Spec 0 项，原 P1 关闭；两轴另行重跑 7 项／34 项相关回归通过，运行差异指纹一致。
+- [x] 用户授权合并后，将重载修复提交为 `0dc70ac` 并推送到 PR #64，回读确认已包含；合并前 strict 496 checks／0 warnings，运行输入和复查指纹不变，复用已有完整验证。
+
 ## PR 创建后再决定
 
 - [ ] B0-12：用户提供并授权隔离 DSH 账号环境后，验证一个真实员工任务、Profile 效果和官方会话续接。自动化受控模型不替代此项。
-- [ ] 复查与真实验证限制确认后，由用户进一步授权决定合并。
+- [x] 用户已明确授权合并 PR #64；真实账号验证限制仍单列，最终合并状态以 PR／Git 回读为准。
 - [ ] 先根据真实使用反馈判断是否深化 Profile 工作流；不默认恢复多运行时、自动评测或第二套 Team 界面。
 - [ ] 如确需历史 Profile 导入，另行设计显式、先校验、默认未激活的导入；不得删除旧 gate／route 字段后假称无损兼容。
 

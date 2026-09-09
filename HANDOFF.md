@@ -4,7 +4,31 @@
 本文件为当前交接入口；[旧交接](docs/history/pre-b0-handoff.md) 和
 [docs/HANDOFF.md](docs/HANDOFF.md) 只保留历史，不能覆盖当前授权。
 
-## PR #64 修复、复查与推送（当前）
+## PR #64 合并交付（当前）
+
+用户在修复复查后明确授权“合并 PR64”。服务重载准入修复已提交为
+`0dc70acd1e363926ad5968ce7d7deb185c7d5c59` 并推送到原 PR 分支
+`chore/official-dsh-only-baseline`，回读确认 PR 包含该提交；后续提交仅同步交接文档。
+本次授权包含将已验修复随 PR 合入 main 并快进本地 main，不包含删除分支／历史 worktree、
+旧 Issue 更新或真实账号使用。最终合并状态与提交以 [PR #64](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/64)
+和 `origin/main` 回读为准；下方旧 OPEN 状态仅为历史，不能据此重复发布。
+实施 worktree 保留在 `/tmp/ultra-pr64-review.p7Wub1/ultra`。
+
+- 原 P1：单独停用／启用 Ultra 时 data Fiber 不变，坏 Head 被官方 reader 忽略，后续空 CAS 保存可重置已激活 Profile。此前 61／18 项测试通过仍遗漏此路径，违反 B0-02 重复准入要求。
+- 已补实际 Loader 回归并获得有效 RED：重新启用本应拒绝，实际成功。修复后由 Profile data Fiber 持有固定数据根及其 storage facility 的只读准入能力；每次 Domain 打开前必须复检，能力随 owner 撤销，不增加第二份路径配置、不修改官方源码。
+- 新增 3 项工作流回归：损坏／未来 Head 的 Loader 再启用均拒绝且原字节保留，恢复原文件后激活状态、历史和 CAS 不重置；停用 data entry 撤销准入与 Host，重启恢复原 Profile。共享 fixture 使用实际 Profile data／兼容性 Group；安装联验显式加载归档安装后的 Profile 字节。
+- 完整 `pnpm verify` 自然退出 0：496 strict／0 warnings、64 tests／9 files、六归档真实安装、安装版 21 tests／2 files、Web `ready=true / forced=false / code=0`、完整卸载且数据保留。日志 `/tmp/ultra-pr64-review.p7Wub1/reload-fix-verify.log`；有效失败与首次通过为同目录 `reload-fix-red.log`、`reload-fix-green.log`。
+- 已冻结 67 个运行输入，SHA-256 `1e67d4b2ff09b9f3f097f275492340f0b250c39b137dad16b8ae85720a8ac4db`；复查时包含未提交修复的 `git diff f84584def627b4af78a029af8788de73da0ad567 -- packages scripts` SHA-256 为 `f9e1de6db3101119a00aeef09ecc7f41849ec1b15faaaa09f426d98edcf8909b`。这些运行修复现已全部进入 `0dc70ac`。
+- 独立两轴复查通过：Standards 0 项硬性违例／0 项异味，Spec 0 项／原 P1 关闭；另行重跑 7 项／34 项相关回归通过，运行差异指纹一致。B0-12 真实账号仍未验证。
+- 收尾：9 份活动文档的 54 个本地链接／2 个锚点与 `git diff --check` 通过；运行输入及差异指纹未漂移，main／固定官方源码 clean，四个 stash 保留。
+- 合并前重新通过 strict：496 checks／0 warnings；fetch 确认 main 仍为 `f84584d`，运行输入及差异指纹与上述完整验证／两轴复查相同，复用已验结果而不重复全套测试。采用普通推送及保留提交历史的合并，不强推、不绕过保护规则。日志 `merge-pr64-strict.log` 位于同一日志目录。
+- 后续由用户另行安排 B0-12 隔离账号验证及下一步产品方向，不自动重启旧开发流水线或清理旧资料。
+- 修复阶段用 `tdd` 固定 Loader／Host 公共边界先失败再修复，`codebase-design` 明确数据 owner 与 Domain 的责任，`code-review` 独立复查两轴；本次用 `writing-for-agents` 同步已发布修复、合并授权及验证限制。
+
+此前诊断 `/tmp/pr64-pushed-spec.oS3tUy/loader-admission.mjs` 断言旧坏行为，不能作为修复验收；
+只可在新隔离临时数据中使用，不能指向真实数据或已有 Profile 目录。
+
+## PR #64 修复、复查与推送（此前）
 
 用户审查后授权“修”，复查通过后再授权“推送 PR”。隔离 worktree
 `/tmp/ultra-pr64-review.p7Wub1/ultra` 位于原分支 `chore/official-dsh-only-baseline`。
@@ -51,7 +75,7 @@ B0 版本 `0.2.0-b0.1`，只保留 domain／ui／profile 三个 Ultra 包：
 B0 只能安装到新的绝对路径 `DSH_HOME`，先显式初始化其 `ultra-b0`。
 B0 身份为 Session 3、不压缩 JSONL、JSON domain `agent_team_ultra_b0` version 1。
 没有自动迁移或兼容导入，SQLite 与历史 native 数据仍使用匹配的旧程序。
-缺失／损坏／未知标记、缺目录、旧 Session 头、旧 Ultra domain、符号链接及损坏／未知 B0 记录封装在注册可写后端前拒绝。
+缺失／损坏／未知标记、缺目录、旧 Session 头、旧 Ultra domain、符号链接及损坏／未知 B0 记录封装在注册可写后端前拒绝；每次 Domain 打开前再次只读校验。
 marker 不是导入许可；完整 Session 内容继续由官方 codec 校验。
 卸载保留应用数据。不要拿生产目录试装，也不要删除或重写旧资料。
 
@@ -93,8 +117,8 @@ Web 真实监听后自然退出（ready=true、forced=false、code=0）、完整
 前轮沙箱曾引起 pnpm 数据库／子进程 EPERM，本轮环境已开放，不需要或请求提权。
 没有使用真实模型账号／凭据；B0-12 保持未验证。
 
-本地清理与 B0 PR 创建已完成；当前修复候选的结果见顶部“PR #64 修复、复查与推送”。
-建 PR 不包含合并、关闭旧 Issue、真实模型凭据使用或消息通知。
+本地清理与 B0 PR 创建已完成；当前已发布修复及合并授权见顶部“PR #64 合并交付”。
+最初的建 PR 授权不包含合并；本次用户已另行授权合并，旧 Issue、真实模型凭据和消息仍不在范围内。
 
 ## 技能与设计依据
 

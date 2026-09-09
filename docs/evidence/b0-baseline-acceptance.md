@@ -7,8 +7,8 @@
 ## 结论
 
 已完成官方优先、DSH-only 的代码／依赖／活动文档清理。
-PR #64 初审发现三项问题，已补回归并修复；独立 Standards／Spec 复查均为 0 项，用户授权后已提交并推送修复。
-修复后完整 `pnpm verify` 自然退出 0：61 项产品测试、18 项安装版联验及六归档安装／Web／卸载门禁通过。
+PR #64 初审三项问题已修复并推送；随后发现的服务重载准入缺口已补实际 Loader 回归并修复，用户授权合并后提交为 `0dc70ac` 并推送原 PR 分支。
+本地候选完整 `pnpm verify` 自然退出 0：64 项产品测试、21 项安装版联验及六归档安装／Web／卸载门禁通过；独立 Standards／Spec 均为 0 项，原 P1 关闭。
 B0-12 真实账号任务／人工浏览器验收未执行，不宣称生产可用、PR 审批通过或旧 Spec #18/#44 完成。
 
 ## 固定输入
@@ -17,7 +17,7 @@ B0-12 真实账号任务／人工浏览器验收未执行，不宣称生产可�
 | --- | --- |
 | Ultra 旧基线与 main | `f84584def627b4af78a029af8788de73da0ad567` |
 | 工作分支 | `chore/official-dsh-only-baseline` |
-| 已推送修复运行提交 | `dd5cfa8d9c63e9bdaa256b8718bd8bf635754e3d`；后续只同步发布文档 |
+| 已推送修复运行提交 | 首轮 `dd5cfa8d9c63e9bdaa256b8718bd8bf635754e3d`；重载修复 `0dc70acd1e363926ad5968ce7d7deb185c7d5c59`；后续仅同步交接文档 |
 | 官方 Harness | `0.1.5-alpha.1` / `5dda764ed3aa172535a7967b06ff95d9cbfe536a` |
 | docsDigest | `fde0d2d31418311ee2ca0cdbf07a163917e7affbe6d2720de27fda52cd0b6632` |
 | 实际来源 | `.dsh/official-015`，由 `.dsh/harness` 统一引用 |
@@ -25,7 +25,8 @@ B0-12 真实账号任务／人工浏览器验收未执行，不宣称生产可�
 | 新数据 | Session 3、不压缩 JSONL、JSON domain `agent_team_ultra_b0` version 1 |
 | 本地闭包 | 三个 Ultra 包＋三个未修改的官方 Team 包，精确官方 peers 来自固定源码 |
 | PR 发布前运行输入指纹（历史） | 67 个文件，SHA-256 `32f4f858944786be584a4f61aae72eda01dc7d10625f01fb9ee7295305eab9ea` |
-| 当前修复候选运行输入指纹 | 67 个文件，SHA-256 `aa007fb3ebec1886c029dfa2b47b836c3b7956fd19622be85453105e3f75fb0a` |
+| 首轮已推送修复运行输入指纹（历史） | 67 个文件，SHA-256 `aa007fb3ebec1886c029dfa2b47b836c3b7956fd19622be85453105e3f75fb0a` |
+| 当前已发布重载修复运行输入指纹 | 67 个文件，SHA-256 `1e67d4b2ff09b9f3f097f275492340f0b250c39b137dad16b8ae85720a8ac4db` |
 
 运行输入指纹算法：按路径排序，逐文件计算 SHA-256，汇总为 `[path, digest]` 数组，
 对无缩进 `JSON.stringify` 结果再取 SHA-256。范围为根 `package.json`、`pnpm-lock.yaml`、
@@ -58,13 +59,13 @@ B0-12 真实账号任务／人工浏览器验收未执行，不宣称生产可�
 | AC | 公共边界与断言 | 证据入口 |
 | --- | --- | --- |
 | B0-01 | 固定 clean source／真实依赖解析／TypeScript 来源／同版本改字节拒绝 | `scripts/tests/locked-source.spec.ts`、`runtime-compatibility.spec.ts`、strict |
-| B0-02 | 显式初始化／重复准入；损坏／未来记录封装、旧格式、软链接在可写加载前拒绝且原字节不变；未发布临时文件保留 | `packages/domain/tests/baseline-data.spec.ts`、runtime compatibility |
+| B0-02 | 显式初始化／重复准入；损坏／未来记录封装、旧格式、软链接在可写加载前拒绝且原字节不变；未发布临时文件保留；实际 Loader 服务再启用复检，data owner 撤销及恢复 | `packages/domain/tests/baseline-data.spec.ts`、`b0-workflow.integration.spec.ts`、runtime compatibility |
 | B0-03–04 | 真 Host、生成 Remote、真实 JSON；伪造／旧／teammate Agent 拒绝；Revision／CAS／手动发布／归档恢复；已发布历史缺口拒绝、坏 Head 冷准入拒绝与恢复 CAS、未发布 Revision 冷重试 | `packages/domain/tests/b0-workflow.integration.spec.ts` |
 | B0-05–06 | UUID 重试／输入冲突、入队快照、普通同名成员不收编、旧 Profile 固定、active/pending/unproven 冷恢复、官方 fork／同一成员续接 | 同一 Host 工作流 |
 | B0-07–08 | 真 Agent Loop 的 persona prefix／官方 suffix、child-only hooks／记忆／工具、取消／drain／Fiber 撤销 | 同一 Host 工作流 |
 | B0-09 | 保存冲突保草稿、刷新失败保快照、晚响应隔离、未知／pending 重试保留 UUID、明确终态后新发布员工可重新启动、关闭取消、Slot／Remote 清理 | `packages/ui/tests/` |
 | B0-10 | 八个生成 Remote 方法；旧字段传递到 Host 后拒绝；真实归档没有退役包、实现／声明、测试／源码／map | `generated-remote.spec.ts`、`scripts/verify-pack.mjs` |
-| B0-11 | 真 CLI 安装／普通解析／Loader；安装版 Host、生成 Remote 和 Studio 字节；Web 启停／卸载后 marker 与哨兵保留 | `scripts/verify-pack.mjs` |
+| B0-11 | 真 CLI 安装／普通解析／Loader；安装版 Profile、Host、生成 Remote 和 Studio 字节；Web 启停／卸载后 marker 与哨兵保留 | `scripts/verify-pack.mjs` |
 | B0-12 | 真实认证账号完成员工任务、Profile 效果与官方会话续接 | **未验证，需另行授权环境** |
 
 测试只控制模型适配器和联验的进程内传输／导航端点；产品 Profile、Team、Session、JSON 持久化、Host 与生成协议不替换。
@@ -109,7 +110,7 @@ Client bundle SHA-256：`2b345b549df697d87d47a18283a0ff545bd8f2e5c89afe28d8d8e65
 
 ![B0 Studio 发货界面预览（演示数据）](b0-studio-preview.png)
 
-## PR #64 审查修复（当前）
+## PR #64 首轮审查修复（此前已推送）
 
 初审固定 base `f84584d`、head `b5e08d3`；修复在
 `/tmp/ultra-pr64-review.p7Wub1/ultra` 的原 PR 分支完成，用户授权后提交为 `dd5cfa8` 并推送。
@@ -126,3 +127,16 @@ Client bundle SHA-256：`2b345b549df697d87d47a18283a0ff545bd8f2e5c89afe28d8d8e65
 - 修复阶段收尾：9 份活动文档的 54 个本地链接及相关锚点、`git diff --check` 通过；运行输入指纹未变。主目录 main／固定官方来源 clean，四个 stash 与用户官方目录十个既有改动保留。
 - 用户授权推送后重跑 strict：496 checks／0 warnings；运行输入及复查差异指纹完全一致，复用上述完整验证而不重复全套测试。普通快进推送 `dd5cfa8` 后回读 PR 仍 OPEN，base `f84584d`，远端已包含修复；随后仅同步这次发布状态文档。
 - 本地日志目录 `/tmp/ultra-pr64-review.p7Wub1/`，最终日志 `fix-final-verify.log`。真实账号 B0-12 仍未执行，不发布 GitHub 审批或推定合并许可。
+
+## PR #64 服务重载准入修复与合并授权（当前）
+
+上一轮审查固定 `f84584d...8b6c938`，发现 B0-02 只覆盖冷启动：data Fiber 保留时，单独重新启用 Ultra 会把坏 Head 当作不存在，空 CAS 保存可覆盖它。旧 61／18 项测试未覆盖此公开路径。
+
+- 有效 RED：实际 Loader 停用 Ultra、损坏隔离 Head、重新启用，本应拒绝但成功。`reload-fix-red.log` 记录此失败；`reload-fix-green.log` 记录同一回归修复后通过。
+- Profile data Fiber 持有固定根与精确 facility 的只读准入能力，每次 Domain 打开前必须校验；随 owner 撤销。没有新增根配置、改写官方 reader 或修改官方来源锁。
+- 新增损坏／未来 Head 再启用与 data owner 生命周期 3 项回归：失败不改字节，原文件恢复后保留 `headRevision: 2 / activeRevision: 1`，拒绝空 CAS，合法保存递增到 Head 3／Revision 2；卸载撤销准入和 Host，重启恢复原 Profile。
+- 共享 fixture 使用实际官方 Loader 与 Profile data／兼容性 Group，安装版通过 `ULTRA_PACKED_PROFILE` 加载实际归档字节，避免只验证本地 Profile。
+- 最终 `pnpm verify` 自然退出 0：496 strict／0 warnings、**64 tests／9 files**、六归档真实安装、**21 tests／2 files** 安装版联验、Web `{"ready":true,"forced":false,"code":0,"signal":null}`，完整卸载且数据保留。日志 `/tmp/ultra-pr64-review.p7Wub1/reload-fix-verify.log`。
+- 复查实际命令 `git diff f84584def627b4af78a029af8788de73da0ad567 -- .` 包含当时未提交的修复，现已进入 `0dc70ac`；运行差异 `git diff f84584def627b4af78a029af8788de73da0ad567 -- packages scripts` SHA-256 为 `f9e1de6db3101119a00aeef09ecc7f41849ec1b15faaaa09f426d98edcf8909b`。独立 Standards 0 项硬性违例／0 项异味；Spec 0 项，原 P1 关闭。两轴另行重跑 7 项／34 项相关回归通过，冻结指纹一致。
+- 用户明确授权合并 PR #64 后，`0dc70ac` 已普通推送，回读确认远端 PR 包含修复；合并前 strict 再次 496 checks／0 warnings，运行输入及差异指纹不变，复用上述完整验证。后续只同步交接文档；最终合并状态以 PR／Git 回读为准。B0-12 仍未验证，没有发布 GitHub 审批、修改旧 Issues 或使用真实账号。
+- 收尾只更新说明文档；9 份活动文档的 54 个本地链接／2 个锚点、`git diff --check` 通过，运行输入及差异指纹不变，main／固定官方来源 clean、四个 stash 保留。
