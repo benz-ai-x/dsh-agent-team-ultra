@@ -352,9 +352,16 @@ describe('Claude Code authorized Team operations', () => {
     } finally { await stored.close() }
   })
 
-  it.each(['dated-terminal', 'result-only', 'dated-usage', 'undated-usage'] as const)('restores committed Run evidence after restart from %s history', async history => {
+  it.each([
+    ['dated-terminal', undefined],
+    ['result-only', undefined],
+    ['dated-usage', undefined],
+    ['undated-usage', { input_tokens: 99, output_tokens: 99 }],
+    ['undated-invalid-usage', { input_tokens: -1, output_tokens: 99 }],
+    ['undated-null-usage', null],
+  ] as const)('restores committed Run evidence after restart from %s history', async (history, undatedUsage) => {
     const hasTimestamp = history === 'dated-terminal'
-    const hasDatedUsage = history === 'dated-usage' || history === 'undated-usage'
+    const hasDatedUsage = !hasTimestamp && history !== 'result-only'
     const first = await claudeWorkflow()
     await expect(first.invoke('save', { expectedHeadRevision: null, profile: { ...profile, continuationProvider: '' },
       runtimeTarget: { kind: 'external-agent', provider: 'claude-code' } })).resolves.toMatchObject({ ok: true })
@@ -378,7 +385,7 @@ describe('Claude Code authorized Team operations', () => {
         type: 'assistant', session_id: launched.value.nativeRuntimeHandle, parent_tool_use_id: null,
         uuid: 'undated-terminal-stage',
         message: { role: 'assistant', model: 'claude-sonnet-4-6', stop_reason: 'end_turn', content: [],
-          ...(history === 'undated-usage' ? { usage: { input_tokens: 99, output_tokens: 99 } } : {}) },
+          ...(undatedUsage === undefined ? {} : { usage: undatedUsage }) },
       })
     }
     // A result-only response commits the outcome but leaves no timestamped assistant history.

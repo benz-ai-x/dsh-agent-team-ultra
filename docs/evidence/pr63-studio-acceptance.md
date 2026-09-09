@@ -100,6 +100,10 @@ Issue 再建立重复的全量流程。
   的额外计数也不能借用早先时间进入规范时间线，证据页继续 incomplete。
   原日期完整／result-only 对照不变，Claude 全套 `7 files／64 tests` 通过：
   `pr63-studio-native-partial-usage-green.log`。最终全量门禁待两轴复查关闭后执行。
+- `1873bc1` 两轴均指出相同 P2：无日期的负数／null usage 仍能使有日期累计
+  失效。继续在同一公开矩阵 RED（4 pass／2 fail），把累计有效性判定也隔离在
+  有日期事实内；原有有日期非法计数／溢出规则不变。六种历史形状均通过，Claude
+  全套 `7 files／66 tests` 通过；日志 `pr63-studio-native-invalid-usage-{red,green}.log`。
 
 ## 固定环境与来源恢复
 

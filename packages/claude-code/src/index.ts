@@ -1205,8 +1205,10 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         if (timestamp === undefined) session.evidenceIncomplete = true
         else this.recordAssistantTools(session, work.id, raw, timestamp)
         const usage = claudeUsage(message.usage)
-        if (message.usage !== undefined && timestamp !== undefined) usageTimestamp = timestamp
-        if (message.usage !== undefined && usage === undefined) validUsage = false
+        if (message.usage !== undefined && timestamp !== undefined) {
+          usageTimestamp = timestamp
+          if (usage === undefined) validUsage = false
+        }
         // A dated usage fact retains its own time even when later terminal
         // history is undated. Never attach undated counters to that earlier time.
         if (usage !== undefined && validUsage && timestamp !== undefined) {

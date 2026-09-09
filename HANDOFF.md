@@ -12,6 +12,7 @@
 - 发货 Studio 联合入口已接入四组既有归档门禁。`c5ceeb4` 的完整测试 447／447 通过，但归档验收揭示 Claude 冷恢复把缺失历史时间替换为重启时钟；同一公开 Host／生成 Remote 用例 RED → GREEN 修正，Claude operations 37／37。详情和原失败日志保留在 [当前联合验收证据](docs/evidence/pr63-studio-acceptance.md)；不把文件名中的 green 当成通过。
 - 第一轮用 0 替代未知时间的 `6d5499f` 被 Standards 发现 P2：UI 会显示 1970 年；已停止该候选的未完成全量运行。最终省略无日期规范证据，保留独立 Team settlement，页面明确 incomplete，Studio 检查无 epoch 日期。公开 RED → GREEN 后 Claude 全套 62／62 通过，等待新候选完整门禁及复查。
 - `7739f64` 发货 pack、旧 Codex／旧 Claude／B 三组历史升级含 Studio 全部通过；Standards 为 0。Spec 发现末条无日期 assistant 让前面有日期的 usage 丢失，已补 RED → GREEN，按用量自身时间保留可证明计数，Claude 全套 64／64。等待该补修两轴复查归零后重新执行最终门禁。
+- `1873bc1` 两轴相同的无日期非法 usage 污染累计问题也已 RED → GREEN：六种历史输入保留有日期事实，Claude 全套 66／66，未改有日期非法／溢出拒绝。最终门禁仍须针对最新修复提交执行，不能复用中间候选的绿灯。
 - 当前在原 PR #63 工作树复验上述修复；升级资格、最终验证／复查及合并尚未完成。使用 `tdd`、`dsh-plugin-dev`、`diagnosing-bugs`、`code-review`，不把旧的绿灯或受控 SDK 当成新联合验收及 #44 认证。
 
 ## PR #63 审查修复与同步（前一轮记录）
