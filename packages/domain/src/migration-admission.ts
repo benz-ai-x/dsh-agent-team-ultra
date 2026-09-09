@@ -65,6 +65,14 @@ function checkedMigrationRoot(path: string): MigrationRoot | undefined {
         throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_MISMATCH')
       }
       const concrete = realpathSync(directory)
+      // A completed dataset is never a fresh install, even if its data was moved.
+      try {
+        const sessions = lstatSync(join(concrete, 'sessions'))
+        const storage = lstatSync(join(concrete, manifest.backend === 'json' ? 'storage' : 'storage.sqlite'))
+        if (!sessions.isDirectory() || !(manifest.backend === 'json' ? storage.isDirectory() : storage.isFile())) {
+          throw new Error('missing or invalid migration data layout')
+        }
+      } catch { throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_INVALID') }
       if (migrationRoot !== undefined && migrationRoot.directory !== concrete) {
         throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_MISMATCH')
       }

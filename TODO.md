@@ -2,10 +2,10 @@
 
 ## Current requested scope: repair and publish PR #63
 
-- [ ] Integrate merged main / PR #62 without losing its final native recovery and cleanup diagnostics fixes.
-- [ ] Reject an unqualified owning Loader source before public data registration or writes.
-- [ ] Reject missing required Session / storage entities in an already completed joint migration.
-- [ ] Share pure Run Binding identity and native correlation selection between migration and Host recovery.
+- [x] Integrate merged main / PR #62 as `21a22b0`, preserving its final native recovery and cleanup diagnostics fixes; build and 15 native recovery tests pass.
+- [x] Reject an unqualified owning Loader source before public data registration or writes; the real Loader regression is RED → GREEN with zero business writes.
+- [x] Reject missing required Session / storage entities in an already completed joint migration; all four JSON / SQLite public Loader cases are RED → GREEN and recover their retained data after restoration.
+- [x] Share pure Run Binding identity and native correlation selection between migration and Host recovery; 34 migration / v2 usage and 15 Run evidence / lifecycle tests pass.
 - [ ] Complete fresh verification and independent Standards / Spec review, push PR #63, and synchronize the local tracking branches without discarding existing changes.
 
 The user authorized fixes, commit / push and local / remote synchronization, not

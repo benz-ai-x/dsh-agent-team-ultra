@@ -3,13 +3,12 @@ import { errorText, failure } from './host-errors.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
-import { profileContentFingerprint, type DigitalEmployeeBindingV1 } from './storage.ts'
+import type { DigitalEmployeeBindingV1 } from './storage.ts'
+import { externalRunIndexesFromTeamEvents, runFoldBinding } from './run-binding.ts'
 import {
-  createExternalRunIndex,
   foldDshRunEvidence,
   foldExternalRunEvidence,
   type DshRunFoldBinding,
-  type ExternalRunFoldBinding,
 } from './run.ts'
 import type {
   DigitalEmployeeFailure,
@@ -125,46 +124,6 @@ export class RunWorkflow {
     }
   }
 
-  /** Translate one durable Binding into the narrow Run fold interface. */
-  private dshRunBinding(binding: DigitalEmployeeBindingV1): DshRunFoldBinding {
-    if (binding.memberId === undefined) throw new Error('Run Binding has no member identity')
-    const { revision: _revision, createdAt: _createdAt, updatedAt: _updatedAt, ...profile } = binding.profile
-    return Object.freeze({
-      teamId: binding.teamId,
-      owner: Object.freeze({
-        kind: 'team-member' as const,
-        memberId: binding.memberId,
-        memberName: binding.memberName,
-      }),
-      profileId: binding.profileId,
-      profileRevision: binding.profileRevision,
-      profileFingerprint: binding.profileFingerprint
-        ?? profileContentFingerprint(profile, binding.runtimeTarget, binding.requiredCapabilities),
-      selectedRuntimeTarget: binding.runtimeTarget,
-      ...(binding.resolvedRuntimeTarget === undefined
-        ? {}
-        : { actualRuntimeTarget: binding.resolvedRuntimeTarget }),
-      capabilityGeneration: binding.capabilityGeneration ?? 0,
-    })
-  }
-
-  private externalRunBinding(binding: DigitalEmployeeBindingV1): ExternalRunFoldBinding {
-    if (binding.runtimeTarget.kind !== 'external-agent'
-      || binding.memberId === undefined
-      || binding.nativeRuntimeHandle === undefined) {
-      throw new Error('external Run Binding lacks its exact runtime identity')
-    }
-    const { actualRuntimeTarget: _actualRuntimeTarget, ...common } = this.dshRunBinding(binding)
-    return Object.freeze({
-      ...common,
-      selectedRuntimeTarget: binding.runtimeTarget,
-      ...(binding.resolvedRuntimeTarget?.kind === 'external-agent'
-        ? { actualRuntimeTarget: binding.resolvedRuntimeTarget }
-        : {}),
-      nativeHandle: binding.nativeRuntimeHandle,
-    })
-  }
-
   /** Reuse the immutable index identity when lazily refolding a retained DSH Run. */
   private dshRunBindingFromIndex(run: DigitalEmployeeRunIndexRecord): DshRunFoldBinding {
     return Object.freeze({
@@ -200,7 +159,7 @@ export class RunWorkflow {
       || binding.memberId === undefined) return
     const events = await this.loadOwnSessionEvents(binding.memberId, signal)
     const runs = foldDshRunEvidence(
-      this.dshRunBinding(binding),
+      runFoldBinding(binding),
       SessionId(binding.memberId),
       events,
       this.host.config.maxRunEvidenceItems,
@@ -220,37 +179,8 @@ export class RunWorkflow {
       || binding.memberId === undefined
       || binding.nativeRuntimeHandle === undefined) return
     const events = await this.loadOwnSessionEvents(binding.teamId, signal)
-    const foldBinding = this.externalRunBinding(binding)
-    const active = events.findLast((event) => {
-      if (event.type !== 'team/member') return false
-      const data = event.data as SessionEvent<'team/member'>['data']
-      return data.member.id === binding.memberId
-        && data.member.phase === 'active'
-        && data.member.externalRuntime?.nativeHandle === binding.nativeRuntimeHandle
-    }) as SessionEvent<'team/member'> | undefined
-    if (active !== undefined) {
-      const nativeTurnId = active.data.member.externalRuntime?.initialTurnId
-      const launchIdentity = nativeTurnId ?? (binding.launchRequestId === undefined
-        ? undefined
-        : `launch:${binding.launchRequestId}`)
-      if (launchIdentity !== undefined) {
-        await this.host.storage.putRun(createExternalRunIndex(
-          foldBinding,
-          launchIdentity,
-          nativeTurnId,
-          active.time,
-        ), this.host.config.maxRuns)
-      }
-    }
-    for (const event of events) {
-      if (event.type !== 'team/message/delivered' || event.data.targetId !== binding.memberId) continue
-      const canonicalTurnId = event.data.nativeTurnId ?? `message:${event.data.messageId}`
-      await this.host.storage.putRun(createExternalRunIndex(
-        foldBinding,
-        canonicalTurnId,
-        event.data.nativeTurnId,
-        event.time,
-      ), this.host.config.maxRuns)
+    for (const run of externalRunIndexesFromTeamEvents(binding, events)) {
+      await this.host.storage.putRun(run, this.host.config.maxRuns)
     }
   }
 

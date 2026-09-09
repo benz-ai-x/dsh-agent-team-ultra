@@ -139,7 +139,13 @@ does not invent SDK evidence or success.
 The Profile's public `data` entry owns Session persistence, the selected JSON or
 SQLite backend and Domain in one Fiber. It admits both configured paths together
 before any writable registration: pending/invalid/mismatched manifests or mixed
-migration roots fail closed. The overlay disables the original separate data
+migration roots fail closed. A completed target must retain its concrete Session
+directory and selected storage directory/database; missing or wrong-kind roots
+are refused, never initialized as a fresh dataset. This is an admission check,
+not a requirement that business data remain equal to its initial migration hash.
+The data entry also rechecks its actual owning Loader source before registering
+any persistence, using the same qualification rule as the Profile group.
+The overlay disables the original separate data
 rows; fresh defaults remain `DSH_HOME/sessions` and `DSH_HOME/storages`. Operator
 targets instead use `sessions` plus `storage` or `storage.sqlite`, and require
 explicit configuration of that public row. See [ADR 0027](../adr/0027-publish-one-isolated-migration-dataset.md).

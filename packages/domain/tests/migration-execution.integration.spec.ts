@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { DatabaseSync } from 'node:sqlite'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -237,7 +237,7 @@ describe('operator joint migration', () => {
     const ctx = new Context()
     cleanups.push(async () => { await ctx.fiber.dispose() })
     await ctx.plugin(Storage)
-    await ctx.plugin(Loader)
+    await ctx.plugin(Loader, { baseUrl: pathToFileURL(join(project, 'packages/profile/package.json')).href })
     const resolveProfile = createRequire(join(project, 'packages/profile/package.json'))
     const entry = {
       name: pathToFileURL(resolveProfile.resolve('@benz-ai-x/dsh-agent-team-ultra-profile/data')).href,
@@ -478,6 +478,55 @@ describe('operator joint migration', () => {
     expect(ctx.storage.backend.names()).toEqual([])
     expect(bytes(parent)).toEqual(before)
   }, 10_000)
+
+  it.each([
+    { backend: 'json', missing: 'storage' },
+    { backend: 'sqlite', missing: 'storage.sqlite' },
+    { backend: 'json', missing: 'sessions' },
+    { backend: 'sqlite', missing: 'sessions' },
+  ] as const)('refuses a completed $backend target with missing $missing before recreating business data', async ({ backend, missing }) => {
+    const source = await workflow(backend)
+    source.lead.agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'Retain the original Team across migration.' }],
+      source: { kind: 'plugin', plugin: 'migration-admission-test' },
+    }))
+    await source.lead.agent.whenIdle()
+    await source.invoke('save', { expectedHeadRevision: null, profile, runtimeTarget: target })
+    const original = await source.invoke('view') as DigitalEmployeeStudioView
+    await source.ctx.fiber.dispose()
+    mkdirSync(join(source.root, 'sessions'), { recursive: true })
+    const parent = mkdtempSync(join(tmpdir(), 'ultra-missing-migrated-root-'))
+    cleanups.push(async () => { rmSync(parent, { recursive: true, force: true }) })
+    const destination = join(parent, 'target')
+    const migrated = migrate(source.root, destination, backend)
+    expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0)
+    const retained = join(parent, 'retained-original')
+    renameSync(join(destination, missing), retained)
+    const before = bytes(parent)
+    const ctx = new Context()
+    try {
+      await ctx.plugin(Storage)
+      await ctx.plugin(Loader, { baseUrl: pathToFileURL(join(project, 'packages/profile/package.json')).href })
+      await expect(ctx.loader.create({
+        name: pathToFileURL(join(project, 'packages/profile/lib/data.js')).href,
+        config: {
+          sessions: { root: join(destination, 'sessions') },
+          storage: backend === 'json' ? { backend, root: join(destination, 'storage') }
+            : { backend, path: join(destination, 'storage.sqlite'), journalMode: 'delete' },
+        },
+      })).rejects.toThrow(/Joint migration completion does not match/)
+      expect(ctx.get('sessionPersistence')).toBeUndefined()
+      expect(ctx.get('storageDomain')).toBeUndefined()
+      expect(ctx.storage.backend.names()).toEqual([])
+    } finally { await ctx.fiber.dispose() }
+    expect(existsSync(join(destination, missing))).toBe(false)
+    expect(bytes(parent)).toEqual(before)
+    renameSync(retained, join(destination, missing))
+    const restored = await workflow(backend, { root: destination, resumeLead: true })
+    const view = await restored.invoke('view') as DigitalEmployeeStudioView
+    expect(view.profiles).toEqual(original.profiles)
+    await restored.ctx.fiber.dispose()
+  }, 15_000)
 
   it.each(['json', 'sqlite'] as const)('rebuilds the missing %s Run Index before the completion marker opens the target', async backend => {
     const source = await workflow(backend)

@@ -4,6 +4,8 @@ import z from '@deepseek-ai/schemastery'
 import { assertUltraCompatibility, assertUltraMigrationReady } from '@benz-ai-x/dsh-agent-team-ultra/compatibility'
 import type { Config as SessionConfig } from '@deepseek-ai/dsh-session-persistence-jsonl'
 import type { JournalMode } from '@deepseek-ai/dsh-storage-sqlite'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
+import { assertLoaderCompatibility } from './loader-compatibility.ts'
 
 assertUltraCompatibility(import.meta.url, 'profile')
 const [{ default: Persistence }, JsonStorage, SqliteStorage, StorageDomain] = await Promise.all([
@@ -36,6 +38,7 @@ export const Config: z<Config> = z.object({
 export async function apply(ctx: Context, config: Config): Promise<void> {
   assertUltraMigrationReady(config.sessions.root,
     config.storage.backend === 'json' ? config.storage.root : config.storage.path, config.storage.backend)
+  assertLoaderCompatibility(ctx.fiber.entry?.parent.tree.ctx.baseUrl)
   await ctx.plugin(Persistence, config.sessions)
   if (config.storage.backend === 'json') await ctx.plugin(JsonStorage, { root: config.storage.root })
   else await ctx.plugin(SqliteStorage, {

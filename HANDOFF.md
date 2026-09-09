@@ -9,7 +9,9 @@
 
 - 用户授权按审查建议修复并提交 PR #63，保证本地／远端一致；不包含合并 PR #63、关闭 Issue、通知或清理 worktree。两项 P2 分别是公开 data 入口遗漏 owning Loader 来源准入，以及 complete 迁移目标缺必要实体仍创建空库；另处理 Run 身份／native 关联重复逻辑的 P3 建议。
 - 本轮在原 Batch 4 工作树合入远端 main `c1632755`，保留 PR #62 的 `d5054de`／`e7a5f2d` 终态时间、恢复完整性和清理日志修复；仅 HANDOFF／TODO 有冲突，按两侧真实完成状态合并。PR #62 已合并、Issue #38 已关闭，不重复执行。C Harness 仍 `3c38b1d4e8`，初始 strict 648／0 warnings。
-- 使用 `dsh-plugin-dev`、既有公开 Loader／迁移 CLI／Host／生成 Remote／真实持久化／Fiber 边界的 `tdd`，以及 `resolving-merge-conflicts`。Studio 联合验收入口仍待本轮确认；其余修复继续，完成后重新验证并独立复查最终候选，再正常推送与回读。主工作区既有交接与 stash 保留，最终同步 main。
+- 两项 P2 均经公开入口 RED → GREEN：错误来源在 data 注册前拒绝，complete 迁移目标缺 Session／JSON／SQLite 实体的四种情况零写入拒绝，恢复原实体后公开 Host／Remote 可继续读取。Run 身份和 native 关联提取为 Host／迁移共享纯模块；全量 build、Loader／生命周期定向 8 项、迁移／v2 用量 34 项及 Run 证据／生命周期 15 项通过，完整最终门禁与独立复查尚待完成。详见 [本轮证据](docs/evidence/pr63-review-fixes.md)。
+- 使用 `dsh-plugin-dev`、既有公开 Loader／迁移 CLI／Host／生成 Remote／真实持久化／Fiber 边界的 `tdd`，以及 `resolving-merge-conflicts`。Studio 联合验收入口仍待本轮确认，不把既有受控 native 探针当成 #44 认证验收。修复候选将按 `code-review` 双轴独立复查后正常推送；不自动合并或提升当前 integration-candidate 支持资格。
+- 主工作区 main 已安全快进到远端 `c1632755`，工作区 clean，strict 590／0 warnings。原未提交 HANDOFF 单独保存在 stash `f473bf762b5583558031f2aa0bdad6a677bea768`（`codex: preserve local HANDOFF before PR 63 synchronization`）；另三个原 stash、其他 worktree 与 B／C Harness 均保留，不把该旧交接混入修复提交。
 
 ## PR #62 审查修复（历史记录，已合并）
 
@@ -356,7 +358,7 @@
 
 1. 在 `/root/workspace/batch4-upgrade.VkSXdm/ultra` 完成 PR #63 两项 P2、重复逻辑建议及 main 集成，重新完整验证并独立复查，正常提交／推送原 PR 分支；核对本地与远端提交一致，不合并 PR #63。
 2. Studio 公开组件入口确认后，接入迁移后真实 Host／生成 Remote 验证显示与错误冒泡；最终支持资格与 #44 真实认证保持各自门禁。PR #62 已合并，#38–#42 飞书通知不重复发送，父 Spec #18 不修改。
-3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
+3. PR #61／#62 已合并，不重复处理。主工作区 main 已与远端同步；原 HANDOFF 在 `f473bf762b5583558031f2aa0bdad6a677bea768` stash，连同原三个 stash、既有分支／Harness 与历史证据保留。父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
 ## 权威材料与技能
 
