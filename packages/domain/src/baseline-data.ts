@@ -3,6 +3,7 @@ import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, re
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 
 const markerName = 'ultra-b0.json'
+const unpublishedRecordName = /^\.[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.tmp$/u
 const marker = Object.freeze({
   schemaVersion: 1,
   baseline: 'official-dsh-only-b0',
@@ -53,6 +54,46 @@ function realDirectory(path: string): void {
   } catch { throw new BaselineDataError('an initialized data directory is missing or is not a real directory') }
 }
 
+/** The official per-record reader treats malformed/future envelopes as absent; B0 must refuse them. */
+function validateRecordEnvelope(path: string): void {
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    if (value === null || typeof value !== 'object' || Array.isArray(value)
+      || Object.keys(value).length !== 2 || !Object.hasOwn(value, 'version') || !Object.hasOwn(value, 'record')) {
+      throw new Error('invalid envelope')
+    }
+    const { version, record } = value as Record<string, unknown>
+    if (version !== 1 || record === null || typeof record !== 'object' || Array.isArray(record)) {
+      throw new Error('unsupported record')
+    }
+  } catch { throw new BaselineDataError('malformed or unsupported B0 record envelope; retain the original data') }
+}
+
+function validateStorageRecords(root: string): void {
+  const unit = join(root, marker.domain)
+  if (!existsSync(unit)) return // A fresh initializer has not materialized the first record yet.
+  realDirectory(unit)
+  for (const entry of readdirSync(unit, { withFileTypes: true })) {
+    const path = join(unit, entry.name)
+    if (entry.isFile() && unpublishedRecordName.test(entry.name)) continue
+    if (entry.name === 'global.json' && entry.isFile()) {
+      validateRecordEnvelope(path)
+      continue
+    }
+    if (!entry.isDirectory() || !['profile_heads', 'profile_revisions', 'bindings'].includes(entry.name)) {
+      throw new BaselineDataError('unrecognized B0 storage layout')
+    }
+    for (const file of readdirSync(path, { withFileTypes: true })) {
+      // Interrupted official atomic writes are unpublished, not records; preserve their bytes.
+      if (file.isFile() && unpublishedRecordName.test(file.name)) continue
+      if (!file.isFile() || !/^[a-zA-Z0-9_-]+\.json$/u.test(file.name)) {
+        throw new BaselineDataError('unrecognized B0 record path')
+      }
+      validateRecordEnvelope(join(path, file.name))
+    }
+  }
+}
+
 function validateTree(root: string, sessions: boolean): void {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     const path = join(root, entry.name)
@@ -60,7 +101,7 @@ function validateTree(root: string, sessions: boolean): void {
       throw new BaselineDataError('linked or special media cannot be used as B0 data')
     }
     if (!sessions && /^agent_team_ultra(?:$|[._])/u.test(entry.name)
-      && entry.name !== marker.domain && entry.name !== `${marker.domain}.json`) {
+      && entry.name !== marker.domain) {
       throw new BaselineDataError('a legacy Ultra storage generation is present; retain the matching old program')
     }
     if (entry.isDirectory()) { validateTree(path, sessions); continue }
@@ -100,6 +141,7 @@ export function assertBaselineData(input: string): BaselineDataPaths {
   realDirectory(result.storage)
   validateTree(result.sessions, true)
   validateTree(result.storage, false)
+  validateStorageRecords(result.storage)
   return result
 }
 

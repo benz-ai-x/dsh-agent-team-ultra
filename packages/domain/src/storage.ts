@@ -188,6 +188,13 @@ export class DigitalEmployeeStorage {
       || (head.activeRevision !== undefined && this.getProfileRevision(head.profileId, head.activeRevision) === undefined)) {
       throw new Error('Profile Head references a missing immutable Revision')
     }
+    let retained = 0
+    for (const [, revision] of this.profileRevisionEntries(head.profileId)) {
+      if (revision.revision >= head.historyStartsAtRevision && revision.revision <= head.latestRevision) retained += 1
+    }
+    if (retained !== head.latestRevision - head.historyStartsAtRevision + 1) {
+      throw new Error('Profile Head has a gap in retained Revision history')
+    }
   }
 
   private validateBinding(key: string, binding: DigitalEmployeeBinding): void {

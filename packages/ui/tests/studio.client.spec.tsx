@@ -82,7 +82,28 @@ describe('minimal B0 Studio', () => {
     fireEvent.click(screen.getByRole('button', { name: en.launch }))
     await waitFor(() => expect(spawn).toHaveBeenCalledTimes(2))
     expect(spawn.mock.calls[1]?.[1].launchRequestId).toBe(firstId)
-    expect(sessionStorage.length).toBe(1)
+    await waitFor(() => expect(sessionStorage.length).toBe(0))
+  })
+
+  it.each(['active', 'failed'] as const)('retains pending retries until an acknowledged %s outcome, then permits a new intent', async phase => {
+    const spawn = vi.fn().mockResolvedValueOnce(remote({ ok: true, value: { provisioningPhase: 'pending' } }))
+      .mockResolvedValueOnce(remote({ ok: true, value: { provisioningPhase: phase } }))
+      .mockResolvedValueOnce(remote({ ok: true, value: { provisioningPhase: 'active' } }))
+    render(<DigitalEmployeeStudio {...props({ spawn })} />)
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: en.launch }))
+    expect((await screen.findByRole('alert')).textContent).toContain('pending')
+    const first = spawn.mock.calls[0]?.[1].launchRequestId
+    fireEvent.click(screen.getByRole('button', { name: en.close }))
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: en.launch }))
+    await waitFor(() => expect(sessionStorage.length).toBe(0))
+    expect(spawn.mock.calls[1]?.[1].launchRequestId).toBe(first)
+    fireEvent.click(screen.getByRole('button', { name: en.close }))
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: en.launch }))
+    await waitFor(() => expect(spawn).toHaveBeenCalledTimes(3))
+    expect(spawn.mock.calls[2]?.[1].launchRequestId).not.toBe(first)
   })
 
   it('cancels an outstanding launch on close and fences its late completion', async () => {
@@ -98,6 +119,10 @@ describe('minimal B0 Studio', () => {
     await act(async () => { gate.resolve(remote({ ok: true, value: { provisioningPhase: 'active' } })); await gate.promise })
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: en.title }))
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: en.launch }))
+    await waitFor(() => expect(spawn).toHaveBeenCalledTimes(2))
+    expect(spawn.mock.calls[1]?.[1].launchRequestId).toBe(spawn.mock.calls[0]?.[1].launchRequestId)
   })
 
   it('reports a definite Host launch rejection without calling its outcome unknown', async () => {

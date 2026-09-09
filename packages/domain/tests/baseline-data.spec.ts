@@ -81,4 +81,37 @@ describe('B0 data admission before writable registrations', () => {
     mkdirSync(join(root, 'storage', 'agent_team_ultra_v1'))
     expect(() => assertBaselineData(root)).toThrow(/B0_DATA/)
   })
+
+  it.each([
+    ['future', '{"version":2,"record":{"profileId":"reviewer"}}'],
+    ['malformed', '{broken'],
+    ['missing record', '{"version":1}'],
+    ['invalid record', '{"version":1,"record":null}'],
+  ] as const)('refuses %s B0 record envelopes without rewriting their bytes', (_name, original) => {
+    for (const tableName of ['profile_heads', 'profile_revisions', 'bindings', 'global']) {
+      const root = temporary()
+      initializeBaselineData(root)
+      const table = join(root, 'storage/agent_team_ultra_b0', tableName === 'global' ? '' : tableName)
+      mkdirSync(table, { recursive: true })
+      const filename = tableName === 'global' ? 'global.json' : 'reviewer.json'
+      const path = join(table, filename)
+      writeFileSync(path, original)
+      expect(() => assertBaselineData(root)).toThrow(/B0_DATA/)
+      expect(readFileSync(path, 'utf8')).toBe(original)
+      expect(readdirSync(table)).toEqual([filename])
+    }
+  })
+
+  it('preserves unpublished official atomic-write files while admitting the last published state', () => {
+    const root = temporary()
+    initializeBaselineData(root)
+    const unit = join(root, 'storage/agent_team_ultra_b0')
+    const table = join(unit, 'profile_heads')
+    mkdirSync(table, { recursive: true })
+    const temporaryName = '.79ca1a72-cb63-4f46-b249-18c29f277eb9.tmp'
+    const paths = [join(unit, temporaryName), join(table, temporaryName)]
+    for (const path of paths) writeFileSync(path, '{unpublished')
+    expect(() => assertBaselineData(root)).not.toThrow()
+    for (const path of paths) expect(readFileSync(path, 'utf8')).toBe('{unpublished')
+  })
 })

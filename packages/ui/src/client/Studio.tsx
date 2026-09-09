@@ -44,9 +44,13 @@ function advancedOf(draft: DigitalEmployeeProfileDraft): string {
   return JSON.stringify({ context: draft.context, memory: draft.memory, hooks: draft.hooks, toolPolicy: draft.toolPolicy }, null, 2)
 }
 
+function launchIntentKey(sessionId: string, profileId: string, assignment: string): string {
+  return 'ultra-b0.launch:' + JSON.stringify([sessionId, profileId, assignment.trim()])
+}
+
 /** Persist the intent before sending. Unknown transport outcomes survive closing/reopening the dialog. */
 export function launchIntentId(sessionId: string, profileId: string, assignment: string, storage: Storage = sessionStorage): string {
-  const key = 'ultra-b0.launch:' + JSON.stringify([sessionId, profileId, assignment.trim()])
+  const key = launchIntentKey(sessionId, profileId, assignment)
   const prior = storage.getItem(key)
   if (prior !== null) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(prior)) throw new Error('Invalid stored launch UUID; do not retry with a replacement identity')
@@ -175,6 +179,10 @@ function StudioDialog(props: DigitalEmployeeStudioProps & { close: () => void })
     }
     const value = business(result)
     if (signal.aborted) return
+    if (value.provisioningPhase === 'active' || value.provisioningPhase === 'failed') {
+      const key = launchIntentKey(sessionId, request.profileId, request.assignment)
+      if (sessionStorage.getItem(key) === request.launchRequestId) sessionStorage.removeItem(key)
+    }
     if (value.provisioningPhase !== 'active') setError(value.error ?? value.provisioningPhase)
     else setNotice(t('done'))
     await refresh(signal)

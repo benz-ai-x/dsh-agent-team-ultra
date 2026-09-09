@@ -72,14 +72,25 @@ describe('installed official B0 compatibility admission', () => {
     expect(result.stderr).toContain('ULTRA_COMPAT_SOURCE_MISMATCH')
     expect(existsSync(join(target, 'home'))).toBe(false)
   })
-  it('refuses an uninitialized data home before even plugin add can run', () => {
+  it.each(['uninitialized', 'malformed', 'future'] as const)('refuses an %s data home before even plugin add can run', mode => {
     const target = root()
-    const result = spawnSync(process.execPath, [join(project, 'scripts/compatible-dsh.mjs'), 'plugin', '--profile', 'web', 'add', 'unused'], {
-      encoding: 'utf8', env: { ...process.env, DSH_HOME: join(target, 'home') },
+    const home = join(target, 'home')
+    const record = join(home, 'ultra-b0/storage/agent_team_ultra_b0/profile_heads/reviewer.json')
+    const original = mode === 'future' ? '{"version":2,"record":{"profileId":"reviewer"}}' : '{broken'
+    if (mode !== 'uninitialized') {
+      initializeBaselineData(join(home, 'ultra-b0'))
+      mkdirSync(dirname(record), { recursive: true })
+      writeFileSync(record, original)
+    }
+    const result = spawnSync(process.execPath, [join(project, 'scripts/compatible-dsh.mjs'),
+      'plugin', '--profile', 'web', 'add', '--config.offline=true', '--config.auto-install-peers=false', 'unused'], {
+      encoding: 'utf8', env: { ...process.env, DSH_HOME: home },
     })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('B0_DATA')
-    expect(existsSync(join(target, 'home'))).toBe(false)
+    expect(existsSync(join(home, 'profiles'))).toBe(false)
+    if (mode === 'uninitialized') expect(existsSync(home)).toBe(false)
+    else expect(readFileSync(record, 'utf8')).toBe(original)
   })
   it('preserves a conflicting local-peer override and manifest byte-for-byte', () => {
     const target = root()

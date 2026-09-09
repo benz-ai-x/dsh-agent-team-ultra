@@ -15,7 +15,7 @@ import { en, type UltraKey } from '../src/client/locales.ts'
 import type { DigitalEmployeeStudioInjected, DigitalEmployeeStudioProps } from '../src/client/Studio.tsx'
 
 describe('shipping B0 Studio bundle and real Host/Remote', () => {
-  it('surfaces Host CAS errors, retries a lost response without another child, opens the official conversation and unmounts', async () => {
+  it('surfaces Host CAS errors, retries unknown outcomes, launches a newly published employee and unmounts', async () => {
     const host = await workflow()
     const client = new Context()
     let mounted: ReturnType<typeof render> | undefined
@@ -92,10 +92,26 @@ describe('shipping B0 Studio bundle and real Host/Remote', () => {
       fireEvent.click(screen.getByRole('button', { name: en.launch }))
       await waitFor(() => expect(launchIds).toHaveLength(2))
       expect(launchIds[0]).toBe(launchIds[1])
-      await waitFor(() => expect((screen.getByRole('button', { name: en.openConversation }) as HTMLButtonElement).disabled).toBe(false))
-      fireEvent.click(screen.getByRole('button', { name: en.openConversation }))
+      await waitFor(() => expect((screen.getByRole('button', { name: en.launch }) as HTMLButtonElement).disabled).toBe(false))
+      expect(await host.invoke('save', { expectedHeadRevision: 3, profile: { ...profile, employeeName: 'reviewer-v3' } })).toMatchObject({ ok: true })
+      expect(await host.invoke('activate', { profileId: profile.id, revision: 3, expectedHeadRevision: 4 })).toMatchObject({ ok: true })
+      fireEvent.click(screen.getByRole('button', { name: en.refresh }))
+      const latest = await screen.findByRole('button', { name: 'Reviewer · r3' })
+      await waitFor(() => expect((latest as HTMLButtonElement).disabled).toBe(false))
+      fireEvent.click(latest)
+      fireEvent.click(screen.getByRole('button', { name: en.launch }))
+      await waitFor(() => expect(launchIds).toHaveLength(3))
+      expect(launchIds[2]).not.toBe(launchIds[0])
+      expect(host.ctx.digitalEmployees.studioView(host.lead.agent).instances).toMatchObject([
+        { memberName: 'reviewer', profileRevision: 2 },
+        { memberName: 'reviewer-v3', profileRevision: 3 },
+      ])
+      await waitFor(() => expect(screen.getAllByRole('button', { name: en.openConversation })).toHaveLength(2))
+      const openOriginal = screen.getAllByRole('button', { name: en.openConversation })[0] as HTMLButtonElement
+      await waitFor(() => expect(openOriginal.disabled).toBe(false))
+      fireEvent.click(openOriginal)
       const members = host.ctx.agentTeams.listMembers(host.lead.agent).filter(row => row.role === 'teammate')
-      expect(members).toHaveLength(1)
+      expect(members).toHaveLength(2)
       await waitFor(() => expect(openSubagent).toHaveBeenCalledWith({ parentSessionId: host.lead.agent.id, childSessionId: members[0]!.id, mode: 'continuable' }))
       mounted.unmount()
       mounted = undefined
