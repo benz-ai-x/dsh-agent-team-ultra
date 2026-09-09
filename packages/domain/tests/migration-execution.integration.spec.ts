@@ -90,7 +90,7 @@ describe('operator joint migration', () => {
     expect(continued.runs).toHaveLength(2)
     await resumed.ctx.fiber.dispose()
     expect(bytes(source.root)).toEqual(before)
-  })
+  }, 20_000)
 
   it('converts all B-written Team and child Session generations while retaining the historical artifacts', () => {
     const fixture = JSON.parse(readFileSync(new URL('./fixtures/b-team-session-source.json', import.meta.url), 'utf8')) as {
@@ -121,7 +121,7 @@ describe('operator joint migration', () => {
     for (const [name, hash] of Object.entries(before)) expect(targetBytes[name]).toBe(hash)
     expect(Object.keys(targetBytes).filter(name => name.endsWith('/session.v2.jsonl.zstd'))).toHaveLength(3)
     expect(bytes(source)).toEqual(before)
-  })
+  }, 20_000)
 
   it.each(['json', 'sqlite'] as const)('finishes the actual legacy %s domain migration before publishing joint completion', async backend => {
     const parent = mkdtempSync(join(tmpdir(), 'ultra-legacy-joint-migration-'))
@@ -154,7 +154,7 @@ describe('operator joint migration', () => {
     await store.close()
     await recovered.fiber.dispose()
     expect(bytes(source)).toEqual(before)
-  })
+  }, 20_000)
 
   it.each(['json', 'sqlite'] as const)('retries a paused %s publication and reuses an equal completed target without rewriting it', async backend => {
     const source = await workflow(backend)

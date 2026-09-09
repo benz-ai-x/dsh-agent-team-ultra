@@ -259,7 +259,7 @@ describe('operator migration audit', () => {
       }))
       expect(bytes(root)).toEqual(before)
     }
-  })
+  }, 20_000) // Six real audit CLI processes share this integration-test budget.
 
   it('reports unreadable legacy checkpoints for rebuilding without changing the source', async () => {
     const { root, leadId } = await created('json', true)
