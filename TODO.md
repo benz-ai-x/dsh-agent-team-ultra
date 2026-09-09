@@ -6,6 +6,8 @@
 - [x] Reject an unqualified owning Loader source before public data registration or writes; the real Loader regression is RED → GREEN with zero business writes.
 - [x] Reject missing required Session / storage entities in an already completed joint migration; all four JSON / SQLite public Loader cases are RED → GREEN and recover their retained data after restoration.
 - [x] Share pure Run Binding identity and native correlation selection between migration and Host recovery; 34 migration / v2 usage and 15 Run evidence / lifecycle tests pass.
+- [x] Complete intermediate candidate `ddc7769`: 648 strict checks, 445 tests, actual archive install / Web / recovery / uninstall, and all three historical archive upgrade gates pass.
+- [x] Fix the independent re-review's manifest enum admission and README isolated-upgrade ordering P2 findings; both real Loader backend regressions are RED → GREEN, and build passes. Final qualification must cover this new candidate.
 - [ ] Complete fresh verification and independent Standards / Spec review, push PR #63, and synchronize the local tracking branches without discarding existing changes.
 
 The user authorized fixes, commit / push and local / remote synchronization, not

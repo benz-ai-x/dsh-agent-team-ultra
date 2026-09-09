@@ -90,7 +90,7 @@ pnpm run pack:local
 node scripts/compatible-dsh.mjs --lock-local-peers plugin --profile web add <本次全部 file: 归档参数> <锁定 Harness 的 link: peer 参数>
 ```
 
-随后先检查最终配置，再启动 Web：
+全新空白数据安装随后检查最终配置并启动 Web。**B 或更旧版本的已有数据升级**，必须先完成下方[隔离联合迁移](#隔离联合迁移batch-4-候选)，把公开 data 行的 Session 与存储路径都指向同一个 complete 目标，之后才能首次启动新版业务 Host；不要先用新版打开原业务根。
 
 ```sh
 pnpm compatibility:check
@@ -110,7 +110,7 @@ DSH_HOME=/absolute/path/to/isolated-dsh-home pnpm dsh:checked web --no-open --po
 
 `pack:local` 同时打印卸载命令。执行后，最终配置和 profile `node_modules` 中不得残留 Ultra、Codex 或 Claude Code overlay 行/包。
 
-从旧命名空间升级时，先停止目标 Web 实例，使用旧版打印的卸载命令移除旧包，再执行新版打印的安装命令。沿用原 `DSH_HOME` 和 Profile，并在重启后刷新浏览器，使 Host、Client 与生成的 RPC 标识同步切换；会话与 `agent_team_ultra_v1` 数据继续保存在原位置。
+下列旧命名空间说明只替换包身份，不是绕过数据迁移的直接启动步骤。先停止源数据的所有 Web／Host／其他写入者并保留备份，使用旧版打印的卸载命令移除旧包，再执行新版打印的安装命令，但此时不要启动新版业务 Host。B 或更旧数据须按下方隔离迁移流程发布完整目标，将 `agent-team-ultra-data` 的 Session 与 JSON／SQLite 两处路径指向该目标后再启动，并刷新浏览器以同步 Host、Client 和生成的 RPC 标识。原源数据保留不写；可以沿用原 `DSH_HOME`、Profile 配置和 SDK 自有历史，但不能继续把原 Session／Ultra 业务根作为新版写入位置。
 
 如果 Host／Client／Profile 已经使用 `@benz-ai-x`，Codex 或 Claude Code 仍是旧包，则停止 Web 后，沿用同一 `DSH_HOME` 只执行对应已安装旧包的移除命令，再执行本次 `pack:local` 打印的完整安装命令：
 
@@ -119,7 +119,7 @@ node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offli
 node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offline=true --config.auto-install-peers=false @deepseek-ai/dsh-experimental-agent-team-claude-code
 ```
 
-保留 Profile 配置和所有 Session／Ultra／native 数据。`agent-team-codex`／`agent-team-claude-code` 行、`digitalEmployees` 服务、`external-agent/codex`／`external-agent/claude-code` 路由、Profile Revision、成员和 native handle 均沿用原身份。预检只接受 ESM 实际可解析的依赖；`NODE_PATH` 中的工作区副本不能补齐缺包。任一旧产品适配包仍在安装路径中时，Profile 会在子插件加载前返回 `ULTRA_COMPAT_LEGACY_RUNTIME`；先完成上述移除与安装流程。
+保留 Profile 配置、原 Session／Ultra 数据和 native 历史；此混合包名情况同样必须完成隔离迁移并配置目标后才能启动新版。`agent-team-codex`／`agent-team-claude-code` 行、`digitalEmployees` 服务、`external-agent/codex`／`external-agent/claude-code` 路由、Profile Revision、成员和 native handle 均沿用原身份。预检只接受 ESM 实际可解析的依赖；`NODE_PATH` 中的工作区副本不能补齐缺包。任一旧产品适配包仍在安装路径中时，Profile 会在子插件加载前返回 `ULTRA_COMPAT_LEGACY_RUNTIME`；先完成上述移除与安装流程，再完成数据切换。
 
 升级验证使用独立干净的前身 checkout，已按该版本说明准备 Harness、安装依赖并完成构建：
 

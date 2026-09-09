@@ -41,9 +41,43 @@ Issue、不通知、不执行 #44 真实认证验收。
   前一条命令额外给出的两个旧 Run 文件名并不存在，未计作执行过的文件；
   正确 owning suites 已单独运行，见上表。
 
-最终完整 `pnpm verify`、归档历史升级和双轴独立复查仍待固定新候选后运行；
-原 `issue43-complete-candidate-verify.log` 的 430 项结果只属于旧候选，不能
-冒充本轮修复后的全量门禁。
+## 中间候选完整验证与新增复查
+
+固定 `ddc77697839c7d516e611fd03d1260d344bd011d` 的 `pnpm verify` 自然退出 0：
+648 strict / 0 warnings，完整 build，445 tests / 39 files，实际八归档安装、
+普通解析、生成 Remote / Team 生产 UI、消息 / DAG / CAS / watch、Web、双 native
+JSON / SQLite 冷恢复与全部卸载均通过。JSON 13 次耐久发布 / 14 个边界、SQLite
+7 次发布 / 8 个边界的中断恢复也全部通过。
+
+同一候选的实际历史归档升级自然退出 0：旧 Codex `debde06`、旧 Claude
+`081357d`，以及固定 B 前身 `4cecfe2808182c64124abd6634597bd8c46ec5f8`。
+B 使用专用干净工作树 `/root/workspace/pr63-b-history.igiW8o/ultra`，按不变 B
+Harness `57670c6b32` 正式 prepare、frozen/offline install、strict 和 build；
+没有把 PR #62 最终 `5d25394` 冒充这个历史输入。各产品 JSON / SQLite 的源
+字节保护、原身份 / 原 handle 续跑、迁移目标 Web 正常退出和无残留卸载通过。
+
+| 中间候选日志 | SHA-256 |
+| --- | --- |
+| `pr63-repaired-candidate-verify.log` | `7c330a6df5f2126791cb0729771ed7fa22bc4523a2a064d125d6e7f1e654167d` |
+| `pr63-repaired-codex-history.log` | `b699531a237178a5d7569dedf1c0a1e0a05a1f8fc364c3927e471562d67dcee8` |
+| `pr63-repaired-claude-history.log` | `08798e450f563f61456278f5f79d934db5faf02086ede7aa888c27ec9425c388` |
+| `pr63-repaired-b-history.log` | `9c062cc2132af581da4c6b9ac3fb30c56ecea24a9f3583b38ba7fa24477993a7` |
+
+该候选的独立完整差异复查（main `c1632755` → `ddc7769`）发现新增两项 P2，
+因此上述绿色自动化不是最终批准：
+
+- Standards 1 项 P2：README 旧包名升级段仍允许直接在原业务根启动，与 ADR
+  0027 的私有副本 / 独立目标流程冲突。现已明确包身份步骤不替代数据迁移，
+  B / 更旧源必须先停止全部 writer、迁移完成并配置两个目标路径后再首次启动。
+- Spec 1 项 P2：manifest 的枚举检查先做 `String()`，`["pending"]` 可绕过随后
+  严格 pending 分支。真实 data Loader 在 JSON / SQLite 上均 RED 接受了非法
+  状态；改为只接受原始字符串状态与后端枚举，`pending` / `complete` 数组和
+  backend 数组均零注册、零写入拒绝，两个后端场景 GREEN（各覆盖三种非法值）。
+  完整 build 通过；日志 `pr63-manifest-enum-red.log` /
+  `pr63-manifest-enum-green.log` / `pr63-manifest-enum-build.log`。
+
+第二次补修后须重新固定最终候选、复查和完整验证，不复用上述中间候选或
+更早 `issue43-complete-candidate-verify.log` 的结果冒充最终门禁。
 
 ## 验收与发布界限
 

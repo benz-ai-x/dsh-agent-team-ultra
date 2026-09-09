@@ -9,7 +9,8 @@
 
 - 用户授权按审查建议修复并提交 PR #63，保证本地／远端一致；不包含合并 PR #63、关闭 Issue、通知或清理 worktree。两项 P2 分别是公开 data 入口遗漏 owning Loader 来源准入，以及 complete 迁移目标缺必要实体仍创建空库；另处理 Run 身份／native 关联重复逻辑的 P3 建议。
 - 本轮在原 Batch 4 工作树合入远端 main `c1632755`，保留 PR #62 的 `d5054de`／`e7a5f2d` 终态时间、恢复完整性和清理日志修复；仅 HANDOFF／TODO 有冲突，按两侧真实完成状态合并。PR #62 已合并、Issue #38 已关闭，不重复执行。C Harness 仍 `3c38b1d4e8`，初始 strict 648／0 warnings。
-- 两项 P2 均经公开入口 RED → GREEN：错误来源在 data 注册前拒绝，complete 迁移目标缺 Session／JSON／SQLite 实体的四种情况零写入拒绝，恢复原实体后公开 Host／Remote 可继续读取。Run 身份和 native 关联提取为 Host／迁移共享纯模块；全量 build、Loader／生命周期定向 8 项、迁移／v2 用量 34 项及 Run 证据／生命周期 15 项通过，完整最终门禁与独立复查尚待完成。详见 [本轮证据](docs/evidence/pr63-review-fixes.md)。
+- 两项原 P2 均经公开入口 RED → GREEN：错误来源在 data 注册前拒绝，complete 迁移目标缺 Session／JSON／SQLite 实体的四种情况零写入拒绝，恢复原实体后公开 Host／Remote 可继续读取。Run 身份和 native 关联提取为 Host／迁移共享纯模块；定向回归通过。中间候选 `ddc77697839c7d516e611fd03d1260d344bd011d` 完整门禁 648 strict／0 warnings、445 tests／39 files、实际八归档安装／Web／冷恢复／卸载，以及旧 Codex、旧 Claude、固定 B `4cecfe2` 历史归档升级全部通过。详见 [本轮证据](docs/evidence/pr63-review-fixes.md)。
+- 独立完整差异复查新增 Standards 1 项 P2（README 旧包名直升说明与隔离流程冲突）、Spec 1 项 P2（manifest `String(status)` 接受数组后绕过 pending 拒绝）；原两项已关闭。严格枚举与运维顺序已补修，新公开 Loader JSON／SQLite 两项均 RED → GREEN，各覆盖三种非法数组值并确认零注册、零写入，完整 build 通过；接着重新固定候选、独立复查并跑最终完整门禁，不用中间候选绿色结果冒充最终通过。
 - 使用 `dsh-plugin-dev`、既有公开 Loader／迁移 CLI／Host／生成 Remote／真实持久化／Fiber 边界的 `tdd`，以及 `resolving-merge-conflicts`。Studio 联合验收入口仍待本轮确认，不把既有受控 native 探针当成 #44 认证验收。修复候选将按 `code-review` 双轴独立复查后正常推送；不自动合并或提升当前 integration-candidate 支持资格。
 - 主工作区 main 已安全快进到远端 `c1632755`，工作区 clean，strict 590／0 warnings。原未提交 HANDOFF 单独保存在 stash `f473bf762b5583558031f2aa0bdad6a677bea768`（`codex: preserve local HANDOFF before PR 63 synchronization`）；另三个原 stash、其他 worktree 与 B／C Harness 均保留，不把该旧交接混入修复提交。
 

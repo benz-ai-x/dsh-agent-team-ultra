@@ -528,6 +528,41 @@ describe('operator joint migration', () => {
     await restored.ctx.fiber.dispose()
   }, 15_000)
 
+  it.each(['json', 'sqlite'] as const)('rejects non-string migration states before the public %s data Loader registers writers', async backend => {
+    const source = await workflow(backend)
+    await source.invoke('save', { expectedHeadRevision: null, profile, runtimeTarget: target })
+    await source.ctx.fiber.dispose()
+    mkdirSync(join(source.root, 'sessions'), { recursive: true })
+    const parent = mkdtempSync(join(tmpdir(), 'ultra-invalid-migration-state-'))
+    cleanups.push(async () => { rmSync(parent, { recursive: true, force: true }) })
+    const destination = join(parent, 'target')
+    const migrated = migrate(source.root, destination, backend)
+    expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0)
+    const manifestPath = join(destination, 'ultra-migration-manifest.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    for (const invalid of [{ status: ['pending'] }, { status: ['complete'] }, { backend: [backend] }]) {
+      writeFileSync(manifestPath, JSON.stringify({ ...manifest, ...invalid }))
+      const before = bytes(destination)
+      const ctx = new Context()
+      try {
+        await ctx.plugin(Storage)
+        await ctx.plugin(Loader, { baseUrl: pathToFileURL(join(project, 'packages/profile/package.json')).href })
+        await expect(ctx.loader.create({
+          name: pathToFileURL(join(project, 'packages/profile/lib/data.js')).href,
+          config: {
+            sessions: { root: join(destination, 'sessions') },
+            storage: backend === 'json' ? { backend, root: join(destination, 'storage') }
+              : { backend, path: join(destination, 'storage.sqlite'), journalMode: 'delete' },
+          },
+        })).rejects.toThrow(/Joint migration completion does not match/)
+        expect(ctx.get('sessionPersistence')).toBeUndefined()
+        expect(ctx.get('storageDomain')).toBeUndefined()
+        expect(ctx.storage.backend.names()).toEqual([])
+      } finally { await ctx.fiber.dispose() }
+      expect(bytes(destination)).toEqual(before)
+    }
+  }, 15_000)
+
   it.each(['json', 'sqlite'] as const)('rebuilds the missing %s Run Index before the completion marker opens the target', async backend => {
     const source = await workflow(backend)
     await source.invoke('save', { expectedHeadRevision: null, profile, runtimeTarget: target })

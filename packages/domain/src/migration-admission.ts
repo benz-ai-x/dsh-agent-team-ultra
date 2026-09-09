@@ -40,13 +40,14 @@ function checkedMigrationRoot(path: string): MigrationRoot | undefined {
         if (!stat.isFile() || stat.size > 64 * 1024) throw new Error('invalid manifest medium')
         manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
       } catch { throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_INVALID') }
-      if (!record(manifest) || manifest.schemaVersion !== 1 || !['pending', 'complete'].includes(String(manifest.status))) {
+      if (!record(manifest) || manifest.schemaVersion !== 1
+        || (manifest.status !== 'pending' && manifest.status !== 'complete')) {
         throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_INVALID')
       }
       if (manifest.status === 'pending') throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_PENDING')
       if (!sha256(manifest.sourceDigest) || !sha256(manifest.targetDigest)
         || !record(manifest.targetCompatibility) || !record(manifest.targetFormats)
-        || !['json', 'sqlite'].includes(String(manifest.backend))) {
+        || (manifest.backend !== 'json' && manifest.backend !== 'sqlite')) {
         throw new UltraMigrationAdmissionError('ULTRA_MIGRATION_INVALID')
       }
       const proof = JSON.parse(readFileSync(new URL('./compatibility.json', import.meta.url), 'utf8')) as {
