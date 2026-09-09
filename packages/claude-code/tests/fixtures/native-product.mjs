@@ -177,12 +177,20 @@ export class NativeProduct {
     assert.ok(spec.cwd)
     assert.deepEqual(spec.stdio, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' })
     const completion = Promise.withResolvers()
+    let terminating = false
+    const exit = () => {
+      this.live.delete(handle)
+      completion.resolve({ exitCode: 0, signal: null })
+    }
     const handle = {
       pid: 1234, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
       collected: {}, done: completion.promise,
       terminate: () => {
-        this.live.delete(handle)
-        completion.resolve({ exitCode: 0, signal: null })
+        if (terminating) return
+        terminating = true
+        const pendingExit = this.onTerminate?.()
+        if (pendingExit === undefined) exit()
+        else void pendingExit.then(exit, completion.reject)
       },
       waitForExit: async () => { await completion.promise; return true },
     }

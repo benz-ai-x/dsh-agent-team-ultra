@@ -14,6 +14,10 @@ Only package-local Claude Agent SDK `0.3.241` and Claude Code `2.1.241` qualify.
 The `claude-code` route, deterministic native Session, read-only built-in tools
 and sandbox, denied interactive permission, disabled network, and Fiber-owned
 query/process cleanup retain their original constraints.
+Cleanup reports an elapsed Team abort grace separately from actual native process
+quiescence. It continues awaiting exit after that warning; the grace period does
+not promise a hard unload deadline.
+These diagnostics contain log-sink failures without masking actual native cleanup errors.
 Read/Glob/Grep stay in the built-in tool list but have no bare `allowedTools`
 entries: native workspace permission checks and the denying callback must remain
 effective for paths outside `cwd`, including symlink targets.

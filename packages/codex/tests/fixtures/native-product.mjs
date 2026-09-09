@@ -142,7 +142,7 @@ export class NativeProduct {
             this.pending.push((outcome, text) => {
               turn.status = outcome
               thread.status = { type: 'idle' }
-              turn.completedAt = Math.floor(Date.now() / 1000)
+              turn.completedAt = this.completedAt === undefined ? Math.floor(Date.now() / 1000) : this.completedAt
               turn.items.push(
                 { type: 'reasoning', id: randomUUID(), summary: ['PRIVATE_REASONING'], content: [] },
                 { type: 'agentMessage', id: randomUUID(), text: 'PRIVATE_COMMENTARY', phase: 'commentary' },
@@ -167,9 +167,16 @@ export class NativeProduct {
         }
       }
     })
+    let terminating = false
+    const exit = () => {
+      this.live.delete(handle)
+      completion.resolve({ exitCode: 0, signal: null })
+    }
     const handle = {
       pid: 1234, stdin: input, stdout: output, stderr, collected: {}, done: completion.promise,
       terminate: () => {
+        if (terminating) return
+        terminating = true
         for (const [id, call] of this.calls) {
           if (call.channel.completion !== completion) continue
           this.calls.delete(id)
@@ -178,8 +185,9 @@ export class NativeProduct {
         for (const [id, channel] of this.channels) {
           if (channel.completion === completion) this.channels.delete(id)
         }
-        this.live.delete(handle)
-        completion.resolve({ exitCode: 0, signal: null })
+        const pendingExit = this.onTerminate?.()
+        if (pendingExit === undefined) exit()
+        else void pendingExit.then(exit, completion.reject)
       },
       waitForExit: async () => {
         await completion.promise

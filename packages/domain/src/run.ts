@@ -580,23 +580,28 @@ export function foldExternalRunEvidence(
   const terminalClass = terminalItem === undefined
     ? 'unknown-terminal'
     : externalTerminal(terminalItem.outcome)
-  const complete = providerComplete && terminalItem !== undefined && terminalClass !== 'unknown-terminal'
+  const timingUnavailable = terminalItem !== undefined && terminalItem.timestamp < record.startedAt
+  const complete = providerComplete && terminalItem !== undefined && terminalClass !== 'unknown-terminal' && !timingUnavailable
   const completeness = Object.freeze({
     status: complete ? 'complete' as const : 'incomplete' as const,
     ...complete
       ? {}
       : {
-          diagnostic: providerComplete
-            ? 'provider evidence has no supported terminal fact for this native turn'
-            : 'provider evidence page is incomplete',
+          diagnostic: timingUnavailable
+            ? 'provider terminal time precedes Host acceptance; completion time is unavailable'
+            : providerComplete
+              ? 'provider evidence has no supported terminal fact for this native turn'
+              : 'provider evidence page is incomplete',
         },
     redactions: REDACTIONS,
   })
+  const { endedAt: priorEndedAt, ...prior } = record
+  const endedAt = terminalItem === undefined ? priorEndedAt : timingUnavailable ? undefined : terminalItem.timestamp
   const index = Object.freeze({
-    ...record,
+    ...prior,
     terminal: terminalClass,
     ...(reportedUsage === undefined ? {} : { usage: reportedUsage }),
-    ...(terminalItem === undefined ? {} : { endedAt: terminalItem.timestamp }),
+    ...(endedAt === undefined ? {} : { endedAt }),
     completeness,
   })
   const truncated = timeline.length > maxTimelineItems

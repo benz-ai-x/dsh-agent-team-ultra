@@ -430,11 +430,23 @@ an actual integration commit based on the fixed official comparison.
   The DSH child Session and provider-native history remain canonical. Startup,
   Studio reads, and relevant Session events rebuild missing or stale rows from
   those exact correlations without accepting Client-authored identity.
+- Run detail reads belong to the Host lifecycle. Disposal cancels and awaits
+  admitted reads before storage closes; DSH and native reads recheck exact live
+  Lead authority after asynchronous evidence access and before returning details.
 - Prompt/reply content, tool arguments/results, files, environment values,
   credentials, and raw provider payloads cannot enter the Run Index or
   normalized timeline. Detail reads are lazy and bounded; pagination,
   truncation, missing terminals, absent providers, and missing correlations
   remain visibly incomplete or unavailable.
+  A native terminal timestamp before Host acceptance is retained in the timeline
+  but omitted from the index's completion time, with an explicit incomplete
+  diagnostic; the Host neither invents a timestamp nor persists an invalid row.
+  Codex does not replace missing or invalid native completion times with the
+  live observation or recovery clock. Its timestamp-required evidence boundary
+  omits an undated terminal while retaining the separate Team mailbox settlement.
+  Recovery restores only source-timed terminal evidence, not the whole historical
+  tool/usage timeline, so its page-level completeness stays incomplete for that
+  provider generation, including subsequent work on the same native history.
 - Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text
@@ -550,12 +562,16 @@ first prompt assembly; a synchronous installation failure vetoes publication.
 Service disposal closes mutation admission, removes the lifecycle listeners,
 closes every Studio follower, aborts evaluation workers, revokes every resident
 child installation and Runtime Backend registration, waits for admitted
-launches, reconciliations, Run repairs, evaluations, catalog refreshes, and
+launches, reconciliations, Run repairs and detail reads, evaluations, catalog refreshes, and
 mutation commits, and only then closes its v1 storage domain.
 Removing an external-provider Fiber immediately closes provider admission,
 removes its catalog row, aborts native cleanup after the Agent Team grace
 period, still awaits actual quiescence, and releases only that generation's
 runtime/evaluation handles.
+Codex and Claude Code distinguish an elapsed cleanup abort grace from actual
+native quiescence in their diagnostics; an elapsed grace does not complete disposal.
+These best-effort diagnostics contain log-exporter failures; a sink cannot abort
+native cleanup or make already-reached quiescence fail. Actual cleanup errors still propagate.
 Child-scope prompt, tool, and hook registrations are also disposed when that
 exact Agent scope ends.
 Installations are keyed by exact Agent object identity. Agent disposal, Fiber

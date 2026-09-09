@@ -1,11 +1,31 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-08（Asia/Shanghai）。用户使用中文。
+交接日期：2026-09-09（Asia/Shanghai）。用户使用中文。
 
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
-## 当前任务与完成边界
+## 当前 PR #62 审查修复
+
+- 用户授权按审查建议修复 PR #62，仅处理两个运行时 P2 和一个过期状态 P3；不合并、不改 PR #63、父 Spec #18 或已确认的 B 支持锁／SDK。首次独立审查 Standards 3 项、Spec 1 项（工具历史完整性项跨轴重叠），不是四个独立问题。
+- 缺失／非法原生终态时间不再回退到当前时刻。Team mailbox 仍结算已知结果，必须带时间戳的证据入口不生成无日期 terminal，Run 明确 incomplete。恢复只补回可证明时间的终态，不假装重建全部工具／usage 历史；同一 provider generation 的证据页及后续工作保持 incomplete。
+- 公开 Host／生成 Remote、真实 Team 与 JSON／SQLite、真实 Fiber 的两组回归分别 RED → GREEN，并补充 2 项旧索引检查，共新增 6 项；时间／历史修复阶段恢复文件 8／8、最初 PR 外审查探针 2／2 通过。旧索引已有 Host 重建覆盖，无需扩大 Host 修改。候选 `d5054debc89a13070938e7863125fdccaafac900` 的完整 `pnpm verify` 自然退出 0：590 strict／0 warnings、400 tests／35 files、八归档安装／生产消息／DAG／watch／Web／双 native JSON＋SQLite 冷恢复／卸载通过。该阶段复查见下一条；日志和摘要见 [修复证据](docs/evidence/pr62-review-fixes.md)，不复用初版 394 项日志冒充新版验证。
+- 新的完整差异复查为 Standards 1 项 P2、Spec 0 项：两个 adapter 的新增清理 warning／info 未隔离 Logger exporter 异常。已复用原公开 Logger／Fiber 清理场景分别 RED → GREEN，仅为新增诊断设置安全边界，保留真实 native 清理错误。各 3／3 通过，共新增 4 项；400 项完整门禁先于本补修，最终新候选须重新全验和复查。
+- 最终运行候选 `e7a5f2da5706449010d6a710c57175b44431e5f7` 已重新通过完整 `pnpm verify`：590 strict／0 warnings、404 tests／35 files、八归档普通安装／生产消息／DAG／watch／Web／双 native JSON＋SQLite 冷恢复／完整卸载；日志 `pr62-final-qualified-verify.log` 的摘要见修复证据。独立 Standards／Spec 在完整 main→候选差异均为 0 项未解决问题，各轴最高严重度无。后续提交仅说明文档，远端发布及合并状态以 PR #62 的实际 head／state 为准；本轮不合并。
+- 本轮使用 `tdd` 的既有已确认测试入口、`dsh-plugin-dev` 的精确协议与生命周期约束，以 `code-review` 做两路独立复查。没有新增测试边界；只控制外部 SDK／原生进程及公开日志输出回调，不等于 #44 真实认证验收。
+
+## #38 初始实现与验证记录
+
+- 用户已确认持续从 #38 开始按 `tdd` 开发，并在每个 Issue 完成后通过飞书 CLI 通知。PR 范围保持 #38、#39–#43、#44；Issue 定向验证，完整跨功能／冒烟／错误冒泡／真实归档验证在最终 PR 候选收口。未验 AC 不勾选，Issue 合并后关闭，父 Spec #18 不修改；开发授权不自动包含 PR 合并。
+- #38 实现与自动化验收完成，已推送并创建 [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62)，待正式评审及人工合并。独立工作区 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`；实现提交 `c91a3b7`，最终验证提交 `7caa05e3a951dac88eaf93067d0db1985088d966`。GitHub 回读 OPEN／CLEAN、无远端 checks；六条 AC 按证据勾选，Issue 保持 OPEN，标题／标签／指派及父 Spec #18 均未改。
+- [验收记录](docs/evidence/issue-38-acceptance.md) 逐项映射六条 AC。真实公开入口 RED → GREEN 修复 run/view/watch 冷读取清理、旧 Lead 的 DSH／Codex 详情、双 native 宽限期诊断、Codex 恢复终态及无效原生结束时间。共享 JSON／SQLite 场景保留原 member／handle、丢失回执去重、任务所有权与 DAG、另一 provider、评测、Run 和 watch；迟到旧代际通知与重复旧 Fiber 清理不影响新工作。
+- 最终 `pnpm verify` 自然退出 0：590 strict／0 warnings，Host／Client／Typert／compatibility 构建，394 tests／35 files，八归档普通解析与安装、生产消息／DAG／CAS／watch／丢响应恢复、Web 启动、Codex／Claude JSON＋SQLite 冷恢复及完整卸载通过。日志为 worktree 父目录 `issue-38-qualified-verify.log`。首轮唯一失败是旧夹具的相对终态时间却要求完整；保留输入、用量与终态，明确验证 incomplete／无 endedAt 后重新跑完整门禁通过。
+- Node 22.22.1／pnpm 11.7.0，Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 位于 `/root/workspace/pr61-fixes.7yIVdj/harness`，来源和锁均未修改。main 仍为 `ec88d85a2ec668388ff37b0b6cba4bab3e332040`；主工作区既有 HANDOFF、3 个 stash、历史工作树和维护源码均保留。
+- 飞书 #38 完成通知已于 2026-09-08 20:22:54 成功发送，CLI 返回 `ok: true`／bot，幂等键 `ultra-38-7caa05e-qualified`；内容包含 PR #62、实现／验证结果与待评审／合并和 #44 限制。不要重复发送。凭据、收件人私有标识和私人会话不写入仓库。
+- 下一步从 #38 候选建立 #39–#43 升级集成线，不切换 B 发布线；#38 PR 不自动合并。已回读 #39–#44，固定官方比较为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`；#43 完整迁移／归档门禁与人工合并、#44 真实认证验收仍不可省略。没有开始修改新 Harness 基线。旧 `gh pr edit` 因 Projects classic GraphQL 字段失败，已用 `gh api` 仅 PATCH 同一 PR body 并回读成功，不重建 PR。
+- 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
+
+## PR #61 发布交接（历史记录，已合并）
 
 - 最新用户已授权按建议依序推送配套 Harness、更新 [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61)，核对远端和检查后合并该 PR。只交付已经修复并复查通过的两类能力问题；不修改其他 PR／Issue 正文，不通知或恢复历史流水线，不删除分支或 worktree。主工作区 `/root/workspace/dsh-agent-team-ultra` 的 main、既有 `HANDOFF.md` 改动与来源链接均保留。
 - 修复工作区仍为 `/root/workspace/pr61-fixes.7yIVdj/ultra` 的 `fix/pr61-review-findings`，配套 Harness 为相邻 `harness` 的 `fix/pr61-member-capabilities`。Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 已经正常 pre-push 类型检查后推送维护 fork 同名分支，Git 与 GitHub 回读一致；没有推送官方 upstream。Ultra `9aa53d96e56efafbce93100b9f25327f6168b1a6` 已正常推送原 PR 分支并回读一致。当前交接只补充发布记录，不修改已验证代码或锁。
@@ -309,7 +329,7 @@
 
 - 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
 - `/root/workspace/deepseek-harness` 保持干净的 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` 和完整构建，供阶段 A 的 #25 和 #48 补修环境使用。该独立环境位于 `/tmp/ultra-25-audit-fix-vHVNjX`，已按其 lock 完成源码准备、冻结安装及完整验证；未重置共享 checkout。
-- 本轮验证工作树的 `.dsh/harness` 指向 `/root/workspace/pr60-fixes.U6WRei/harness`，锁定 `b78caad462c3509127761904ed59ee549b6b6160`，该提交已推送到 `fix/ultra-34-36-task-dag-live`；docs digest 仍为 `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`。来源准备、冻结安装和 582 strict／0 warning 通过。原 Harness worktree 保留，首次或换源时先准备再安装依赖。
+- 当前 PR #62 工作树 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra` 和 main 的 `.dsh/harness` 均指向 `/root/workspace/pr61-fixes.7yIVdj/harness`，锁定 `57670c6b320f7f240cbad360a9f691c8598e1571`，docs digest 为 `331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675`；本次严格检查 590／0 warnings。源代码、SDK 与锁保持原 B 线；首次或换源时仍先准备再安装依赖，不重置任何共享 Harness。
 - 飞书 CLI 已验证当前 user／bot 身份可用；认证阻塞、#21 缓存阻塞及恢复、#22 官方构建阻塞及恢复均已通知。不要在本文件记录凭据、用户标识或私人消息。
 - GitHub CLI 已完成设备授权登录，`gh auth status` 退出 0，Git 使用 SSH；`gh repo view` 已验证本仓库 `ADMIN` 权限。Issue／PR 的实际操作仍按任务边界和既有授权执行；无需重复询问已经授权的提交、推送和 PR 操作；对外消息仍须当前会话明确授权。不记录登录验证码或凭据。
 - 当前 `gh pr edit` 因已停用的 Projects classic GraphQL 字段报错；已通过 `gh api --method PATCH repos/benz-ai-x/dsh-agent-team-ultra/pulls/<number> --input <JSON文件>` 成功更新 #48、#51 正文。该错误与认证无关。
@@ -317,13 +337,13 @@
 
 ## 下一步
 
-1. PR #61 冲突处理、组合验证和原分支发布已完成；恢复时只读核对 live head 是否包含 `309c778`、Harness lock 是否为 `bb9b489548` 及远端 mergeability，不重复合并或重做修复。
-2. 等待用户决定是否重新评审或合并 PR #61；通过验证与推送不等于审查批准，也不授权直接合并。
-3. 其他 PR、Issue、流水线、通知和真实 native 验收仍不在本轮范围；保留主工作区与其他 worktree 的原状态。
+1. PR #62 修复候选已通过最终完整验证和独立 Standards／Spec 复查；后续说明提交不得混入运行时变更，发布时正常推送原分支并回读精确 head。合并需另行授权，不能仅凭通过审查自动执行。
+2. #38 的测试入口与飞书通知方式已经确认，初版完成通知已经成功，不重复发送。本轮不继续 #43 或 #44；其他批次保持自己的待验收状态，父 Spec #18 不修改。
+3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
 ## 权威材料与技能
 
-- 本次 PR #61 冲突处理使用 `resolving-merge-conflicts` 保留双方原意，使用 `dsh-plugin-dev` 执行精确来源与完整归档验证；未启动新代码审查或其他 PR 的开发。以下技能记录属于各历史轮次。
+- 当前使用 `tdd` 在已确认的公开 Host／生成 Remote、真实 Team／持久化／Fiber 入口修复 PR #62，使用 `dsh-plugin-dev` 核对锁定来源与证据语义，最终用 `code-review` 独立复查；无需重复确认既有入口或通知身份。以下技能记录属于各历史轮次。
 
 - 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 

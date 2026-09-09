@@ -23,6 +23,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', async (original) => ({
 export async function claudeWorkflow(backend: 'json' | 'sqlite' = 'json', options: {
   root?: string
   resumeLead?: boolean
+  disposalTimeoutMs?: number
   runtimeCapabilities?: readonly TeammateRuntimeCapability[]
 } = {},
   configure?: (native: NativeProduct, host: Awaited<ReturnType<typeof workflow>>) => void) {
