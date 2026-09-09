@@ -17,8 +17,9 @@ Issue 再建立重复的全量流程。
   production renderer、Session scope、Slot、生成 Client Remote，经认证 HTTP／
   WebSocket 调用真实 Host，不手写 `load`／`run` 返回值或直接渲染源组件。
 - 逐行查看 Run 规范证据源和 Remote 详情时间线，确认包含前身记录的原 work turn、
-  没有重复 Run、原 member 的消息链接仍相同。探针的原始 native turn 没有可恢复的
-  完成时间，必须显示 incomplete；这不意味着所有 native 历史都不完整。
+  没有重复 Run、原 member 的消息链接仍相同。Codex 冷历史缺完整工具／用量，
+  Claude 原始 result-only turn 缺可恢复时间，均须显示 incomplete；这不意味着
+  所有 native 历史都不完整。
 - 只控制外部 LLM 流：失败 attempt 的累计快照 `9→14→14`，随后成功 `7`；
   正式 Agent Loop 持久化 v2 settlement，生成 Remote 发起保存／激活／启动。
   界面显示一个 Run、`15 / 6 / 21`；缺 finish／缺 total 的另一轮显示 incomplete、
@@ -86,6 +87,19 @@ Issue 再建立重复的全量流程。
   `pr63-studio-candidate-final-verify.log`，SHA-256
   `de3d2cb0c339b3b333cf5d72a6ef7ba8b40c73e9f1c640ce9f09aab8605d5ff7`。
   仅终止已核对的本轮验证进程组，不影响其他工作；不计为完整通过。
+- `7739f64` 新归档 pack 和旧 Codex／旧 Claude／B 的三组历史升级全部退出 0，
+  Studio 经 JSON／SQLite 真正显示原 Run、v2 用量、完整性、失效 Lead 错误，
+  Web 与卸载完成。对应 `pr63-studio-undated-packed.log`、
+  `pr63-studio-candidate-{codex,claude,b}-history.log`；属于中间候选，不能替代
+  后续运行时代码修复的最终门禁。
+- 同一候选的 Standards 已 0，Spec 另发现 P2：末条 assistant 没有时间时，
+  前一阶段有日期的用量也被丢弃。公开恢复用例 RED 2 pass／2 fail：
+  `pr63-studio-native-partial-usage-red.log`，SHA-256
+  `e8eb4093610880c3f77ea63657682a2c4164ae319dc786fe1cb0c5cc8d01bbe5`。
+  最终按用量自己的来源时间保留 `3 / 1 / 4`，无日期终态仍不发布；后续无日期
+  的额外计数也不能借用早先时间进入规范时间线，证据页继续 incomplete。
+  原日期完整／result-only 对照不变，Claude 全套 `7 files／64 tests` 通过：
+  `pr63-studio-native-partial-usage-green.log`。最终全量门禁待两轴复查关闭后执行。
 
 ## 固定环境与来源恢复
 

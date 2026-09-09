@@ -185,7 +185,7 @@ export async function probePackedStudio({ ctx, installed, harnessRoot, lead, mem
       assert.ok([...dialog.querySelectorAll('main time')].every(time => time.textContent !== new Date(0).toLocaleString()),
         'unknown historical times must not appear as a fabricated epoch date')
       if (historicalTurns.includes(turn)) assert.ok(dialog.querySelector('main').textContent
-        .includes('Evidence completeness: incomplete'), 'the original fixture has no recoverable terminal time')
+        .includes('Evidence completeness: incomplete'), 'the original fixture cannot reconstruct complete native evidence')
     }
     assert.equal(displayedTurns.size, rows.length, 'one canonical work turn must not create duplicate Run rows')
     for (const turn of historicalTurns) assert.ok(displayedTurns.has(turn), `Studio lost predecessor work turn ${turn}`)

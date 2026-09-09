@@ -352,7 +352,9 @@ describe('Claude Code authorized Team operations', () => {
     } finally { await stored.close() }
   })
 
-  it.each([true, false])('restores committed Run evidence after restart with native terminal timestamp=%s', async hasTimestamp => {
+  it.each(['dated-terminal', 'result-only', 'dated-usage', 'undated-usage'] as const)('restores committed Run evidence after restart from %s history', async history => {
+    const hasTimestamp = history === 'dated-terminal'
+    const hasDatedUsage = history === 'dated-usage' || history === 'undated-usage'
     const first = await claudeWorkflow()
     await expect(first.invoke('save', { expectedHeadRevision: null, profile: { ...profile, continuationProvider: '' },
       runtimeTarget: { kind: 'external-agent', provider: 'claude-code' } })).resolves.toMatchObject({ ok: true })
@@ -364,6 +366,21 @@ describe('Claude Code authorized Team operations', () => {
     if (!launched.ok || !launched.value.nativeRuntimeHandle) throw new Error('the bound native employee must launch')
     const member = first.ctx.agentTeams.listMembers(first.lead.agent)
       .find(candidate => candidate.id === launched.value.memberId)!
+    const usageTime = new Date().toISOString()
+    if (hasDatedUsage) {
+      first.native.recordHistory(launched.value.nativeRuntimeHandle, {
+        type: 'assistant', session_id: launched.value.nativeRuntimeHandle, parent_tool_use_id: null,
+        uuid: 'dated-usage-stage', timestamp: usageTime,
+        message: { role: 'assistant', model: 'claude-sonnet-4-6', stop_reason: 'tool_use', content: [],
+          usage: { input_tokens: 3, output_tokens: 1 } },
+      })
+      first.native.recordHistory(launched.value.nativeRuntimeHandle, {
+        type: 'assistant', session_id: launched.value.nativeRuntimeHandle, parent_tool_use_id: null,
+        uuid: 'undated-terminal-stage',
+        message: { role: 'assistant', model: 'claude-sonnet-4-6', stop_reason: 'end_turn', content: [],
+          ...(history === 'undated-usage' ? { usage: { input_tokens: 99, output_tokens: 99 } } : {}) },
+      })
+    }
     // A result-only response commits the outcome but leaves no timestamped assistant history.
     first.native.complete(hasTimestamp ? 'The original committed review is complete.' : undefined)
     await expect.poll(() => first.ctx.agentTeams.listMembers(first.lead.agent)
@@ -378,7 +395,10 @@ describe('Claude Code authorized Team operations', () => {
     const view = await second.invoke('view') as DigitalEmployeeStudioView
     expect(view.runs).toHaveLength(1)
     const detail = await second.invoke('run', { runId: view.runs[0]!.runId })
-    if (!hasTimestamp) expect((detail as { value: { timeline: unknown[] } }).value.timeline).toEqual([])
+    if (history === 'result-only') expect((detail as { value: { timeline: unknown[] } }).value.timeline).toEqual([])
+    if (hasDatedUsage) expect((detail as { value: { timeline: unknown[] } }).value.timeline).toEqual([
+      { kind: 'usage', timestamp: Date.parse(usageTime), usage: { inputTokens: 3, outputTokens: 1, totalTokens: 4 } },
+    ])
     expect(detail).toMatchObject({ ok: true, value: { run: {
       canonicalTurnId: member.externalRuntime!.initialTurnId,
       terminal: hasTimestamp ? 'completed' : 'unknown-terminal',
@@ -389,7 +409,8 @@ describe('Claude Code authorized Team operations', () => {
       expect(restoredRun.usage).toEqual({ inputTokens: 5, outputTokens: 2, totalTokens: 7 })
       expect(restoredRun.endedAt).toEqual(expect.any(Number))
     } else {
-      expect(restoredRun.usage).toBeUndefined()
+      if (hasDatedUsage) expect(restoredRun.usage).toEqual({ inputTokens: 3, outputTokens: 1, totalTokens: 4 })
+      else expect(restoredRun.usage).toBeUndefined()
       expect(restoredRun.endedAt).toBeUndefined()
     }
     expect((detail as { value: { timeline: Array<{ kind: string }> } }).value.timeline

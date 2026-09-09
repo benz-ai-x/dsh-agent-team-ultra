@@ -1183,7 +1183,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       let outputTokens = 0
       let cacheReadTokens = 0
       let cacheWriteTokens = 0
-      let sawUsage = false
+      let usageTimestamp: number | undefined
       let validUsage = true
       for (const entry of transcript?.messages ?? []) {
         const raw = entry as unknown as Record<string, unknown>
@@ -1205,9 +1205,11 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         if (timestamp === undefined) session.evidenceIncomplete = true
         else this.recordAssistantTools(session, work.id, raw, timestamp)
         const usage = claudeUsage(message.usage)
-        if (message.usage !== undefined) sawUsage = true
+        if (message.usage !== undefined && timestamp !== undefined) usageTimestamp = timestamp
         if (message.usage !== undefined && usage === undefined) validUsage = false
-        if (usage !== undefined && validUsage) {
+        // A dated usage fact retains its own time even when later terminal
+        // history is undated. Never attach undated counters to that earlier time.
+        if (usage !== undefined && validUsage && timestamp !== undefined) {
           const next: [number, number, number, number] = [
             inputTokens + usage.inputTokens,
             outputTokens + usage.outputTokens,
@@ -1238,7 +1240,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         ? nativeTerminal ?? { outcome: 'interrupted', timestamp: undefined, text: terminalText('interrupted', '') }
         : { outcome: committed.outcome, timestamp: nativeTerminal?.timestamp, text: committed.text }
       await this.queueSettlement(session, work.id, terminal)
-      if (sawUsage && timestamp !== undefined) {
+      if (usageTimestamp !== undefined) {
         const usage = validUsage ? Object.freeze({
           inputTokens, outputTokens,
           totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens,
@@ -1247,7 +1249,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         }) : undefined
         this.addEvidence(session, {
           id: evidenceId('usage', session.handle, work.id),
-          kind: 'usage', timestamp, turnId: work.id,
+          kind: 'usage', timestamp: usageTimestamp, turnId: work.id,
           ...(usage === undefined ? {} : { usage }),
         })
       }

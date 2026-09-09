@@ -492,7 +492,9 @@ Focused Linux verification is not the final historical archive or native-auth ga
   the recovery clock, epoch zero, or another assistant stage's time. Its separate
   Team settlement retains the known outcome, while evidence gaps keep the page
   incomplete for that provider generation. Fully source-timed history remains
-  eligible for complete evidence.
+  eligible for complete evidence. Dated usage keeps its own source time: later
+  undated history neither erases those known counters nor assigns their earlier
+  timestamp to additional undated counters.
 - Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text
