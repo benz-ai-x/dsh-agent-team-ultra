@@ -27,7 +27,7 @@
 - [x] 核对远端 main 仍为 `f84584d`、没有重复 PR；当前 67 个运行输入的指纹与已验候选一致。
 - [x] 发布前重跑 `pnpm verify`：496 strict／0 warnings、46 tests／9 files、六归档安装、安装版 Host／Studio 12 tests／2 files、Web 自然退出和卸载保留数据通过。
 - [x] 补充发货 Client bundle 的 Chromium 截图，明确使用演示数据，不作为真实账号验收。
-- [ ] 提交本次 B0 变更，推送原分支并创建 PR；回读 PR head、远端分支和本地 HEAD 一致。
+- [x] B0 已提交为 `19e07a5` 并推送原分支，创建 [PR #64](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/64) → main；回读 OPEN／非草稿／MERGEABLE／CLEAN，PR head、远端与本地一致。随后只同步发布交接文档，不自动合并。
 
 ## PR 创建后再决定
 

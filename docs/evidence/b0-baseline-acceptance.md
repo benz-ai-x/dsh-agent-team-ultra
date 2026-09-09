@@ -95,6 +95,10 @@ Studio 交互使用 JSDOM，不是人工浏览器；Web 冒烟启动真实服务
 六归档真实安装与安装版 Host／Studio 12 tests／2 files 通过，Web 正常监听并自然退出，完整卸载保留数据。
 67 个运行输入仍为上文相同指纹；本轮没有改运行代码或依赖，仅补发布状态和截图。
 远端 main 已 fetch 核对为 `f84584d`；旧 #18、#44 仍 OPEN，不设置自动关闭关系。
+运行提交 `19e07a580b443e5647100971c28a59c46c282374` 已正常推送，创建
+[PR #64](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/64) → main。
+创建后回读 head 与本地／远端相同，状态 OPEN／MERGEABLE／CLEAN、非草稿、没有 GitHub CI checks。
+随后只追加发布状态文档；没有独立 PR 审查、真实账号验收或合并。
 
 以下截图由 Chromium 实际渲染当前 `packages/ui/lib/client.js`，使用只读演示数据和隔离预览容器；
 不是官方 Web 的完整外壳，也没有真实模型调用。模型／持久化／错误冒泡以自动化联验为据，真实账号验收仍单列。

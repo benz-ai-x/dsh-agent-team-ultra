@@ -8,8 +8,12 @@
 
 用户授权制定 TODO 并实施“官方优先、DSH-only”的精简基线，随后明确要求“建 PR”。
 本地分支 `chore/official-dsh-only-baseline`，起点
-`f84584def627b4af78a029af8788de73da0ad567`；本轮正在提交／推送并创建到 main 的 PR。
-已 fetch 并核对远端 main 仍为该提交，没有重复的打开 PR。没有合并或修改旧 Issues。
+`f84584def627b4af78a029af8788de73da0ad567`；B0 运行提交为
+`19e07a580b443e5647100971c28a59c46c282374`，已推送并创建
+[PR #64](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/64) → main。
+创建后回读 OPEN／非草稿／MERGEABLE／CLEAN，GitHub 没有提供 CI checks；本地完整验证不是人工审批。
+PR head、远端分支和本地运行提交一致；之后仅追加发布交接文档，最新 head 以 PR／Git 回读为准。
+远端 main 仍为 `f84584d`。没有合并或修改旧 Issues。
 
 B0 版本 `0.2.0-b0.1`，只保留 domain／ui／profile 三个 Ultra 包：
 
@@ -70,7 +74,7 @@ Web 真实监听后自然退出（ready=true、forced=false、code=0）、完整
 前轮沙箱曾引起 pnpm 数据库／子进程 EPERM，本轮环境已开放，不需要或请求提权。
 没有使用真实模型账号／凭据；B0-12 保持未验证。
 
-本次本地清理已完成，当前只按新授权发布 B0 PR。之后再单独评审及决定真实 DSH 员工验收／合并。
+本次本地清理与 B0 PR 创建已完成。下一步单独评审 PR #64，再决定真实 DSH 员工验收／合并。
 建 PR 不包含合并、关闭旧 Issue、真实模型凭据使用或消息通知。
 
 ## 技能与设计依据
