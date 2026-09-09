@@ -1,11 +1,9 @@
 import { Buffer } from 'node:buffer'
-import { isDeepStrictEqual } from 'node:util'
 
 import { DigitalEmployeeHostContext } from './host-context.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
-import { digitalEmployeeProfileDraftSchema, selectableDigitalEmployeeRuntimeTargetSchema } from './spec.ts'
-import { requiredCapabilitiesForProfile, sameDshTarget } from './runtime.ts'
+import { digitalEmployeeProfileDraftSchema } from './spec.ts'
 import { profileContentFingerprint } from './storage.ts'
 import type {
   ActivateDigitalEmployeeProfileRequest,
@@ -16,7 +14,6 @@ import type {
   DigitalEmployeeProfileRevision,
   DigitalEmployeeProfileDiffEntry,
   DigitalEmployeeProfileRevisionSummary,
-  DigitalEmployeeRuntimeTarget,
   GetDigitalEmployeeProfileRevisionRequest,
   GetDigitalEmployeeProfileRevisionResult,
   MutateDigitalEmployeeProfileHeadResult,
@@ -24,8 +21,6 @@ import type {
   RestoreDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileRequest,
   SaveDigitalEmployeeProfileResult,
-  SetDigitalEmployeeEvalGateRequest,
-  DigitalEmployeePromotionGate,
 } from './types.ts'
 import { failure } from './host-errors.ts'
 import { snapshotProfileDraft, snapshotProfileHead, snapshotProfileRevision } from './profile-snapshot.ts'
@@ -81,13 +76,9 @@ function profileRevisionDiff(
       ? {}
       : {
         profile: before.profile,
-        runtimeTarget: before.runtimeTarget,
-        requiredCapabilities: before.requiredCapabilities,
       },
     {
       profile: after.profile,
-      runtimeTarget: after.runtimeTarget,
-      requiredCapabilities: after.requiredCapabilities,
     },
     '',
   )
@@ -95,15 +86,6 @@ function profileRevisionDiff(
     entries: Object.freeze(entries.slice(0, limit)),
     truncated: entries.length > limit,
   })
-}
-
-function sameRuntimeTarget(left: DigitalEmployeeRuntimeTarget, right: DigitalEmployeeRuntimeTarget): boolean {
-  if (left.kind !== right.kind) return false
-  if (left.kind === 'legacy-inherit-lead' || right.kind === 'legacy-inherit-lead') return true
-  if (left.kind === 'external-agent' || right.kind === 'external-agent') {
-    return left.kind === 'external-agent' && right.kind === 'external-agent' && left.provider === right.provider
-  }
-  return sameDshTarget(left, right)
 }
 
 function saveRejected(error: DigitalEmployeeFailure): SaveDigitalEmployeeProfileResult {
@@ -119,12 +101,7 @@ function revisionRejected(error: DigitalEmployeeFailure): GetDigitalEmployeeProf
 }
 
 export class ProfileLifecycle {
-  constructor(
-    private readonly host: DigitalEmployeeHostContext,
-    private readonly promotionGate: (
-      caller: Agent, teamId: string, head: DigitalEmployeeProfileHead, revision: DigitalEmployeeProfileRevision,
-    ) => DigitalEmployeePromotionGate,
-  ) {}
+  constructor(private readonly host: DigitalEmployeeHostContext) {}
 
   /** Public Host Revision inspector guarded by exact live Lead authority. */
   profileRevision(
@@ -136,7 +113,8 @@ export class ProfileLifecycle {
     }
     const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(revisionRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.revision) || request.revision < 1) {
+    if (request === null || typeof request !== 'object' || typeof request.profileId !== 'string'
+      || !Number.isSafeInteger(request.revision) || request.revision < 1) {
       return Promise.resolve(revisionRejected(failure('profile-invalid', 'Revision must be a positive integer')))
     }
     const storage = this.host.storage
@@ -177,9 +155,14 @@ export class ProfileLifecycle {
     if (!this.host.admissionOpen) return saveRejected(failure('service-disposed', 'Digital Employee service is disposing'))
     const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return saveRejected(authorityFailure)
+    if (request === null || typeof request !== 'object') return saveRejected(failure('profile-invalid', 'A save request is required'))
     if (request.expectedHeadRevision !== null
       && (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1)) {
       return saveRejected(failure('profile-invalid', 'Head revision must be null or a positive integer'))
+    }
+    if (Object.keys(request).some(key => key !== 'expectedHeadRevision' && key !== 'profile')
+      || request.profile === null || typeof request.profile !== 'object') {
+      return saveRejected(failure('profile-invalid', 'B0 accepts a Profile only; independent runtime routes are not supported'))
     }
     const continuationProvider = typeof request.profile.continuationProvider === 'string'
       ? request.profile.continuationProvider.trim() || this.host.config.defaultContinuationProvider
@@ -191,13 +174,6 @@ export class ProfileLifecycle {
         parsed.error.issues.map(issue => `${issue.path.join('.') || 'profile'}: ${issue.message}`).join('; ').slice(0, 2048),
       ))
     }
-    const parsedTarget = selectableDigitalEmployeeRuntimeTargetSchema.safeParse(request.runtimeTarget)
-    if (!parsedTarget.success) {
-      return saveRejected(failure(
-        'runtime-route-invalid',
-        parsedTarget.error.issues.map(issue => `${issue.path.join('.') || 'runtimeTarget'}: ${issue.message}`).join('; ').slice(0, 2048),
-      ))
-    }
     if (parsed.data.hooks.length > this.host.config.maxHooks) {
       return saveRejected(failure(
         'profile-invalid',
@@ -205,35 +181,20 @@ export class ProfileLifecycle {
       ))
     }
     const normalized = snapshotProfileDraft(parsed.data)
-    const runtimeTarget = Object.freeze({ ...parsedTarget.data })
-    const requiredCapabilities = requiredCapabilitiesForProfile(normalized)
-    const bytes = Buffer.byteLength(JSON.stringify({
-      profile: normalized,
-      runtimeTarget,
-      requiredCapabilities,
-    }), 'utf8')
+    const expectedHeadRevision = request.expectedHeadRevision
+    const bytes = Buffer.byteLength(JSON.stringify(normalized), 'utf8')
     if (bytes > this.host.config.maxProfileBytes) {
       return saveRejected(failure(
         'profile-invalid',
         `Revision content is ${bytes} UTF-8 bytes; maximum is ${this.host.config.maxProfileBytes}`,
       ))
     }
-    await this.host.runtimeBackends.whenSettled()
-    const currentAuthorityFailure = this.host.mutationFailure(caller)
-    if (currentAuthorityFailure !== undefined) return saveRejected(currentAuthorityFailure)
-    const targetProblem = this.host.runtimeBackends.validate(
-      normalized,
-      runtimeTarget,
-      requiredCapabilities,
-      'save',
-    )
-    if (targetProblem !== undefined && targetProblem.code !== 'runtime-target-unavailable') {
-      return saveRejected(failure(targetProblem.code, targetProblem.message))
-    }
     return await this.host.mutate(caller, async () => {
+      const problem = this.host.profileProblem(caller, normalized)
+      if (problem !== undefined) return saveRejected(problem)
       const storage = this.host.storage
       const currentHead = storage.getProfileHead(parsed.data.id)
-      if (request.expectedHeadRevision !== (currentHead?.headRevision ?? null)) {
+      if (expectedHeadRevision !== (currentHead?.headRevision ?? null)) {
         return saveRejected(failure(
           'profile-conflict',
           'Profile Head changed; reload before saving',
@@ -250,13 +211,7 @@ export class ProfileLifecycle {
       if (currentHead !== undefined && latest === undefined) {
         throw new Error(`Digital Employee Profile Head "${parsed.data.id}" has no latest Revision`)
       }
-      if (targetProblem !== undefined
-        && (latest === undefined
-          || !sameRuntimeTarget(latest.runtimeTarget, runtimeTarget)
-          || latest.profile.continuationProvider !== normalized.continuationProvider)) {
-        return saveRejected(failure(targetProblem.code, targetProblem.message, currentHead))
-      }
-      const fingerprint = profileContentFingerprint(normalized, runtimeTarget, requiredCapabilities)
+      const fingerprint = profileContentFingerprint(normalized)
       if (latest?.fingerprint === fingerprint) {
         return Object.freeze({
           ok: true as const,
@@ -279,8 +234,6 @@ export class ProfileLifecycle {
         profileId: normalized.id,
         revision: Math.max(0, ...known.map(candidate => candidate.revision)) + 1,
         profile: normalized,
-        runtimeTarget,
-        requiredCapabilities,
         fingerprint,
         createdAt: currentHead?.createdAt ?? now,
         updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
@@ -292,7 +245,6 @@ export class ProfileLifecycle {
         latestRevision: revision.revision,
         ...(currentHead?.activeRevision === undefined ? {} : { activeRevision: currentHead.activeRevision }),
         historyStartsAtRevision: currentHead?.historyStartsAtRevision ?? revision.revision,
-        ...(currentHead?.requiredEvalSet === undefined ? {} : { requiredEvalSet: currentHead.requiredEvalSet }),
         ...(currentHead?.archivedAt === undefined ? {} : { archivedAt: currentHead.archivedAt }),
         createdAt: currentHead?.createdAt ?? now,
         updatedAt: Math.max(now, currentHead?.updatedAt ?? 0),
@@ -303,62 +255,6 @@ export class ProfileLifecycle {
         ok: true as const,
         value: Object.freeze({ unchanged: false, head: nextHead, revision }),
       })
-    })
-  }
-
-  /** Change only the Profile Head's required Eval Set pointer through CAS. */
-  setEvalGate(
-    caller: Agent,
-    request: SetDigitalEmployeeEvalGateRequest,
-  ): Promise<MutateDigitalEmployeeProfileHeadResult> {
-    if (!this.host.admissionOpen) {
-      return Promise.resolve(headMutationRejected(failure('service-disposed', 'Digital Employee service is disposing')))
-    }
-    const authorityFailure = this.host.leadAuthorityFailure(caller)
-    if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1
-      || (request.requiredEvalSet !== undefined
-        && (!Number.isSafeInteger(request.requiredEvalSet.revision) || request.requiredEvalSet.revision < 1))) {
-      return Promise.resolve(headMutationRejected(failure('eval-invalid', 'Eval gate CAS values must be positive integers')))
-    }
-    return this.host.mutate(caller, async () => {
-      const storage = this.host.storage
-      const head = storage.getProfileHead(request.profileId)
-      if (head === undefined) {
-        return headMutationRejected(failure('profile-not-found', `profile "${request.profileId}" not found`))
-      }
-      if (head.headRevision !== request.expectedHeadRevision) {
-        return headMutationRejected(failure('profile-conflict', 'Profile Head changed; reload before changing its gate', head))
-      }
-      const required = request.requiredEvalSet
-      if (required !== undefined) {
-        const revision = storage.getEvalSetRevision(required.evalSetId, required.revision)
-        if (revision === undefined || revision.profileId !== head.profileId) {
-          return headMutationRejected(failure(
-            'eval-not-found',
-            'required Eval Set Revision does not exist for this Profile',
-            head,
-          ))
-        }
-      }
-      if (isDeepStrictEqual(head.requiredEvalSet, required)) {
-        return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
-      }
-      const now = Math.max(Date.now(), head.updatedAt)
-      const next = snapshotProfileHead({
-        schemaVersion: 1,
-        profileId: head.profileId,
-        headRevision: head.headRevision + 1,
-        latestRevision: head.latestRevision,
-        ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
-        historyStartsAtRevision: head.historyStartsAtRevision,
-        ...(required === undefined ? {} : { requiredEvalSet: Object.freeze({ ...required }) }),
-        ...(head.archivedAt === undefined ? {} : { archivedAt: head.archivedAt }),
-        createdAt: head.createdAt,
-        updatedAt: now,
-      })
-      await storage.putProfileHead(next)
-      return Object.freeze({ ok: true as const, value: Object.freeze({ head: next }) })
     })
   }
 
@@ -396,8 +292,6 @@ export class ProfileLifecycle {
 
   /** Build one bounded, detached catalog entry from authoritative v1 records. */
   catalogEntry(
-    caller: Agent,
-    teamId: string,
     head: DigitalEmployeeProfileHead,
   ): DigitalEmployeeProfileCatalogEntry {
     const storage = this.host.storage
@@ -423,7 +317,6 @@ export class ProfileLifecycle {
       latest: snapshotProfileRevision(latest),
       history: Object.freeze(history),
       historyTruncated: revisions.length > history.length,
-      promotionGate: this.promotionGate(caller, teamId, head, latest),
     })
   }
 
@@ -438,10 +331,12 @@ export class ProfileLifecycle {
     }
     const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.revision) || request.revision < 1
+    if (request === null || typeof request !== 'object' || typeof request.profileId !== 'string'
+      || !Number.isSafeInteger(request.revision) || request.revision < 1
       || !Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
       return Promise.resolve(headMutationRejected(failure('profile-invalid', 'Revision CAS values must be positive integers')))
     }
+    request = Object.freeze({ profileId: request.profileId, revision: request.revision, expectedHeadRevision: request.expectedHeadRevision })
     return this.host.mutate(caller, async () => {
       const storage = this.host.storage
       const head = storage.getProfileHead(request.profileId)
@@ -470,29 +365,8 @@ export class ProfileLifecycle {
         && (head.activeRevision === undefined || request.revision > head.activeRevision)) {
         return headMutationRejected(failure('revision-not-found', 'rollback requires an active or older Revision', head))
       }
-      await this.host.runtimeBackends.whenSettled()
-      const admissionFailure = this.host.mutationFailure(caller)
-      if (admissionFailure !== undefined) return headMutationRejected(admissionFailure)
-      const targetProblem = this.host.runtimeBackends.validate(
-        revision.profile,
-        revision.runtimeTarget,
-        revision.requiredCapabilities,
-        'activate',
-      )
-      if (targetProblem !== undefined) {
-        return headMutationRejected(failure(targetProblem.code, targetProblem.message, head))
-      }
-      if (operation === 'activate') {
-        const teamId = this.host.ctx.agentTeams.membership(caller).id
-        const gate = this.promotionGate(caller, teamId, head, revision)
-        if (gate.status !== 'not-required' && gate.status !== 'passed') {
-          return headMutationRejected(failure(
-            'promotion-gate-failed',
-            gate.diagnostic ?? 'the exact candidate has not passed its required Eval Set',
-            head,
-          ))
-        }
-      }
+      const targetProblem = this.host.profileProblem(caller, revision.profile)
+      if (targetProblem !== undefined) return headMutationRejected(failure(targetProblem.code, targetProblem.message, head))
       if (head.activeRevision === request.revision) {
         return Object.freeze({ ok: true as const, value: Object.freeze({ head: snapshotProfileHead(head) }) })
       }
@@ -518,9 +392,11 @@ export class ProfileLifecycle {
     }
     const authorityFailure = this.host.leadAuthorityFailure(caller)
     if (authorityFailure !== undefined) return Promise.resolve(headMutationRejected(authorityFailure))
-    if (!Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
+    if (request === null || typeof request !== 'object' || typeof request.profileId !== 'string'
+      || !Number.isSafeInteger(request.expectedHeadRevision) || request.expectedHeadRevision < 1) {
       return Promise.resolve(headMutationRejected(failure('profile-invalid', 'Head revision must be a positive integer')))
     }
+    request = Object.freeze({ profileId: request.profileId, expectedHeadRevision: request.expectedHeadRevision })
     return this.host.mutate(caller, async () => {
       const storage = this.host.storage
       const head = storage.getProfileHead(request.profileId)
@@ -541,7 +417,6 @@ export class ProfileLifecycle {
         latestRevision: head.latestRevision,
         ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
         historyStartsAtRevision: head.historyStartsAtRevision,
-        ...(head.requiredEvalSet === undefined ? {} : { requiredEvalSet: head.requiredEvalSet }),
         ...(archived ? { archivedAt: now } : {}),
         createdAt: head.createdAt,
         updatedAt: now,

@@ -1,5 +1,10 @@
 # Open Issues 批处理状态
 
+> 历史归档（2026-09-09）：下文所有执行、通知、推送或合并授权均已过期。
+> 当前只执行 [B0 TODO](TODO.md) 和 [根交接](HANDOFF.md) 中的本地精简基线清理；
+> [ADR 0028](docs/adr/0028-establish-official-dsh-only-baseline.md) 已替代旧路线。
+> 本文计数与事实保持历史原样，不能作为当前 PR／Issue 状态或继续开发的依据。
+
 最后更新：2026-09-08（Asia/Shanghai，仅 PR #61 已审查修复的发布与合并）
 
 本文件保留历史批处理进度，当前授权仅以下节为准。恢复时先用 `gh issue list`、`gh pr list`、`git log` 和 `git status` 对账；冲突时以实测为准并立即修正本文件。

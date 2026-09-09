@@ -1,118 +1,31 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import * as yaml from 'js-yaml'
+import yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 
-describe('Agent Team Ultra profile overlay', () => {
-  it('is a private parseable bundle with collision-free stable rows', () => {
-    const root = fileURLToPath(new URL('..', import.meta.url))
-    const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
-      private?: boolean
-      publishConfig?: unknown
-      peerDependencies?: Record<string, string>
-      peerDependenciesMeta?: Record<string, { optional?: boolean }>
-      devDependencies?: Record<string, string>
-      dsh?: { bundle?: { patch?: string } }
+function patches(path: string): any[] { return yaml.load(readFileSync(path, 'utf8'), { schema: entryListSchema }) as any[] }
+describe('official-first B0 profile', () => {
+  it('reuses the fixed official Team configuration and collision policy unchanged', () => {
+    const own = patches(resolve('packages/profile/cordis.patch.yml'))
+    const official = patches(resolve('.dsh/harness/packages/experimental/agent-team-profile/cordis.patch.yml'))
+    const group = own.flatMap(row => row.insert ?? []).find(row => row.id === 'agent-team-ultra-compatibility')
+    for (const row of official) {
+      if (row.id) expect(own.find(candidate => candidate.id === row.id)).toEqual(row)
+      for (const inserted of row.insert ?? []) expect(group.config.find((candidate: any) => candidate.id === inserted.id)).toEqual(inserted)
     }
+    expect(group.config.map((row: any) => row.id)).toEqual(['agent-team', 'tool-agent-team', 'agent-team-ultra', 'ui-agent-team', 'ui-agent-team-ultra'])
+    for (const id of ['session-persistence-jsonl', 'storage-json', 'storage-domain']) expect(own.find(row => row.id === id)?.disabled).toBe(true)
+  })
+
+  it('ships only three Ultra packages, official peers and one isolated data-root setting', () => {
+    const manifest = JSON.parse(readFileSync('packages/profile/package.json', 'utf8'))
     expect(manifest.private).toBe(true)
-    expect(manifest.publishConfig).toBeUndefined()
-    expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
-    expect(manifest.peerDependencies).toEqual({
-      '@deepseek-ai/cordis': '4.0.2',
-      '@deepseek-ai/cordis-plugin-loader': '1.0.3',
-      '@deepseek-ai/dsh-session-persistence-jsonl': '0.1.3-alpha.1',
-      '@deepseek-ai/dsh-storage': '0.1.3-alpha.1',
-      '@deepseek-ai/dsh-storage-domain': '0.1.3-alpha.1',
-      '@deepseek-ai/dsh-storage-json': '0.1.3-alpha.1',
-      '@deepseek-ai/dsh-storage-sqlite': '0.1.3-alpha.1',
-      '@benz-ai-x/dsh-agent-team-ultra': '0.1.0',
-      '@benz-ai-x/dsh-client-ui-agent-team-ultra': '0.1.0',
-      '@deepseek-ai/dsh-experimental-agent-team': '0.1.3-alpha.1',
-      '@benz-ai-x/dsh-agent-team-claude-code': '0.1.0',
-      '@benz-ai-x/dsh-agent-team-codex': '0.1.0',
-      '@deepseek-ai/dsh-experimental-client-ui-agent-team': '0.1.3-alpha.1',
-      '@deepseek-ai/dsh-experimental-tool-agent-team': '0.1.3-alpha.1',
-    })
-    expect(Object.values(manifest.peerDependenciesMeta ?? {}).every(meta => meta.optional === true)).toBe(true)
-    expect(manifest.devDependencies?.['@benz-ai-x/dsh-agent-team-codex']).toBe(
-      'workspace:*',
-    )
-    expect(manifest.devDependencies?.['@benz-ai-x/dsh-agent-team-claude-code']).toBe(
-      'workspace:*',
-    )
-
-    const patches = yaml.load(
-      readFileSync(resolve(root, manifest.dsh!.bundle!.patch!), 'utf8'),
-      { schema: entryListSchema },
-    ) as {
-      id?: string
-      disabled?: boolean
-      config?: Record<string, unknown>
-      insert?: { id: string; name: string; config?: { id: string; name: string; config?: Record<string, unknown> }[] }[]
-    }[]
-    expect(patches.find(patch => patch.id === 'tool-subagent-control')).toMatchObject({ disabled: true })
-    expect(patches.find(patch => patch.id === 'tool-subagent-list-agents')).toMatchObject({ disabled: true })
-    expect(patches.find(patch => patch.id === 'tool-subagent')?.config).toMatchObject({ backgroundMode: 'one-shot' })
-    expect(patches.find(patch => patch.id === 'tool-subagent-fork')?.config).toMatchObject({ backgroundMode: 'one-shot' })
-
-    const rows = patches.flatMap(patch => patch.insert ?? [])
-    const groups = rows.filter(row => row.id === 'agent-team-ultra-compatibility')
-    expect(rows).toHaveLength(2)
-    expect(rows.find(row => row.id === 'agent-team-ultra-data')).toMatchObject({
-      name: '@benz-ai-x/dsh-agent-team-ultra-profile/data',
-    })
-    for (const id of ['session-persistence-jsonl', 'storage-json', 'storage-domain']) {
-      expect(patches.find(patch => patch.id === id)).toMatchObject({ disabled: true })
-    }
-    expect(groups).toHaveLength(1)
-    expect(groups[0]).toMatchObject({
-      id: 'agent-team-ultra-compatibility',
-      name: '@benz-ai-x/dsh-agent-team-ultra-profile',
-      group: true,
-    })
-    const inserted = groups[0]!.config!
-    expect(inserted.map(entry => entry.id)).toEqual([
-      'agent-team',
-      'agent-team-codex',
-      'agent-team-claude-code',
-      'tool-agent-team',
-      'agent-team-ultra',
-      'ui-agent-team',
-      'ui-agent-team-ultra',
-    ])
-    expect(new Set(inserted.map(entry => entry.id)).size).toBe(inserted.length)
-    expect(inserted.find(entry => entry.id === 'agent-team-codex')).toMatchObject({
-      name: '@benz-ai-x/dsh-agent-team-codex',
-      config: {
-        catalogOwnerService: 'digitalEmployees',
-        sandbox: 'read-only',
-      },
-    })
-    expect(inserted.find(entry => entry.id === 'agent-team-claude-code')).toMatchObject({
-      name: '@benz-ai-x/dsh-agent-team-claude-code',
-      config: {
-        catalogOwnerService: 'digitalEmployees',
-        sandbox: 'read-only',
-      },
-    })
-    expect(inserted.find(entry => entry.id === 'agent-team-ultra')).toMatchObject({
-      name: '@benz-ai-x/dsh-agent-team-ultra',
-      config: {
-        defaultContinuationProvider: 'spawn',
-        maxProfiles: 64,
-        maxHooks: 32,
-        maxAssignmentBytes: 32768,
-        maxRevisionHistory: 32,
-        maxDiffEntries: 512,
-        maxRuns: 512,
-        maxRunEvidenceItems: 512,
-        maxEvalSets: 64,
-        maxEvalSetBytes: 262144,
-        maxEvalCases: 64,
-        maxEvalRuns: 256,
-      },
-    })
+    expect(JSON.stringify(manifest)).not.toMatch(/claude-code|agent-team-codex|storage-sqlite/)
+    const own = patches(resolve('packages/profile/cordis.patch.yml'))
+    const data = own.flatMap(row => row.insert ?? []).find(row => row.id === 'agent-team-ultra-data')
+    expect(data.name).toBe('@benz-ai-x/dsh-agent-team-ultra-profile/data')
+    expect(Object.keys(data.config)).toEqual(['root'])
+    expect(readFileSync('packages/profile/cordis.patch.yml', 'utf8')).toContain("dshHomePath('ultra-b0')")
   })
 })

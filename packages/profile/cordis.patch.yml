@@ -1,4 +1,5 @@
-# Local Agent Team Ultra overlay. Apply after dsh-base and dsh-web-app.
+# Ultra B0. Official Team settings below mirror the locked official profile patches.
+# Only Ultra data/catalog/Studio are added. Existing data roots are never opened.
 # Team-owned controls replace the two overlapping global continuable controls.
 
 - id: session-persistence-jsonl
@@ -32,11 +33,7 @@
     - id: agent-team-ultra-data
       name: '@benz-ai-x/dsh-agent-team-ultra-profile/data'
       config:
-        sessions:
-          root: !!js dshHomePath('sessions')
-        storage:
-          backend: json
-          root: !!js dshHomePath('storages')
+        root: !!js dshHomePath('ultra-b0')
 
     - id: agent-team-ultra-compatibility
       name: '@benz-ai-x/dsh-agent-team-ultra-profile'
@@ -50,18 +47,6 @@
             maxPendingMessagesPerMember: 64
             maxMessageBytes: 65536
             disposalTimeoutMs: 5000
-
-        - id: agent-team-codex
-          name: '@benz-ai-x/dsh-agent-team-codex'
-          config:
-            catalogOwnerService: digitalEmployees
-            sandbox: read-only
-
-        - id: agent-team-claude-code
-          name: '@benz-ai-x/dsh-agent-team-claude-code'
-          config:
-            catalogOwnerService: digitalEmployees
-            sandbox: read-only
 
         - id: tool-agent-team
           name: '@deepseek-ai/dsh-experimental-tool-agent-team'
@@ -79,12 +64,6 @@
             maxAssignmentBytes: 32768
             maxRevisionHistory: 32
             maxDiffEntries: 512
-            maxRuns: 512
-            maxRunEvidenceItems: 512
-            maxEvalSets: 64
-            maxEvalSetBytes: 262144
-            maxEvalCases: 64
-            maxEvalRuns: 256
 
         - id: ui-agent-team
           name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'

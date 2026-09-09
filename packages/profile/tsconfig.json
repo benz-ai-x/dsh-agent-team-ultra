@@ -4,14 +4,27 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../domain" },
-    { "path": "../../.dsh/harness/packages/session/session-persistence-jsonl" },
-    { "path": "../../.dsh/harness/packages/storage/storage" },
-    { "path": "../../.dsh/harness/packages/storage/storage-domain" },
-    { "path": "../../.dsh/harness/packages/storage/storage-json" },
-    { "path": "../../.dsh/harness/packages/storage/storage-sqlite" },
-    { "path": "../../.dsh/harness/vendor/loader" }
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../../.dsh/harness/packages/session/session-persistence-jsonl"
+    },
+    {
+      "path": "../../.dsh/harness/packages/storage/storage"
+    },
+    {
+      "path": "../../.dsh/harness/packages/storage/storage-domain"
+    },
+    {
+      "path": "../../.dsh/harness/packages/storage/storage-json"
+    },
+    {
+      "path": "../../.dsh/harness/vendor/loader"
+    }
   ]
 }

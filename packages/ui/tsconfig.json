@@ -4,19 +4,39 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../domain" },
-    { "path": "../../.dsh/harness/vendor/cordis" },
-    { "path": "../../.dsh/harness/packages/api/remotes/tsconfig.client.json" },
-    { "path": "../../.dsh/harness/packages/client/locale" },
-    { "path": "../../.dsh/harness/packages/client/ui-conversation" },
-    { "path": "../../.dsh/harness/packages/client/ui-primitives" },
-    { "path": "../../.dsh/harness/packages/client/ui-renderer" },
-    { "path": "../../.dsh/harness/packages/client/ui-slots" },
-    { "path": "../../.dsh/harness/packages/experimental/agent-team" },
-    { "path": "../../.dsh/harness/packages/experimental/client-ui-agent-team" },
-    { "path": "../../.dsh/harness/packages/core/session" },
-    { "path": "../../.dsh/harness/packages/typert/protocol" }
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../../.dsh/harness/vendor/cordis"
+    },
+    {
+      "path": "../../.dsh/harness/packages/api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../../.dsh/harness/packages/client/locale"
+    },
+    {
+      "path": "../../.dsh/harness/packages/client/ui-conversation"
+    },
+    {
+      "path": "../../.dsh/harness/packages/client/ui-renderer"
+    },
+    {
+      "path": "../../.dsh/harness/packages/client/ui-slots"
+    },
+    {
+      "path": "../../.dsh/harness/packages/core/session"
+    },
+    {
+      "path": "../../.dsh/harness/packages/typert/protocol"
+    },
+    {
+      "path": "../../.dsh/harness/packages/api/session-controller/tsconfig.client.json"
+    }
   ]
 }

@@ -3,12 +3,6 @@
   "files": [],
   "references": [
     {
-      "path": "./packages/claude-code"
-    },
-    {
-      "path": "./packages/codex"
-    },
-    {
       "path": "./packages/domain"
     },
     {

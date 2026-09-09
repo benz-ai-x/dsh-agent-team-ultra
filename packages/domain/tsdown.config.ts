@@ -5,6 +5,7 @@ export default defineConfig({
     host: 'lib/types/index.js',
     client: 'lib/types/client.js',
     compatibility: 'lib/types/compatibility.js',
+    'baseline-data': 'lib/types/baseline-data.js',
   },
   outDir: 'lib',
   format: ['esm'],

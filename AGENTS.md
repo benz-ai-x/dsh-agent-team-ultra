@@ -6,6 +6,8 @@ Codex/Claude Code share this guide. Keep `CLAUDE.md → AGENTS.md` as a relative
 
 ## Project Structure
 
+B0 is official-first and DSH-only: Profile revisions/releases, exact official teammate Bindings, and a minimal Studio. Official Harness owns Team/Session/model execution. Do not restore retired native adapters, Run/Eval/gates, custom Team UI contracts or migration scripts; see ADR 0028 and the current project contract. Old ADRs/evidence describe the retired product when they conflict with B0.
+
 - `packages/domain/src/`: Host services, persistence, authority, and Remote contracts.
 - `packages/ui/src/client/`: React Studio, CSS Modules, and bilingual locales.
 - `packages/profile/`: local bundle and `cordis.patch.yml`.
@@ -25,15 +27,15 @@ Use Node `^22.19.0 || >=24.0.0`, pnpm `11.7.0`, and locked, built Harness source
 | `pnpm build` | Build Host/Client and generate Typert artifacts. |
 | `pnpm test` / `pnpm test:watch` | Run/watch Vitest. |
 | `pnpm verify` | Strict check, build, tests, packed install/boot/uninstall. |
-| `pnpm pack:local` | Generate eight archives and installation commands. |
+| `pnpm pack:local` | Derive the complete local archive closure and installation commands. |
 
-After archive installation, use the locked CLI's `web --no-open --port 4317` with isolated `DSH_HOME`; choose an unused port. See [local setup](README.md#安装到本地-dsh-web).
+Before archive installation, use a fresh isolated absolute `DSH_HOME` and explicitly initialize `DSH_HOME/ultra-b0` with `pnpm data:init`. B0 uses Session 3 uncompressed JSONL and JSON storage only; never open or migrate old data. After installation use the locked CLI's `web --no-open --port 4317`; choose an unused port. See [local setup](README.md#安装到本地-dsh-web).
 
 ## Style and Architecture
 
 Use TypeScript ESM, two-space indentation, single quotes, and no semicolons. Use PascalCase components/types, camelCase functions/variables, and kebab-case module filenames. No lint/formatter script exists.
 
-Host state is authoritative; resolve exact live Agent authority, keep Client bundles browser-safe, and prove every registration disappears on Fiber disposal. Use canonical `dsh-plugin-dev` for DSH contract changes. Regenerate Typert; never hand-edit generated artifacts. Ultra uses `@benz-ai-x`; pinned Harness dependencies retain `@deepseek-ai`. Delivery remains local-only.
+Host state is authoritative; resolve exact live Agent authority, keep Client bundles browser-safe, and prove every registration disappears on Fiber disposal. Check DSH contract changes against the selected source's public APIs and owning tests. Regenerate Typert; never hand-edit generated artifacts. Ultra uses `@benz-ai-x`; pinned Harness dependencies retain `@deepseek-ai`. Delivery remains local-only.
 
 ## Testing Guidelines
 

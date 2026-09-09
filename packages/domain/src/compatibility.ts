@@ -4,8 +4,6 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export { assertUltraMigrationReady, UltraMigrationAdmissionError } from './migration-admission.ts'
-
 interface PackageProof {
   readonly type?: string
   readonly version: string
@@ -13,7 +11,6 @@ interface PackageProof {
   readonly exports: unknown
   readonly files: Readonly<Record<string, string>>
   readonly dependencies: readonly string[]
-  readonly products: readonly { readonly name: string; readonly fields: Readonly<Record<string, string>> }[]
 }
 
 interface CompatibilityProof {
@@ -61,7 +58,7 @@ function resolveManifest(name: string, from: string): string {
   return path
 }
 
-/** Validate installed executable bytes before any fork-only ESM linking takes place. */
+/** Validate installed executable bytes before loading the fixed official Host. */
 export function assertUltraCompatibility(anchor: string, entry: 'host' | 'profile' = 'host'): void {
   let proof: CompatibilityProof
   try {
@@ -100,12 +97,6 @@ export function assertUltraCompatibility(anchor: string, entry: 'host' | 'profil
       }
       visited.add(path)
       for (const dependency of expected.dependencies) verify(dependency, path)
-      for (const product of expected.products) {
-        const actual = JSON.parse(readFileSync(resolveManifest(product.name, path), 'utf8')) as Record<string, unknown>
-        for (const [field, value] of Object.entries(product.fields)) {
-          if (actual[field] !== value) throw new Error(`${product.name} ${field} must be ${value}; found ${String(actual[field])}`)
-        }
-      }
     } catch (error) {
       if (error instanceof UltraCompatibilityError) throw error
       throw new UltraCompatibilityError(name, error instanceof Error ? error.message : 'package is unavailable')

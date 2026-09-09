@@ -2,32 +2,27 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TeamError } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { ResolvedConfig } from './configuration.ts'
-import { RuntimeBackendRegistry } from './runtime.ts'
 import type { DigitalEmployeeStorage } from './storage.ts'
-import type { DigitalEmployeeFailure } from './types.ts'
+import type { DigitalEmployeeFailure, DigitalEmployeeProfileDraft } from './types.ts'
+import { TEAM_OWN_TOOL_NAMES } from './profile-capabilities.ts'
 
 /** One service lifetime owns authority, mutation ordering, and the open storage handle. */
 export class DigitalEmployeeHostContext {
   readonly lifecycle = new AbortController()
-  readonly runtimeBackends: RuntimeBackendRegistry
   private accepting = false
   private storageValue: DigitalEmployeeStorage | undefined
   private mutationTail: Promise<void> = Promise.resolve()
-  private readonly isolatedEvaluationWorkers = new WeakSet<Agent>()
 
   constructor(
     readonly ctx: Context,
     readonly config: ResolvedConfig,
-    onRuntimeGeneration: () => void,
-  ) {
-    this.runtimeBackends = new RuntimeBackendRegistry(ctx, ctx.llm, ctx.subagents, onRuntimeGeneration)
-  }
+  ) {}
 
   get admissionOpen(): boolean { return this.accepting }
   get hasStorage(): boolean { return this.storageValue !== undefined }
 
   get storage(): DigitalEmployeeStorage {
-    if (this.storageValue === undefined) throw new Error('Agent Team Ultra v1 storage is not ready')
+    if (this.storageValue === undefined) throw new Error('Agent Team Ultra B0 storage is not ready')
     return this.storageValue
   }
 
@@ -35,20 +30,6 @@ export class DigitalEmployeeHostContext {
     this.storageValue = storage
   }
 
-  restoreRuntimeGeneration(): void {
-    const storage = this.storage
-    for (const [, run] of storage.evalRunEntries()) {
-      this.runtimeBackends.advanceGenerationPast(run.capabilityGeneration)
-    }
-    for (const [, binding] of storage.bindingEntries()) {
-      if (binding.capabilityGeneration !== undefined) {
-        this.runtimeBackends.advanceGenerationPast(binding.capabilityGeneration)
-      }
-    }
-    for (const [, run] of storage.runEntries()) {
-      this.runtimeBackends.advanceGenerationPast(run.capabilityGeneration)
-    }
-  }
   openAdmission(): void { this.accepting = true }
 
   closeAdmission(): void {
@@ -56,15 +37,21 @@ export class DigitalEmployeeHostContext {
     this.lifecycle.abort(new Error('Agent Team Ultra service disposed'))
   }
 
-  /** Exclude one isolated non-roster evaluator from production Profile tools until its scope is disposed. */
-  excludeEvaluationWorkerFromProfileTools(agent: Agent): () => void {
-    this.isolatedEvaluationWorkers.add(agent)
-    return () => { this.isolatedEvaluationWorkers.delete(agent) }
-  }
-
-  /** Whether a root-shaped Agent may receive the production conversational Profile boundary. */
-  allowsConversationProfileTools(agent: Agent): boolean {
-    return !this.isolatedEvaluationWorkers.has(agent)
+  /** Only official in-process continuation is offered; no route registry or fallback. */
+  profileProblem(caller: Agent, profile: DigitalEmployeeProfileDraft): DigitalEmployeeFailure | undefined {
+    if (profile.continuationProvider !== (profile.contextMode === 'fork' ? 'fork' : 'spawn')) {
+      return { code: 'profile-invalid', message: 'B0 supports only the matching official spawn/fork continuation' }
+    }
+    const provider = this.ctx.subagents.getProvider(profile.continuationProvider)
+    if (provider?.prepareContinuable === undefined
+      || provider.inheritsParentContext !== (profile.contextMode === 'fork')) {
+      return { code: 'runtime-unavailable', message: 'The required official DSH continuation is unavailable' }
+    }
+    const tools = new Set(caller.ctx.tools.schemas(caller).map(tool => tool.name))
+    if (profile.toolPolicy.names.some(name => TEAM_OWN_TOOL_NAMES.has(name) || !tools.has(name))) {
+      return { code: 'tool-unavailable', message: 'A selected inherited tool is not available to this Lead' }
+    }
+    return undefined
   }
 
   async closeStorage(): Promise<void> {
