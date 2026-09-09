@@ -170,7 +170,42 @@ provenance 未知、业务目标 `closed-until-complete`。`qualified` 只表明
 
 旧 candidate 的 complete 目标不跨资格复用；最新业务数据必须在停写备份后迁移到
 新目标，不能手改 manifest 或丢弃候选期新增事实。README、契约和补丁清单同步说明。
-新资格的完整门禁、归档与固定提交最终复查正在执行；不把上表当成新标签的重打包结果。
+新资格提交为 `54280d16e0a172d7443e80c00106b28772abcafd`。其完整测试再次通过
+452／452，14／8 个中断边界全部通过；但与三组历史归档并行的 pack 在 Claude
+JSON `query-resume` 的受控 MCP 请求触发 60000ms 超时，整条 verify 退出 1，
+不能算作通过。日志 `pr63-phase-c-supported-verify.log`，SHA-256
+`fa2410b65e184925ce15e9b7ec4ed0d4b0d27543c69b3ae778c1a12c1a8a203f`。
+同一提交的三组历史升级和官方对照均退出 0。没有足够证据把超时定性为资源争用
+或产品缺陷；没有修改源码、断言或 MCP 超时，随后单独重跑完整门禁。重跑通过不
+表示已找到或修复该偶发超时，也不把提升前绿灯当成新标签的重打包结果。
+
+同一 `54280d1` 的新资格升级／对照记录如下，命令及前身路径与提升前表格相同；
+每项都重新生成、安装本资格的归档和迁移目标，未复用旧 candidate complete 目标。
+
+| 新资格门禁（全部退出 0） | 日志 | SHA-256 |
+| --- | --- | --- |
+| 旧 Codex × JSON／SQLite | `pr63-phase-c-supported-codex-history.log` | `150830fa64b58cb8390c493f4d2f6a8922bf48bd01e36f77a6340bdd98e92edd` |
+| 旧 Claude × JSON／SQLite | `pr63-phase-c-supported-claude-history.log` | `6466a8559c233753afef97407008e01a701081f032ddf82d971b8300239a0cdb` |
+| B 双 native × JSON／SQLite | `pr63-phase-c-supported-b-history.log` | `1ee0bdefd494bc42703fe03e703aa934483efd65aa438f6b1e1eeb7de6c687b7` |
+| 固定官方／维护 fork／错误组合 | `pr63-phase-c-supported-comparison.log` | `98d2573f504647fdd2429c492ed5d1bac618a2b787ec557412c8975d43ff44ef` |
+
+最终独立执行的 `pnpm verify` 在同一 `54280d1` 运行代码／支持锁／依赖下自然
+退出 0：648 strict／0 warnings、452 tests／39 files（275.27s）、JSON 14／SQLite
+8 个边界，以及重新生成的完整实际归档集合、认证 Remote／发货 Studio、双 native
+JSON＋SQLite 冷恢复、真实 CLI Web（code 0、无强杀）和无残留卸载全部通过。
+日志 `pr63-phase-c-supported-serial-verify.log`，SHA-256
+`d4dda59cc08ccb74839386a8c7209da9147b9ef4cc1c3cb651bcc7566e5dc789`。
+上一轮 Claude JSON `query-resume` 同一路径本次通过，没有改动其生产代码、受控
+夹具、断言或 timeout；保留原失败，不作原因已证实或缺陷已修复的声明。
+
+固定 `c1632755c4fbabe5b34af7ddb5f3628aaf5037a6...54280d1` 完整独立复查：
+Standards 0 项，Spec 0 项，各轴最高严重度均无。资格提升的顺序、27 条 AC 映射、
+未知 writer／目标 closed-until-complete、旧候选目标与 #44 边界均已复核。
+此后只收口 README／证据／HANDOFF／TODO 说明，不再改运行代码或已验证输入；
+最终文档检查与复核完成后按用户已给授权正常推送及合并。实际发布、合并提交和
+Issue 关闭以 [PR #63](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/63) 为准，
+重复执行前先读取实时状态。主工作区仅安全快进到远端结果并正式准备同一 C 来源，
+原 stash、其他 worktree、B 源和固定官方源码保留；不自动开展 #44 或修改父 #18。
 
 ### 27 条 AC 共用证据映射
 

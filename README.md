@@ -129,6 +129,11 @@ node .dsh/harness/apps/cli/lib/bin.js plugin --profile web remove --config.offli
 
 这些入口按各版本 Profile 声明的完整包身份集合核对归档，不固定包数量。验证在隔离 `DSH_HOME` 中安装旧归档并生成真实 JSON／SQLite 业务数据，再调用迁移运维入口发布到另一完整目标；新归档经真实 `/data` Loader、生成 Remote 恢复原身份、续发消息，检查目录移除／回归、源字节不变、配置到迁移目标的 Web 正常退出及完整卸载。SDK 外部历史与业务迁移目标分开，不伪装成迁移器复制出的 native 历史。Codex app-server 通道和 Claude SDK API 使用确定性外部边界替身；发货 adapter、受控进程桥接、SDK/payload 资格检查与权限策略均使用实际归档代码。真实认证后的产品验收仍由 [#44](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/44) 完成。传入 `--keep-failed` 可保留失败测试的隔离目录供诊断，成功运行自动清理其临时数据。
 
+同一组归档入口还用真实认证 Host／生成 Client Remote、安装包的 Studio／Team Client
+bundle 和 production renderer 验证历史 Run、v2 用量、完整性、失效 Lead 错误冒泡及
+卸载。界面外壳为 JSDOM，不是人工浏览器或截图验收；业务组件和 Host 不替换，
+真实 CLI Web 启动另行核验。共享场景与限制见 [PR #63 联合验收](docs/evidence/pr63-studio-acceptance.md)。
+
 ## 只读升级审计
 
 在已准备锁定 Harness 并执行 `pnpm build` 的本仓库中，对停止写入的 Session 与存储快照运行：
