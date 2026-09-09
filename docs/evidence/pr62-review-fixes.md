@@ -1,6 +1,7 @@
 # PR #62 审查修复
 
-状态：两项运行时修复与文档修正已完成定向验证，最终完整门禁、独立复查和推送待完成。
+状态：原两项运行时修复与文档修正已通过完整门禁；独立复查追加的清理日志异常隔离
+已完成 RED → GREEN，新候选完整门禁、最终复查和推送待完成。
 范围仅 [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62)／#38，
 基于初版 `4cecfe2808182c64124abd6634597bd8c46ec5f8`；不合并、不更改 PR #63 或父 Spec #18。
 
@@ -27,6 +28,24 @@
 [Run ADR](../adr/0009-index-runs-and-fold-canonical-evidence-lazily.md)、
 [父 Spec #18 D-18／US-40](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18)。
 
+### 独立复查追加：清理日志异常隔离
+
+`ec88d85…d5054de` 全 PR 独立复查为 Standards 1 项 P2、Spec 0 项。
+新增的 Codex／Claude 清理 warning 直接作为 abort listener 执行，固定 Logger 会传播
+exporter 异常，导致未捕获异常；静止后的 info 异常还会被上层当成清理失败。
+这违反 canonical `dsh-plugin-dev` 的 observer／logging 故障隔离要求。
+
+每个 adapter 只在这两项新增诊断外围设置安全边界，不捕获 native disposer 的异常，
+不改日志正常内容、不提前完成卸载、不改 Harness。复用原公开 Logger／Fiber／原生退出
+场景，各扩展 `none`／`warn`／`info` 三变体，共新增 4 项，没有另建重复旅程。
+Codex 和 Claude 分别先 RED（1 断言失败及 1 uncaught abort-listener exception），
+重建实际发货入口后各 3／3 GREEN；原生退出前仍挂起，退出后重复 dispose 无额外清理失败。
+
+- `pr62-codex-cleanup-log-red.log` → `pr62-codex-cleanup-log-green.log`
+- `pr62-claude-cleanup-log-red.log` → `pr62-claude-cleanup-log-green.log`
+
+两份恢复文件合并回归为 15／15，日志 `pr62-cleanup-recovery-green.log`。
+
 ## RED → GREEN 与验证
 
 日志位于 `/root/workspace/issue38-provider-recovery.I3s6PT/`。
@@ -41,7 +60,7 @@
 `pr62-cached-time-existing-green.log`），既有 Host 重建会清理旧索引，本轮不另改 Host。
 这两项不是新的 RED → GREEN 切片，也不宣称发现额外运行时问题。
 
-最终公开恢复文件为 8／8（本修复新增 6 项），日志 `pr62-recovery-final-green.log`。
+时间／历史修复阶段的公开恢复文件为 8／8（新增 6 项），日志 `pr62-recovery-final-green.log`。
 最初审查的两个 PR 外公开探针也原样转为 2／2 GREEN，日志
 `pr62-original-review-probes-green.log`；缺失时间不再返回 endedAt，缺工具历史明确为 incomplete。
 
@@ -51,4 +70,11 @@
 没有复制原生 transcript 到 Run，也没有修改 Harness 契约来绕开缺失时间。
 
 开工严格检查为 590 项／0 警告；两个切片均重新构建实际发货入口并生成兼容证明后运行 GREEN。
-完整 `pnpm verify` 和最终独立双轴复查结果待后续记录，初版 394 项验收不冒充本次结果。
+时间／历史修复候选 `d5054debc89a13070938e7863125fdccaafac900` 的完整 `pnpm verify`
+自然退出 0：590 strict checks／0 warnings、400 tests／35 files、Host／Client／Typert／
+compatibility 构建，以及八归档普通解析、真实安装、生产消息／DAG／CAS／watch、
+丢响应恢复、Web 启动、两个 native 的 JSON＋SQLite 冷恢复和完整卸载全部通过。
+日志为 `pr62-fix-qualified-verify.log`，SHA-256：
+`8dac0818d7d9ceb9629ae7a182356cb0108a67f4510d7ab2d1fdc9e48347e06a`。
+初版 394 项验收不冒充本次结果；后续仅说明文档变化可复用本次同输入、同环境证据。
+该 400 项结果先于清理日志补修；最终新候选门禁与两路复查须重新记录，不能以它覆盖后续运行时变化。

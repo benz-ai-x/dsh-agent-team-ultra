@@ -19,6 +19,8 @@ Cleanup closes admission and revokes the old generation before waiting for its
 process to exit. If the Team cleanup abort grace expires first, a warning says
 that cleanup is still waiting; a separate completion message follows actual
 quiescence. The grace period is not a hard unload deadline.
+These diagnostics are best-effort: a throwing log sink cannot abort cleanup or
+turn successful quiescence into a failure; actual native cleanup errors still propagate.
 
 New native threads install `team_members_list`, `team_tasks_list`,
 `team_tasks_get`, `team_message_send`, `team_task_update`, and `team_wait` through

@@ -570,6 +570,8 @@ period, still awaits actual quiescence, and releases only that generation's
 runtime/evaluation handles.
 Codex and Claude Code distinguish an elapsed cleanup abort grace from actual
 native quiescence in their diagnostics; an elapsed grace does not complete disposal.
+These best-effort diagnostics contain log-exporter failures; a sink cannot abort
+native cleanup or make already-reached quiescence fail. Actual cleanup errors still propagate.
 Child-scope prompt, tool, and hook registrations are also disposed when that
 exact Agent scope ends.
 Installations are keyed by exact Agent object identity. Agent disposal, Fiber

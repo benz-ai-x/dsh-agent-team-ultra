@@ -5,7 +5,7 @@ import { profile } from '../../domain/tests/fixtures/host-workflow.ts'
 import type { DigitalEmployeeStudioView, GetDigitalEmployeeRunResult, SpawnDigitalEmployeeResult } from '../../domain/src/types.ts'
 import { queryWorkflow } from './fixtures/member-workflow.ts'
 
-it('reports elapsed cleanup grace without completing disposal before the native process exits', async () => {
+it.each(['none', 'warn', 'info'] as const)('reports elapsed cleanup grace and awaits native exit with %s log failure', async loggingFailure => {
   const { ctx, runtime, native } = await queryWorkflow(undefined, 'json', { disposalTimeoutMs: 25 })
   const terminating = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
@@ -16,7 +16,13 @@ it('reports elapsed cleanup grace without completing disposal before the native 
   const diagnostics: string[] = []
   ctx.logger.exporter({
     levels: { default: 3 },
-    export(message) { diagnostics.push(Logger.format({ colors: false }, message)) },
+    export(message) {
+      const diagnostic = Logger.format({ colors: false }, message)
+      diagnostics.push(diagnostic)
+      if (message.type === loggingFailure && diagnostic.startsWith('agent-team-codex:') && diagnostic.includes('cleanup')) {
+        throw new Error('cleanup log exporter failure')
+      }
+    },
   })
   let disposed = false
   const retiring = runtime.dispose().then(() => { disposed = true })
@@ -34,6 +40,7 @@ it('reports elapsed cleanup grace without completing disposal before the native 
   expect(native.live.size).toBe(0)
   await runtime.dispose()
   expect(diagnostics).toContain('agent-team-codex: native cleanup reached quiescence after abort grace')
+  expect(diagnostics.join('\n')).not.toContain('cleanup log exporter failure')
 })
 
 it('refuses native Run evidence after its exact Lead retires without replacing the employee', async () => {

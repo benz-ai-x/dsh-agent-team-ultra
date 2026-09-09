@@ -9,8 +9,9 @@
 
 - 用户授权按审查建议修复 PR #62，仅处理两个运行时 P2 和一个过期状态 P3；不合并、不改 PR #63、父 Spec #18 或已确认的 B 支持锁／SDK。首次独立审查 Standards 3 项、Spec 1 项（工具历史完整性项跨轴重叠），不是四个独立问题。
 - 缺失／非法原生终态时间不再回退到当前时刻。Team mailbox 仍结算已知结果，必须带时间戳的证据入口不生成无日期 terminal，Run 明确 incomplete。恢复只补回可证明时间的终态，不假装重建全部工具／usage 历史；同一 provider generation 的证据页及后续工作保持 incomplete。
-- 公开 Host／生成 Remote、真实 Team 与 JSON／SQLite、真实 Fiber 的两组回归分别 RED → GREEN，并补充 2 项旧索引检查，共新增 6 项；恢复生命周期文件 8／8、最初 PR 外审查探针 2／2 通过。旧索引已有 Host 重建覆盖，无需扩大 Host 修改。当前完整验证与新的两路复查仍待完成，不能沿用初版 394 项日志宣称修复版已通过。进度见 [修复证据](docs/evidence/pr62-review-fixes.md)。
-- 本轮使用 `tdd` 的既有已确认测试入口、`dsh-plugin-dev` 的精确协议与生命周期约束，并计划以 `code-review` 做两路独立复查。没有新增测试边界；只控制外部 SDK／原生进程，不等于 #44 真实认证验收。
+- 公开 Host／生成 Remote、真实 Team 与 JSON／SQLite、真实 Fiber 的两组回归分别 RED → GREEN，并补充 2 项旧索引检查，共新增 6 项；时间／历史修复阶段恢复文件 8／8、最初 PR 外审查探针 2／2 通过。旧索引已有 Host 重建覆盖，无需扩大 Host 修改。候选 `d5054debc89a13070938e7863125fdccaafac900` 的完整 `pnpm verify` 自然退出 0：590 strict／0 warnings、400 tests／35 files、八归档安装／生产消息／DAG／watch／Web／双 native JSON＋SQLite 冷恢复／卸载通过。该阶段复查见下一条；日志和摘要见 [修复证据](docs/evidence/pr62-review-fixes.md)，不复用初版 394 项日志冒充新版验证。
+- 新的完整差异复查为 Standards 1 项 P2、Spec 0 项：两个 adapter 的新增清理 warning／info 未隔离 Logger exporter 异常。已复用原公开 Logger／Fiber 清理场景分别 RED → GREEN，仅为新增诊断设置安全边界，保留真实 native 清理错误。各 3／3 通过，共新增 4 项；400 项完整门禁先于本补修，最终新候选须重新全验和复查。
+- 本轮使用 `tdd` 的既有已确认测试入口、`dsh-plugin-dev` 的精确协议与生命周期约束，以 `code-review` 做两路独立复查。没有新增测试边界；只控制外部 SDK／原生进程及公开日志输出回调，不等于 #44 真实认证验收。
 
 ## #38 初始实现与验证记录
 
@@ -327,7 +328,7 @@
 
 - 仓库：`/root/workspace/dsh-agent-team-ultra`；Node `v22.22.1`，pnpm `11.7.0`。
 - `/root/workspace/deepseek-harness` 保持干净的 `8b4bae0b620cc89a987a3ec6dd8b0b7d9025649a` 和完整构建，供阶段 A 的 #25 和 #48 补修环境使用。该独立环境位于 `/tmp/ultra-25-audit-fix-vHVNjX`，已按其 lock 完成源码准备、冻结安装及完整验证；未重置共享 checkout。
-- 本轮验证工作树的 `.dsh/harness` 指向 `/root/workspace/pr60-fixes.U6WRei/harness`，锁定 `b78caad462c3509127761904ed59ee549b6b6160`，该提交已推送到 `fix/ultra-34-36-task-dag-live`；docs digest 仍为 `d4028c4f143f72a99ded5c0ee39c3463c13ff258bbb70ba9ce74af0aa426e767`。来源准备、冻结安装和 582 strict／0 warning 通过。原 Harness worktree 保留，首次或换源时先准备再安装依赖。
+- 当前 PR #62 工作树 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra` 和 main 的 `.dsh/harness` 均指向 `/root/workspace/pr61-fixes.7yIVdj/harness`，锁定 `57670c6b320f7f240cbad360a9f691c8598e1571`，docs digest 为 `331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675`；本次严格检查 590／0 warnings。源代码、SDK 与锁保持原 B 线；首次或换源时仍先准备再安装依赖，不重置任何共享 Harness。
 - 飞书 CLI 已验证当前 user／bot 身份可用；认证阻塞、#21 缓存阻塞及恢复、#22 官方构建阻塞及恢复均已通知。不要在本文件记录凭据、用户标识或私人消息。
 - GitHub CLI 已完成设备授权登录，`gh auth status` 退出 0，Git 使用 SSH；`gh repo view` 已验证本仓库 `ADMIN` 权限。Issue／PR 的实际操作仍按任务边界和既有授权执行；无需重复询问已经授权的提交、推送和 PR 操作；对外消息仍须当前会话明确授权。不记录登录验证码或凭据。
 - 当前 `gh pr edit` 因已停用的 Projects classic GraphQL 字段报错；已通过 `gh api --method PATCH repos/benz-ai-x/dsh-agent-team-ultra/pulls/<number> --input <JSON文件>` 成功更新 #48、#51 正文。该错误与认证无关。
