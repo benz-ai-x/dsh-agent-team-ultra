@@ -1,7 +1,7 @@
 # TODO · 官方优先、DSH-only 精简基线
 
 用户于 2026-09-09 授权本地清理。当前工作分支：`chore/official-dsh-only-baseline`。
-用户随后明确要求“建 PR”，本轮可提交当前 B0、推送原分支并创建到 main 的 PR；不自动合并或关闭旧 Issues。
+用户随后明确要求“建 PR”，该发布已完成。PR #64 三项审查修复及复查完成后，用户授权“推送 PR”；修复已提交并推送原分支，不自动合并或关闭旧 Issues。
 产品边界以 [ADR 0028](docs/adr/0028-establish-official-dsh-only-baseline.md) 和
 [项目契约](docs/agent/PROJECT_CONTRACT.md) 为准；[验收记录](docs/evidence/b0-baseline-acceptance.md) 区分自动化与真实账号验证。
 
@@ -22,17 +22,26 @@
 - [x] 最终 `pnpm verify` 自然退出 0：strict／build、46 tests／9 files、六归档安装、安装版 Host／Studio 12 tests／2 files、真实 Web 启停、完整卸载并保留数据；失败与修复过程已记录。
 - [x] 六个独立 B0 归档已生成到 `artifacts/agent-team-ultra-b0`；更新验收／交接，45 个活动文档本地链接、残留接口和 `git diff --check` 检查通过；main／旧源码／十个 dirty 文件／四个 stash 保留。
 
-## 当前 PR 发布
+## B0 PR 发布（此前）
 
 - [x] 核对远端 main 仍为 `f84584d`、没有重复 PR；当前 67 个运行输入的指纹与已验候选一致。
 - [x] 发布前重跑 `pnpm verify`：496 strict／0 warnings、46 tests／9 files、六归档安装、安装版 Host／Studio 12 tests／2 files、Web 自然退出和卸载保留数据通过。
 - [x] 补充发货 Client bundle 的 Chromium 截图，明确使用演示数据，不作为真实账号验收。
 - [x] B0 已提交为 `19e07a5` 并推送原分支，创建 [PR #64](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/64) → main；回读 OPEN／非草稿／MERGEABLE／CLEAN，PR head、远端与本地一致。随后只同步发布交接文档，不自动合并。
 
+## PR #64 审查修复（当前）
+
+- [x] Standards P1：恢复已发布 Revision 历史连续性校验；中间记录缺失、损坏、未来封装拒绝开放写入，恢复原字节后可继续；未发布孤立 Revision 仍可安全重试。
+- [x] Spec P1：可写后端注册前拒绝损坏／未知 B0 per-record 封装与布局，保留原字节；官方未发布 UUID 临时文件保留，不当作正式记录。真实 CLI 与冷 Host 准入回归通过。
+- [x] Spec P2：Studio 未知／pending 结果保留 UUID，明确 active／failed 后结束该意图；迟到响应不清除重试身份，新发布员工可用新 UUID 启动。
+- [x] 三项修复先复现失败再改实现；最终 `pnpm verify`：496 strict／0 warnings、61 tests／9 files、安装版 18 tests／2 files、六归档安装／Web 自然退出／完整卸载保留数据通过。
+- [x] 最终本地候选独立复查通过：Standards 0 项／原 P1 关闭；Spec 0 项／原 P1、P2 关闭。两轴另行重跑 4 项／14 项定向回归均通过；结果及指纹见验收记录与根交接。
+- [x] 用户授权后将三项修复提交为 `dd5cfa8` 并推送到 PR #64，回读确认远端包含该提交；随后仅同步发布文档。worktree `/tmp/ultra-pr64-review.p7Wub1/ultra`，主目录 main 不变。
+
 ## PR 创建后再决定
 
 - [ ] B0-12：用户提供并授权隔离 DSH 账号环境后，验证一个真实员工任务、Profile 效果和官方会话续接。自动化受控模型不替代此项。
-- [ ] 单独完成 PR 评审；只有进一步授权才合并，不由建 PR 的请求推定合并许可。
+- [ ] 复查与真实验证限制确认后，由用户进一步授权决定合并。
 - [ ] 先根据真实使用反馈判断是否深化 Profile 工作流；不默认恢复多运行时、自动评测或第二套 Team 界面。
 - [ ] 如确需历史 Profile 导入，另行设计显式、先校验、默认未激活的导入；不得删除旧 gate／route 字段后假称无损兼容。
 

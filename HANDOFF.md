@@ -4,7 +4,26 @@
 本文件为当前交接入口；[旧交接](docs/history/pre-b0-handoff.md) 和
 [docs/HANDOFF.md](docs/HANDOFF.md) 只保留历史，不能覆盖当前授权。
 
-## 当前结果与范围
+## PR #64 修复、复查与推送（当前）
+
+用户审查后授权“修”，复查通过后再授权“推送 PR”。隔离 worktree
+`/tmp/ultra-pr64-review.p7Wub1/ultra` 位于原分支 `chore/official-dsh-only-baseline`。
+三项运行修复已提交为 `dd5cfa8d9c63e9bdaa256b8718bd8bf635754e3d` 并推送，回读确认 PR 包含该提交；
+随后仅同步发布交接文档，最新 head 以 PR／Git 回读为准。主目录继续为干净 main `f84584d`，PR 保持 OPEN。
+复查时使用的完整工作树已提交；当前完整 PR 差异可用 `git diff f84584def627b4af78a029af8788de73da0ad567...HEAD` 查看。
+
+- 原 Standards P1 已修：中间已发布 Revision 缺失／损坏／未来封装会拒绝服务准入；原字节恢复后历史与写入恢复，未发布孤立 Revision 可重试。
+- 原 Spec P1 已修：物理 B0 记录封装和布局在可写后端注册前校验；损坏／未来 Head 不会再被当作空数据覆盖，失败保留原字节与 CAS，官方未发布 UUID 临时文件保留。
+- 原 Spec P2 已修：Studio 区分未知／pending 重试与已确认终态；已完成意图释放 UUID，新发布员工可重新启动；取消后的迟到响应不清除重试身份。
+- 最终完整 `pnpm verify` 自然退出 0：496 strict／0 warnings、61 tests／9 files、六归档真实安装、安装版 Host／生成 Remote／Studio 18 tests／2 files、Web 正常启停及完整卸载保留数据。67 个运行输入指纹为 `aa007fb3ebec1886c029dfa2b47b836c3b7956fd19622be85453105e3f75fb0a`。
+- 独立两轴复查通过：Standards 0 项硬性问题／0 项异味，原 P1 关闭；Spec 0 项，原 P1、P2 关闭。两轴独立重跑 4 项／14 项定向回归通过，运行差异指纹一致。B0-12 真实账号验收仍未验证，不以自动化结果代替人工审批或合并许可。
+- 修复阶段收尾：9 份活动文档的 54 个本地链接及相关锚点、`git diff --check` 通过；运行输入未漂移，主目录 main 与固定官方来源 clean，四个 stash 及用户官方目录十个既有改动保留。
+- 推送前重跑 strict：496 checks／0 warnings；运行输入和两轴复查指纹均与已验候选一致，复用上述完整 `pnpm verify`，本次没有重复运行全套测试。已 fetch 核对远端分支无新提交，采用普通快进推送，不改写历史。
+- 日志目录 `/tmp/ultra-pr64-review.p7Wub1/`：`fix-history-red-qualified.log`、`fix-envelope-red.log`、`fix-ui-intent-red.log` 为三项有效失败复现；最终 `fix-final-verify.log`。原 `.dsh/pr64-*-review*`／`.dsh/pr64-root-ui*` 及 `standards-data-probe.mjs` 是审查阶段诊断，部分断言坏行为，不作为修复后的验收测试。
+- 下一步由用户决定 B0-12 真实账号验证安排及是否合并；修复已进入远端 PR。本次未发布 GitHub review、合并、修改远端 Issues 或使用真实模型凭据。
+- 此前用 `tdd` 将三项复现加入已有公共测试入口，`code-review` 独立复查两轴；本次用 `writing-for-agents` 将待推送状态更新为已发布并保留验证边界。官方来源仍为固定 clean checkout，旧源码、真实数据与四个 stash 保留。
+
+## 此前基线实施与发布
 
 用户授权制定 TODO 并实施“官方优先、DSH-only”的精简基线，随后明确要求“建 PR”。
 本地分支 `chore/official-dsh-only-baseline`，起点
@@ -32,7 +51,7 @@ B0 版本 `0.2.0-b0.1`，只保留 domain／ui／profile 三个 Ultra 包：
 B0 只能安装到新的绝对路径 `DSH_HOME`，先显式初始化其 `ultra-b0`。
 B0 身份为 Session 3、不压缩 JSONL、JSON domain `agent_team_ultra_b0` version 1。
 没有自动迁移或兼容导入，SQLite 与历史 native 数据仍使用匹配的旧程序。
-缺失／损坏／未知标记、缺目录、旧 Session 头、旧 Ultra domain、符号链接在注册可写后端前拒绝。
+缺失／损坏／未知标记、缺目录、旧 Session 头、旧 Ultra domain、符号链接及损坏／未知 B0 记录封装在注册可写后端前拒绝。
 marker 不是导入许可；完整 Session 内容继续由官方 codec 校验。
 卸载保留应用数据。不要拿生产目录试装，也不要删除或重写旧资料。
 
@@ -61,26 +80,26 @@ marker 不是导入许可；完整 Session 内容继续由官方 codec 校验。
 无需改官方源码。新 `build:harness` 入口已完整成功执行，包括原生 addon、Host／Client 和 Web；
 保留官方构建弃用／bundle 大小警告。README 记录从干净 checkout 的完整步骤。
 
-最终 `pnpm run verify` 已自然退出 0：来源 strict、完整构建、46 tests／9 files、
+此前基线清理阶段的最终 `pnpm run verify` 自然退出 0：来源 strict、完整构建、46 tests／9 files、
 六归档真实安装、安装版 Host／生成 Remote／Studio 12 tests／2 files、
 Web 真实监听后自然退出（ready=true、forced=false、code=0）、完整卸载且数据保留。
 发货 UI 联验修复了嵌套作用域漏声明 Remote 的真实问题；请求入队快照也有失败→通过的回归。
 随后直接运行打包脚本复用已验构建，六个归档位于 `artifacts/agent-team-ultra-b0`。
 活动文档 45 个本地链接、`git diff --check`、旧版本保护点及源码 clean 核对通过；
-具体输入指纹与限制见验收文档。本次没有开展独立 PR 审查。
+具体输入指纹与限制见验收文档。该阶段没有开展独立 PR 审查。
 用户建 PR 授权后重新通过完整 `pnpm verify`：496 strict／0 warnings、46 tests／9 files、
 安装版 12 tests／2 files 和同样的实际安装／Web／卸载门禁；67 个运行输入指纹未变。
 补充 Chromium 的真实发货 bundle 截图，使用隔离演示数据和预览容器，仅说明 UI，不计入 B0-12。
 前轮沙箱曾引起 pnpm 数据库／子进程 EPERM，本轮环境已开放，不需要或请求提权。
 没有使用真实模型账号／凭据；B0-12 保持未验证。
 
-本次本地清理与 B0 PR 创建已完成。下一步单独评审 PR #64，再决定真实 DSH 员工验收／合并。
+本地清理与 B0 PR 创建已完成；当前修复候选的结果见顶部“PR #64 修复、复查与推送”。
 建 PR 不包含合并、关闭旧 Issue、真实模型凭据使用或消息通知。
 
 ## 技能与设计依据
 
-使用 `codebase-design` 明确官方和 Ultra 的模块责任；
+此前基线实施使用 `codebase-design` 明确官方和 Ultra 的模块责任；
 `domain-modeling` 记录 B0 词汇和 ADR 替代关系；
 `writing-for-agents` 收口活动执行文档、归档旧指令；
 `diagnosing-bugs` 定位官方配置加载器与 CLI 入口变化。
-本轮没有使用已删除的技能，也没有开展独立 PR code-review。
+当前修复与复查使用的技能见顶部；已删除的技能没有重新启用。
