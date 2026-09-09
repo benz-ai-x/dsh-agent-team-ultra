@@ -53,8 +53,19 @@ and delivery. Retries within a live turn preserve trusted thread/turn/call ident
 normalized input conflicts. Queued means durable acceptance only. Final answers
 and explicit failed/interrupted notices use the same mailbox under a separate
 settlement identity. Cold resume recovers native terminal output and replays its
-settlement receipt and restores bounded terminal Run evidence after the new grant
-is bound. Codex marks orphan running turns interrupted after process
+settlement receipt and restores source-timed terminal Run evidence after the new grant
+is bound. A missing, invalid, or unrepresentable native completion timestamp is
+never replaced with the observation or recovery time. The terminal outcome still
+settles through the Team mailbox, but the timestamp-required evidence seam omits
+the undated terminal and reports incomplete; the Run may retain `unknown-terminal`
+until a dated canonical terminal is available.
+
+Resume does not reconstruct the complete normalized historical tool/usage
+timeline. Its evidence page therefore remains incomplete for that provider
+generation, even at the last cursor or after later live work. This conservative
+page-level status also applies to newer Runs sharing that history; it does not
+change native identity, task ownership, or durable result receipts.
+Codex marks orphan running turns interrupted after process
 restart; their dead tool RPC callbacks cannot be restored. Host receipt recovery
 and native interrupted-turn recovery are verified separately. Mailbox delivery
 to an inactive member first verifies its identity and binds a fresh grant. Reasoning, interim commentary and complete native transcripts

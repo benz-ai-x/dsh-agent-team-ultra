@@ -441,6 +441,12 @@ an actual integration commit based on the fixed official comparison.
   A native terminal timestamp before Host acceptance is retained in the timeline
   but omitted from the index's completion time, with an explicit incomplete
   diagnostic; the Host neither invents a timestamp nor persists an invalid row.
+  Codex does not replace missing or invalid native completion times with the
+  live observation or recovery clock. Its timestamp-required evidence boundary
+  omits an undated terminal while retaining the separate Team mailbox settlement.
+  Recovery restores only source-timed terminal evidence, not the whole historical
+  tool/usage timeline, so its page-level completeness stays incomplete for that
+  provider generation, including subsequent work on the same native history.
 - Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text

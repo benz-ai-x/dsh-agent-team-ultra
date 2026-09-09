@@ -1,11 +1,18 @@
 # Agent Team Ultra 交接
 
-交接日期：2026-09-08（Asia/Shanghai）。用户使用中文。
+交接日期：2026-09-09（Asia/Shanghai）。用户使用中文。
 
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
-## 当前任务与完成边界
+## 当前 PR #62 审查修复
+
+- 用户授权按审查建议修复 PR #62，仅处理两个运行时 P2 和一个过期状态 P3；不合并、不改 PR #63、父 Spec #18 或已确认的 B 支持锁／SDK。首次独立审查 Standards 3 项、Spec 1 项（工具历史完整性项跨轴重叠），不是四个独立问题。
+- 缺失／非法原生终态时间不再回退到当前时刻。Team mailbox 仍结算已知结果，必须带时间戳的证据入口不生成无日期 terminal，Run 明确 incomplete。恢复只补回可证明时间的终态，不假装重建全部工具／usage 历史；同一 provider generation 的证据页及后续工作保持 incomplete。
+- 公开 Host／生成 Remote、真实 Team 与 JSON／SQLite、真实 Fiber 的两组回归分别 RED → GREEN，并补充 2 项旧索引检查，共新增 6 项；恢复生命周期文件 8／8、最初 PR 外审查探针 2／2 通过。旧索引已有 Host 重建覆盖，无需扩大 Host 修改。当前完整验证与新的两路复查仍待完成，不能沿用初版 394 项日志宣称修复版已通过。进度见 [修复证据](docs/evidence/pr62-review-fixes.md)。
+- 本轮使用 `tdd` 的既有已确认测试入口、`dsh-plugin-dev` 的精确协议与生命周期约束，并计划以 `code-review` 做两路独立复查。没有新增测试边界；只控制外部 SDK／原生进程，不等于 #44 真实认证验收。
+
+## #38 初始实现与验证记录
 
 - 用户已确认持续从 #38 开始按 `tdd` 开发，并在每个 Issue 完成后通过飞书 CLI 通知。PR 范围保持 #38、#39–#43、#44；Issue 定向验证，完整跨功能／冒烟／错误冒泡／真实归档验证在最终 PR 候选收口。未验 AC 不勾选，Issue 合并后关闭，父 Spec #18 不修改；开发授权不自动包含 PR 合并。
 - #38 实现与自动化验收完成，已推送并创建 [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62)，待正式评审及人工合并。独立工作区 `/root/workspace/issue38-provider-recovery.I3s6PT/ultra`，分支 `feat/batch-3b-provider-recovery`；实现提交 `c91a3b7`，最终验证提交 `7caa05e3a951dac88eaf93067d0db1985088d966`。GitHub 回读 OPEN／CLEAN、无远端 checks；六条 AC 按证据勾选，Issue 保持 OPEN，标题／标签／指派及父 Spec #18 均未改。
@@ -328,13 +335,13 @@
 
 ## 下一步
 
-1. 取得公开测试边界确认后，从本 worktree 继续 #38 的首个 RED → GREEN；只按 live Issue 运行必要定向测试，最终 Batch 3B PR 再做集中完整验收。
-2. 取得飞书通知方式确认后，每个 Issue 实现完成时报告实际结果与待验收项；未完成或未验证的内容不冒报完成。随后按 #39–#43 → #44 的依赖／集成分支顺序推进；合并权限与真实 native 认证另行核实。
+1. 完成本 PR #62 修复候选的完整验证和独立 Standards／Spec 复查，通过后正常提交／推送原分支并回读远端；不自动合并。
+2. #38 的测试入口与飞书通知方式已经确认，初版完成通知已经成功，不重复发送。本轮不继续 #43 或 #44；其他批次保持自己的待验收状态，父 Spec #18 不修改。
 3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
 ## 权威材料与技能
 
-- 当前使用 `tdd` 确认公开测试边界并准备逐条 RED → GREEN，使用 `dsh-plugin-dev` 核对锁定来源／持久化／生命周期与构建，使用 `lark-im`／`lark-shared` 核对通知身份；新测试和通知尚待确认。以下技能记录属于各历史轮次。
+- 当前使用 `tdd` 在已确认的公开 Host／生成 Remote、真实 Team／持久化／Fiber 入口修复 PR #62，使用 `dsh-plugin-dev` 核对锁定来源与证据语义，最终用 `code-review` 独立复查；无需重复确认既有入口或通知身份。以下技能记录属于各历史轮次。
 
 - 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 
