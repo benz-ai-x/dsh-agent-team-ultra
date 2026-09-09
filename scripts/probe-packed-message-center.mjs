@@ -883,7 +883,7 @@ async function verifyTaskDependencyEditing(host, client, panel, taskGraph) {
   }
 
   await click(button(panel.container, 'Task list'))
-  await click(button(panel.container, 'Edit'))
+  await click(await waitUntil(() => button(panel.container, 'Edit'), 'packed refreshed task edit control'))
   const draftSubject = 'Unsaved packed dependency draft'
   const draftInput = await enterInput(panel.container, 'Task subject', draftSubject)
   const conflictPrerequisite = dependencyCheckbox(panel.container, 'Blocking tasks', prerequisiteLabel)

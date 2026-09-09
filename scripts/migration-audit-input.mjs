@@ -1,7 +1,7 @@
 /** Read physical source artifacts without opening a mutation-capable storage domain. */
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { basename, dirname, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
@@ -219,11 +219,12 @@ export function readCheckpoints(source, backend) {
 
 function checkpointReason(cached, handle, events, registry, definition, schema) {
   if (cached.reason) return cached.reason
-  if (![3, 4, 5, 6].includes(cached.version)) return 'cache-format'
+  if (![3, 4, 5, 6, 7].includes(cached.version)) return 'cache-format'
   const parsed = schema.safeParse(cached.record)
   if (!parsed.success) return 'cache-schema'
   const { identity, rows } = parsed.data
-  if (identity.createdAt !== handle.header.createdAt || identity.cwd !== handle.header.cwd
+  if (identity.formatVersion !== handle.header.version
+    || identity.createdAt !== handle.header.createdAt || identity.cwd !== handle.header.cwd
     || (identity.isSeeded ?? false) !== handle.header.isSeeded
     || (identity.inheritedEventCount ?? 0) !== handle.inheritedEventCount) return 'session-identity'
   const row = rows.agentTeam
@@ -239,27 +240,42 @@ function checkpointReason(cached, handle, events, registry, definition, schema) 
 
 export async function readSessions(root, harnessRoot, { records: cached = new Map(), unreadable = false } = {}) {
   const load = (path, entry = 'index.js') => imported(join(harnessRoot, path, 'lib', entry))
-  const [{ Context }, { default: Persistence }, { default: Projections }, { teamProjectionDefinition, isTeamEvent }, format, zstd, { checkpointRecord }, subagent] = await Promise.all([
+  const [{ Context }, { default: Persistence }, { default: Projections }, { teamProjectionDefinition, isTeamEvent },
+    { sessionFormatCatalog }, { parseSessionFormatLogFilename }, zstd, { checkpointRecord }, subagent] = await Promise.all([
     load('vendor/cordis'), load('packages/session/session-persistence-jsonl'),
     load('packages/session/session-projection'), load('packages/experimental/agent-team', 'types/projection.js'),
-    load('packages/session/session-persistence-jsonl', 'types/format.js'),
+    load('packages/session/session-format-catalog'), load('packages/session/session-format'),
     load('packages/session/session-persistence-jsonl', 'types/zstd.js'),
     load('packages/session/session-projection-cache'),
     load('packages/subagent/subagent'),
   ])
   const sourceFiles = files(root)
-  const artifacts = sourceFiles.filter(path => /\/session\.jsonl(?:\.zstd)?$/.test(path))
+  const storedVersion = path => parseSessionFormatLogFilename(basename(path).replace(/\.zstd$/, ''))
+  const artifacts = sourceFiles.filter(path => storedVersion(path) !== undefined)
   const sessionDirectories = artifacts.map(path => dirname(path))
   for (const path of sourceFiles) {
     if (artifacts.includes(path)) continue
-    if (basename(path).startsWith('session.') || !sessionDirectories.some(directory => path.startsWith(`${directory}/`))) {
+    if ((basename(path).startsWith('session.') && basename(path) !== 'session.lock')
+      || !sessionDirectories.some(directory => path.startsWith(`${directory}/`))) {
       refuse('AUDIT_SESSION_LAYOUT', 'A Session artifact is outside the qualified layout; it cannot be interpreted as an empty log')
     }
   }
   const encodings = new Set(artifacts.map(path => path.endsWith('.zstd') ? 'zstd' : 'none'))
   if (encodings.size > 1) refuse('AUDIT_SESSION_ENCODING', 'One Session root contains mixed physical encodings')
-  const parsed = []
+  const selected = new Map()
   for (const path of artifacts) {
+    const previous = selected.get(dirname(path))
+    if (previous === undefined || storedVersion(path) > storedVersion(previous)) selected.set(dirname(path), path)
+  }
+  const parsed = []
+  const sourceVersions = new Set()
+  const payloadVersions = Object.fromEntries(['teamEvent', 'nativeOperation', 'messageRequest', 'subagentDescriptor', 'teamProjection']
+    .map(name => [name, new Set()]))
+  for (const value of cached.values()) {
+    const version = value.record?.rows?.agentTeam?.ver
+    if (Number.isSafeInteger(version) && version >= 0) payloadVersions.teamProjection.add(version)
+  }
+  for (const path of selected.values()) {
     let bytes = readBytes(path)
     if (path.endsWith('.zstd')) {
       const { frames, tornStart } = zstd.scanZstdFrames(bytes)
@@ -268,13 +284,31 @@ export async function readSessions(root, harnessRoot, { records: cached = new Ma
       try { bytes = Buffer.concat(Array.from(decoder.decode(bytes, frames), chunk => Buffer.from(chunk))) }
       finally { decoder.close() }
     }
-    let log
-    try { log = format.scanLog(bytes) }
-    catch (error) {
-      if (error.name === 'SessionFormatUnsupportedError') refuse('AUDIT_SESSION_FORMAT', 'A Session requires an unsupported header, codec or event vocabulary')
-      throw error
+    if (bytes.at(-1) !== 0x0a) refuse('AUDIT_SESSION_TAIL', 'A Session contains unreadable or incomplete records')
+    let rows
+    try { rows = bytes.toString('utf8').trimEnd().split('\n').map(line => JSON.parse(line)) }
+    catch { refuse('AUDIT_SESSION_TAIL', 'A Session contains unreadable or incomplete records') }
+    const [header, ...events] = rows
+    if (header?.version !== storedVersion(path)) {
+      refuse('AUDIT_SESSION_FORMAT', 'A Session filename and physical header disagree about its format')
     }
-    if (log.committedBytes !== bytes.length) refuse('AUDIT_SESSION_TAIL', 'A Session contains unreadable or incomplete records')
+    let current
+    try {
+      const decoded = sessionFormatCatalog.decodeArtifact(header, events)
+      for (const event of decoded.events) {
+        const key = event.type === 'subagent/descriptor' ? 'subagentDescriptor'
+          : event.type === 'team/native-operation/committed' ? 'nativeOperation'
+            : event.type === 'team/message/request-committed' ? 'messageRequest'
+              : event.type.startsWith('team/') ? 'teamEvent' : undefined
+        if (key && Number.isSafeInteger(event.data?.version)) payloadVersions[key].add(event.data.version)
+      }
+      current = sessionFormatCatalog.migrate(decoded)
+    }
+    catch (error) {
+      refuse('AUDIT_SESSION_FORMAT', 'A Session requires an unsupported header, codec or event vocabulary')
+    }
+    sourceVersions.add(header.version)
+    const log = { meta: current.header, events: current.events, inheritedEventCount: current.inheritedEventCount }
     const teamHistories = new Map()
     for (const [index, event] of log.events.entries()) {
       if (!event.type.startsWith('team/')) continue
@@ -295,9 +329,17 @@ export async function readSessions(root, harnessRoot, { records: cached = new Ma
     }
     parsed.push(log)
   }
+  // Even read-only body opens publish historical successors. Only private copies
+  // are opened through the real backend; the source is read as immutable bytes.
+  const isolated = mkdtempSync(join(tmpdir(), 'ultra-audit-sessions-'))
   const ctx = new Context()
   try {
-    await ctx.plugin(Persistence, { root, compression: [...encodings][0] ?? 'zstd' })
+    for (const path of sourceFiles) {
+      const target = join(isolated, relative(root, path))
+      mkdirSync(dirname(target), { recursive: true })
+      copyFileSync(path, target)
+    }
+    await ctx.plugin(Persistence, { root: isolated, compression: [...encodings][0] ?? 'zstd' })
     await ctx.plugin(Projections)
     ctx.sessionProjections.register(teamProjectionDefinition)
     const sessions = new Map()
@@ -377,6 +419,10 @@ export async function readSessions(root, harnessRoot, { records: cached = new Ma
         refuse('AUDIT_DESCRIPTOR_IDENTITY', 'A Team member conflicts with its child Session, continuation provider or fixed route')
       }
     }
-    return { sessions, checkpoints, nativeCorrelations }
-  } finally { await ctx.fiber.dispose() }
+    return { sessions, checkpoints, nativeCorrelations, sourceVersions: [...sourceVersions].sort((a, b) => a - b),
+      payloadVersions: Object.fromEntries(Object.entries(payloadVersions).map(([name, versions]) => [name, [...versions].sort((a, b) => a - b)])) }
+  } finally {
+    try { await ctx.fiber.dispose() }
+    finally { rmSync(isolated, { recursive: true, force: true }) }
+  }
 }

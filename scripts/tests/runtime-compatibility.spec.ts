@@ -54,7 +54,7 @@ function installedProfile() {
   return { profile, home, directory }
 }
 
-function loadProfile(directory: string) {
+function loadProfile(directory: string, includeData = false) {
   return spawnSync(process.execPath, ['--expose-internals', '--input-type=module', '--eval', `
     import { createRequire } from 'node:module'
     import { pathToFileURL } from 'node:url'
@@ -62,16 +62,30 @@ function loadProfile(directory: string) {
     const { Context } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis')).href)
     const { default: Loader } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis-plugin-loader')).href)
     const ctx = new Context()
+    if (${includeData}) {
+      const { default: Storage } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-storage')).href)
+      await ctx.plugin(Storage)
+    }
     await ctx.plugin(Loader, { baseUrl: ${JSON.stringify(pathToFileURL(`${directory}/`).href)} })
     try {
-      await ctx.loader.create({
-        name: '@benz-ai-x/dsh-agent-team-ultra-profile', group: true,
+      const entries = [{
+        id: 'agent-team-ultra-compatibility', name: '@benz-ai-x/dsh-agent-team-ultra-profile', group: true,
         config: [{ id: 'agent-team', name: '@deepseek-ai/dsh-experimental-agent-team' }],
+      }]
+      if (${includeData}) entries.unshift({
+        id: 'agent-team-ultra-data', name: '@benz-ai-x/dsh-agent-team-ultra-profile/data',
+        config: {
+          sessions: { root: ${JSON.stringify(join(directory, 'business-data/sessions'))} },
+          storage: { backend: 'sqlite', path: ${JSON.stringify(join(directory, 'business-data/storage.sqlite'))} },
+        },
       })
+      await ctx.loader.root.update(entries)
       await ctx.loader.await()
       console.log(JSON.stringify({ ok: true }))
     } catch (error) {
-      console.log(JSON.stringify({ code: error.code, message: error.message }))
+      console.log(JSON.stringify({ code: error.code, message: error.message,
+        ...(error instanceof AggregateError ? { errors: error.errors.map(cause => cause.message) } : {}),
+      }))
       process.exitCode = 1
     } finally { await ctx.fiber.dispose() }
   `], { cwd: tmpdir(), encoding: 'utf8', env: { ...process.env, DSH_HOME: join(directory, 'business-data') }, timeout: 15000 })
@@ -100,6 +114,42 @@ describe('installed Ultra compatibility admission', () => {
     expect(existsSync(join(root, 'business-data'))).toBe(false)
   })
 
+  it('refuses an unqualified explicit peer link before initializing its profile', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ultra-peer-link-admission-'))
+    temporary.push(root)
+    const peer = join(root, 'peer')
+    mkdirSync(peer)
+    writeFileSync(join(peer, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-brand', version: '0.1.3-alpha.1' }))
+    const result = spawnSync(process.execPath, [
+      join(project, 'scripts/compatible-dsh.mjs'), '--lock-local-peers', 'plugin', '--profile', 'web', 'add', `link:${peer}`,
+    ], { cwd: project, encoding: 'utf8', env: { ...process.env, DSH_HOME: join(root, 'business-data') } })
+    expect(result.status).toBe(1)
+    expect(JSON.parse(result.stderr)).toMatchObject({ code: 'ULTRA_COMPAT_INSTALLATION_INVALID' })
+    expect(existsSync(join(root, 'business-data'))).toBe(false)
+  })
+
+  it('preserves a conflicting user override and profile manifest instead of silently replacing them', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ultra-peer-override-conflict-'))
+    temporary.push(root)
+    const directory = join(root, 'profiles/web')
+    mkdirSync(directory, { recursive: true })
+    const manifest = JSON.stringify({ name: 'user-profile', private: true, description: 'Retain this setting.' }) + '\n'
+    const settings = "packages: []\n# Retain this comment.\noverrides:\n  '@deepseek-ai/dsh-brand': 'PRIVATE_CUSTOM_OVERRIDE'\n"
+    writeFileSync(join(directory, 'package.json'), manifest)
+    writeFileSync(join(directory, 'pnpm-workspace.yaml'), settings)
+    writeFileSync(join(directory, 'cordis.patch.yml'), '[]\n')
+    const peer = realpathSync(join(project, '.dsh/harness/packages/util/brand'))
+    const result = spawnSync(process.execPath, [
+      join(project, 'scripts/compatible-dsh.mjs'), '--lock-local-peers', 'plugin', '--profile', 'web', 'add', `link:${peer}`,
+    ], { cwd: project, encoding: 'utf8', env: { ...process.env, DSH_HOME: root } })
+    expect(result.status).toBe(1)
+    expect(JSON.parse(result.stderr)).toMatchObject({ code: 'ULTRA_COMPAT_INSTALLATION_INVALID' })
+    expect(result.stderr).not.toContain('PRIVATE_CUSTOM_OVERRIDE')
+    expect(readFileSync(join(directory, 'package.json'), 'utf8')).toBe(manifest)
+    expect(readFileSync(join(directory, 'pnpm-workspace.yaml'), 'utf8')).toBe(settings)
+    expect(existsSync(join(directory, 'node_modules'))).toBe(false)
+  })
+
   it('reports a missing compatibility proof before importing the Host implementation', () => {
     const root = installedPackage()
     rmSync(join(root, 'lib/compatibility.json'))
@@ -112,10 +162,11 @@ describe('installed Ultra compatibility admission', () => {
   it('rejects a same-version Team with missing extensions before importing it or opening business data', () => {
     const root = installedPackage()
     const team = join(root, 'node_modules/@deepseek-ai/dsh-experimental-agent-team')
+    const version = JSON.parse(readFileSync(join(team, 'package.json'), 'utf8')).version
     rmSync(team)
     mkdirSync(team)
     writeFileSync(join(team, 'package.json'), JSON.stringify({
-      name: '@deepseek-ai/dsh-experimental-agent-team', version: '0.1.2-rc.1', type: 'module', main: 'index.js',
+      name: '@deepseek-ai/dsh-experimental-agent-team', version, type: 'module', main: 'index.js',
     }))
     writeFileSync(join(team, 'index.js'), `
       import { mkdirSync } from 'node:fs'
@@ -260,6 +311,22 @@ describe('installed Ultra compatibility admission', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       message: expect.stringContaining('ULTRA_COMPAT_ARTIFACT_MISMATCH: @deepseek-ai/dsh-experimental-agent-team'),
     })
+    expect(existsSync(join(directory, 'business-data'))).toBe(false)
+  })
+
+  it('rejects an unqualified Loader tree before its public data row creates business storage', () => {
+    const { directory } = installedProfile()
+    const team = join(directory, 'node_modules/@deepseek-ai/dsh-experimental-agent-team')
+    rmSync(team)
+    mkdirSync(team)
+    writeFileSync(join(team, 'package.json'), JSON.stringify({
+      name: '@deepseek-ai/dsh-experimental-agent-team', version: '0.1.2-rc.1', type: 'module', main: 'index.js',
+    }))
+    writeFileSync(join(team, 'index.js'), "throw new Error('unchecked Loader-root Team executed')\n")
+
+    const result = loadProfile(directory, true)
+    expect(result.status, result.stderr + result.stdout).toBe(1)
+    expect(result.stdout).toContain('ULTRA_COMPAT_ARTIFACT_MISMATCH: @deepseek-ai/dsh-experimental-agent-team')
     expect(existsSync(join(directory, 'business-data'))).toBe(false)
   })
 

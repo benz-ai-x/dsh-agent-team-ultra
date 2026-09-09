@@ -5,7 +5,27 @@
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
-## 当前 PR #62 审查修复
+## 当前 PR #63 联合验收与条件合并
+
+- 用户已确认“历史迁移 → 真实 Host／生成 Remote → 发货 Studio”的 Run／用量／完整性／错误冒泡验收，并授权通过后提升资格、复查、合并 PR #63 及同步 main。范围仅 #39–#43；#44 真实认证 native、父 Spec #18、通知和原 worktree／stash 清理不在本轮范围内。下节“不合并／未确认”只是前一轮历史授权。
+- 当前运行候选 `e85c3a206ce10319951b60c7061190a6e5967b45` 已通过 648 strict／0 warnings、452 tests／39 files、全部 JSON／SQLite 耐久发布中断边界、实际归档安装／Studio／生成 Remote／Web／恢复／卸载、旧 Codex／旧 Claude／B 三组历史升级及固定官方对照。完整 main→候选独立 Standards／Spec 各 0 项未解决发现；精确输入、失败过程与日志摘要见 [联合验收证据](docs/evidence/pr63-studio-acceptance.md)。
+- 发货 Studio 使用真实安装 Client bundle、production renderer、认证 Host Remote 与实际 Agent Loop，原 Run／用量／incomplete／失效 Lead 错误和卸载均在共享归档门禁中验证。只控制外部 SDK／LLM 边界，JSDOM 不冒充人工浏览器或 #44 认证。
+- Claude 历史恢复不再补造重启或 epoch 时间；无日期规范证据省略、页面 incomplete，独立 Team settlement 保留原 outcome 与单次回执。有日期 usage 保留，后续无日期的有效／非法计数都不污染它；有日期非法／溢出拒绝不变。最终 Claude 套件 66／66，所有中间失败和复查发现保留在证据文件。
+- 仅在上述候选完整门禁通过后，支持标签提升为 `agent-team-ultra.phase-c.v1`。维护 C `3c38b1d4e8`、官方 `d347e703`、格式、SDK／payload 不变；只读审计公开 RED → GREEN 区分源码资格与数据 complete。旧 candidate 目标不能跨资格直接复用或手改 manifest，须保留最新业务事实并迁移到新目标。最终新资格 `54280d1` 已通过全部三组历史升级和官方对照；首轮全量的 pack 出现受控 MCP 60000ms 超时，保持代码／断言／超时不变，独立完整重跑 452 tests／39 files 与全部归档门禁自然退出 0。失败日志保留，不声称确定或修复超时原因。完整支持资格候选 Standards／Spec 各 0；后续仅收口并复核说明文档，按授权正常发布／合并。
+- Node 22.22.1／pnpm 11.7.0，C 源 `/root/workspace/batch4-upgrade.VkSXdm/harness`。共享 `/root/workspace/deepseek-harness` 已被外部改为官方 `5dda764`，本轮未修改它；C、B、固定官方原保留源码 tracked 字节与精确提交一致后，在 `/root/workspace/pr63-source-repair.UKB4f7/{c,b,official}-harness.git` 恢复独立 Git 管理目录。该目录还保留原指针备份与全新 A 源，不能作为临时垃圾删除。
+- 工作树 `/root/workspace/batch4-upgrade.VkSXdm/ultra`，分支 `feat/batch-4-harness-upgrade`；发布／合并状态以 [PR #63](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/63) 的实时 head、state、mergeCommit 为准，重复执行前先查，不重做已完成的合并。使用 `tdd`、`dsh-plugin-dev`、`diagnosing-bugs`、`code-review`；原 stash 和其他工作树保留。
+
+## PR #63 审查修复与同步（前一轮记录）
+
+- 用户授权按审查建议修复并提交 PR #63，保证本地／远端一致；不包含合并 PR #63、关闭 Issue、通知或清理原有 worktree。两项 P2 分别是公开 data 入口遗漏 owning Loader 来源准入，以及 complete 迁移目标缺必要实体仍创建空库；另处理 Run 身份／native 关联重复逻辑的 P3 建议。
+- 本轮在原 Batch 4 工作树合入远端 main `c1632755`，保留 PR #62 的 `d5054de`／`e7a5f2d` 终态时间、恢复完整性和清理日志修复；仅 HANDOFF／TODO 有冲突，按两侧真实完成状态合并。PR #62 已合并、Issue #38 已关闭，不重复执行。C Harness 仍 `3c38b1d4e8`，初始 strict 648／0 warnings。
+- 两项原 P2 均经公开入口 RED → GREEN：错误来源在 data 注册前拒绝，complete 迁移目标缺 Session／JSON／SQLite 实体的四种情况零写入拒绝，恢复原实体后公开 Host／Remote 可继续读取。Run 身份和 native 关联提取为 Host／迁移共享纯模块；定向回归通过。中间候选 `ddc77697839c7d516e611fd03d1260d344bd011d` 完整门禁 648 strict／0 warnings、445 tests／39 files、实际八归档安装／Web／冷恢复／卸载，以及旧 Codex、旧 Claude、固定 B `4cecfe2` 历史归档升级全部通过。详见 [本轮证据](docs/evidence/pr63-review-fixes.md)。
+- 独立完整差异复查新增的 Standards P2（README 直升顺序）和 Spec P2（manifest 数组绕过）已在 `32122251c4a1b8086952a7a0274e752b51c5a6ca` 关闭；JSON／SQLite 两项公开回归均 RED → GREEN，各覆盖三种非法数组值并确认零注册、零写入。该候选完整 main→head 独立 Standards／Spec 各 0 项未解决发现，最高严重度均无。
+- 最终新候选完整 `pnpm verify` 自然退出 0：648 strict／0 warnings、447 tests／39 files、实际八归档生产 UI／Remote／安装／Web／双 native 冷恢复／卸载通过；旧 Codex、旧 Claude、B 固定前身三组升级重新全绿。首次与三组升级并行时有 4 个既有迁移用例触发 5 秒超时（443 pass／4 fail），日志保留；保持源码、断言与超时不变，独立完整重跑通过，不能忽略首次失败。临时 B 验收工作树已清理，原始固定提交可重建，所有验证日志保留。
+- 已正常推送 `3212225` 并回读 PR #63／本地／tracking／远端同一提交，PR base 改为已合并的 main。之后仅提交说明文档，最新 head 以 GitHub 为准。使用 `dsh-plugin-dev`、既有公开边界的 `tdd`、`resolving-merge-conflicts` 和 `code-review`；Studio 联合验收入口仍待确认，不把受控 native 探针当成 #44 认证验收，不自动合并或提升 integration-candidate 支持资格。
+- 主工作区 main 已安全快进到远端 `c1632755`，工作区 clean，strict 590／0 warnings。原未提交 HANDOFF 单独保存在 stash `f473bf762b5583558031f2aa0bdad6a677bea768`（`codex: preserve local HANDOFF before PR 63 synchronization`）；另三个原 stash、其他 worktree 与 B／C Harness 均保留，不把该旧交接混入修复提交。
+
+## PR #62 审查修复（历史记录，已合并）
 
 - 用户授权按审查建议修复 PR #62，仅处理两个运行时 P2 和一个过期状态 P3；不合并、不改 PR #63、父 Spec #18 或已确认的 B 支持锁／SDK。首次独立审查 Standards 3 项、Spec 1 项（工具历史完整性项跨轴重叠），不是四个独立问题。
 - 缺失／非法原生终态时间不再回退到当前时刻。Team mailbox 仍结算已知结果，必须带时间戳的证据入口不生成无日期 terminal，Run 明确 incomplete。恢复只补回可证明时间的终态，不假装重建全部工具／usage 历史；同一 provider generation 的证据页及后续工作保持 incomplete。
@@ -22,8 +42,19 @@
 - 最终 `pnpm verify` 自然退出 0：590 strict／0 warnings，Host／Client／Typert／compatibility 构建，394 tests／35 files，八归档普通解析与安装、生产消息／DAG／CAS／watch／丢响应恢复、Web 启动、Codex／Claude JSON＋SQLite 冷恢复及完整卸载通过。日志为 worktree 父目录 `issue-38-qualified-verify.log`。首轮唯一失败是旧夹具的相对终态时间却要求完整；保留输入、用量与终态，明确验证 incomplete／无 endedAt 后重新跑完整门禁通过。
 - Node 22.22.1／pnpm 11.7.0，Harness `57670c6b320f7f240cbad360a9f691c8598e1571` 位于 `/root/workspace/pr61-fixes.7yIVdj/harness`，来源和锁均未修改。main 仍为 `ec88d85a2ec668388ff37b0b6cba4bab3e332040`；主工作区既有 HANDOFF、3 个 stash、历史工作树和维护源码均保留。
 - 飞书 #38 完成通知已于 2026-09-08 20:22:54 成功发送，CLI 返回 `ok: true`／bot，幂等键 `ultra-38-7caa05e-qualified`；内容包含 PR #62、实现／验证结果与待评审／合并和 #44 限制。不要重复发送。凭据、收件人私有标识和私人会话不写入仓库。
-- 下一步从 #38 候选建立 #39–#43 升级集成线，不切换 B 发布线；#38 PR 不自动合并。已回读 #39–#44，固定官方比较为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`；#43 完整迁移／归档门禁与人工合并、#44 真实认证验收仍不可省略。没有开始修改新 Harness 基线。旧 `gh pr edit` 因 Projects classic GraphQL 字段失败，已用 `gh api` 仅 PATCH 同一 PR body 并回读成功，不重建 PR。
-- 本轮使用 `tdd`、`dsh-plugin-dev`、`lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
+- #39 定向实现完成、待 Batch 4 PR 验收。隔离工作区 `/root/workspace/batch4-upgrade.VkSXdm/ultra`，分支 `feat/batch-4-harness-upgrade`，基于 #38 `4cecfe2`。真实 Host／生成 Remote 的固定路由 v2 冷恢复 tracer 从 B 的 Session 0 RED 到候选 Session 2 GREEN，保持原 member／Revision／route 并继续原成员的下一 Run；证据位于集成树 `docs/evidence/issue-39-acceptance.md`。
+- 配套 Harness 合并已正常收尾为 `3c38b1d4e8bf219750203e44b1df033ced754e92`，双亲 B `57670c6` 和固定官方 `d347e703`；已正常通过 pre-push 推送维护 fork `feat/ultra-phase-c-integration` 并回读一致，未推送官方 upstream。冻结 codec 明确维护版 Team／native／request 格式，Python 与 Web 保留旧协作断言。格式／重放 389 项、受影响文件 100% coverage、Team 258 项、built Remote／CLI Team、Web 五项、构建／类型／lint 通过。doc-sync 首轮 32/33，过期配置目录经正式生成及双语配对后失败叶检查通过；原提交钩子全部通过。
+- 仅 Batch 4 隔离树锁定并准备干净候选 `3c38b1d4e8`，标签 `phase-c.integration-candidate.v1` 不宣称最终资格。main、PR #62、原 B 源码和链接保持原发布线。#39 代码 `49d0366` 已推送草稿 PR #63（base 为 PR #62 分支），Issue OPEN／4/5 AC，AC 2 等待 #43。飞书通知已于 21:22:45 成功发送，幂等键 `ultra-39-49d0366-focused`，不要重发。
+- #40 实现及定向验证已完成：Ultra 145／145、Harness Team UI 63／63、真实 built native Loader 1／1 通过，原 SDK／payload 不变。证据提交 `dcc022c` 已推送 PR #63；Issue OPEN／4/5 AC，最终收口留给 #43。飞书通知于 21:29:32 成功发送，幂等键 `ultra-40-dcc022c-focused`，不要重发。
+- #41 实现与定向验证完成，提交 `04b2c9f2ed1e3e1f8357dd774881f41b44d916e4` 已推送 PR #63 并回读一致；Issue OPEN／2/6 AC，只勾选源保护／pending／完成最后提交和支持边界／脱敏。70／70 tests、5 文件（audit 37、execution 24、公开业务／Profile 9）、648 strict／0 warnings、完整 build 和 67 个本地文档链接通过。JSON／SQLite 真实迁移保留源与原身份，支持重试／临时前缀恢复／分歧拒绝、checkpoint／Run 重建及 Eval 历史／Gate 失效。完整历史归档、逐写入中断矩阵仍留给 #43；B 黄金输入不含 Ultra/native，不夸大历史证明。
+- #41 Profile `data` 联合检查实际 Session／storage roots 后才注册真实持久化，同一 Fiber 释放；pending／混合根与两种后端生命周期通过。Harness 候选未改。README／ADR 0027 明确目标 JSON `storage`（不是默认 `storages`）、双路径配置、源停写、SDK 历史／认证不复制及 Linux 限制。飞书通知于 22:59 由 Ali Agent CLI bot 成功发送（ok: true），幂等键 `ultra-41-04b2c9f-focused`，不要重发。
+- #42 实现与定向验证完成，提交 `61fb4f6bb56de13c63d186b29039b55ea5b1bf68` 已推送 PR #63 并回读一致，Issue OPEN／4/5 AC。飞书完成通知已于 23:13 成功发送（ok: true／bot），幂等键 `ultra-42-61fb4f6-focused`，不要重发。真实 Agent Loop／Session v2／Host／生成 Remote RED → GREEN 修复失败 attempt 用量（14＋7 原返回 7）、缺失流终态仍 complete、部分 aggregate 冒充完整 total；live／settled／cold 与 JSON／SQLite 累计快照不重复计数、原 Run/member/Revision/route 保留。112／112、7 文件回归通过；DSH/native 迁移重建各 2／2，通过最终 build、648 strict／0 warnings。日志 `issue42-focused-owner.log` 与 `issue42-*-regression.log`，证据在集成树 `docs/evidence/issue-42-acceptance.md`。#43 最终历史→Studio／归档／全中断矩阵及 #44 认证未完成，没有正式 review 或自动合并。
+- #43 运行时与验证修复已提交为 `35f050ca1587e68724deed4717c793f90f661185`，正常推送 PR #63 并回读远端一致；Issue／PR 正文已更新验收进度，仍 OPEN／DRAFT，AC 勾选、标题、标签和指派均保留，未发送 #43 完成通知。归档集合改为实际 Profile 入口与本地依赖闭包推导（当前 8 包，不固定数量），包含 `/data` 普通解析；所有非归档 Harness 依赖来自同一构建证明。真实安装曾发现内部 registry `dsh-brand 0.1.3-alpha.2` 与锁定 alpha.1 不符，现由显式 `--lock-local-peers` 约束顶层／嵌套依赖，固定 profile pnpm 11.7.0，并直接链接已核验 SDK／平台载荷；不放宽预检、不更换 SDK 或复制认证。冲突 override 与未核验来源在安装前拒绝，已有配置保留。
+- #43 新增真实 Profile Loader 回归先 RED 后 GREEN：完成目录内的错误 storage 子路径、后端或 Session 布局拒绝；目标已有迁移锁但首次 manifest 尚未发布也拒绝业务写入。`--max-writes 0` 暂停首次发布前。JSON／SQLite 完整耐久发布边界矩阵 2／2（189.04 秒）通过，每个边界重试、完整目标复用、源字节不变及原 Profile／Run／成员冷恢复；原 execution／来源／Profile 52／52 与安装拒绝 21／21，通过当前 648 strict／0 warnings。日志为 Batch 4 父目录 `issue43-all-writes-green.log`、`issue43-focused-regression.log`、`issue43-install-admission.log`。
+- #43 历史 Codex（`debde06`）／Claude（`081357d`）前身、以及 B 发布候选 PR #62（`4cecfe2`）均已真实归档创建 JSON／SQLite 员工，调用运维入口发布隔离目标，再以新归档的实际 `/data` Loader 恢复原 member／Revision／native handle 并续跑。B 双 native 完整查询、任务回执、原生操作、源保护、迁移后 Web 和无强杀退出、卸载通过：`issue43-b-direct-product-upgrade.log`。最终脚本、固定安装工具链及 SDK 链接已复验通过，历史最终证据为 `issue43-final-codex-history.log`／`issue43-final-claude-history.log`。控制式外部产品不等于 #44 的真实认证。
+- #43 官方／fork 11 组语义及不支持来源／stock 导入前拒绝通过 `issue43-official-fork-comparison.log`。完整 `pnpm verify` 已退出 0：648 strict／0 warnings，430 tests／39 files，JSON 13 次耐久发布／14 个边界、SQLite 7 次／8 个边界，实际闭包归档／数据入口／双 native 冷恢复／Web／卸载通过；`issue43-complete-candidate-verify.log` SHA-256 为 `b0bbad1003969d12ca54fa2ab0cc794ac32228604d1a845850d30f01cd1b9b55`。最终历史重验 `issue43-final-codex-history.log`／`issue43-final-claude-history.log` 也均通过，每次 Web 退出 0／无强杀。`tdd` 的 Studio 联合测试入口补充确认尚未收到，未写该新测试；支持标签未提升，#44／正式 review／人工合并未完成。
+- 历史前身工作树位于 Batch 4 父目录 `codex-predecessor`／`claude-predecessor`，锁定干净 Harness `8b4bae0`。各自正式 prepare、frozen/offline install、strict、build 通过；历史 Harness 曾缺失 brand→Cordis 安装链接，已正常 frozen/offline 重装恢复，源码与锁 clean。保留所有 worktree、原日志、主工作区既有变更及 stash；只操作隔离测试数据。
+- 本轮使用 `tdd`、`dsh-plugin-dev`、`domain-modeling`、`resolving-merge-conflicts`、Harness 的 `dsh-doc`／`dsh-prose-standard`／`dsh-pre-push-checks`／`dsh-ci-test-reliability`，以及通知的 `lark-im`／`lark-shared`。没有新正式代码审查、多代理或真实 native 认证验收；自动化通过不等于 PR 已审查批准，#38–#44 总目标尚未完成。
 
 ## PR #61 发布交接（历史记录，已合并）
 
@@ -337,13 +368,13 @@
 
 ## 下一步
 
-1. PR #62 修复候选已通过最终完整验证和独立 Standards／Spec 复查；后续说明提交不得混入运行时变更，发布时正常推送原分支并回读精确 head。合并需另行授权，不能仅凭通过审查自动执行。
-2. #38 的测试入口与飞书通知方式已经确认，初版完成通知已经成功，不重复发送。本轮不继续 #43 或 #44；其他批次保持自己的待验收状态，父 Spec #18 不修改。
-3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
+1. PR #63 本轮代码修复、main 集成、最终全验、独立复查和推送已完成；运行候选 `3212225`，后续仅说明文档。恢复任务前读取远端实际 head，勿重复修复／推送旧提交或误合并 PR。
+2. Studio 公开组件入口确认后，接入迁移后真实 Host／生成 Remote 验证显示与错误冒泡；最终支持资格与 #44 真实认证保持各自门禁。PR #62 已合并，#38–#42 飞书通知不重复发送，父 Spec #18 不修改。
+3. PR #61／#62 已合并，不重复处理。主工作区 main 已与远端同步；原 HANDOFF 在 `f473bf762b5583558031f2aa0bdad6a677bea768` stash，连同原三个 stash、既有分支／Harness 与历史证据保留。父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
 ## 权威材料与技能
 
-- 当前使用 `tdd` 在已确认的公开 Host／生成 Remote、真实 Team／持久化／Fiber 入口修复 PR #62，使用 `dsh-plugin-dev` 核对锁定来源与证据语义，最终用 `code-review` 独立复查；无需重复确认既有入口或通知身份。以下技能记录属于各历史轮次。
+- 当前使用 `tdd` 在已确认的公开 Loader／迁移 CLI／Host／生成 Remote／真实持久化／Fiber 边界修复 PR #63，`dsh-plugin-dev` 核对来源与发货入口，`resolving-merge-conflicts` 保留 PR #62 与 C 集成原意；最终使用 `code-review` 独立复查。Studio 联合入口待补充确认；以下技能记录属于历史轮次。
 
 - 本轮修复使用 `dsh-plugin-dev`；Harness 按 `dsh-ci-test-reliability` 设计异步回归，按 `dsh-pre-push-checks` 验证提交，按 `dsh-doc`／`dsh-prose-standard` 更新 owning README 和 Agent Note 的英中配对。没有发送外部通知。
 

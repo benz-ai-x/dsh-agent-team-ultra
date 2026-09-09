@@ -1,6 +1,36 @@
 # TODO
 
-## Current requested scope: repair PR #62 review findings
+## Current requested scope: complete acceptance and merge PR #63
+
+- [x] Confirm the historical migration → real Host / generated Remote → shipping Studio seam with the user; acceptance includes Runs, usage, completeness and error bubbling.
+- [x] Restore the exact C Harness Git identity in independent administrative storage after shared worktree metadata disappeared; tracked bytes match `3c38b1d4e8`, strict 648 / 0 warnings passes without changing source or lock.
+- [x] Reproduce missing Claude historical time, epoch evidence and partial-usage regressions through public Host / generated Remote; retain dated facts and Team settlement without invented times. All 66 Claude tests pass.
+- [x] Complete the shipping Studio joint acceptance on `e85c3a2`: 648 strict checks, 452 tests, all three historical archive upgrades and the official comparison pass; independently reviewed Standards / Spec each have zero findings.
+- [x] Only after those candidate gates, promote `agent-team-ultra.phase-c.v1` on the same source / SDK versions; public read-only audit RED → GREEN reports source qualification without opening dataset writes.
+- [x] Complete the qualified `54280d1` gates: 648 strict checks, 452 tests, all publication boundaries, packed Studio / Web / recovery / uninstall, three historical upgrades and the fixed official comparison. Retain the first MCP timeout; unchanged independent full verification exits 0. Standards / Spec each report zero unresolved findings.
+
+The user has authorized normal publication and merge of this verified PR and
+fast-forward synchronization of local main. Read the actual outcome from
+[PR #63](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/63) and Git before
+resuming; do not repeat an already completed merge. Only acceptance / handoff
+documentation follows the qualified runtime commit, with final link / diff
+checks and independent document review. Do not advance #44 or parent #18.
+
+- [x] Integrate merged main / PR #62 as `21a22b0`, preserving its final native recovery and cleanup diagnostics fixes; build and 15 native recovery tests pass.
+- [x] Reject an unqualified owning Loader source before public data registration or writes; the real Loader regression is RED → GREEN with zero business writes.
+- [x] Reject missing required Session / storage entities in an already completed joint migration; all four JSON / SQLite public Loader cases are RED → GREEN and recover their retained data after restoration.
+- [x] Share pure Run Binding identity and native correlation selection between migration and Host recovery; 34 migration / v2 usage and 15 Run evidence / lifecycle tests pass.
+- [x] Complete intermediate candidate `ddc7769`: 648 strict checks, 445 tests, actual archive install / Web / recovery / uninstall, and all three historical archive upgrade gates pass.
+- [x] Fix the independent re-review's manifest enum admission and README isolated-upgrade ordering P2 findings; both real Loader backend regressions are RED → GREEN, and build passes.
+- [x] Complete final `3212225` verification: 648 strict checks, 447 tests, actual archive install / Web / recovery / uninstall and all three historical upgrades; independent Standards / Spec each report zero unresolved findings. The concurrent timeout attempt is retained in the [repair evidence](docs/evidence/pr63-review-fixes.md).
+- [x] Under the previous repair-only authorization, push the reviewed runtime to PR #63, retarget it to merged main, and read back matching local / remote heads; synchronize main and preserve the original HANDOFF in stash. The current extended authorization is recorded above.
+
+The user has now authorized completing these acceptance gates and merging PR #63
+once they pass. The confirmed Studio seam extends the earlier public Host tests.
+The C Harness and SDK selections stay fixed; #44 authenticated native acceptance,
+parent Spec #18 and unrelated notifications / worktree cleanup remain out of scope.
+
+## Previous PR #62 review repairs (merged)
 
 The user has authorized fixing the two runtime P2 findings and stale handoff P3
 in PR #62, then validating, independently re-reviewing, and updating that PR.
@@ -35,6 +65,22 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Reproduce and fix #38 Run read/view disposal, retired Lead reads, native cleanup diagnostics, recovered terminal evidence and invalid native completion times through public RED → GREEN slices; the combined real-persistence recovery scenario passes.
 - [x] Complete the [six-AC evidence map](docs/evidence/issue-38-acceptance.md) and final Batch 3B gate at `7caa05e`: 590 strict checks, 394 tests and eight-archive install/Web/message/DAG/native recovery/uninstall all pass; PR review and merge remain separate.
 - [x] User confirmed bot DM to the current Feishu user with Issue, implementation/test results, branch/PR and pending acceptance; report implementation completion separately from PR acceptance.
+
+## Initial Batch 4 implementation: Issues #39–#43 (historical)
+
+- [x] Publish #38 as PR #62 and send the confirmed Feishu completion notification once; review and human merge remain separate.
+- [x] Branch from #38 `4cecfe2` in an isolated Ultra worktree; prepare the unchanged locked B source and pass strict checks.
+- [x] Observe the #39 public fixed-route cold-resume tracer fail on B's Session format 0 versus required format 2.
+- [x] Finish integrating fixed official `d347e703` into the maintained Harness as `3c38b1d4e8`, preserving the complete B Team/native/UI contracts and recorded scenarios; formal candidate source selection follows.
+- [x] Qualify clean candidate `3c38b1d4e8` without switching the B support line: formal preparation, 590 strict checks, full Ultra build, the fixed-route v2 cold-resume tracer and both 11-group public Team probes pass. See [#39 evidence](docs/evidence/issue-39-acceptance.md); PR-level acceptance remains #43.
+- [x] Complete #40 native/UI focused validation on the same candidate: Ultra 145 tests, Harness Team UI 63 tests and real built native Loader 1 test pass; see [#40 evidence](docs/evidence/issue-40-acceptance.md). Final PR acceptance remains #43.
+- [x] Implement #41 isolated joint migration, write admission and deterministic recovery: 70 focused tests / 5 files, 648 strict checks and full build pass. See [#41 evidence](docs/evidence/issue-41-acceptance.md); complete historical archives and every-write interruption matrix remain #43.
+- [x] Publish #41 as `04b2c9f` on PR #63 and send its per-Issue bot notification once; Issue remains OPEN / 2 of 6 AC, with full historical acceptance deferred to #43.
+- [x] Implement #42 truthful v2 usage: public Agent Loop / Session / generated Remote RED → GREEN for failed-attempt usage, missing stream terminal and partial aggregate totals; focused 112 tests / 7 files pass. See [#42 evidence](docs/evidence/issue-42-acceptance.md).
+- [x] Publish #42 as `61fb4f6` on PR #63 and send its per-Issue notification once; Issue remains OPEN / 4 of 5 AC. Final historical v2-to-Studio and packed acceptance remains #43.
+- [x] Run #43 complete candidate verification: 648 strict checks, 430 tests / 39 files, JSON 14 and SQLite 8 publication boundaries, actual closure install / Web / native data recovery / uninstall; old Codex, old Claude and B archive upgrades plus official / fork comparison pass. See [#43 evidence](docs/evidence/issue-43-acceptance.md).
+- [x] After the user's seam and conditional-merge confirmation, complete #43's shipping Studio display / error propagation and promote source qualification after candidate gates; see the current scope above and [joint evidence](docs/evidence/pr63-studio-acceptance.md) for final review / publication state.
+- [ ] Perform #44 genuine authenticated native acceptance after its prerequisites; controlled external boundaries are not this acceptance.
 
 ## Previous requested scope: publish and merge the reviewed PR #61 (completed)
 
@@ -104,7 +150,8 @@ PR #60 is historical: it was merged as `9835db4361dcad500b3be09ef69f78420d71a6ab
 - [x] [B18 / #36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36): sole unified retry complete on Batch 2. Qualified Harness `806e5887…` publishes the generated watch catalog, uses one shared completion/dirty bit per task refresh generation under 4096+4096 invalidations, and makes TeamAction Fiber teardown await Remote watch quiescence. Ultra likewise owns every message watch close at the Client context lifecycle while preserving immediate React cleanup; old-cursor fencing, page/roster coalescing, bilingual lifecycle states, and no-resend remain intact. Live body was updated one marker at a time with other bytes unchanged; PR #60 was merged as `9835db4`; Issue is closed with 5/5 AC. The main lock at `b78caad462` includes subsequent review fixes. See [acceptance evidence](docs/evidence/issue-36-acceptance.md) and [pipeline state](PIPELINE_STATE.md).
 
 [Batch 3A / #37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37): implementation, two capability repairs and independent re-review are complete; both axes report zero findings. The repaired code was published through `9aa53d9`, locking Harness `57670c6b32`. Publication-only documentation follows. Merge and linked Issue closure are read from [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61), not inferred from the Issue's 6/6 checked AC. See [current evidence](docs/evidence/pr61-capability-review-fixes.md).
-- [x] Implement #38 on Batch 3B after #36 / #37 and merged PR #61. Its initial validation and notification are complete; current review repairs and remaining gates are tracked above. Other batches retain their separate dependency/acceptance boundaries and parent Spec #18 stays open.
+- [x] Implement and repair #38 on Batch 3B; PR #62 merged as `c1632755`, Issue closed. Validation and notification remain recorded above.
+- [ ] Finish the active #39–#43 and #44 batches in their approved dependency order. Do not treat unrun PR acceptance as complete; parent Spec #18 stays open.
 
 - [ ] Deliver [vNext Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) through its A/B/C phases and all acceptance criteria; specification publication does not mark implementation complete.
 - [x] [A01 / #19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19): shared Host context, Profile release, isolated evaluation, and capability installation consolidation implemented on `fix/19-host-profile-evaluation`. Full `pnpm verify` passes 164 tests and eight-archive install/boot/uninstall. [PR #45](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/45), reviewed at `3046af5` with no Standards/Spec findings, was merged into `main` as `c6ea879` on explicit user authorization. Issue closed.

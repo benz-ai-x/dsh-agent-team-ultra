@@ -38,7 +38,7 @@ try {
     ? readJsonUnits(options.get('--json'), specs) : readSqliteUnits(sqlite.path, specs)
   validateUnits(units)
   const cached = options.has('--json') ? readCheckpoints(options.get('--json'), 'json') : readCheckpoints(sqlite.path, 'sqlite')
-  const { sessions, checkpoints, nativeCorrelations } = await readSessions(options.get('--sessions'), harnessRoot, cached)
+  const { sessions, checkpoints, nativeCorrelations, sourceVersions, payloadVersions } = await readSessions(options.get('--sessions'), harnessRoot, cached)
   const observedV1 = units.get('agent_team_ultra_v1')
   const v0 = units.get('agent_team_ultra')
   const v1 = { tables: Object.fromEntries(Object.keys(storage.digitalEmployeeV1DomainSpec.tables)
@@ -108,12 +108,14 @@ try {
   if (before !== digest(sourcePaths())) refuse('AUDIT_SOURCE_CHANGED', 'The source changed during audit; retry against a quiescent snapshot')
   console.log(JSON.stringify({
     ok: true,
-    sourceFormats: { session: lock.compatibility.formats.session, teamEvent: lock.compatibility.formats.teamEvent,
-      teamProjection: lock.compatibility.formats.teamProjection, messageRequest: lock.compatibility.formats.messageRequest,
-      nativeOperation: lock.compatibility.formats.nativeOperation,
+    sourceFormats: { session: sourceVersions.length === 1 ? sourceVersions[0] : null, sessionVersions: sourceVersions,
+      ...Object.fromEntries(Object.entries(payloadVersions).map(([name, versions]) => [name, versions.length === 1 ? versions[0] : null])),
+      payloadVersions,
       ultraDomain: observedV1 ? 'agent_team_ultra_v1' : v0 ? 'agent_team_ultra' : null, ultraVersion: observedV1 ? 1 : v0 ? 0 : null },
+    readerFormats: lock.compatibility.formats,
     sourceDigest: before,
-    sourceCompatibility: {
+    sourceCompatibility: { writerCommit: null, provenance: 'not-recorded-in-data' },
+    readerCompatibility: {
       repository: proof.repository, commit: proof.commit, version: proof.version, docsDigest: proof.docsDigest,
       extensionApi: lock.compatibility.extensionApi, nativeProducts: lock.compatibility.nativeProducts,
     },
@@ -125,7 +127,10 @@ try {
     bindings,
     migration: {
       ...migrationPlan,
-      targetCompatibility: { officialFoundation: lock.compatibility.officialComparison, integrationCommit: null, qualified: false },
+      targetCompatibility: {
+        officialFoundation: lock.compatibility.officialComparison, integrationCommit: proof.commit,
+        qualified: lock.compatibility.extensionApi === 'agent-team-ultra.phase-c.v1',
+      },
     },
   }, null, 2))
 } catch (error) {

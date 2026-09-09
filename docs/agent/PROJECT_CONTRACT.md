@@ -98,20 +98,70 @@ projected records and refuse divergence. Invalid checkpoints, including missing
 or unreadable SQLite cache tables, are reported for cold rebuilding, leaving
 original bytes intact. Cache recovery never suppresses authoritative data errors.
 
+Historical Session data passes the frozen physical codec and adjacent chain in
+memory before validation through real read handles on a private copy. Even a
+read-only body open can publish a successor generation, so it never targets the
+source root. Reports name the observed source Session versions independently of
+the current writer; supported canonical generations select the highest version.
 SQLite is read through a private database/WAL copy so even SHM creation stays
 outside the source. Source digests include sidecars and are checked again before
 success; active rollback journals require explicit recovery. Unknown, future
 or conflicting business data returns a bounded `AUDIT_*` refusal, never an empty
 catalog. Reports exclude message bodies, prompts and native transcripts.
 
-[ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) specifies Phase C
-Session 2, Team payload 3 and projection 4, formal generated vocabulary for
-native operations/send requests/replies, deterministic source-preserving
-migration, a closed pending target and completion committed last. Audit success
-does not execute or qualify that target. Ultra v1 remains unless an incompatible
+[ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) specifies
+deterministic source-preserving migration, a closed pending target and completion
+committed last. [ADR 0026](../adr/0026-preserve-team-identities-on-session-v2.md)
+updates its planned identities to the implemented independent formats: Session 2,
+Team payload 2, native operation 4 with the retained 3 reader, message request 1,
+and Team projection 7. Native operations, send requests and replies belong to the
+formal generated vocabulary and codec. Audit success
+does not execute or complete a dataset; `targetCompatibility.qualified` reports
+only the selected source qualification, with target writes still closed until
+completion. Ultra v1 remains unless an incompatible
 record change requires another generation. Phase A retains the locked fork and
 its eight-archive behavior; Phase B adds collaboration before Phase C qualifies
 an actual integration commit based on the fixed official comparison.
+
+Phase C pins maintained source `3c38b1d4e8bf219750203e44b1df033ced754e92` and
+repo-owned qualification `agent-team-ultra.phase-c.v1`, not a Harness export.
+The preceding integration candidate passed the full cross-feature, migration,
+archive and shipping Studio gates before qualification was promoted; exact
+inputs and final qualified gates are recorded in the
+[PR #63 acceptance evidence](../evidence/pr63-studio-acceptance.md). The user has
+authorized merging only after those gates and independent review pass. This
+does not qualify stock as a runtime replacement or complete #44 native login
+acceptance. A target made with an older candidate qualification is not reusable
+under the new one: preserve the latest dataset and migrate it into a fresh target
+instead of changing its manifest or discarding newer business facts.
+
+The repo-only `pnpm migration:execute` publishes one isolated dataset, never an
+in-place source upgrade. Real codec, Ultra generation and derived checkpoint/Run
+rebuilding happen on a private copy. A durable pending manifest binds source
+digest, observed formats and exact target qualification; byte-equal publications
+are reusable, divergence is refused, and completion is committed only after
+target and unchanged-source validation. Unknown source writer provenance remains
+unknown, independently of the qualified reader. Existing Eval Runs survive;
+Host recovery invalidates stale environment gates. Native Run reconstruction
+does not invent SDK evidence or success.
+
+The Profile's public `data` entry owns Session persistence, the selected JSON or
+SQLite backend and Domain in one Fiber. It admits both configured paths together
+before any writable registration: pending/invalid/mismatched manifests or mixed
+migration roots fail closed. A completed target must retain its concrete Session
+directory and selected storage directory/database; missing or wrong-kind roots
+are refused, never initialized as a fresh dataset. This is an admission check,
+not a requirement that business data remain equal to its initial migration hash.
+The data entry also rechecks its actual owning Loader source before registering
+any persistence, using the same qualification rule as the Profile group.
+The overlay disables the original separate data
+rows; fresh defaults remain `DSH_HOME/sessions` and `DSH_HOME/storages`. Operator
+targets instead use `sessions` plus `storage` or `storage.sqlite`, and require
+explicit configuration of that public row. See [ADR 0027](../adr/0027-publish-one-isolated-migration-dataset.md).
+The operator requires stopped source writers, preserves original data and does
+not transport authentication, Profile configuration or SDK-owned histories.
+Stock/old-program replay, downgrade and bidirectional writes are unsupported.
+Focused Linux verification is not the final historical archive or native-auth gate.
 
 ## Authority and state
 
@@ -447,10 +497,26 @@ an actual integration commit based on the fixed official comparison.
   Recovery restores only source-timed terminal evidence, not the whole historical
   tool/usage timeline, so its page-level completeness stays incomplete for that
   provider generation, including subsequent work on the same native history.
+  Claude likewise omits undated historical evidence rather than substituting
+  the recovery clock, epoch zero, or another assistant stage's time. Its separate
+  Team settlement retains the known outcome, while evidence gaps keep the page
+  incomplete for that provider generation. Fully source-timed history remains
+  eligible for complete evidence. Dated usage keeps its own source time: later
+  undated history neither erases those known counters nor assigns their earlier
+  timestamp to additional undated counters.
 - Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text
   or multiplied across cumulative provider snapshots.
+- On Session v2, the pinned `expandAssistantStream` helper reads the last usage
+  snapshot of each durable `assistant/attempt`; `assistant/message` top-level
+  usage remains authoritative and its embedded copy is not added twice. Live
+  frames do not enter this canonical fold. Failed 14 plus committed 7 yields
+  one 21-token Run, including after cold recovery. Missing stream termination
+  remains incomplete even when a turn-end exists; historical messages with an
+  empty stream retain their committed authority. An aggregate total is omitted
+  when any counted usage report lacks it, rather than presenting a partial
+  total as the complete Run total. Bounded raw-free Run Index shape is unchanged.
 - Approval timeline items contain only source-proven call, request, policy,
   and decision identities. `waiting-approval` requires a live unresolved
   same-process or provider-native correlation; a persisted unmatched ask is
@@ -607,13 +673,16 @@ direct constructor call could bypass Loader validation.
 
 Delivery is a local-only overlay bound to the audited Harness commit in
 `dsh-reference.lock.json`. The upstream Agent Team packages are private, so
-this workspace is not npm-publishable. `pack:local` creates the five Ultra
-archives and the three pinned private Agent Team archives, then emits a local
-archive installation command whose unpublished peer dependencies resolve from
-the audited Harness checkout. Verification installs all eight archives,
-resolves both Codex and Claude Code runtime families, boots a real DSH Web
-profile, removes the eight overlay packages, and proves no Ultra, Codex, or
-Claude Code Loader row or package remains.
+this workspace is not npm-publishable. `pack:local` derives the archive set from
+the actual Profile contributions and local overlay dependency closure; package
+subpaths do not create extra archives. Every other qualified Harness package
+resolves from the audited checkout. The explicit `--lock-local-peers` installation
+option pins both direct and nested dependencies in the profile workspace settings,
+preserves unrelated settings and refuses conflicting overrides. Verification
+installs and removes the entire derived archive set, resolves both Codex and
+Claude Code runtime families, boots a real DSH Web profile, and proves no Ultra,
+Codex, or Claude Code Loader row or package remains. The current set contains
+five Ultra and three Harness archives; this is an observed result, not a fixed count.
 
 Non-goals for the first increment: nested Teams, cross-process Team delivery,
 filesystem locks/worktrees, profile hot-rebinding of existing employees,

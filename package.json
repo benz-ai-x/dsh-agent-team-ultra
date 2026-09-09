@@ -24,7 +24,9 @@
     "dsh:checked": "node scripts/compatible-dsh.mjs",
     "compatibility:compare": "node scripts/compare-harness-contract.mjs",
     "verify:claude-upgrade": "node scripts/verify-claude-upgrade.mjs",
-    "migration:audit": "node scripts/audit-migration.mjs"
+    "verify:b-upgrade": "node scripts/verify-b-upgrade.mjs",
+    "migration:audit": "node scripts/audit-migration.mjs",
+    "migration:execute": "node scripts/migrate-data.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-experimental-client-ui-agent-team": "link:./.dsh/harness/packages/experimental/client-ui-agent-team",

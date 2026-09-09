@@ -42,7 +42,10 @@ child.once('error', error => {
 child.once('exit', (code, signal) => {
   clearTimeout(deadline)
   if (forceKill !== undefined) clearTimeout(forceKill)
-  if (ready) return
-  console.error(`web boot exited before listening (code=${String(code)}, signal=${String(signal)})\n${stdout}\n${stderr}`)
+  if (ready && signal !== 'SIGKILL' && (code === 0 || signal === 'SIGTERM')) {
+    console.log(JSON.stringify({ ready: true, forced: false, code, signal }))
+    return
+  }
+  console.error(`web did not listen and exit without forced termination (code=${String(code)}, signal=${String(signal)})\n${stdout}\n${stderr}`)
   process.exitCode = 1
 })

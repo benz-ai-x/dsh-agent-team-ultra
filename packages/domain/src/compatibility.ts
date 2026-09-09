@@ -4,6 +4,8 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+export { assertUltraMigrationReady, UltraMigrationAdmissionError } from './migration-admission.ts'
+
 interface PackageProof {
   readonly type?: string
   readonly version: string

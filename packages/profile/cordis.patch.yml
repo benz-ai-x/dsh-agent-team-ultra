@@ -1,6 +1,15 @@
 # Local Agent Team Ultra overlay. Apply after dsh-base and dsh-web-app.
 # Team-owned controls replace the two overlapping global continuable controls.
 
+- id: session-persistence-jsonl
+  disabled: true
+
+- id: storage-json
+  disabled: true
+
+- id: storage-domain
+  disabled: true
+
 - id: tool-subagent-control
   disabled: true
 
@@ -20,6 +29,15 @@
     backgroundMode: one-shot
 
 - insert:
+    - id: agent-team-ultra-data
+      name: '@benz-ai-x/dsh-agent-team-ultra-profile/data'
+      config:
+        sessions:
+          root: !!js dshHomePath('sessions')
+        storage:
+          backend: json
+          root: !!js dshHomePath('storages')
+
     - id: agent-team-ultra-compatibility
       name: '@benz-ai-x/dsh-agent-team-ultra-profile'
       group: true

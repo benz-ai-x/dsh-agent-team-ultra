@@ -352,7 +352,16 @@ describe('Claude Code authorized Team operations', () => {
     } finally { await stored.close() }
   })
 
-  it('restores complete Run evidence from an already committed native turn after restart', async () => {
+  it.each([
+    ['dated-terminal', undefined],
+    ['result-only', undefined],
+    ['dated-usage', undefined],
+    ['undated-usage', { input_tokens: 99, output_tokens: 99 }],
+    ['undated-invalid-usage', { input_tokens: -1, output_tokens: 99 }],
+    ['undated-null-usage', null],
+  ] as const)('restores committed Run evidence after restart from %s history', async (history, undatedUsage) => {
+    const hasTimestamp = history === 'dated-terminal'
+    const hasDatedUsage = !hasTimestamp && history !== 'result-only'
     const first = await claudeWorkflow()
     await expect(first.invoke('save', { expectedHeadRevision: null, profile: { ...profile, continuationProvider: '' },
       runtimeTarget: { kind: 'external-agent', provider: 'claude-code' } })).resolves.toMatchObject({ ok: true })
@@ -364,7 +373,23 @@ describe('Claude Code authorized Team operations', () => {
     if (!launched.ok || !launched.value.nativeRuntimeHandle) throw new Error('the bound native employee must launch')
     const member = first.ctx.agentTeams.listMembers(first.lead.agent)
       .find(candidate => candidate.id === launched.value.memberId)!
-    first.native.complete('The original committed review is complete.')
+    const usageTime = new Date().toISOString()
+    if (hasDatedUsage) {
+      first.native.recordHistory(launched.value.nativeRuntimeHandle, {
+        type: 'assistant', session_id: launched.value.nativeRuntimeHandle, parent_tool_use_id: null,
+        uuid: 'dated-usage-stage', timestamp: usageTime,
+        message: { role: 'assistant', model: 'claude-sonnet-4-6', stop_reason: 'tool_use', content: [],
+          usage: { input_tokens: 3, output_tokens: 1 } },
+      })
+      first.native.recordHistory(launched.value.nativeRuntimeHandle, {
+        type: 'assistant', session_id: launched.value.nativeRuntimeHandle, parent_tool_use_id: null,
+        uuid: 'undated-terminal-stage',
+        message: { role: 'assistant', model: 'claude-sonnet-4-6', stop_reason: 'end_turn', content: [],
+          ...(undatedUsage === undefined ? {} : { usage: undatedUsage }) },
+      })
+    }
+    // A result-only response commits the outcome but leaves no timestamped assistant history.
+    first.native.complete(hasTimestamp ? 'The original committed review is complete.' : undefined)
     await expect.poll(() => first.ctx.agentTeams.listMembers(first.lead.agent)
       .find(candidate => candidate.id === member.id)?.status).toBe('idle')
     await first.ctx.fiber.dispose()
@@ -377,14 +402,34 @@ describe('Claude Code authorized Team operations', () => {
     const view = await second.invoke('view') as DigitalEmployeeStudioView
     expect(view.runs).toHaveLength(1)
     const detail = await second.invoke('run', { runId: view.runs[0]!.runId })
+    if (history === 'result-only') expect((detail as { value: { timeline: unknown[] } }).value.timeline).toEqual([])
+    if (hasDatedUsage) expect((detail as { value: { timeline: unknown[] } }).value.timeline).toEqual([
+      { kind: 'usage', timestamp: Date.parse(usageTime), usage: { inputTokens: 3, outputTokens: 1, totalTokens: 4 } },
+    ])
     expect(detail).toMatchObject({ ok: true, value: { run: {
       canonicalTurnId: member.externalRuntime!.initialTurnId,
-      terminal: 'completed',
-      usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
-      completeness: { status: 'complete' },
+      terminal: hasTimestamp ? 'completed' : 'unknown-terminal',
+      completeness: { status: hasTimestamp ? 'complete' : 'incomplete' },
     } } })
+    const restoredRun = (detail as { value: { run: { usage?: unknown; endedAt?: number } } }).value.run
+    if (hasTimestamp) {
+      expect(restoredRun.usage).toEqual({ inputTokens: 5, outputTokens: 2, totalTokens: 7 })
+      expect(restoredRun.endedAt).toEqual(expect.any(Number))
+    } else {
+      if (hasDatedUsage) expect(restoredRun.usage).toEqual({ inputTokens: 3, outputTokens: 1, totalTokens: 4 })
+      else expect(restoredRun.usage).toBeUndefined()
+      expect(restoredRun.endedAt).toBeUndefined()
+    }
     expect((detail as { value: { timeline: Array<{ kind: string }> } }).value.timeline
-      .filter(item => item.kind === 'turn')).toHaveLength(1)
+      .filter(item => item.kind === 'turn')).toHaveLength(hasTimestamp ? 1 : 0)
+    const stored = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
+    try {
+      const settlements = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed'
+        && event.data.receipt.source.kind === 'settlement'
+        && event.data.receipt.source.turnId === member.externalRuntime!.initialTurnId)
+      expect(settlements).toHaveLength(1)
+      expect(settlements[0]!.data.receipt.result).toMatchObject({ operation: 'turns.settle', value: { outcome: 'completed' } })
+    } finally { await stored.close() }
   })
 
   it('shrinks oversized Host recovery pages and restores every committed turn', async () => {
@@ -503,9 +548,8 @@ describe('Claude Code authorized Team operations', () => {
     const evidence = await second.ctx.agentTeams.readTeammateRuntimeEvidence(second.lead.agent, second.member.name, {
       limit: 100, signal: new AbortController().signal,
     })
-    expect(evidence.items.filter(item => item.kind === 'turn')).toEqual([
-      expect.objectContaining({ turnId: first.member.externalRuntime!.initialTurnId, outcome: 'interrupted' }),
-    ])
+    expect(evidence.items.filter(item => item.kind === 'turn')).toHaveLength(0)
+    expect(evidence.complete).toBe(false)
     const stored = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
     try {
       const events = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
@@ -534,9 +578,8 @@ describe('Claude Code authorized Team operations', () => {
     const evidence = await third.ctx.agentTeams.readTeammateRuntimeEvidence(third.lead.agent, third.member.name, {
       limit: 100, signal: new AbortController().signal,
     })
-    expect(evidence.items.filter(item => item.kind === 'turn')).toEqual([
-      expect.objectContaining({ turnId: first.member.externalRuntime!.initialTurnId, outcome: 'interrupted' }),
-    ])
+    expect(evidence.items.filter(item => item.kind === 'turn')).toHaveLength(0)
+    expect(evidence.complete).toBe(false)
     expect(evidence.items.filter(item => item.kind === 'usage')).toHaveLength(0)
     const stored = await third.ctx.sessionPersistence.open(third.lead.agent.id, 'read')
     try {
@@ -612,9 +655,8 @@ describe('Claude Code authorized Team operations', () => {
     const evidence = await second.ctx.agentTeams.readTeammateRuntimeEvidence(second.lead.agent, second.member.name, {
       limit: 100, signal: new AbortController().signal,
     })
-    expect(evidence.items.filter(item => item.kind === 'turn')).toEqual([
-      expect.objectContaining({ turnId: first.member.externalRuntime!.initialTurnId, outcome: 'interrupted' }),
-    ])
+    expect(evidence.items.filter(item => item.kind === 'turn')).toHaveLength(0)
+    expect(evidence.complete).toBe(false)
     expect(evidence.items.every(item => item.timestamp >= 0)).toBe(true)
     const stored = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
     try {
@@ -623,6 +665,7 @@ describe('Claude Code authorized Team operations', () => {
       expect(events[0]!.data.message.content).toEqual([
         { type: 'text', text: 'Claude Code work interrupted without a final response.' },
       ])
+      expect(events[0]!.data.receipt.result).toMatchObject({ operation: 'turns.settle', value: { outcome: 'interrupted' } })
       expect(JSON.stringify(events)).not.toContain('PRIVATE_UNBRANDED_RESULT')
     } finally { await stored.close() }
   })
@@ -675,13 +718,15 @@ describe('Claude Code authorized Team operations', () => {
     const evidence = await second.ctx.agentTeams.readTeammateRuntimeEvidence(second.lead.agent, second.member.name, {
       limit: 100, signal: new AbortController().signal,
     })
-    expect(evidence.items.filter(item => item.kind === 'turn')).toEqual([
-      expect.objectContaining({ turnId: first.member.externalRuntime!.initialTurnId, outcome: 'interrupted' }),
-    ])
+    expect(evidence.items.filter(item => item.kind === 'turn')).toHaveLength(0)
+    expect(evidence.complete).toBe(false)
     expect(evidence.items.filter(item => item.kind === 'usage' || item.kind === 'tool')).toHaveLength(0)
     const stored = await second.ctx.sessionPersistence.open(second.lead.agent.id, 'read')
     try {
-      const encoded = JSON.stringify((await stored.read(0)).filter(event => event.type === 'team/native-operation/committed'))
+      const events = (await stored.read(0)).filter(event => event.type === 'team/native-operation/committed')
+      expect(events).toHaveLength(1)
+      expect(events[0]!.data.receipt.result).toMatchObject({ operation: 'turns.settle', value: { outcome: 'interrupted' } })
+      const encoded = JSON.stringify(events)
       expect(encoded).not.toContain('PRIVATE_')
     } finally { await stored.close() }
   })

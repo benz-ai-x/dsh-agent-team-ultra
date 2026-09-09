@@ -2,6 +2,7 @@
 
 import { createHash } from 'node:crypto'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, SessionId, TurnEndReason } from '@deepseek-ai/dsh-session'
 import type {
   DigitalEmployeeRunDetail,
@@ -155,7 +156,8 @@ function addUsage(
   return Object.freeze({
     inputTokens: (current?.inputTokens ?? 0) + reported.inputTokens,
     outputTokens: (current?.outputTokens ?? 0) + reported.outputTokens,
-    ...(sum('totalTokens') === undefined ? {} : { totalTokens: sum('totalTokens')! }),
+    ...(reported.totalTokens === undefined || (current !== undefined && current.totalTokens === undefined)
+      ? {} : { totalTokens: (current?.totalTokens ?? 0) + reported.totalTokens }),
     ...(sum('cacheReadTokens') === undefined ? {} : { cacheReadTokens: sum('cacheReadTokens')! }),
     ...(sum('cacheWriteTokens') === undefined ? {} : { cacheWriteTokens: sum('cacheWriteTokens')! }),
     ...(sum('reasoningTokens') === undefined ? {} : { reasoningTokens: sum('reasoningTokens')! }),
@@ -165,7 +167,7 @@ function addUsage(
 function eventTurn(event: SessionEvent): number | undefined {
   if (event.type === 'turn/start' || event.type === 'turn/end'
     || event.type === 'step/start' || event.type === 'step/end'
-    || event.type === 'assistant/message' || event.type === 'tool/call'
+    || event.type === 'assistant/message' || event.type === 'assistant/attempt' || event.type === 'tool/call'
     || event.type === 'tool/result') return event.data.turn
   return undefined
 }
@@ -222,7 +224,7 @@ function approvalAuditEvent(event: SessionEvent): ApprovalAuditEvent | undefined
 
 /**
  * Fold DSH canonical events into one safe Run per accepted turn.
- * User/assistant content, tool arguments/results, headers, chunks, and opaque payloads are ignored by construction.
+ * Content and opaque payloads never enter output; only reported usage is read from attempt streams.
  */
 export function foldDshRunEvidence(
   binding: DshRunFoldBinding,
@@ -269,6 +271,7 @@ export function foldDshRunEvidence(
       decided: boolean
     }>()
     let reportedUsage: DigitalEmployeeRunUsage | undefined
+    let missingStreamTerminal = false
     let end: SessionEvent<'turn/end'> | undefined
     for (const current of selected) {
       const approval = approvalAuditEvent(current)
@@ -340,8 +343,20 @@ export function foldDshRunEvidence(
           }))
           break
         }
+        case 'assistant/attempt':
         case 'assistant/message': {
-          const usage = usageOf(current.data.usage)
+          // A settlement is one provider attempt, not another work turn.
+          // Live frames never enter this canonical fold. Within one attempt,
+          // usage chunks are snapshots; committed message usage takes priority.
+          const stream = expandAssistantStream(current.data.stream ?? [])
+          // Historical messages may retain only committed fields and an empty
+          // stream. A present stream or an attempt must prove its own terminal.
+          if ((current.type === 'assistant/attempt' || stream.length > 0) && stream.at(-1)?.chunk.type !== 'finish') {
+            missingStreamTerminal = true
+          }
+          const chunk = stream.findLast(member => member.chunk.type === 'usage')?.chunk
+          const usage = usageOf(current.type === 'assistant/message' && current.data.usage !== undefined
+            ? current.data.usage : chunk?.type === 'usage' ? chunk.usage : undefined)
           if (usage !== undefined) {
             reportedUsage = addUsage(reportedUsage, usage)
             timeline.push(Object.freeze({
@@ -382,7 +397,13 @@ export function foldDshRunEvidence(
             diagnostic: 'DSH turn ended with an unsupported terminal class',
             redactions: REDACTIONS,
           }
-        : { status: 'complete' as const, redactions: REDACTIONS })
+        : missingStreamTerminal
+          ? {
+              status: 'incomplete' as const,
+              diagnostic: 'DSH Assistant stream has no terminal evidence',
+              redactions: REDACTIONS,
+            }
+          : { status: 'complete' as const, redactions: REDACTIONS })
     const index = Object.freeze({
       schemaVersion: 1 as const,
       runId: runIdForDshTurn(sessionId, turn),

@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { requirePreparedHarness } from './harness-source.mjs'
+import { archivePackageRoots, qualifiedHarnessPeerRoots } from './local-package-closure.mjs'
+import { assertProfileArchiveClosure } from './profile-archive-closure.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const { lock, harnessRoot: harness } = requirePreparedHarness(root)
@@ -39,44 +41,12 @@ const packages = [
   },
   {
     directory: 'packages/profile',
-    required: ['package.json', 'cordis.patch.yml', 'lib/index.js', 'lib/types/index.d.ts'],
+    required: ['package.json', 'cordis.patch.yml', 'lib/index.js', 'lib/types/index.d.ts', 'lib/data.js', 'lib/types/data.d.ts'],
   },
 ]
-const privateClosure = [
-  join(harness, 'packages', 'experimental', 'agent-team'),
-  join(harness, 'packages', 'experimental', 'tool-agent-team'),
-  join(harness, 'packages', 'experimental', 'client-ui-agent-team'),
-]
-const pinnedHarnessPeers = [
-  join(harness, 'vendor', 'cordis'),
-  join(harness, 'vendor', 'loader'),
-  join(harness, 'packages', 'core', 'agent'),
-  join(harness, 'packages', 'util', 'brand'),
-  join(harness, 'packages', 'runtime-diagnostics', 'invariants'),
-  join(harness, 'packages', 'llm', 'llm'),
-  join(harness, 'packages', 'sandbox', 'sandbox-policy'),
-  join(harness, 'packages', 'core', 'session'),
-  join(harness, 'packages', 'session', 'session-persistence'),
-  join(harness, 'packages', 'session', 'session-projection'),
-  join(harness, 'packages', 'storage', 'storage-domain'),
-  join(harness, 'packages', 'subagent', 'subagent'),
-  join(harness, 'packages', 'core', 'system-prompt'),
-  join(harness, 'packages', 'core', 'tools'),
-  join(harness, 'packages', 'typert', 'protocol'),
-  join(harness, 'packages', 'interaction', 'user-approval'),
-  join(harness, 'packages', 'sdk', 'protocol'),
-  join(harness, 'packages', 'subprocess', 'subprocess'),
-  join(harness, 'packages', 'util', 'timeout'),
-  join(harness, 'packages', 'api', 'gateway'),
-  join(harness, 'packages', 'api', 'remotes'),
-  join(harness, 'packages', 'api', 'session-controller'),
-  join(harness, 'packages', 'client', 'locale'),
-  join(harness, 'packages', 'client', 'ui-conversation'),
-  join(harness, 'packages', 'client', 'ui-primitives'),
-  join(harness, 'packages', 'client', 'ui-renderer'),
-  join(harness, 'packages', 'client', 'ui-session'),
-  join(harness, 'packages', 'client', 'ui-slots'),
-]
+const archiveRoots = archivePackageRoots(root, harness)
+const pinnedHarnessPeers = qualifiedHarnessPeerRoots(root, harness, new Set(archiveRoots
+  .map(directory => JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')).name)))
 const archives = []
 
 function pack(packageRoot) {
@@ -97,7 +67,7 @@ function pack(packageRoot) {
   }
   const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
   if (typeof manifest.name !== 'string') throw new Error(`${packageRoot}: package name is missing`)
-  archives.push({ filename, name: manifest.name })
+  archives.push({ ...manifest, filename })
   return packed
 }
 
@@ -117,8 +87,10 @@ try {
   if (!existsSync(join(harness, 'package.json'))) {
     throw new Error(`pinned Harness source not found at ${harness}`)
   }
-  for (const candidate of packages) {
-    const packed = pack(join(root, candidate.directory))
+  for (const directory of archiveRoots) {
+    const packed = pack(directory)
+    const candidate = packages.find(candidate => join(root, candidate.directory) === directory)
+    if (!candidate) continue
     const files = new Set((packed.files ?? []).map(file => file.path))
     const missing = candidate.required.filter(file => !files.has(file))
     const leaked = [...files].filter(file =>
@@ -130,8 +102,7 @@ try {
     if (leaked.length > 0) throw new Error(`${candidate.directory} leaks development files: ${leaked.join(', ')}`)
     console.log(`PASS ${candidate.directory}: ${files.size} packed file(s)`)
   }
-  const ultraArchives = archives.map(archive => archive.filename)
-  for (const packageRoot of privateClosure) pack(packageRoot)
+  assertProfileArchiveClosure(root, archives)
   const completeArchiveSet = archives.map(archive => archive.filename)
 
   mkdirSync(consumer, { recursive: true })
@@ -139,6 +110,7 @@ try {
     name: 'dsh-agent-team-ultra-pack-smoke',
     private: true,
     type: 'module',
+    packageManager: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).packageManager,
   }, null, 2)}\n`)
   writeFileSync(join(consumer, 'pnpm-workspace.yaml'), [
     'packages: []',
@@ -170,7 +142,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      "await Promise.all([import('@benz-ai-x/dsh-agent-team-ultra/client'), import('@benz-ai-x/dsh-client-ui-agent-team-ultra'), import('@benz-ai-x/dsh-agent-team-ultra-profile')])",
+      "await Promise.all([import('@benz-ai-x/dsh-agent-team-ultra/client'), import('@benz-ai-x/dsh-client-ui-agent-team-ultra'), import('@benz-ai-x/dsh-agent-team-ultra-profile'), import('@benz-ai-x/dsh-agent-team-ultra-profile/data')])",
     ],
     consumer,
     'ordinary-resolution public import',
@@ -186,7 +158,7 @@ try {
     'packed runtime-family public imports',
   )
   console.log(`PASS complete archive set: ${completeArchiveSet.length} archive(s), including Codex and Claude Code, install and resolve`)
-  console.log(`PASS private archive content: ${archives.length - ultraArchives.length} local-only archive(s) packed`)
+  console.log('PASS archive identities match the actual profile and local package dependency closure')
   const consumerModules = join(consumer, 'node_modules')
   const packedMessageProbe = checkedRun(
     process.execPath,
@@ -208,6 +180,7 @@ try {
     process.execPath,
     [
       checkedCli,
+      '--lock-local-peers',
       'plugin',
       '--profile',
       'web',
@@ -220,6 +193,9 @@ try {
     { DSH_HOME: profileHome },
   )
   const installed = join(profileHome, 'profiles', 'web', 'node_modules')
+  const packageManager = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).packageManager
+  const installedManager = checkedRun('pnpm', ['--version'], dirname(installed), 'profile package manager identity').stdout.trim()
+  if (`pnpm@${installedManager}` !== packageManager) throw new Error('real profile CLI used a different package manager')
   const installedHostEntries = [
     '@benz-ai-x/dsh-agent-team-ultra',
     '@deepseek-ai/dsh-experimental-agent-team',
@@ -267,13 +243,14 @@ try {
   if (!help.includes('Serve the DeepSeek Harness browser UI.')) {
     throw new Error('real dsh Web help did not reach the composed application')
   }
-  checkedRun(
+  const webBoot = checkedRun(
     process.execPath,
     [join(root, 'scripts', 'verify-web-boot.mjs'), checkedCli],
     root,
     'real dsh Web startup',
     { DSH_HOME: profileHome },
   )
+  process.stdout.write(webBoot.stdout)
   console.log('PASS real packed DSH Web profile retains the fixed Profile tool surface, composes both runtime families, and listens')
   for (const backend of ['json', 'sqlite']) {
     for (const phase of ['query-new', 'query-resume']) {
@@ -327,13 +304,7 @@ try {
       throw new Error(`real dsh profile dump retained ${JSON.stringify(forbidden)} after uninstall`)
     }
   }
-  for (const packageName of [
-    '@benz-ai-x/dsh-agent-team-ultra',
-    '@benz-ai-x/dsh-client-ui-agent-team-ultra',
-    '@benz-ai-x/dsh-agent-team-ultra-profile',
-    '@benz-ai-x/dsh-agent-team-codex',
-    '@benz-ai-x/dsh-agent-team-claude-code',
-  ]) {
+  for (const packageName of archives.map(archive => archive.name)) {
     const packageDirectory = join(profileHome, 'profiles', 'web', 'node_modules', ...packageName.split('/'))
     if (existsSync(packageDirectory)) throw new Error(`${packageName} remained installed after uninstall`)
   }
@@ -343,5 +314,9 @@ try {
   console.error(`packed artifact check failed: ${String(error)}`)
   process.exitCode = 1
 } finally {
-  rmSync(temporaryRoot, { recursive: true, force: true })
+  if (process.exitCode && process.argv.includes('--keep-failed')) {
+    console.error(`Failed installation retained for diagnosis at ${temporaryRoot}`)
+  } else {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+  }
 }

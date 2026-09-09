@@ -1,12 +1,14 @@
 /** Run the same public Team contract against one independently built Harness. */
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
 const root = resolve(process.argv[2])
+// An explicit new destination captures only this probe's quiescent test data.
+const captureRoot = process.argv[3] === undefined ? undefined : resolve(process.argv[3])
 const load = path => import(pathToFileURL(join(root, path, 'lib/index.js')).href)
 const [cordis, loop, testkit, llm, session, projection, persistence, query, subagents, spawn, team] = await Promise.all([
   'vendor/cordis', 'packages/core/agent-loop', 'packages/test-support/agent-loop-testkit',
@@ -216,6 +218,13 @@ try {
   assert.equal(restored.getTask(restoredAlpha, owned.id).ownerName, 'alpha')
   assert.equal(restored.getTask(restoredAlpha, owned.id).revision, working.revision)
   checked.push('cold-restart-resume-and-task-owner-retained')
+  if (captureRoot !== undefined) {
+    await ctx.fiber.dispose()
+    await mkdir(captureRoot)
+    for (const name of await readdir(storage)) {
+      await cp(join(storage, name), join(captureRoot, name), { recursive: true, force: false, errorOnExist: true })
+    }
+  }
   console.log(JSON.stringify({ sessionFormat: session.SESSION_FORMAT_VERSION, checked }))
 } finally {
   try { await ctx.fiber.dispose() }

@@ -2,7 +2,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -12,10 +13,10 @@ import * as JsonStorage from '@deepseek-ai/dsh-storage-json'
 import * as SqliteStorage from '@deepseek-ai/dsh-storage-sqlite'
 import { digitalEmployeeDomainSpec } from '../src/spec.ts'
 import { openDigitalEmployeeStorage } from '../src/storage.ts'
-import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { describe, expect, it, vi } from 'vitest'
-import { profile, target, workflow } from './fixtures/host-workflow.ts'
+import { cleanups, profile, target, workflow } from './fixtures/host-workflow.ts'
 import * as Codex from '../../codex/lib/index.js'
 import { NativeProduct } from '../../codex/tests/fixtures/native-product.mjs'
 import type { DigitalEmployeeStudioView, SpawnDigitalEmployeeResult } from '../src/types.ts'
@@ -105,7 +106,7 @@ async function legacySource(root: string, backend: 'json' | 'sqlite') {
 }
 
 async function mutateSession(root: string, id: string, change: (rows: any[]) => void) {
-  const relative = Object.keys(bytes(root)).find(name => name.endsWith(`/${id}/session.jsonl.zstd`))!
+  const relative = Object.keys(bytes(root)).find(name => name.endsWith(`/${id}/session.v2.jsonl.zstd`))!
   const path = join(root, relative)
   const zstd = await import(pathToFileURL(join(project, '.dsh/harness/packages/session/session-persistence-jsonl/lib/types/zstd.js')).href)
   const source = readFileSync(path)
@@ -123,19 +124,54 @@ async function mutateSession(root: string, id: string, change: (rows: any[]) => 
 }
 
 describe('operator migration audit', () => {
+  it('audits B-written Team histories without publishing successors into the source', () => {
+    const fixture = JSON.parse(readFileSync(new URL('./fixtures/b-team-session-source.json', import.meta.url), 'utf8')) as {
+      files: Record<string, { base64: string; sha256: string }>
+    }
+    const root = mkdtempSync(join(tmpdir(), 'ultra-b-session-audit-'))
+    cleanups.push(async () => { rmSync(root, { recursive: true, force: true }) })
+    mkdirSync(join(root, 'storage'))
+    for (const [name, value] of Object.entries(fixture.files)) {
+      const content = Buffer.from(value.base64, 'base64')
+      expect(createHash('sha256').update(content).digest('hex')).toBe(value.sha256)
+      const path = join(root, 'sessions', name)
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, content)
+    }
+    const before = bytes(root)
+    const result = audit(root)
+    expect(result.status, result.stderr + result.stdout).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true, sessionCount: 3,
+      sourceFormats: { session: 0, teamEvent: 2, nativeOperation: null, teamProjection: null, subagentDescriptor: 3 },
+      sourceCompatibility: { writerCommit: null, provenance: 'not-recorded-in-data' },
+      readerCompatibility: {
+        commit: '3c38b1d4e8bf219750203e44b1df033ced754e92',
+        extensionApi: 'agent-team-ultra.phase-c.v1',
+      },
+      readerFormats: { teamProjection: 7, nativeOperation: 4 },
+      migration: {
+        targetCompatibility: { qualified: true },
+        targetWrites: 'closed-until-complete',
+      },
+    })
+    expect(bytes(root)).toEqual(before)
+  })
+
   it.each(['json', 'sqlite'] as const)('reads a real Session, Team projection and %s Binding without changing the source', async backend => {
     const { root, launched } = await created(backend)
     const before = bytes(root)
     const result = audit(root, backend)
-    expect(result.status, result.stderr + result.stdout).toBe(0)
+    expect(result.status, result.stderr + result.stdout + JSON.stringify(Object.keys(before))).toBe(0)
     const report = JSON.parse(result.stdout)
     expect(report).toMatchObject({
       ok: true,
-      sourceFormats: { session: 0, teamEvent: 2, teamProjection: 7, messageRequest: 1, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
+      sourceFormats: { session: 2, teamEvent: 2, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
+      readerFormats: { teamProjection: 7, messageRequest: 1 },
       migration: {
         sourcePreserved: true, bidirectionalWrites: false, targetWrites: 'closed-until-complete',
-        executionAvailable: false,
-        targetFormats: { session: 2, teamEvent: 3, teamProjection: 4, subagentDescriptor: 3, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
+        executionAvailable: true, command: 'pnpm migration:execute',
+        targetFormats: { session: 2, teamEvent: 2, teamProjection: 7, subagentDescriptor: 3, ultraDomain: 'agent_team_ultra_v1', ultraVersion: 1 },
         order: ['freeze-source', 'create-isolated-target', 'convert-session-codec', 'convert-team-payloads', 'validate-ultra-records', 'rebuild-projections', 'verify-identities', 'commit-completion-marker'],
       },
     })
@@ -205,13 +241,14 @@ describe('operator migration audit', () => {
       const db = new DatabaseSync(join(root, 'storage.sqlite'), { readOnly: true })
       try {
         const row = db.prepare('SELECT value FROM u_session_projcache_sessions WHERE key = ?').get(leadId) as { value: string }
-        original = { version: 6, record: JSON.parse(row.value) }
+        original = { version: 7, record: JSON.parse(row.value) }
       } finally { db.close() }
     }
-    for (const reason of ['reusable', 'projection-version', 'session-identity', 'checkpoint-ahead', 'checkpoint-state']) {
+    for (const reason of ['reusable', 'projection-version', 'session-identity', 'session-format', 'checkpoint-ahead', 'checkpoint-state']) {
       const envelope = structuredClone(original)
       if (reason === 'projection-version') envelope.record.rows.agentTeam.ver = 999
       if (reason === 'session-identity') envelope.record.identity.createdAt += 1
+      if (reason === 'session-format') envelope.record.identity.formatVersion = 0
       if (reason === 'checkpoint-ahead') envelope.record.rows.agentTeam.seq += 100
       if (reason === 'checkpoint-state') envelope.record.rows.agentTeam.val.members = []
       if (backend === 'json') writeFileSync(cachePath, JSON.stringify(envelope))
@@ -225,11 +262,11 @@ describe('operator migration audit', () => {
       expect(result.status, result.stderr + result.stdout).toBe(0)
       expect(JSON.parse(result.stdout).checkpoints).toContainEqual(expect.objectContaining({
         sessionId: leadId, status: reason === 'reusable' ? 'reusable' : 'rebuild',
-        ...(reason === 'reusable' ? {} : { reason }),
+        ...(reason === 'reusable' ? {} : { reason: reason === 'session-format' ? 'session-identity' : reason }),
       }))
       expect(bytes(root)).toEqual(before)
     }
-  })
+  }, 20_000) // Six real audit CLI processes share this integration-test budget.
 
   it('reports unreadable legacy checkpoints for rebuilding without changing the source', async () => {
     const { root, leadId } = await created('json', true)
@@ -377,7 +414,8 @@ describe('operator migration audit', () => {
       memberId: launched.value.memberId, nativeRuntimeHandle: launched.value.nativeRuntimeHandle,
       nativeTurnId: expect.any(String), kind: 'initial',
     }))
-    expect(JSON.parse(accepted.stdout).sourceFormats).toMatchObject({ teamProjection: 7, messageRequest: 1, nativeOperation: 4 })
+    expect(JSON.parse(accepted.stdout).sourceFormats).toMatchObject({ nativeOperation: 4 })
+    expect(JSON.parse(accepted.stdout).readerFormats).toMatchObject({ teamProjection: 7, messageRequest: 1, nativeOperation: 4 })
     expect(JSON.parse(accepted.stdout).nativeCorrelations).toContainEqual(expect.objectContaining({
       memberId: launched.value.memberId, nativeRuntimeHandle: launched.value.nativeRuntimeHandle,
       nativeTurnId: expect.any(String), operationId: expect.any(String), kind: 'settlement',
@@ -403,7 +441,7 @@ describe('operator migration audit', () => {
 
   it('refuses unknown Team recovery facts even when a newer writer marks them ignorable', async () => {
     const { root, leadId } = await created()
-    const path = Object.keys(bytes(root)).find(name => name.endsWith(`/${leadId}/session.jsonl.zstd`))!
+    const path = Object.keys(bytes(root)).find(name => name.endsWith(`/${leadId}/session.v2.jsonl.zstd`))!
     const absolute = join(root, path)
     const zstd = await import(pathToFileURL(join(project, '.dsh/harness/packages/session/session-persistence-jsonl/lib/types/zstd.js')).href)
     const format = await import(pathToFileURL(join(project, '.dsh/harness/packages/session/session-persistence-jsonl/lib/types/format.js')).href)
@@ -454,10 +492,11 @@ describe('operator migration audit', () => {
       const parent = await ctx.sessionPersistence.open(SessionId(leadId), 'read')
       try {
         const events = await parent.read()
-        const fork = await ctx.sessionPersistence.create({
+        const child = Session.create(forkId, events, {
           ...parent.header, id: forkId, parentSession: SessionId(leadId), isSeeded: true,
-        }, { inheritedEventCount: SessionLogOffset(events.length) })
-        try { await fork.append(events) }
+        }, SessionLogOffset(events.length))
+        const fork = await ctx.sessionPersistence.create(child.header, { inheritedEventCount: child.inheritedEventCount })
+        try { await fork.append(child.snapshotEvents()) }
         finally { await fork.close() }
       } finally { await parent.close() }
     } finally { await ctx.fiber.dispose() }
@@ -489,8 +528,8 @@ describe('operator migration audit', () => {
 
   it('refuses an unrecognized Session layout instead of reporting an empty source', async () => {
     const { root } = await created()
-    for (const name of Object.keys(bytes(root)).filter(name => name.endsWith('/session.jsonl.zstd'))) {
-      renameSync(join(root, name), join(root, name.replace('session.jsonl.zstd', 'future-session.data')))
+    for (const name of Object.keys(bytes(root)).filter(name => name.endsWith('/session.v2.jsonl.zstd'))) {
+      renameSync(join(root, name), join(root, name.replace('session.v2.jsonl.zstd', 'future-session.data')))
     }
     const before = bytes(root)
     const result = audit(root)
