@@ -1,6 +1,11 @@
 # TODO
 
-## Current requested scope: repair and publish PR #63
+## Current requested scope: complete acceptance and merge PR #63
+
+- [x] Confirm the historical migration → real Host / generated Remote → shipping Studio seam with the user; acceptance includes Runs, usage, completeness and error bubbling.
+- [x] Restore the exact C Harness Git identity in independent administrative storage after shared worktree metadata disappeared; tracked bytes match `3c38b1d4e8`, strict 648 / 0 warnings passes without changing source or lock.
+- [ ] Complete the shipping Studio joint acceptance, then promote Phase C support qualification on the same source / SDK versions.
+- [ ] Run final PR gates and independent Standards / Spec review, push, merge PR #63 and fast-forward local main to the remote merge result.
 
 - [x] Integrate merged main / PR #62 as `21a22b0`, preserving its final native recovery and cleanup diagnostics fixes; build and 15 native recovery tests pass.
 - [x] Reject an unqualified owning Loader source before public data registration or writes; the real Loader regression is RED → GREEN with zero business writes.
@@ -11,9 +16,10 @@
 - [x] Complete final `3212225` verification: 648 strict checks, 447 tests, actual archive install / Web / recovery / uninstall and all three historical upgrades; independent Standards / Spec each report zero unresolved findings. The concurrent timeout attempt is retained in the [repair evidence](docs/evidence/pr63-review-fixes.md).
 - [x] Push the reviewed runtime to PR #63, retarget it to merged main, and read back matching local / remote heads; main is synchronized and the original HANDOFF is preserved in stash. Subsequent publication records are documentation-only; do not merge or promote support qualification.
 
-The user authorized fixes, commit / push and local / remote synchronization, not
-merging PR #63, closing Issues or sending notifications. Studio's new joint test
-seam awaits explicit confirmation. The C Harness and SDK selections stay fixed.
+The user has now authorized completing these acceptance gates and merging PR #63
+once they pass. The confirmed Studio seam extends the earlier public Host tests.
+The C Harness and SDK selections stay fixed; #44 authenticated native acceptance,
+parent Spec #18 and unrelated notifications / worktree cleanup remain out of scope.
 
 ## Previous PR #62 review repairs (merged)
 

@@ -5,7 +5,13 @@
 本文件是最新交接的唯一入口，存放规则见 [AGENTS.md](AGENTS.md)。
 [docs/HANDOFF.md](docs/HANDOFF.md) 保留历史运行手册；其中的路径、运行实例和剩余范围不能覆盖当前仓库状态及权威需求。
 
-## 当前 PR #63 审查修复与同步
+## 当前 PR #63 联合验收与条件合并
+
+- 用户先要求合并 PR #63，随后明确同意先补齐“历史迁移 → 真实 Host／生成 Remote → 发货 Studio”的 Run／用量／完整性／错误冒泡验收，并在通过后提升支持资格、复查、合并及同步 main。只处理 PR #63；#44 真实认证 native、父 Spec #18、通知和原 worktree／stash 清理不在本轮范围内。下节“不合并／未确认”仅是先前修复轮的历史授权。
+- 开工 strict 因共享 Harness 的原 `.git/worktrees/harness2` 消失而失败。共享 `/root/workspace/deepseek-harness` 现为官方 `5dda764`，未修改它；从维护远端取回精确 `3c38b1d4e8` 至 `/root/workspace/pr63-source-repair.UKB4f7/c-harness.git`，新索引确认现有 C 源码所有 tracked 字节完全一致，才修复 C `.git` 指针。原指针备份在同目录 `c-harness-original-git.txt`；保留该管理目录，源码／build／锁均不变。重新 strict 648／0 warnings 通过，日志 `pr63-studio-restored-strict.log`。
+- 当前在原 PR #63 工作树实施上述验收；升级资格、最终验证／复查及合并尚未完成。使用 `tdd`、`dsh-plugin-dev`、`code-review`，不把旧的绿灯或受控 SDK 当成新联合验收及 #44 认证。
+
+## PR #63 审查修复与同步（前一轮记录）
 
 - 用户授权按审查建议修复并提交 PR #63，保证本地／远端一致；不包含合并 PR #63、关闭 Issue、通知或清理原有 worktree。两项 P2 分别是公开 data 入口遗漏 owning Loader 来源准入，以及 complete 迁移目标缺必要实体仍创建空库；另处理 Run 身份／native 关联重复逻辑的 P3 建议。
 - 本轮在原 Batch 4 工作树合入远端 main `c1632755`，保留 PR #62 的 `d5054de`／`e7a5f2d` 终态时间、恢复完整性和清理日志修复；仅 HANDOFF／TODO 有冲突，按两侧真实完成状态合并。PR #62 已合并、Issue #38 已关闭，不重复执行。C Harness 仍 `3c38b1d4e8`，初始 strict 648／0 warnings。

@@ -9,6 +9,7 @@ import yaml from 'js-yaml'
 import { requirePreparedHarness } from './harness-source.mjs'
 import { PROFILE_TOOL_NAMES, runPackedProfileConversation } from './probe-conversation-profile.mjs'
 import { probeStudioCapabilities } from './probe-studio-capabilities.mjs'
+import { probePackedStudio } from './probe-packed-studio.mjs'
 import { NativeProduct } from '../packages/codex/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -305,6 +306,7 @@ try {
   assert.equal(native.starts, creating ? 1 : 0)
   if (creating) writeFileSync(checkpointPath, `${JSON.stringify({
     identity: identity(live.instances[0]), ...(queries ? { task: taskCheckpoint } : {}),
+    canonicalTurns: live.runs.filter(run => run.profileId === request.profileId).map(run => run.canonicalTurnId),
   }, null, 2)}\n`)
   await ctx.loader.remove('agent-team-codex')
   assert.equal(native.live.size, 0)
@@ -323,6 +325,10 @@ try {
     ctx, installed: name => pathToFileURL(installed.resolve(name)).href,
     harnessUrl: path => pathToFileURL(join(harnessRoot, path, 'lib/index.js')).href,
     entries: structuredClone(loaderRows), LlmAdapter, SessionId,
+  })
+  if (!creating && resolve(sourceDirectory) === root) await probePackedStudio({
+    ctx, installed, harnessRoot, lead, memberId: member.id, profileId: request.profileId,
+    historicalTurns: checkpoint.canonicalTurns,
   })
   await loaderFiber.dispose()
   if (dataRows.length) {

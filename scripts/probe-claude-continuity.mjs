@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import yaml from 'js-yaml'
 import { requirePreparedHarness } from './harness-source.mjs'
 import { PROFILE_TOOL_NAMES, runPackedProfileConversation } from './probe-conversation-profile.mjs'
+import { probePackedStudio } from './probe-packed-studio.mjs'
 import { NativeProduct } from '../packages/claude-code/tests/fixtures/native-product.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -303,7 +304,10 @@ try {
   const workCount = () => session.messages.filter(message => message.type === 'user').length
   assert.equal(workCount(), initial ? 2 : 4)
   assert.equal(native.starts, initial ? 1 : 0)
-  if (initial) writeFileSync(checkpointPath, `${JSON.stringify({ identity: identity(live.instances[0]) }, null, 2)}\n`)
+  if (initial) writeFileSync(checkpointPath, `${JSON.stringify({
+    identity: identity(live.instances[0]),
+    canonicalTurns: live.runs.filter(run => run.profileId === request.profileId).map(run => run.canonicalTurnId),
+  }, null, 2)}\n`)
   const pending = await ctx.agentTeams.sendMessage(lead.agent, {
     target: 'claude-code-reviewer', content: [{ type: 'text', text: `Work during ${phase} provider removal.` }],
     signal: new AbortController().signal,
@@ -335,6 +339,10 @@ try {
       }
     } finally { await stored.close() }
   }
+  if (!initial && resolve(sourceDirectory) === root) await probePackedStudio({
+    ctx, installed, harnessRoot, lead, memberId: member.id, profileId: request.profileId,
+    historicalTurns: checkpoint.canonicalTurns,
+  })
   await loaderFiber.dispose()
   if (dataRows.length) {
     assert.equal(ctx.get('sessionPersistence'), undefined)
