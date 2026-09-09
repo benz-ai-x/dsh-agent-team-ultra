@@ -76,8 +76,40 @@ Harness `57670c6b32` 正式 prepare、frozen/offline install、strict 和 build�
   完整 build 通过；日志 `pr63-manifest-enum-red.log` /
   `pr63-manifest-enum-green.log` / `pr63-manifest-enum-build.log`。
 
-第二次补修后须重新固定最终候选、复查和完整验证，不复用上述中间候选或
-更早 `issue43-complete-candidate-verify.log` 的结果冒充最终门禁。
+## 最终运行候选与发布
+
+最终修复候选 `32122251c4a1b8086952a7a0274e752b51c5a6ca` 已重新完成：
+
+- `pnpm verify` 自然退出 0：648 strict / 0 warnings，完整 Host / Client / Typert /
+  compatibility 构建，447 tests / 39 files（201.72 秒），JSON 14 / SQLite 8 个
+  全部中断边界，以及实际八归档普通安装、生产消息 / DAG / CAS / watch、Web
+  正常退出、双 native JSON / SQLite 冷恢复和完整卸载通过。
+- 同一新候选的旧 Codex、旧 Claude 和固定 B 三组真实历史归档升级重新全部
+  退出 0；使用上一节相同固定前身、支持锁和 SDK，而非沿用中间候选日志。
+- 固定完整差异 `git diff c1632755c4fbabe5b34af7ddb5f3628aaf5037a6...32122251c4a1b8086952a7a0274e752b51c5a6ca`
+  的独立 Standards / Spec 复查各 0 项未解决代码或文档 finding，各轴最高
+  严重度无。Studio / 支持资格的已知 readiness 限制仍单列，不因此消失。
+- 14 个变化 Markdown 文件的 141 个本地文件链接与 `git diff --check` 通过。
+- 正常推送原 `feat/batch-4-harness-upgrade`，回读本地、tracking、`ls-remote`
+  和 PR #63 head 均为上述运行候选；PR base 已改为 main，保留草稿、不合并。
+  后续仅本证据、TODO、HANDOFF 的说明文档提交；实际最新 head 以 PR 回读为准。
+
+第一次在同一新候选并行运行全量测试与三组归档升级时，四个既有迁移用例触发
+5 秒超时（443 passed / 4 failed），完整 verify 未进入 pack。保留日志后，
+代码、测试超时和断言均不变，独立重跑完整 `pnpm verify` 才得到上述全绿。
+这与并行资源争用的解释一致，但不把一次成功当作所有环境的性能保证。
+
+| 最终候选日志 | SHA-256 |
+| --- | --- |
+| `pr63-final-qualified-verify.log` | `c22cce206632e6f444259aa151e435507fc70efbfbcf168bdadacffa49051dde` |
+| `pr63-final-codex-history.log` | `733ba88f75f2bf358c3acde32ded8b5f3a5da51506e2d71c59816cb44353e1d4` |
+| `pr63-final-claude-history.log` | `3aa2dccbb93a15a38e4498da954a083b5818ae514d902819877ebf7c06e046ba` |
+| `pr63-final-b-history.log` | `2ddf083e9356991a8127d747059b52eff4f0c3af510619078f22d7ba0e3587ba` |
+| `pr63-final-concurrent-timeouts.log` | `48206961c7b71a67ae7068abb84d10e5e6817fe9cadde0a85dc2c5d6d5a3826d` |
+
+本轮临时 B 前身工作树在全部升级验证退出后已清理；可从固定 `4cecfe2` 和 B
+Harness 锁重建，prepare / install / strict / build 日志保留。原有其他 worktree
+及源数据没有删除或修改。
 
 ## 验收与发布界限
 
@@ -85,8 +117,9 @@ Harness `57670c6b32` 正式 prepare、frozen/offline install、strict 和 build�
 Loader / 迁移 CLI / Host / 生成 Remote / JSON / SQLite / Fiber 边界，先保留
 失败再修复。新的历史迁移 → Host / Remote → 发货 Studio 展示、用量、完整性
 及错误冒泡联合入口仍待用户确认，未宣称 #43 全部验收或支持资格已提升。
-`code-review` 将对固定 main → 最终候选进行 Standards / Spec 独立复查。
+`code-review` 已对固定 main → 最终运行候选完成 Standards / Spec 独立复查。
 
 main 已快进到 `c1632755` 且工作区 clean，strict 590 / 0 warnings；原 HANDOFF
 安全保存为 stash `f473bf762b5583558031f2aa0bdad6a677bea768`，另三个旧 stash
-和其他工作树保留。PR #63 尚未推送本轮修复；最终以回读到的远端 head 为准。
+和原有其他工作树保留。PR #63 修复已推送；main 的本地与远端仍同为 `c1632755`，
+未把 C 候选合入 B 支持线。

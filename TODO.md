@@ -7,8 +7,9 @@
 - [x] Reject missing required Session / storage entities in an already completed joint migration; all four JSON / SQLite public Loader cases are RED → GREEN and recover their retained data after restoration.
 - [x] Share pure Run Binding identity and native correlation selection between migration and Host recovery; 34 migration / v2 usage and 15 Run evidence / lifecycle tests pass.
 - [x] Complete intermediate candidate `ddc7769`: 648 strict checks, 445 tests, actual archive install / Web / recovery / uninstall, and all three historical archive upgrade gates pass.
-- [x] Fix the independent re-review's manifest enum admission and README isolated-upgrade ordering P2 findings; both real Loader backend regressions are RED → GREEN, and build passes. Final qualification must cover this new candidate.
-- [ ] Complete fresh verification and independent Standards / Spec review, push PR #63, and synchronize the local tracking branches without discarding existing changes.
+- [x] Fix the independent re-review's manifest enum admission and README isolated-upgrade ordering P2 findings; both real Loader backend regressions are RED → GREEN, and build passes.
+- [x] Complete final `3212225` verification: 648 strict checks, 447 tests, actual archive install / Web / recovery / uninstall and all three historical upgrades; independent Standards / Spec each report zero unresolved findings. The concurrent timeout attempt is retained in the [repair evidence](docs/evidence/pr63-review-fixes.md).
+- [x] Push the reviewed runtime to PR #63, retarget it to merged main, and read back matching local / remote heads; main is synchronized and the original HANDOFF is preserved in stash. Subsequent publication records are documentation-only; do not merge or promote support qualification.
 
 The user authorized fixes, commit / push and local / remote synchronization, not
 merging PR #63, closing Issues or sending notifications. Studio's new joint test

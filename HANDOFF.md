@@ -7,11 +7,12 @@
 
 ## 当前 PR #63 审查修复与同步
 
-- 用户授权按审查建议修复并提交 PR #63，保证本地／远端一致；不包含合并 PR #63、关闭 Issue、通知或清理 worktree。两项 P2 分别是公开 data 入口遗漏 owning Loader 来源准入，以及 complete 迁移目标缺必要实体仍创建空库；另处理 Run 身份／native 关联重复逻辑的 P3 建议。
+- 用户授权按审查建议修复并提交 PR #63，保证本地／远端一致；不包含合并 PR #63、关闭 Issue、通知或清理原有 worktree。两项 P2 分别是公开 data 入口遗漏 owning Loader 来源准入，以及 complete 迁移目标缺必要实体仍创建空库；另处理 Run 身份／native 关联重复逻辑的 P3 建议。
 - 本轮在原 Batch 4 工作树合入远端 main `c1632755`，保留 PR #62 的 `d5054de`／`e7a5f2d` 终态时间、恢复完整性和清理日志修复；仅 HANDOFF／TODO 有冲突，按两侧真实完成状态合并。PR #62 已合并、Issue #38 已关闭，不重复执行。C Harness 仍 `3c38b1d4e8`，初始 strict 648／0 warnings。
 - 两项原 P2 均经公开入口 RED → GREEN：错误来源在 data 注册前拒绝，complete 迁移目标缺 Session／JSON／SQLite 实体的四种情况零写入拒绝，恢复原实体后公开 Host／Remote 可继续读取。Run 身份和 native 关联提取为 Host／迁移共享纯模块；定向回归通过。中间候选 `ddc77697839c7d516e611fd03d1260d344bd011d` 完整门禁 648 strict／0 warnings、445 tests／39 files、实际八归档安装／Web／冷恢复／卸载，以及旧 Codex、旧 Claude、固定 B `4cecfe2` 历史归档升级全部通过。详见 [本轮证据](docs/evidence/pr63-review-fixes.md)。
-- 独立完整差异复查新增 Standards 1 项 P2（README 旧包名直升说明与隔离流程冲突）、Spec 1 项 P2（manifest `String(status)` 接受数组后绕过 pending 拒绝）；原两项已关闭。严格枚举与运维顺序已补修，新公开 Loader JSON／SQLite 两项均 RED → GREEN，各覆盖三种非法数组值并确认零注册、零写入，完整 build 通过；接着重新固定候选、独立复查并跑最终完整门禁，不用中间候选绿色结果冒充最终通过。
-- 使用 `dsh-plugin-dev`、既有公开 Loader／迁移 CLI／Host／生成 Remote／真实持久化／Fiber 边界的 `tdd`，以及 `resolving-merge-conflicts`。Studio 联合验收入口仍待本轮确认，不把既有受控 native 探针当成 #44 认证验收。修复候选将按 `code-review` 双轴独立复查后正常推送；不自动合并或提升当前 integration-candidate 支持资格。
+- 独立完整差异复查新增的 Standards P2（README 直升顺序）和 Spec P2（manifest 数组绕过）已在 `32122251c4a1b8086952a7a0274e752b51c5a6ca` 关闭；JSON／SQLite 两项公开回归均 RED → GREEN，各覆盖三种非法数组值并确认零注册、零写入。该候选完整 main→head 独立 Standards／Spec 各 0 项未解决发现，最高严重度均无。
+- 最终新候选完整 `pnpm verify` 自然退出 0：648 strict／0 warnings、447 tests／39 files、实际八归档生产 UI／Remote／安装／Web／双 native 冷恢复／卸载通过；旧 Codex、旧 Claude、B 固定前身三组升级重新全绿。首次与三组升级并行时有 4 个既有迁移用例触发 5 秒超时（443 pass／4 fail），日志保留；保持源码、断言与超时不变，独立完整重跑通过，不能忽略首次失败。临时 B 验收工作树已清理，原始固定提交可重建，所有验证日志保留。
+- 已正常推送 `3212225` 并回读 PR #63／本地／tracking／远端同一提交，PR base 改为已合并的 main。之后仅提交说明文档，最新 head 以 GitHub 为准。使用 `dsh-plugin-dev`、既有公开边界的 `tdd`、`resolving-merge-conflicts` 和 `code-review`；Studio 联合验收入口仍待确认，不把受控 native 探针当成 #44 认证验收，不自动合并或提升 integration-candidate 支持资格。
 - 主工作区 main 已安全快进到远端 `c1632755`，工作区 clean，strict 590／0 warnings。原未提交 HANDOFF 单独保存在 stash `f473bf762b5583558031f2aa0bdad6a677bea768`（`codex: preserve local HANDOFF before PR 63 synchronization`）；另三个原 stash、其他 worktree 与 B／C Harness 均保留，不把该旧交接混入修复提交。
 
 ## PR #62 审查修复（历史记录，已合并）
@@ -357,7 +358,7 @@
 
 ## 下一步
 
-1. 在 `/root/workspace/batch4-upgrade.VkSXdm/ultra` 完成 PR #63 两项 P2、重复逻辑建议及 main 集成，重新完整验证并独立复查，正常提交／推送原 PR 分支；核对本地与远端提交一致，不合并 PR #63。
+1. PR #63 本轮代码修复、main 集成、最终全验、独立复查和推送已完成；运行候选 `3212225`，后续仅说明文档。恢复任务前读取远端实际 head，勿重复修复／推送旧提交或误合并 PR。
 2. Studio 公开组件入口确认后，接入迁移后真实 Host／生成 Remote 验证显示与错误冒泡；最终支持资格与 #44 真实认证保持各自门禁。PR #62 已合并，#38–#42 飞书通知不重复发送，父 Spec #18 不修改。
 3. PR #61／#62 已合并，不重复处理。主工作区 main 已与远端同步；原 HANDOFF 在 `f473bf762b5583558031f2aa0bdad6a677bea768` stash，连同原三个 stash、既有分支／Harness 与历史证据保留。父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 
