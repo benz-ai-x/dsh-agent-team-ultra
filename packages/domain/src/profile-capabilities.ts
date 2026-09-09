@@ -1,14 +1,14 @@
 import { Context } from '@deepseek-ai/cordis'
-import { DigitalEmployeeHostContext } from './host-context.ts'
+import type { DigitalEmployeeHostContext } from './host-context.ts'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { type UserMessage } from '@deepseek-ai/dsh-session'
 import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
+import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
 import type { DigitalEmployeeProfile, ProfileHook, ProfileTextBlock } from './types.ts'
 import { authorityRemoteError } from './host-errors.ts'
 import { snapshotProfile } from './profile-snapshot.ts'
-import { ULTRA_PROFILE_TOOL_NAMES } from './conversation-profile-tools.ts'
 
 export const TEAM_OWN_TOOL_NAMES = new Set([
   'spawn_teammate',
@@ -22,7 +22,6 @@ export const TEAM_OWN_TOOL_NAMES = new Set([
   'team_task_get',
   'team_task_update',
   'run_code',
-  ...ULTRA_PROFILE_TOOL_NAMES,
 ])
 
 export const PLUGIN_SOURCE = { kind: 'plugin', plugin: 'agent-team-ultra' } as const
@@ -78,7 +77,7 @@ export class ProfileCapabilityInstaller {
     if (authorityFailure !== undefined) {
       throw authorityRemoteError(authorityFailure, 'install-profile-capabilities')
     }
-    if (agent.ctx.agent !== agent) {
+    if (this.host.ctx.agents.get(agent.id) !== agent || agent.ctx === caller.ctx) {
       throw new TypeError('Digital Employee Profile capabilities require the exact Agent-owned scope')
     }
     if (this.childInstallations.has(agent)) {
@@ -90,7 +89,7 @@ export class ProfileCapabilityInstaller {
     const add = (dispose: () => unknown): void => { disposers.push(dispose) }
     try {
       add(childCtx.systemPrompt.section({
-        name: 'deployment:persona',
+        name: PERSONA_PREFIX_SECTION,
         order: 0,
         text: profile.persona,
       }))
@@ -129,6 +128,21 @@ export class ProfileCapabilityInstaller {
     if (dispose === undefined) return
     this.childInstallations.delete(agent)
     dispose()
+  }
+
+  /** Quiesce only Profile-bound official children before revoking their policy layers. */
+  async drainBoundAgents(): Promise<void> {
+    const groups = new Map<Agent, Agent[]>()
+    for (const agent of this.childInstallations.keys()) {
+      const parentId = agent.session.header.parentSession
+      const parent = parentId === undefined ? undefined : this.host.ctx.agents.get(parentId)
+      if (parent === undefined) continue // Official parent teardown already owns these descendants.
+      const children = groups.get(parent) ?? []
+      children.push(agent)
+      groups.set(parent, children)
+    }
+    await Promise.all([...groups].map(([parent, children]) =>
+      this.host.ctx.subagents.drainContinuableChildren(parent, children.map(agent => agent.id))))
   }
 
   /** Revoke every resident child contribution before the owning service Fiber disappears. */

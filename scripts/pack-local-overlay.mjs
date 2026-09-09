@@ -9,7 +9,7 @@ import { archivePackageRoots, qualifiedHarnessPeerRoots } from './local-package-
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const { lock, harnessRoot: harness } = requirePreparedHarness(root)
-const output = resolve(root, process.argv[2] ?? 'artifacts/agent-team-ultra')
+const output = resolve(root, process.argv[2] ?? 'artifacts/agent-team-ultra-b0')
 const cli = join(harness, 'apps', 'cli', 'lib', 'bin.js')
 const checkedCli = join(root, 'scripts/compatible-dsh.mjs')
 
@@ -52,10 +52,7 @@ for (const packageRoot of packageRoots) {
 
 console.log(`Packed ${archives.length} local-only archives against Harness ${lock.upstream.version}.`)
 console.log(`Archives are available in ${output}; exact unpublished peers resolve from the pinned Harness checkout.`)
-console.log('For an existing old Codex installation, stop Web and remove only its retired adapter before installing:')
-console.log(`${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web remove --config.offline=true --config.auto-install-peers=false '@deepseek-ai/dsh-experimental-agent-team-codex'`)
-console.log('For an existing old Claude Code installation, stop Web and remove its retired adapter before installing:')
-console.log(`${shellWord(process.execPath)} ${shellWord(cli)} plugin --profile web remove --config.offline=true --config.auto-install-peers=false '@deepseek-ai/dsh-experimental-agent-team-claude-code'`)
+console.log('Use a new isolated DSH_HOME and initialize its ultra-b0 data root first. Historical installations are not upgraded in place.')
 console.log(`Install the ${archives.length} archives into a DSH Web profile with:`)
 console.log([
   `${shellWord(process.execPath)} ${shellWord(checkedCli)} --lock-local-peers plugin --profile web add`,

@@ -23,7 +23,7 @@ function indexPackages(parent, nested = false) {
 }
 indexPackages('vendor')
 indexPackages('packages', true)
-for (const directory of ['domain', 'ui', 'profile', 'codex', 'claude-code']) {
+for (const directory of ['domain', 'ui', 'profile']) {
   const packageRoot = join(root, 'packages', directory)
   const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
   workspace.set(manifest.name, { packageRoot, manifest })
@@ -71,23 +71,16 @@ while (pending.length) {
     type: manifest.type, version: manifest.version, main: manifest.main, exports: manifest.exports, files,
     dependencies: Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })
       .filter(name => workspace.has(name) && (manifest.name === profileManifest.name || !manifest.peerDependenciesMeta?.[name]?.optional)),
-    products: Object.values(lock.compatibility.nativeProducts)
-      .filter(product => product.package in (manifest.dependencies ?? {}))
-      .map(product => ({
-        name: product.package,
-        fields: {
-          version: product.version,
-          ...(product.package === '@anthropic-ai/claude-agent-sdk' ? { claudeCodeVersion: product.nativePayload } : {}),
-        },
-      })),
   }
   pending.push(...packages[manifest.name].dependencies)
 }
 writeFileSync(join(output, 'compatibility.json'), `${JSON.stringify({
   schemaVersion: 1,
-  maintainedFork: lock.upstream,
+  officialSource: lock.upstream,
   ...lock.compatibility,
   retiredRuntimePackages: [
+    '@benz-ai-x/dsh-agent-team-codex',
+    '@benz-ai-x/dsh-agent-team-claude-code',
     '@deepseek-ai/dsh-experimental-agent-team-codex',
     '@deepseek-ai/dsh-experimental-agent-team-claude-code',
   ],

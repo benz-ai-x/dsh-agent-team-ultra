@@ -1,9 +1,0 @@
-- name: '@fixture/agent-team-runtime'
-
-- name: '@benz-ai-x/dsh-agent-team-ultra'
-  config:
-    defaultContinuationProvider: fixture-provider
-    maxProfiles: 1
-    maxProfileBytes: 4096
-    maxHooks: 2
-    maxAssignmentBytes: 2048

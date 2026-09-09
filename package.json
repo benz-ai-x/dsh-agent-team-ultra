@@ -1,6 +1,6 @@
 {
   "name": "@benz-ai-x/dsh-agent-team-ultra-workspace",
-  "version": "0.1.0",
+  "version": "0.2.0-b0.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -10,26 +10,21 @@
   "scripts": {
     "context:check": "node scripts/verify-dsh-context.mjs",
     "context:check:strict": "node scripts/verify-dsh-context.mjs --require-source",
-    "build:host": "node scripts/check-harness-source.mjs && tsc -b tsconfig.host.json && pnpm --dir packages/codex bundle && pnpm --dir packages/claude-code bundle && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
+    "build:host": "node scripts/check-harness-source.mjs && tsc -b tsconfig.host.json && pnpm --dir packages/domain bundle && pnpm --dir packages/profile bundle",
     "build:client": "node scripts/check-harness-source.mjs && tsc -b tsconfig.client.json && pnpm --dir packages/ui bundle",
     "build": "pnpm run build:host && pnpm run build:client && node scripts/generate-compatibility.mjs",
     "test": "node scripts/check-harness-source.mjs && vitest run",
     "test:watch": "node scripts/check-harness-source.mjs && vitest",
     "pack:local": "pnpm run context:check:strict && pnpm run build && node scripts/pack-local-overlay.mjs",
     "verify:pack": "node scripts/verify-pack.mjs",
-    "verify:codex-upgrade": "node scripts/verify-codex-upgrade.mjs",
     "verify": "pnpm run context:check:strict && pnpm run build && pnpm run test && pnpm run verify:pack",
     "prepare:harness": "node scripts/prepare-harness.mjs",
     "compatibility:check": "node scripts/compatible-dsh.mjs check",
     "dsh:checked": "node scripts/compatible-dsh.mjs",
-    "compatibility:compare": "node scripts/compare-harness-contract.mjs",
-    "verify:claude-upgrade": "node scripts/verify-claude-upgrade.mjs",
-    "verify:b-upgrade": "node scripts/verify-b-upgrade.mjs",
-    "migration:audit": "node scripts/audit-migration.mjs",
-    "migration:execute": "node scripts/migrate-data.mjs"
+    "data:init": "node scripts/initialize-b0-data.mjs",
+    "build:harness": "node scripts/build-official-harness.mjs"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "link:./.dsh/harness/packages/experimental/client-ui-agent-team",
     "@deepseek-ai/dsh-typert-generator": "link:./.dsh/harness/packages/typert/generator",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^24.0.0",

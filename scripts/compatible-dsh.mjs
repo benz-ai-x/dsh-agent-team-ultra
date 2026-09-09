@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { requirePreparedHarness } from './harness-source.mjs'
-import { harnessPackages, qualifiedProductOverrides } from './local-package-closure.mjs'
+import { harnessPackages } from './local-package-closure.mjs'
 import yaml from 'js-yaml'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -13,7 +13,7 @@ const lockLocalPeers = process.argv.includes('--lock-local-peers')
 const args = process.argv.slice(2).filter(argument => argument !== '--lock-local-peers')
 let source
 let assertUltraCompatibility
-let assertUltraMigrationReady
+let assertBaselineData
 let invocation
 try {
   source = requirePreparedHarness(root)
@@ -25,7 +25,8 @@ try {
 try {
   const compatibility = await import(pathToFileURL(join(root, 'packages/domain/lib/compatibility.js')).href)
   assertUltraCompatibility = compatibility.assertUltraCompatibility
-  assertUltraMigrationReady = compatibility.assertUltraMigrationReady
+  const admission = await import(pathToFileURL(join(root, 'packages/domain/lib/baseline-data.js')).href)
+  assertBaselineData = admission.assertBaselineData
   assertUltraCompatibility(pathToFileURL(join(root, 'packages/domain/package.json')).href)
   assertUltraCompatibility(pathToFileURL(join(root, 'packages/profile/package.json')).href, 'profile')
   if (args.length === 0 || args[0] === 'check') {
@@ -33,6 +34,8 @@ try {
     console.log(JSON.stringify({ compatible: true, ...identity, packageCount: Object.keys(packages).length }, null, 2))
     process.exit(0)
   }
+  if (!process.env.DSH_HOME || !process.env.DSH_HOME.startsWith('/')) throw new Error('An explicit absolute isolated DSH_HOME is required for B0 installation and startup')
+  assertBaselineData(join(resolve(process.env.DSH_HOME), 'ultra-b0'))
   const { parseDshArgs } = await import(pathToFileURL(join(source.harnessRoot, 'apps/cli/lib/types/args.js')).href)
   invocation = parseDshArgs(args, source.lock.upstream.version)
   if (lockLocalPeers) {
@@ -57,7 +60,8 @@ if (invocation.mode === 'plugin') {
   process.exit(0)
 }
 process.argv = [process.execPath, cli, ...args]
-await import(pathToFileURL(cli).href)
+const { runCli } = await import(pathToFileURL(cli).href)
+await runCli()
 
 /** Explicit installation option: pin nested dependencies as well as top-level links. */
 async function configureLocalPeers() {
@@ -75,8 +79,6 @@ async function configureLocalPeers() {
     overrides[manifest.name] = `link:${directory}`
   }
   if (!Object.keys(overrides).length) throw new Error('--lock-local-peers requires qualified link arguments')
-  const products = qualifiedProductOverrides(root, source.harnessRoot)
-  Object.assign(overrides, products)
   const { initProfile, resolveProfileDir, PROFILE_TEMPLATES, DEFAULT_PROFILE_BUNDLES } = await import(
     pathToFileURL(join(source.harnessRoot, 'packages/boot/app-boot/lib/index.js')).href)
   const directory = resolveProfileDir(invocation.profile)
@@ -99,8 +101,6 @@ async function configureLocalPeers() {
       throw new Error(`Profile override for ${name} conflicts with the qualified source; reconcile it before installation`)
     }
   }
-  // pnpm's hoisted linker needs direct links for transitive link overrides.
-  args.push(...Object.values(products))
   if (manifest.packageManager === undefined) {
     const temporaryManifest = `${manifestPath}.ultra-${process.pid}.tmp`
     writeFileSync(temporaryManifest, JSON.stringify({ ...manifest, packageManager }, null, 2) + '\n', { flag: 'wx', mode: 0o600 })
@@ -116,11 +116,11 @@ async function configureLocalPeers() {
   renameSync(temporary, path)
 }
 
-async function checkInstalledProfile(checkMigration = true) {
+async function checkInstalledProfile(checkData = true) {
   const profile = invocation.profile
   if (!profile || !/^[a-zA-Z0-9_-]+$/.test(profile)) throw new Error('A valid profile name is required')
   const { resolveDshHome } = await import(pathToFileURL(join(source.harnessRoot, 'packages/util/home-paths/lib/index.js')).href)
-  if (checkMigration) assertUltraMigrationReady(resolveDshHome())
+  if (checkData) assertBaselineData(join(resolveDshHome(), 'ultra-b0'))
   const directory = join(resolveDshHome(), 'profiles', profile)
   if (!existsSync(join(directory, 'package.json'))) throw new Error(`Ultra profile ${profile} is not installed`)
   assertUltraCompatibility(pathToFileURL(join(directory, 'package.json')).href, 'profile')

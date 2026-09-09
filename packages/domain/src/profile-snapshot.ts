@@ -1,11 +1,8 @@
-import { snapshotRequiredCapabilities } from './runtime.ts'
-import { legacyInheritLeadRuntimeTarget } from './storage.ts'
 import type {
   DigitalEmployeeProfileHead,
   DigitalEmployeeProfile,
   DigitalEmployeeProfileDraft,
   DigitalEmployeeProfileRevision,
-  DigitalEmployeeRuntimeTarget,
   ProfileHook,
   ProfileTextBlock,
   ProfileToolPolicy,
@@ -71,9 +68,6 @@ export function snapshotProfileHead(head: DigitalEmployeeProfileHead): DigitalEm
     latestRevision: head.latestRevision,
     ...(head.activeRevision === undefined ? {} : { activeRevision: head.activeRevision }),
     historyStartsAtRevision: head.historyStartsAtRevision,
-    ...(head.requiredEvalSet === undefined
-      ? {}
-      : { requiredEvalSet: Object.freeze({ ...head.requiredEvalSet }) }),
     ...(head.archivedAt === undefined ? {} : { archivedAt: head.archivedAt }),
     createdAt: head.createdAt,
     updatedAt: head.updatedAt,
@@ -81,16 +75,11 @@ export function snapshotProfileHead(head: DigitalEmployeeProfileHead): DigitalEm
 }
 
 export function snapshotProfileRevision(revision: DigitalEmployeeProfileRevision): DigitalEmployeeProfileRevision {
-  const target: DigitalEmployeeRuntimeTarget = revision.runtimeTarget.kind === 'legacy-inherit-lead'
-    ? legacyInheritLeadRuntimeTarget
-    : Object.freeze({ ...revision.runtimeTarget })
   return Object.freeze({
     schemaVersion: 1,
     profileId: revision.profileId,
     revision: revision.revision,
     profile: snapshotProfileDraft(revision.profile),
-    runtimeTarget: target,
-    requiredCapabilities: snapshotRequiredCapabilities(revision.requiredCapabilities),
     fingerprint: revision.fingerprint,
     createdAt: revision.createdAt,
     updatedAt: revision.updatedAt,

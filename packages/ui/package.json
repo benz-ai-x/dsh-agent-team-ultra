@@ -1,7 +1,7 @@
 {
   "name": "@benz-ai-x/dsh-client-ui-agent-team-ultra",
   "description": "Visual Digital Employee Studio for Agent Team Ultra",
-  "version": "0.1.0",
+  "version": "0.2.0-b0.1",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -19,18 +19,12 @@
   },
   "dsh": {
     "client": {
-      "external": [
-        "@deepseek-ai/dsh-api-gateway/client",
-        "@deepseek-ai/dsh-experimental-client-ui-agent-team/client"
-      ],
       "inject": [
-        "@deepseek-ai/dsh-api-gateway",
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-experimental-client-ui-agent-team",
-        "@deepseek-ai/dsh-client-ui-primitives",
-        "@deepseek-ai/dsh-client-ui-renderer"
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-api-session-controller"
       ],
       "platform": "web"
     }
@@ -48,32 +42,28 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@benz-ai-x/dsh-agent-team-ultra": "0.1.0",
-    "@deepseek-ai/dsh-api-gateway": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-api-remotes": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-client-locale": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-client-ui-conversation": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-experimental-agent-team": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-session": "0.1.3-alpha.1",
-    "@deepseek-ai/dsh-typert-protocol": "0.1.3-alpha.1"
+    "@benz-ai-x/dsh-agent-team-ultra": "0.2.0-b0.1",
+    "@deepseek-ai/dsh-api-remotes": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-client-locale": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-session": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-api-session-controller": "0.1.5-alpha.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "link:../../.dsh/harness/vendor/cordis",
     "@benz-ai-x/dsh-agent-team-ultra": "workspace:*",
     "@deepseek-ai/dsh-api-gateway": "link:../../.dsh/harness/packages/api/gateway",
+    "@deepseek-ai/dsh-typert-registry": "link:../../.dsh/harness/packages/typert/registry",
     "@deepseek-ai/dsh-api-remotes": "link:../../.dsh/harness/packages/api/remotes",
     "@deepseek-ai/dsh-client-locale": "link:../../.dsh/harness/packages/client/locale",
     "@deepseek-ai/dsh-client-ui-conversation": "link:../../.dsh/harness/packages/client/ui-conversation",
-    "@deepseek-ai/dsh-client-ui-primitives": "link:../../.dsh/harness/packages/client/ui-primitives",
     "@deepseek-ai/dsh-client-ui-renderer": "link:../../.dsh/harness/packages/client/ui-renderer",
     "@deepseek-ai/dsh-client-ui-slots": "link:../../.dsh/harness/packages/client/ui-slots",
-    "@deepseek-ai/dsh-experimental-agent-team": "link:../../.dsh/harness/packages/experimental/agent-team",
-    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "link:../../.dsh/harness/packages/experimental/client-ui-agent-team",
     "@deepseek-ai/dsh-session": "link:../../.dsh/harness/packages/core/session",
-    "@deepseek-ai/dsh-typert-protocol": "link:../../.dsh/harness/packages/typert/protocol"
+    "@deepseek-ai/dsh-typert-protocol": "link:../../.dsh/harness/packages/typert/protocol",
+    "@deepseek-ai/dsh-api-session-controller": "link:../../.dsh/harness/packages/api/session-controller"
   }
 }

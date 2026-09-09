@@ -1,7 +1,6 @@
 /** Resolve the local-only delivery closure from qualified package identities. */
-import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { profileContributionNames } from './profile-archive-closure.mjs'
 
 export function harnessPackages(harness) {
@@ -59,34 +58,4 @@ export function qualifiedHarnessPeerRoots(source, harness, archivedNames) {
     }
     return selected.directory
   })
-}
-
-/** Reuse the attested SDK installations, including their platform-native payloads. */
-export function qualifiedProductOverrides(source, harness) {
-  const proof = JSON.parse(readFileSync(join(source, 'packages/domain/lib/compatibility.json'), 'utf8'))
-  const overrides = {}
-  for (const directory of archivePackageRoots(source, harness)) {
-    const manifestPath = join(directory, 'package.json')
-    const owner = JSON.parse(readFileSync(manifestPath, 'utf8')).name
-    const resolver = createRequire(manifestPath)
-    for (const product of proof.packages[owner]?.products ?? []) {
-      let directory
-      try { directory = dirname(resolver.resolve(`${product.name}/package.json`)) }
-      catch (error) {
-        // Some SDKs export their runtime but intentionally hide package.json.
-        if (error.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw error
-        directory = dirname(resolver.resolve(product.name))
-      }
-      const actual = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
-      if (actual.name !== product.name || Object.entries(product.fields).some(([field, value]) => actual[field] !== value)) {
-        throw new Error(`native product ${product.name} does not match the qualified installation`)
-      }
-      const link = `link:${realpathSync(directory)}`
-      if (overrides[product.name] !== undefined && overrides[product.name] !== link) {
-        throw new Error(`native product ${product.name} has ambiguous qualified owners`)
-      }
-      overrides[product.name] = link
-    }
-  }
-  return overrides
 }
