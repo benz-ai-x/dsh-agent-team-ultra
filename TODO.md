@@ -1,6 +1,35 @@
 # TODO
 
-## Current requested scope: TDD development from Issue #38
+## Current requested scope: repair and publish PR #63
+
+- [ ] Integrate merged main / PR #62 without losing its final native recovery and cleanup diagnostics fixes.
+- [ ] Reject an unqualified owning Loader source before public data registration or writes.
+- [ ] Reject missing required Session / storage entities in an already completed joint migration.
+- [ ] Share pure Run Binding identity and native correlation selection between migration and Host recovery.
+- [ ] Complete fresh verification and independent Standards / Spec review, push PR #63, and synchronize the local tracking branches without discarding existing changes.
+
+The user authorized fixes, commit / push and local / remote synchronization, not
+merging PR #63, closing Issues or sending notifications. Studio's new joint test
+seam awaits explicit confirmation. The C Harness and SDK selections stay fixed.
+
+## Previous PR #62 review repairs (merged)
+
+The user has authorized fixing the two runtime P2 findings and stale handoff P3
+in PR #62, then validating, independently re-reviewing, and updating that PR.
+Keep its B Harness lock and SDKs; do not merge or change PR #63 / parent Spec #18.
+
+- [x] Reproduce and fix missing native completion times through public Host / generated Remote on JSON and SQLite; never use the recovery clock as an endedAt.
+- [x] Reproduce and fix partial-history completeness through provider replacement, later work and cold recovery; the bounded page remains explicitly incomplete.
+- [x] Align the handoff and TODO with actual completed work and remaining review gates.
+- [x] Complete intermediate `pnpm verify` at `d5054de`: 590 strict checks, 400 tests and eight-archive install/Web/recovery/uninstall pass. See [repair evidence](docs/evidence/pr62-review-fixes.md).
+- [x] Fix the independent re-review's additional Standards P2: contain both adapters' new cleanup-log sink failures through public RED → GREEN, without masking native cleanup errors.
+- [x] Complete fresh final `pnpm verify` at `e7a5f2d`: 590 strict checks, 404 tests and complete archive gates; independent Standards / Spec each report zero unresolved findings.
+
+Publication uses the original branch. Read its actual head and merge state from
+[PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62); passing these
+gates does not authorize merging or continuing another PR.
+
+## Original requested scope: TDD development from Issue #38
 
 The user has authorized reading the remaining Issues, starting development at
 [#38](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/38), and reporting
@@ -103,7 +132,8 @@ PR #60 is historical: it was merged as `9835db4361dcad500b3be09ef69f78420d71a6ab
 - [x] [B18 / #36](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/36): sole unified retry complete on Batch 2. Qualified Harness `806e5887…` publishes the generated watch catalog, uses one shared completion/dirty bit per task refresh generation under 4096+4096 invalidations, and makes TeamAction Fiber teardown await Remote watch quiescence. Ultra likewise owns every message watch close at the Client context lifecycle while preserving immediate React cleanup; old-cursor fencing, page/roster coalescing, bilingual lifecycle states, and no-resend remain intact. Live body was updated one marker at a time with other bytes unchanged; PR #60 was merged as `9835db4`; Issue is closed with 5/5 AC. The main lock at `b78caad462` includes subsequent review fixes. See [acceptance evidence](docs/evidence/issue-36-acceptance.md) and [pipeline state](PIPELINE_STATE.md).
 
 [Batch 3A / #37](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/37): implementation, two capability repairs and independent re-review are complete; both axes report zero findings. The repaired code was published through `9aa53d9`, locking Harness `57670c6b32`. Publication-only documentation follows. Merge and linked Issue closure are read from [PR #61](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/61), not inferred from the Issue's 6/6 checked AC. See [current evidence](docs/evidence/pr61-capability-review-fixes.md).
-- [ ] Finish the active #39–#43 and #44 batches in their approved dependency order; #38 is delivered in PR #62, not yet merged. Do not treat unrun PR acceptance as complete. Parent Spec #18 stays open.
+- [x] Implement and repair #38 on Batch 3B; PR #62 merged as `c1632755`, Issue closed. Validation and notification remain recorded above.
+- [ ] Finish the active #39–#43 and #44 batches in their approved dependency order. Do not treat unrun PR acceptance as complete; parent Spec #18 stays open.
 
 - [ ] Deliver [vNext Spec #18](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) through its A/B/C phases and all acceptance criteria; specification publication does not mark implementation complete.
 - [x] [A01 / #19](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/19): shared Host context, Profile release, isolated evaluation, and capability installation consolidation implemented on `fix/19-host-profile-evaluation`. Full `pnpm verify` passes 164 tests and eight-archive install/boot/uninstall. [PR #45](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/45), reviewed at `3046af5` with no Standards/Spec findings, was merged into `main` as `c6ea879` on explicit user authorization. Issue closed.

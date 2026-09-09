@@ -591,15 +591,20 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
     if (request.kind !== 'runtime') return
     const session = this.sessions.get(request.nativeHandle)
     if (session === undefined) return
+    const reportCleanup = (level: 'warn' | 'info', message: string) => {
+      try { this.ctx.logger[level](message) } catch {
+        // A failing log sink cannot interrupt or invalidate native cleanup.
+      }
+    }
     const reportGrace = () => {
-      this.ctx.logger.warn('agent-team-claude-code: cleanup abort grace elapsed; still waiting for native process exit')
+      reportCleanup('warn', 'agent-team-claude-code: cleanup abort grace elapsed; still waiting for native process exit')
     }
     if (request.signal.aborted) reportGrace()
     else request.signal.addEventListener('abort', reportGrace, { once: true })
     try {
       await this.disposeSession(session)
       if (request.signal.aborted) {
-        this.ctx.logger.info('agent-team-claude-code: native cleanup reached quiescence after abort grace')
+        reportCleanup('info', 'agent-team-claude-code: native cleanup reached quiescence after abort grace')
       }
     } finally {
       request.signal.removeEventListener('abort', reportGrace)

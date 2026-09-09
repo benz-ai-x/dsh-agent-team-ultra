@@ -7,6 +7,12 @@
 
 ## 固定候选与输入
 
+本文件保留初版候选的实际执行记录。2026-09-09 独立审查发现了原生缺失完成时间和
+部分恢复历史的完整性缺口；修复与新版验证见 [PR #62 修复证据](pr62-review-fixes.md)。
+初版全绿不覆盖这些新增复现，不能据此宣称修复候选通过。
+修复最终运行候选 `e7a5f2d` 已另外通过 404 项测试及完整归档门禁，独立 Standards／Spec
+均无未解决问题；精确提交、日志摘要与保守不完整边界均见上述修复证据。
+
 - Ultra 最终验证提交：`7caa05e3a951dac88eaf93067d0db1985088d966`，分支 `feat/batch-3b-provider-recovery`；起点 main `ec88d85a2ec668388ff37b0b6cba4bab3e332040`。
 - 运行时实现提交：`c91a3b7116ed2862384f812b751ec665c8daa5af`；后续候选只修正旧夹具的不完整时间断言和记录，不改变产品实现。
 - Harness：`57670c6b320f7f240cbad360a9f691c8598e1571`，docsDigest `331387e2a9fb7495b7160c93da853e0fe2c670b7de1f927ab8f4d0291962b675`；来源、依赖锁、持久格式与公共协议没有变更。
@@ -21,7 +27,7 @@
 | 2：原 Team/member/handle 与重新授权 | 上述共享场景在 provider 缺失时保留原 Binding／Revision／member／handle，只报告 unavailable；恢复后只有原 native thread，保留两轮 Run ID。冷恢复使用新授权在原 handle 完成已认领任务，原依赖任务变为 ready。两种实际 adapter 的 [Codex 查询](../../packages/codex/tests/member-queries.integration.spec.ts) 与 [Claude 操作](../../packages/claude-code/tests/member-operations.integration.spec.ts) 同时验证已退出 Lead 拒绝、原身份恢复和新 grant。 |
 | 3：取消所有权与精确 interrupt | Launch 的 `keeps cancellation ownership at the durable %s boundary` 覆盖接受前／后归属。共享场景在 native wait 已进入后精确中断 Codex，任务仍为原 owner／revision，另一 Claude provider 仍 running 且能通过真实 MCP 读取同一任务。已有 [Codex tasks](../../packages/codex/tests/member-tasks.integration.spec.ts)／[Claude tasks](../../packages/claude-code/tests/member-tasks.integration.spec.ts) 覆盖超时、中断、旧 wait、丢回执与冷重试。 |
 | 4：关闭准入、结算、静止与幂等释放 | [Run 生命周期](../../packages/domain/tests/run-lifecycle.integration.spec.ts) 的 JSON／SQLite × run/view/watch 六种组合证明已接纳的真实冷读取／修复先静止，Host 后完成卸载；DSH 与 [Codex Run](../../packages/codex/tests/recovery-lifecycle.integration.spec.ts) 均拒绝异步读取期间退出的精确 Lead。共享场景观察 native 进程退出前的 unavailable 与挂起 Fiber，另一 provider 不受影响；重复释放旧 Fiber 不清除新连接，迟到旧通道通知不改变新工作。归档门禁还证明卸载后公开入口和注册移除。 |
-| 5：abort 宽限期不是硬卸载上限 | Codex `reports elapsed cleanup grace without completing disposal before the native process exits` 与 Claude `reports elapsed Claude cleanup grace while awaiting actual process quiescence` 使用实际 adapter／Cordis Fiber，只在外部进程边界延后退出。公开 Logger 先报告 grace elapsed，Fiber 仍挂起且进程仍存活；释放进程后才报告 quiescence 并完成清理。没有把超时改成提前返回。 |
+| 5：abort 宽限期不是硬卸载上限 | Codex `reports elapsed cleanup grace and awaits native exit with %s log failure` 与 Claude `reports elapsed Claude cleanup grace and awaits native exit with %s log failure` 使用实际 adapter／Cordis Fiber，只在外部进程边界延后退出。公开 Logger 先报告 grace elapsed，Fiber 仍挂起且进程仍存活；释放进程后才报告 quiescence 并完成清理。没有把超时改成提前返回。审查补修扩展原场景，加入 warning／info 输出失败变体，日志故障不能破坏清理；新增证据见修复报告。 |
 | 6：B 阶段打包／Web／消息／DAG／卸载 | 同一最终 `pnpm verify` 调用 [归档门禁](../../scripts/verify-pack.mjs)：实际八归档普通解析、真实 Loader／Profile 安装、生产消息／DAG／分页／CAS／watch 和丢响应冷恢复、Web 监听、两个 native adapter 在 JSON／SQLite 上的原 member／handle 与消息／任务回执恢复，最后通过公共 CLI 卸载并检查包及 Loader 行无残留。 |
 
 ## 本次修复

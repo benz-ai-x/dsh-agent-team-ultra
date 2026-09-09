@@ -476,6 +476,12 @@ Focused Linux verification is not the final historical archive or native-auth ga
   A native terminal timestamp before Host acceptance is retained in the timeline
   but omitted from the index's completion time, with an explicit incomplete
   diagnostic; the Host neither invents a timestamp nor persists an invalid row.
+  Codex does not replace missing or invalid native completion times with the
+  live observation or recovery clock. Its timestamp-required evidence boundary
+  omits an undated terminal while retaining the separate Team mailbox settlement.
+  Recovery restores only source-timed terminal evidence, not the whole historical
+  tool/usage timeline, so its page-level completeness stays incomplete for that
+  provider generation, including subsequent work on the same native history.
 - Run terminal classes are exactly `completed`, `cancelled`, `blocked`,
   `failed`, `max-tokens`, `interrupted`, and `unknown-terminal`. Usage is shown
   only when reported by the canonical runtime and is never inferred from text
@@ -608,6 +614,8 @@ period, still awaits actual quiescence, and releases only that generation's
 runtime/evaluation handles.
 Codex and Claude Code distinguish an elapsed cleanup abort grace from actual
 native quiescence in their diagnostics; an elapsed grace does not complete disposal.
+These best-effort diagnostics contain log-exporter failures; a sink cannot abort
+native cleanup or make already-reached quiescence fail. Actual cleanup errors still propagate.
 Child-scope prompt, tool, and hook registrations are also disposed when that
 exact Agent scope ends.
 Installations are keyed by exact Agent object identity. Agent disposal, Fiber

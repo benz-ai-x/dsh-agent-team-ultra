@@ -6,7 +6,7 @@ import { cleanups, profile, target, ToolCallId } from '../../domain/tests/fixtur
 import type { DigitalEmployeeEvalSetDraft, DigitalEmployeeStudioView, SpawnDigitalEmployeeResult } from '../../domain/src/types.ts'
 import { claudeWorkflow, operationResult } from './fixtures/member-workflow.ts'
 
-it('reports elapsed Claude cleanup grace while awaiting actual process quiescence', async () => {
+it.each(['none', 'warn', 'info'] as const)('reports elapsed Claude cleanup grace and awaits native exit with %s log failure', async loggingFailure => {
   const { ctx, runtime, native } = await claudeWorkflow('json', { disposalTimeoutMs: 25 })
   const terminating = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
@@ -17,7 +17,13 @@ it('reports elapsed Claude cleanup grace while awaiting actual process quiescenc
   const diagnostics: string[] = []
   ctx.logger.exporter({
     levels: { default: 3 },
-    export(message) { diagnostics.push(Logger.format({ colors: false }, message)) },
+    export(message) {
+      const diagnostic = Logger.format({ colors: false }, message)
+      diagnostics.push(diagnostic)
+      if (message.type === loggingFailure && diagnostic.startsWith('agent-team-claude-code:') && diagnostic.includes('cleanup')) {
+        throw new Error('cleanup log exporter failure')
+      }
+    },
   })
   let disposed = false
   const retiring = runtime.dispose().then(() => { disposed = true })
@@ -35,6 +41,7 @@ it('reports elapsed Claude cleanup grace while awaiting actual process quiescenc
   expect(native.live.size).toBe(0)
   await runtime.dispose()
   expect(diagnostics).toContain('agent-team-claude-code: native cleanup reached quiescence after abort grace')
+  expect(diagnostics.join('\n')).not.toContain('cleanup log exporter failure')
 })
 
 it.each(['json', 'sqlite'] as const)('recovers one bound member, receipts and task ownership with evaluation and watches on %s', async (backend) => {

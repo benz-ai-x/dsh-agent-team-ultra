@@ -142,7 +142,7 @@ export class NativeProduct {
             this.pending.push((outcome, text) => {
               turn.status = outcome
               thread.status = { type: 'idle' }
-              turn.completedAt = this.completedAt ?? Math.floor(Date.now() / 1000)
+              turn.completedAt = this.completedAt === undefined ? Math.floor(Date.now() / 1000) : this.completedAt
               turn.items.push(
                 { type: 'reasoning', id: randomUUID(), summary: ['PRIVATE_REASONING'], content: [] },
                 { type: 'agentMessage', id: randomUUID(), text: 'PRIVATE_COMMENTARY', phase: 'commentary' },

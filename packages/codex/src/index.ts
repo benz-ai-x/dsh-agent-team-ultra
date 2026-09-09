@@ -159,7 +159,7 @@ interface AcceptedTurn {
 interface TurnTerminal {
   readonly id: string
   readonly outcome: TurnOutcome
-  readonly timestamp: number
+  readonly timestamp?: number
   readonly text: string
 }
 
@@ -297,9 +297,10 @@ function terminalTurn(turn: JsonObject): TurnTerminal {
       && typeof item.text === 'string' && item.text.length > 0) text = item.text
   }
   const outcome = terminalOutcome(turn.status)
+  const timestamp = typeof turn.completedAt === 'number' ? Math.trunc(turn.completedAt * 1_000) : undefined
   return {
     id: string(turn.id, 'terminal turn id'), outcome,
-    timestamp: typeof turn.completedAt === 'number' ? Math.trunc(turn.completedAt * 1_000) : Date.now(),
+    ...(timestamp !== undefined && Number.isSafeInteger(timestamp) && timestamp >= 0 ? { timestamp } : {}),
     text: boundedTerminalText(outcome, text === undefined ? `Codex work ${outcome} without a final response.`
       : outcome === 'completed' ? text : `Codex work ${outcome}.\n\n${text}`),
   }
@@ -740,6 +741,7 @@ interface NativeSession {
   readonly evidence: TeammateRuntimeEvidenceItem[]
   readonly settlements: Set<Promise<void>>
   readonly recoveredTerminals: TurnTerminal[]
+  evidenceIncomplete: boolean
   presence: 'running' | 'idle'
   current: AcceptedTurn | undefined
   disposing?: Promise<void>
@@ -772,13 +774,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     const session = this.session(request.nativeHandle)
     session.connection.bindMemberOperations(request.grant)
     for (const terminal of session.recoveredTerminals.splice(0)) {
-      this.addEvidence(session, {
-        id: evidenceId('turn', session.handle, terminal.id),
-        kind: 'turn',
-        timestamp: terminal.timestamp,
-        turnId: TeammateRuntimeTurnId(terminal.id),
-        outcome: terminal.outcome,
-      })
+      this.recordTerminalEvidence(session, terminal)
       this.queueSettlement(session, terminal)
     }
   }
@@ -873,7 +869,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
         ...(end < session.evidence.length
           ? { nextCursor: TeammateRuntimeEvidenceCursor(String(end)) }
           : {}),
-        complete: end === session.evidence.length,
+        complete: !session.evidenceIncomplete && end === session.evidence.length,
       }
     })
   }
@@ -882,15 +878,20 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     if (request.kind !== 'runtime') return
     const session = this.sessions.get(request.nativeHandle)
     if (session === undefined) return
+    const reportCleanup = (level: 'warn' | 'info', message: string) => {
+      try { this.ctx.logger[level](message) } catch {
+        // A failing log sink cannot interrupt or invalidate native cleanup.
+      }
+    }
     const reportGrace = () => {
-      this.ctx.logger.warn('agent-team-codex: cleanup abort grace elapsed; still waiting for native process exit')
+      reportCleanup('warn', 'agent-team-codex: cleanup abort grace elapsed; still waiting for native process exit')
     }
     if (request.signal.aborted) reportGrace()
     else request.signal.addEventListener('abort', reportGrace, { once: true })
     try {
       await this.disposeSession(session)
       if (request.signal.aborted) {
-        this.ctx.logger.info('agent-team-codex: native cleanup reached quiescence after abort grace')
+        reportCleanup('info', 'agent-team-codex: native cleanup reached quiescence after abort grace')
       }
     } finally {
       request.signal.removeEventListener('abort', reportGrace)
@@ -1055,6 +1056,9 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       settlements: new Set(),
       recoveredTerminals: thread.turns.filter(turn => typeof turn.id === 'string' && ownedTurns.has(turn.id)
         && (turn.status === 'completed' || turn.status === 'failed' || turn.status === 'interrupted')).map(terminalTurn),
+      // Resume restores terminal receipts, not a complete normalized tool/usage
+      // history. Later live events cannot fill those earlier evidence gaps.
+      evidenceIncomplete: ownedTurns.size > 0,
       presence: threadPresence(thread.status),
       current: undefined,
       disposed: false,
@@ -1076,13 +1080,7 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
       (terminal) => {
         if (session.current !== turn || session.disposed) return
         session.current = undefined
-        this.addEvidence(session, {
-          id: evidenceId('turn', session.handle, terminal.id),
-          kind: 'turn',
-          timestamp: terminal.timestamp,
-          turnId: TeammateRuntimeTurnId(terminal.id),
-          outcome: terminal.outcome,
-        })
+        this.recordTerminalEvidence(session, terminal)
         session.presence = 'idle'
         this.emitPresence(session, 'idle')
         this.queueSettlement(session, terminal)
@@ -1100,6 +1098,22 @@ class CodexTeammateRuntimeProvider implements TeammateRuntimeProvider {
     void settlement.catch(() => {
       this.ctx.logger.warn('agent-team-codex: terminal result awaits Team acceptance after resume')
     }).finally(() => { session.settlements.delete(settlement) })
+  }
+
+  private recordTerminalEvidence(session: NativeSession, terminal: TurnTerminal): void {
+    // The locked evidence seam requires a real timestamp. Mailbox settlement
+    // can still retain the terminal outcome when native timing is unavailable.
+    if (terminal.timestamp === undefined) {
+      session.evidenceIncomplete = true
+      return
+    }
+    this.addEvidence(session, {
+      id: evidenceId('turn', session.handle, terminal.id),
+      kind: 'turn',
+      timestamp: terminal.timestamp,
+      turnId: TeammateRuntimeTurnId(terminal.id),
+      outcome: terminal.outcome,
+    })
   }
 
   private recordItem(session: NativeSession, params: JsonObject): void {
