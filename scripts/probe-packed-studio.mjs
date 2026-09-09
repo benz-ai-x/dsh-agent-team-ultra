@@ -182,7 +182,7 @@ export async function probePackedStudio({ ctx, installed, harnessRoot, lead, mem
       assert.ok(dialog.querySelector('main').textContent.includes('Run evidence'))
       assert.ok(dialog.querySelector('main').textContent.includes('Evidence completeness:'))
       if (historicalTurns.includes(turn)) assert.ok(dialog.querySelector('main').textContent
-        .includes('Evidence completeness: incomplete'), 'cold native history must not invent complete evidence')
+        .includes('Evidence completeness: incomplete'), 'the original fixture has no recoverable terminal time')
     }
     assert.equal(displayedTurns.size, rows.length, 'one canonical work turn must not create duplicate Run rows')
     for (const turn of historicalTurns) assert.ok(displayedTurns.has(turn), `Studio lost predecessor work turn ${turn}`)

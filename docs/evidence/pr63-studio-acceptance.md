@@ -17,7 +17,8 @@ Issue 再建立重复的全量流程。
   production renderer、Session scope、Slot、生成 Client Remote，经认证 HTTP／
   WebSocket 调用真实 Host，不手写 `load`／`run` 返回值或直接渲染源组件。
 - 逐行查看 Run 规范证据源和 Remote 详情时间线，确认包含前身记录的原 work turn、
-  没有重复 Run、原 member 的消息链接仍相同。native 冷恢复的旧历史明确 incomplete。
+  没有重复 Run、原 member 的消息链接仍相同。探针的原始 native turn 没有可恢复的
+  完成时间，必须显示 incomplete；这不意味着所有 native 历史都不完整。
 - 只控制外部 LLM 流：失败 attempt 的累计快照 `9→14→14`，随后成功 `7`；
   正式 Agent Loop 持久化 v2 settlement，生成 Remote 发起保存／激活／启动。
   界面显示一个 Run、`15 / 6 / 21`；缺 finish／缺 total 的另一轮显示 incomplete、
@@ -53,6 +54,22 @@ Issue 再建立重复的全量流程。
   `a787484294c73792601cf5e5ccdc54eefd9cec739cb0388ab321c872f9b1cd94`。
   这些场景包含多个真实 CLI 进程，将其单场景预算设为 20s；保留所有断言、全部
   场景和其余测试的超时。完整中断矩阵的既有 300s 预算不变；不能把失败计为通过。
+- `c5ceeb4` 重跑已通过 447 tests／39 files，但 pack 在 Claude JSON 冷恢复的
+  Studio 完整性断言失败，整条 `pnpm verify` 仍退出 1。日志
+  `pr63-studio-candidate-verify-green.log`（文件名不是结果），SHA-256
+  `f36cc441c016ba7e1005718943f86f865aabb1af26397a771d2b0f03c49a97c8`。
+  单独 `query-new → query-resume` 同样失败，排除仅全量执行时的资源问题。
+- 定位：Claude 的历史恢复用 `Date.now()` 代替缺失原生时间，把已知终态但未知
+  完成时间的 Run 标为 complete。修复仅采用对应历史终态自己的合法时间；未知
+  时间用既有非负证据边界的 0 表示，Host 保留 terminal，但不发布 endedAt，
+  完整性明确 incomplete。不能借用重启时钟或前一 assistant stage 的时间。
+- 同一公开 Host／生成 Remote 回归保留有日期历史的 complete＋`5 / 2 / 7`，
+  新增 result-only 历史的 incomplete＋无 endedAt／usage。修复前 1 pass／1 fail：
+  `pr63-studio-native-time-red.log`，SHA-256
+  `adc97a7237b525350280eeeecc671a1e96ab915053a541c60b842af749c4f0d4`；
+  修复后 Claude operations 全文件 37／37：`pr63-studio-native-time-green.log`，
+  SHA-256 `d802aaf908bb3bfa9cf10ee9f6ae3dc0a0a5af448452fe7ffb8285ceb44694db`。
+  调试标记已移除，归档与完整门禁须以修复后新 build 重跑。
 
 ## 固定环境与来源恢复
 

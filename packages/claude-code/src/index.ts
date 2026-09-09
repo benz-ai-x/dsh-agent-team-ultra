@@ -1182,7 +1182,9 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
       const committed = settlements.get(work.id)
       if (transcript === undefined && committed === undefined) continue
       if (work.deliveryId !== undefined) session.deliveries.set(work.deliveryId, work.id)
-      let timestamp = Date.now()
+      // A recovered terminal without a native timestamp must not acquire the
+      // restart time. Zero keeps the Run's completion time explicitly unavailable.
+      let timestamp = 0
       let nativeTerminal: TurnTerminal | undefined
       let inputTokens = 0
       let outputTokens = 0
@@ -1206,7 +1208,7 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
             ? 'completed'
             : undefined
         if (committed !== undefined && terminalOutcome !== undefined && terminalOutcome !== committed.outcome) break
-        if (Number.isSafeInteger(parsedTimestamp) && parsedTimestamp >= 0) timestamp = parsedTimestamp
+        timestamp = Number.isSafeInteger(parsedTimestamp) && parsedTimestamp >= 0 ? parsedTimestamp : 0
         this.recordAssistantTools(session, work.id, raw, timestamp)
         const usage = claudeUsage(message.usage)
         if (message.usage !== undefined) sawUsage = true
@@ -1239,8 +1241,8 @@ class ClaudeCodeTeammateRuntimeProvider implements TeammateRuntimeProvider {
         }
       }
       const terminal: TurnTerminal = committed === undefined
-        ? nativeTerminal ?? { outcome: 'interrupted', timestamp, text: terminalText('interrupted', '') }
-        : { outcome: committed.outcome, timestamp, text: committed.text }
+        ? nativeTerminal ?? { outcome: 'interrupted', timestamp: 0, text: terminalText('interrupted', '') }
+        : { outcome: committed.outcome, timestamp: nativeTerminal?.timestamp ?? 0, text: committed.text }
       await this.queueSettlement(session, work.id, terminal)
       if (sawUsage) {
         const usage = validUsage ? Object.freeze({

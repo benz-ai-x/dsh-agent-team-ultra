@@ -352,7 +352,7 @@ describe('Claude Code authorized Team operations', () => {
     } finally { await stored.close() }
   })
 
-  it('restores complete Run evidence from an already committed native turn after restart', async () => {
+  it.each([true, false])('restores committed Run evidence after restart with native terminal timestamp=%s', async hasTimestamp => {
     const first = await claudeWorkflow()
     await expect(first.invoke('save', { expectedHeadRevision: null, profile: { ...profile, continuationProvider: '' },
       runtimeTarget: { kind: 'external-agent', provider: 'claude-code' } })).resolves.toMatchObject({ ok: true })
@@ -364,7 +364,8 @@ describe('Claude Code authorized Team operations', () => {
     if (!launched.ok || !launched.value.nativeRuntimeHandle) throw new Error('the bound native employee must launch')
     const member = first.ctx.agentTeams.listMembers(first.lead.agent)
       .find(candidate => candidate.id === launched.value.memberId)!
-    first.native.complete('The original committed review is complete.')
+    // A result-only response commits the outcome but leaves no timestamped assistant history.
+    first.native.complete(hasTimestamp ? 'The original committed review is complete.' : undefined)
     await expect.poll(() => first.ctx.agentTeams.listMembers(first.lead.agent)
       .find(candidate => candidate.id === member.id)?.status).toBe('idle')
     await first.ctx.fiber.dispose()
@@ -380,9 +381,16 @@ describe('Claude Code authorized Team operations', () => {
     expect(detail).toMatchObject({ ok: true, value: { run: {
       canonicalTurnId: member.externalRuntime!.initialTurnId,
       terminal: 'completed',
-      usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
-      completeness: { status: 'complete' },
+      completeness: { status: hasTimestamp ? 'complete' : 'incomplete' },
     } } })
+    const restoredRun = (detail as { value: { run: { usage?: unknown; endedAt?: number } } }).value.run
+    if (hasTimestamp) {
+      expect(restoredRun.usage).toEqual({ inputTokens: 5, outputTokens: 2, totalTokens: 7 })
+      expect(restoredRun.endedAt).toEqual(expect.any(Number))
+    } else {
+      expect(restoredRun.usage).toBeUndefined()
+      expect(restoredRun.endedAt).toBeUndefined()
+    }
     expect((detail as { value: { timeline: Array<{ kind: string }> } }).value.timeline
       .filter(item => item.kind === 'turn')).toHaveLength(1)
   })
