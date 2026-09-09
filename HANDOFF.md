@@ -7,13 +7,13 @@
 
 ## 当前 PR #63 联合验收与条件合并
 
-- 用户先要求合并 PR #63，随后明确同意先补齐“历史迁移 → 真实 Host／生成 Remote → 发货 Studio”的 Run／用量／完整性／错误冒泡验收，并在通过后提升支持资格、复查、合并及同步 main。只处理 PR #63；#44 真实认证 native、父 Spec #18、通知和原 worktree／stash 清理不在本轮范围内。下节“不合并／未确认”仅是先前修复轮的历史授权。
-- 开工 strict 因共享 Harness 的原 `.git/worktrees/harness2` 消失而失败。共享 `/root/workspace/deepseek-harness` 现为官方 `5dda764`，未修改它；从维护远端取回精确 `3c38b1d4e8` 至 `/root/workspace/pr63-source-repair.UKB4f7/c-harness.git`，新索引确认现有 C 源码所有 tracked 字节完全一致，才修复 C `.git` 指针。原指针备份在同目录 `c-harness-original-git.txt`；保留该管理目录，源码／build／锁均不变。重新 strict 648／0 warnings 通过，日志 `pr63-studio-restored-strict.log`。
-- 发货 Studio 联合入口已接入四组既有归档门禁。`c5ceeb4` 的完整测试 447／447 通过，但归档验收揭示 Claude 冷恢复把缺失历史时间替换为重启时钟；同一公开 Host／生成 Remote 用例 RED → GREEN 修正，Claude operations 37／37。详情和原失败日志保留在 [当前联合验收证据](docs/evidence/pr63-studio-acceptance.md)；不把文件名中的 green 当成通过。
-- 第一轮用 0 替代未知时间的 `6d5499f` 被 Standards 发现 P2：UI 会显示 1970 年；已停止该候选的未完成全量运行。最终省略无日期规范证据，保留独立 Team settlement，页面明确 incomplete，Studio 检查无 epoch 日期。公开 RED → GREEN 后 Claude 全套 62／62 通过，等待新候选完整门禁及复查。
-- `7739f64` 发货 pack、旧 Codex／旧 Claude／B 三组历史升级含 Studio 全部通过；Standards 为 0。Spec 发现末条无日期 assistant 让前面有日期的 usage 丢失，已补 RED → GREEN，按用量自身时间保留可证明计数，Claude 全套 64／64。等待该补修两轴复查归零后重新执行最终门禁。
-- `1873bc1` 两轴相同的无日期非法 usage 污染累计问题也已 RED → GREEN：六种历史输入保留有日期事实，Claude 全套 66／66，未改有日期非法／溢出拒绝。最终门禁仍须针对最新修复提交执行，不能复用中间候选的绿灯。
-- 当前在原 PR #63 工作树复验上述修复；升级资格、最终验证／复查及合并尚未完成。使用 `tdd`、`dsh-plugin-dev`、`diagnosing-bugs`、`code-review`，不把旧的绿灯或受控 SDK 当成新联合验收及 #44 认证。
+- 用户已确认“历史迁移 → 真实 Host／生成 Remote → 发货 Studio”的 Run／用量／完整性／错误冒泡验收，并授权通过后提升资格、复查、合并 PR #63 及同步 main。范围仅 #39–#43；#44 真实认证 native、父 Spec #18、通知和原 worktree／stash 清理不在本轮范围内。下节“不合并／未确认”只是前一轮历史授权。
+- 当前运行候选 `e85c3a206ce10319951b60c7061190a6e5967b45` 已通过 648 strict／0 warnings、452 tests／39 files、全部 JSON／SQLite 耐久发布中断边界、实际归档安装／Studio／生成 Remote／Web／恢复／卸载、旧 Codex／旧 Claude／B 三组历史升级及固定官方对照。完整 main→候选独立 Standards／Spec 各 0 项未解决发现；精确输入、失败过程与日志摘要见 [联合验收证据](docs/evidence/pr63-studio-acceptance.md)。
+- 发货 Studio 使用真实安装 Client bundle、production renderer、认证 Host Remote 与实际 Agent Loop，原 Run／用量／incomplete／失效 Lead 错误和卸载均在共享归档门禁中验证。只控制外部 SDK／LLM 边界，JSDOM 不冒充人工浏览器或 #44 认证。
+- Claude 历史恢复不再补造重启或 epoch 时间；无日期规范证据省略、页面 incomplete，独立 Team settlement 保留原 outcome 与单次回执。有日期 usage 保留，后续无日期的有效／非法计数都不污染它；有日期非法／溢出拒绝不变。最终 Claude 套件 66／66，所有中间失败和复查发现保留在证据文件。
+- 仅在上述候选完整门禁通过后，支持标签提升为 `agent-team-ultra.phase-c.v1`。维护 C `3c38b1d4e8`、官方 `d347e703`、格式、SDK／payload 不变；只读审计公开 RED → GREEN 区分源码资格与数据 complete。旧 candidate 目标不能跨资格直接复用或手改 manifest，须保留最新业务事实并迁移到新目标。最终新资格归档／全量门禁及发布收口仍在执行。
+- Node 22.22.1／pnpm 11.7.0，C 源 `/root/workspace/batch4-upgrade.VkSXdm/harness`。共享 `/root/workspace/deepseek-harness` 已被外部改为官方 `5dda764`，本轮未修改它；C、B、固定官方原保留源码 tracked 字节与精确提交一致后，在 `/root/workspace/pr63-source-repair.UKB4f7/{c,b,official}-harness.git` 恢复独立 Git 管理目录。该目录还保留原指针备份与全新 A 源，不能作为临时垃圾删除。
+- 工作树 `/root/workspace/batch4-upgrade.VkSXdm/ultra`，分支 `feat/batch-4-harness-upgrade`；发布／合并状态以 [PR #63](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/63) 的实时 head、state、mergeCommit 为准，重复执行前先查，不重做已完成的合并。使用 `tdd`、`dsh-plugin-dev`、`diagnosing-bugs`、`code-review`；原 stash 和其他工作树保留。
 
 ## PR #63 审查修复与同步（前一轮记录）
 

@@ -127,7 +127,10 @@ try {
     bindings,
     migration: {
       ...migrationPlan,
-      targetCompatibility: { officialFoundation: lock.compatibility.officialComparison, integrationCommit: proof.commit, qualified: false },
+      targetCompatibility: {
+        officialFoundation: lock.compatibility.officialComparison, integrationCommit: proof.commit,
+        qualified: lock.compatibility.extensionApi === 'agent-team-ultra.phase-c.v1',
+      },
     },
   }, null, 2))
 } catch (error) {

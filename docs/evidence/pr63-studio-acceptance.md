@@ -133,8 +133,63 @@ Codex 0.149.1、Claude SDK 0.3.241／payload 2.1.241 均未改。
 
 ## 最终门禁与 AC 收口
 
-当前仍在执行完整候选门禁；支持资格尚未提升，PR 尚未合并。不提前勾选未完成 AC。
-完成后在本节记录同一候选的命令、准确提交、日志摘要、复查和发布结果。
+### 提升前的完整候选
+
+精确 Ultra 提交 `e85c3a206ce10319951b60c7061190a6e5967b45`，当时支持标签仍为
+`agent-team-ultra.phase-c.integration-candidate.v1`。下列五项全部自然退出 0，
+之后才提升资格；日志均位于 `/root/workspace/batch4-upgrade.VkSXdm/`。
+
+| 命令／结果 | 日志 | SHA-256 |
+| --- | --- | --- |
+| `pnpm verify`：648 strict／0 warnings，452 tests／39 files，完整归档／Studio／Web／卸载 | `pr63-studio-reviewed-candidate-verify.log` | `e392b2bd1fb1e0ef3812948a06244ee6543f9fa78951b3881af2bdb6220dc4c9` |
+| `pnpm verify:codex-upgrade /root/workspace/batch4-upgrade.VkSXdm/codex-predecessor --keep-failed`：旧 Codex × 两后端 | `pr63-studio-reviewed-candidate-codex-history.log` | `2d31620f27d8f0f8ad782e88473fd00ac92c1b602daa6619e2ed48d82119678a` |
+| `pnpm verify:claude-upgrade /root/workspace/batch4-upgrade.VkSXdm/claude-predecessor --keep-failed`：旧 Claude × 两后端 | `pr63-studio-reviewed-candidate-claude-history.log` | `868d1f20725b46c21659b1c9ea8e04700811c81dc334847da2b28b0e4d393ea6` |
+| `pnpm verify:b-upgrade /root/workspace/pr63-b-history.9OelaO/ultra --keep-failed`：B 双 native × 两后端 | `pr63-studio-reviewed-candidate-b-history.log` | `401809d229fc8fad7be86dc5e1b1b3d5aa28e479f38c8aa5e5305128d8fbe18b` |
+| `pnpm compatibility:compare /root/workspace/deepseek-harness-official-29`：双方各 11 组；错误安装／导入前拒绝 | `pr63-studio-reviewed-candidate-comparison.log` | `98d2573f504647fdd2429c492ed5d1bac618a2b787ec557412c8975d43ff44ef` |
+
+完整测试包括 JSON 13 次耐久发布／14 个边界和 SQLite 7 次／8 个边界，保留全部
+每次发布后的重试与源字节检查。三组历史链均包含本文的实际 Studio 联合入口、
+原身份续跑、迁移后 Web 正常退出（code 0、无强杀）和卸载。
+完整 `c1632755c4fbabe5b34af7ddb5f3628aaf5037a6...e85c3a2` 独立复查：
+Standards 0 项、Spec 0 项，各轴最高严重度均无；所有前述 P2 已关闭。
+
+### 同源支持资格与最终复验
+
+只有提升前五项门禁与复查通过后，才把仓库自有标签改为
+`agent-team-ultra.phase-c.v1`，验证日期 2026-09-09。源码提交、官方来源、格式、
+SDK／payload 不变；标签不是 Harness 导出，也不证明 #44 真实认证。
+
+同一个 B 历史只读审计测试先 RED：实际报告仍为 candidate／`qualified: false`；
+随后正式 prepare、frozen install、build 并 GREEN，仍验证源字节不变、writer
+provenance 未知、业务目标 `closed-until-complete`。`qualified` 只表明锁定目标
+源码的支持资格，不创建数据集或放宽 complete 准入。日志
+`pr63-qualified-audit-red.log`（SHA-256
+`c7f80270e22e85eb69f65de380a2c1eaec9ac60b57d40052d5846f2373f43d52`）与
+`pr63-qualified-audit-green.log`（SHA-256
+`d968353b4fa89818734e0517b51c4762b1bde7b155319f7cff04021da4eb48e9`）。
+
+旧 candidate 的 complete 目标不跨资格复用；最新业务数据必须在停写备份后迁移到
+新目标，不能手改 manifest 或丢弃候选期新增事实。README、契约和补丁清单同步说明。
+新资格的完整门禁、归档与固定提交最终复查正在执行；不把上表当成新标签的重打包结果。
+
+### 27 条 AC 共用证据映射
+
+同一场景覆盖多个 AC，不逐 Issue 重建整套流程。Issue 的实际关闭和 PR 合并以
+[PR #63](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/63) 实时状态为准；
+未完成的发布动作不提前勾选。
+
+| AC | 共享场景／测试与可核验边界 |
+| --- | --- |
+| #39 AC1、3–5；#40 AC1–4 | 固定 C／官方来源、strict 与原 [#39](issue-39-acceptance.md)／[#40](issue-40-acceptance.md) owning 定向证据；最终 verify 的真实 Host／生成 Remote、双 native、生产 Team UI、权限与 disposal；比较探针双方各 11 组。没有改 stock 或替换 Team 所有者。 |
+| #39 AC2；#40 AC5；#43 AC1 | 保留 B 源与前身归档、先完整候选五项门禁及双轴复查，再提升同源资格、重打包复验；用户已明确授权通过后合并，合并本身以实时 PR 为准。 |
+| #41 AC1、2、4 | 三组真实前身归档 × JSON／SQLite → 运维迁移 → 新 `/data`／Host；`migration-execution.integration` 的 B 各代 Session、legacy domain 和原员工场景核验源不变、隔离目标、complete-last、全部原身份／时间／CAS／fingerprint。Ultra v1 没有不必要升级。 |
+| #41 AC3 | 完整 `migration-interruption.integration` 的 14／8 个边界；`migration-execution.integration` 的 paused retry、临时前缀恢复、分歧／源身份拒绝；`migration-audit.integration` 的未来格式与 checkpoint 校验及真实日志重建。 |
+| #41 AC5 | `migration-execution.integration` 的原员工续跑、missing Run Index、native correlations 与 `retains historical ... evaluation evidence but invalidates its gate after migration and cold startup`；归档链原 member／handle 保留。 |
+| #41 AC6 | 审计／执行的脱敏和未知 provenance 断言；README 的旧程序／stock／双写不支持、源冻结、SDK 历史不复制与新资格目标规则。 |
+| #42 AC1–4 | [#42](issue-42-acceptance.md) 真实 Loop v2→Run fold 的定向 RED → GREEN，全部纳入最终 verify；本文发货 Studio 的 `9→14→14` 失败＋成功 `7`、one Run、partial total、缺终态以及六形状 Claude 日期／usage 回归。 |
+| #42 AC5 | 新、旧 Codex、旧 Claude、B 四组归档链共用 `probe-packed-studio.mjs`：历史原 Run→认证 Host／生成 Remote→实际 Client bundle；用量、incomplete、消息链接、错误 alert 与 Fiber 清理。 |
+| #43 AC2–4 | `verify:pack` 与三组升级从真实 Profile package closure 推导归档（当前八包，无数量常量）；普通解析／Typert／SDK qualification／browser-safe、新旧包互斥／冲突工具禁用、真实 Cordis／Web／Loader／grant／watch／Slot／受控产品释放、原历史保留。 |
+| #43 AC5、6 | `compatibility:compare` 的官方／fork／错误组合；完整 verify 的 Profile／Revision／Promotion Gate／Eval／审批策略／恢复／生命周期。精确输入与边界见本文；交付给 #44 的是未做真实认证验收的候选，不是认证结果。 |
 
 本轮按 `tdd` 的已确认公开边界验证，通过 `dsh-plugin-dev` 保持真实发货入口和
 精确来源；最终使用 `code-review` 独立检查 Standards／Spec 两轴。

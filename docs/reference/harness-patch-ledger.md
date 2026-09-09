@@ -21,13 +21,13 @@ claim that an upstream contribution was submitted or accepted.
 
 | 身份 / Identity | 固定值 / Pinned value | 意义 / Meaning |
 | --- | --- | --- |
-| 官方基础 / Official foundation | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 已固定合入集成候选的官方源码 / fixed official source merged into the integration candidate |
-| 维护 fork 候选 / Maintained fork candidate | `3c38b1d4e8bf219750203e44b1df033ced754e92`, `0.1.3-alpha.1` | #39–#43 隔离集成，不是 main 发布资格 / isolated integration, not main release qualification |
-| 保留 B 发布线 / Retained B source | `57670c6b320f7f240cbad360a9f691c8598e1571`, `0.1.2-rc.1` | main／PR #62 保持原完整发布线 / main and PR #62 retain the complete B line |
-| 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 对照及阶段 C 移植目标，当前不能直接替换 / comparison and phase C port target, currently unsupported as a replacement |
-| 文档摘要 / Documentation digest | `1cfdeaf1262f0101099ee245b9977a0ef93d56dcc631878f313dffea27adaf41` | 候选锁定文档内容 / candidate documentation content |
-| 扩展接口候选 / Extension API candidate | `agent-team-ultra.phase-c.integration-candidate.v1` | 仅集成候选标签，不冒充 Harness 常量或 #43 最终资格 / candidate label, not a Harness export or final qualification |
-| Session 格式 / Session format | candidate `2`; retained B `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
+| 官方基础 / Official foundation | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 固定合入维护源码 / fixed official source merged into the maintained source |
+| 支持的维护 fork / Supported maintained fork | `3c38b1d4e8bf219750203e44b1df033ced754e92`, `0.1.3-alpha.1` | #39–#43 同一完整集成 / the complete Batch 4 integration |
+| 保留 B 历史来源 / Retained B source | `57670c6b320f7f240cbad360a9f691c8598e1571`, `0.1.2-rc.1` | 历史发布线及升级输入，不覆盖其 checkout / historical release and upgrade input, preserved unchanged |
+| 官方对照 / Official comparison | `d347e703908d0406b7a7ef80e3a0e594d86b2215`, `0.1.3-alpha.1` | 只作对照，不能直接替换维护源码 / comparison only, unsupported as a runtime replacement |
+| 文档摘要 / Documentation digest | `1cfdeaf1262f0101099ee245b9977a0ef93d56dcc631878f313dffea27adaf41` | 支持锁定的文档内容 / qualified documentation content |
+| 扩展接口资格 / Extension API qualification | `agent-team-ultra.phase-c.v1` | 完整候选门禁后提升的仓库自有标签，不是 Harness 常量或 #44 认证 / repo-owned qualification after complete candidate gates, not a Harness export or authenticated acceptance |
+| Session 格式 / Session format | supported `2`; retained B `0`; official comparison `2` | 不可只比较软件版本 / independent from package semver |
 | Team 事件 / Team events | legacy `2`; native operation `4`, with explicit payload-3 message reader | 显式版本解码 / explicit versioned decoding |
 | 人类消息请求 / Human message request | `1` | 必需事件原子保存请求回执、回复关联与 queued 消息 / required event atomically stores the request receipt, reply correlation, and queued message |
 | Team 投影 / Team projection | `7` | fork 增加不可变请求回执及事件派生的稳定消息 queue/delivery 索引 / fork adds immutable request receipts and an event-derived stable message queue/delivery index |
@@ -51,7 +51,8 @@ executable closure selected by Node. Neither proves valid native user login.
 token。Python SDK 与 Web 原有 Team 场景升级到真实 v2 表示，未删除旧场景断言。
 普通 Team 公共探针在候选和未修改官方源码均通过 11 组；候选定向格式／重放覆盖 389
 项、三个受影响实现文件 100% coverage，Team 258 项、built Remote、真实 CLI Team、
-Web 五项及构建／类型／文档／lint 通过。完整跨域迁移和归档门禁仍由 #41／#43 收口。
+Web 五项及构建／类型／文档／lint 通过。完整跨域迁移、发货 Studio 和归档门禁由
+[#39–#43 联合验收](../evidence/pr63-studio-acceptance.md) 收口；历史定向数字不替代最终运行候选的完整门禁。
 / The maintained merge preserves the complete B owner on the fixed official source.
 See [#39 evidence](../evidence/issue-39-acceptance.md) for commands, exact inputs,
 initial failures and qualification limits; no stock replacement or native login is claimed.
@@ -111,13 +112,15 @@ acceptance remains mandatory in [#44](https://github.com/benz-ai-x/dsh-agent-tea
 
 [#25](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/25) 的
 [ADR 0016](../adr/0016-audit-and-plan-format-aware-migration.md) 与
-`pnpm migration:audit` 区分当前源格式和未来目标资格。
+`pnpm migration:audit` 区分实际源格式和锁定目标源码资格。
 [ADR 0026](../adr/0026-preserve-team-identities-on-session-v2.md) 补充阶段 C 实际目标：
 Session `2`、Team payload `2`、native operation `4`（保留 `3` 读取）、message request
 `1`、Team projection `7`；descriptor `3` 在固定双方源码中一致，Ultra v1
 继续使用。native operation、发送请求和回复关联必须进入正式 schema、codec、
-生成事件词汇及投影；没有已产生的目标提交前，审计报告明确标为尚未取得运行资格。
-阶段 A 审计不改运行锁；阶段 B 按 [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) 为成员查询扩展更新锁，不提前执行阶段 C 格式迁移。
+生成事件词汇及投影。审计的 `qualified` 现在报告已通过完整候选门禁的 Phase C
+源码资格，不表示数据集迁移完成；源 writer 未记录时仍是未知，业务写入仍关闭到
+目标完成标记。旧 candidate 目标不能跨资格复用，须保留最新业务事实并迁移到新目标。
+历史阶段 A 审计没有改运行锁；阶段 B 按 [ADR 0017](../adr/0017-authorize-native-team-member-queries.md) 为成员查询扩展更新锁，没有提前执行阶段 C 格式迁移。
 
 The audit preserves source bytes, checks real Session projections plus JSON and
 SQLite snapshots, and reports deterministic v0/v1 retry conflicts. The accepted

@@ -1,4 +1,4 @@
-/** Isolated operator execution; final Phase C release qualification remains separate. */
+/** Isolated operator execution; dataset completion remains separate from source qualification. */
 export const migrationPlan = {
   executionAvailable: true,
   command: 'pnpm migration:execute',

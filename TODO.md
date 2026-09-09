@@ -4,8 +4,9 @@
 
 - [x] Confirm the historical migration → real Host / generated Remote → shipping Studio seam with the user; acceptance includes Runs, usage, completeness and error bubbling.
 - [x] Restore the exact C Harness Git identity in independent administrative storage after shared worktree metadata disappeared; tracked bytes match `3c38b1d4e8`, strict 648 / 0 warnings passes without changing source or lock.
-- [x] Reproduce the shipping Studio gate's missing Claude historical completion time through public Host / generated Remote; preserve known outcomes without inventing endedAt or completeness, and pass all 37 Claude operations regressions.
-- [ ] Complete the shipping Studio joint acceptance, then promote Phase C support qualification on the same source / SDK versions.
+- [x] Reproduce missing Claude historical time, epoch evidence and partial-usage regressions through public Host / generated Remote; retain dated facts and Team settlement without invented times. All 66 Claude tests pass.
+- [x] Complete the shipping Studio joint acceptance on `e85c3a2`: 648 strict checks, 452 tests, all three historical archive upgrades and the official comparison pass; independently reviewed Standards / Spec each have zero findings.
+- [x] Only after those candidate gates, promote `agent-team-ultra.phase-c.v1` on the same source / SDK versions; public read-only audit RED → GREEN reports source qualification without opening dataset writes.
 - [ ] Run final PR gates and independent Standards / Spec review, push, merge PR #63 and fast-forward local main to the remote merge result.
 
 - [x] Integrate merged main / PR #62 as `21a22b0`, preserving its final native recovery and cleanup diagnostics fixes; build and 15 native recovery tests pass.
@@ -58,7 +59,7 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Complete the [six-AC evidence map](docs/evidence/issue-38-acceptance.md) and final Batch 3B gate at `7caa05e`: 590 strict checks, 394 tests and eight-archive install/Web/message/DAG/native recovery/uninstall all pass; PR review and merge remain separate.
 - [x] User confirmed bot DM to the current Feishu user with Issue, implementation/test results, branch/PR and pending acceptance; report implementation completion separately from PR acceptance.
 
-## Current Batch 4 integration: Issues #39–#43
+## Initial Batch 4 implementation: Issues #39–#43 (historical)
 
 - [x] Publish #38 as PR #62 and send the confirmed Feishu completion notification once; review and human merge remain separate.
 - [x] Branch from #38 `4cecfe2` in an isolated Ultra worktree; prepare the unchanged locked B source and pass strict checks.
@@ -71,7 +72,7 @@ unverified Issues. Parent Spec #18 stays open.
 - [x] Implement #42 truthful v2 usage: public Agent Loop / Session / generated Remote RED → GREEN for failed-attempt usage, missing stream terminal and partial aggregate totals; focused 112 tests / 7 files pass. See [#42 evidence](docs/evidence/issue-42-acceptance.md).
 - [x] Publish #42 as `61fb4f6` on PR #63 and send its per-Issue notification once; Issue remains OPEN / 4 of 5 AC. Final historical v2-to-Studio and packed acceptance remains #43.
 - [x] Run #43 complete candidate verification: 648 strict checks, 430 tests / 39 files, JSON 14 and SQLite 8 publication boundaries, actual closure install / Web / native data recovery / uninstall; old Codex, old Claude and B archive upgrades plus official / fork comparison pass. See [#43 evidence](docs/evidence/issue-43-acceptance.md).
-- [ ] Finish #43's migrated Host / generated Remote → Studio display and error propagation scenario after the requested public-seam confirmation, then promote the qualified support lock and obtain formal review / human merge. No automatic merge.
+- [x] After the user's seam and conditional-merge confirmation, complete #43's shipping Studio display / error propagation and promote source qualification after candidate gates; see the current scope above and [joint evidence](docs/evidence/pr63-studio-acceptance.md) for final review / publication state.
 - [ ] Perform #44 genuine authenticated native acceptance after its prerequisites; controlled external boundaries are not this acceptance.
 
 ## Previous requested scope: publish and merge the reviewed PR #61 (completed)

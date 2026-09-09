@@ -12,11 +12,11 @@ Agent Team Ultra 是一个依赖 DeepSeek Harness（DSH）的本地插件工作�
 
 锁定 Harness 提供的依赖保留 `@deepseek-ai` 包名。命名与升级边界见 [ADR-0014](docs/adr/0014-own-ultra-packages-under-benz-ai-x.md)。
 
-当前实现绑定 DSH `0.1.2-rc.1` 兼容源码分支，精确提交以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、正交的完整协作／workspace 写入能力、精确成员操作证明、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取、Lead-only 持久消息分页、公开面板 Slot 与指定成员的公开面板导航、按 Team／发送者隔离且可关联同 Team 原消息的幂等人类提交、从同一 Host 任务视图投影的列表／依赖图／详情和单 revision 依赖编辑，以及 baseline-first、共享常数空间刷新周期的有界 Team 变化订阅；任务 blocker 文案只呈现未完成前置项，fit-to-view 完整容纳普通多行图，冲突重载成功后仅为下一次显式保存推进编辑基准，已删除的依赖草稿仍可核对和取消。过滤后的键盘导航会选择可见前置，任务面板和消息中心共用公开 watch owner 以等待卸载完成。由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
+当前实现绑定 DSH `0.1.3-alpha.1` 的已验证 Phase C 维护源码，支持资格为 `agent-team-ultra.phase-c.v1`，精确提交以 [reference lock](dsh-reference.lock.json) 为准。该 source-linked fork 为 Agent Team 增加精确 teammate route、耐久外部 teammate runtime、稳定 native turn 关联、规范 evidence/usage、隔离 candidate evaluation、正交的完整协作／workspace 写入能力、精确成员操作证明、固定包内 Codex/Claude Code Runtime Backend、初始工作持久接受后的取消权转移、可撤销的 native 成员操作授权、受控的持久工作恢复读取、Lead-only 持久消息分页、公开面板 Slot 与指定成员的公开面板导航、按 Team／发送者隔离且可关联同 Team 原消息的幂等人类提交、从同一 Host 任务视图投影的列表／依赖图／详情和单 revision 依赖编辑，以及 baseline-first、共享常数空间刷新周期的有界 Team 变化订阅；任务 blocker 文案只呈现未完成前置项，fit-to-view 完整容纳普通多行图，冲突重载成功后仅为下一次显式保存推进编辑基准，已删除的依赖草稿仍可核对和取消。过滤后的键盘导航会选择可见前置，任务面板和消息中心共用公开 watch owner 以等待卸载完成。由于相关包仍为 private，本项目明确采用 local-only 交付，不声称可以从 npm 独立安装。
 
 ## 下一版本规格
 
-[Spec #18：Agent Team Ultra vNext（规范版本 1.1）](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 以“官方基础＋明确的 Ultra 扩展”为目标，中文为规范主版，附完整英文对照。待交付范围包括 native 完整协作、团队消息中心、任务 DAG 交互、扩展格式迁移和升级验收；这些能力尚未因 Spec 发布而完成实现。
+[Spec #18：Agent Team Ultra vNext（规范版本 1.1）](https://github.com/benz-ai-x/dsh-agent-team-ultra/issues/18) 以“官方基础＋明确的 Ultra 扩展”为目标，中文为规范主版，附完整英文对照。native 协作、团队消息中心、任务 DAG、扩展格式迁移和升级的实现及自动化证明见各 Issue 和 [PR #63 联合验收](docs/evidence/pr63-studio-acceptance.md)；#44 的真实认证 native 验收仍待后续独立 PR，父 Spec 保持开放，受控外部边界不代表产品认证通过。
 
 当前实现与官方基线的差异及复现证据见 [兼容性核验报告](docs/research/2026-09-05-official-agent-team-compatibility.md)。
 
@@ -90,7 +90,7 @@ pnpm run pack:local
 node scripts/compatible-dsh.mjs --lock-local-peers plugin --profile web add <本次全部 file: 归档参数> <锁定 Harness 的 link: peer 参数>
 ```
 
-全新空白数据安装随后检查最终配置并启动 Web。**B 或更旧版本的已有数据升级**，必须先完成下方[隔离联合迁移](#隔离联合迁移batch-4-候选)，把公开 data 行的 Session 与存储路径都指向同一个 complete 目标，之后才能首次启动新版业务 Host；不要先用新版打开原业务根。
+全新空白数据安装随后检查最终配置并启动 Web。**B 或更旧版本的已有数据升级**，必须先完成下方[隔离联合迁移](#隔离联合迁移batch-4)，把公开 data 行的 Session 与存储路径都指向同一个 complete 目标，之后才能首次启动新版业务 Host；不要先用新版打开原业务根。
 
 ```sh
 pnpm compatibility:check
@@ -106,7 +106,7 @@ DSH_HOME=/absolute/path/to/isolated-dsh-home pnpm dsh:checked web --no-open --po
 
 配置结果中应在 `agent-team-ultra-compatibility` 组内出现 `agent-team`、`agent-team-codex`、`agent-team-claude-code`、`tool-agent-team`、`agent-team-ultra`、`ui-agent-team` 和 `ui-agent-team-ultra` 七个稳定行。完整 `pnpm build` 在 Host、Typert、Profile 和 Client 产物生成后生成兼容性证明；单独的 `build:host`／`build:client` 是中间构建。组入口在导入时检查私有依赖，并在首次加载和配置更新时检查实际 Loader 源目录，成功后才加载子插件。检查包含 Ultra Host、UI、Profile 及各包实际解析的依赖，不使用 `NODE_PATH`。直接导入 Host 包也会先检查；Client 入口保持浏览器安全。两个冲突的全局 continuable 控制行禁用，普通 `subagent` 与 `subagent_fork` 保持 one-shot。
 
-官方基础、维护 fork、文档摘要、扩展接口资格、Session/Team/投影/Ultra 格式和 native SDK/payload 版本分别记录在锁文件中。相同包版本不代表兼容，较新官方 `d347e7` 目前只用于对照；详见 [兼容性 ADR](docs/adr/0015-maintain-explicit-harness-compatibility.md) 和 [补丁清单](docs/reference/harness-patch-ledger.md)。固定官方源码构建完成后，可以运行 `pnpm compatibility:compare /absolute/path/to/official-d347e7`，重复官方/fork 的 queued 落盘屏障、消息顺序与发送方、冷重启恢复、wait 不唤醒冷成员、中断后任务所有权保留，以及拒绝导入验证。
+官方基础、维护 fork、文档摘要、扩展接口资格、Session/Team/投影/Ultra 格式和 native SDK/payload 版本分别记录在锁文件中。相同包版本不代表兼容，固定官方 `d347e7` 的未修改源码仅用于对照，不是受支持的直接替换；详见 [兼容性 ADR](docs/adr/0015-maintain-explicit-harness-compatibility.md) 和 [补丁清单](docs/reference/harness-patch-ledger.md)。固定官方源码构建完成后，可以运行 `pnpm compatibility:compare /absolute/path/to/official-d347e7`，重复官方/fork 的 queued 落盘屏障、消息顺序与发送方、冷重启恢复、wait 不唤醒冷成员、中断后任务所有权保留，以及拒绝导入验证。
 
 `pack:local` 同时打印卸载命令。执行后，最终配置和 profile `node_modules` 中不得残留 Ultra、Codex 或 Claude Code overlay 行/包。
 
@@ -142,11 +142,11 @@ pnpm migration:audit --sessions /absolute/path/to/sessions --sqlite /absolute/pa
 
 审计区分 Session codec、Team payload、projection stateVersion、descriptor 和 Ultra Generation，核验 Profile／Revision／Binding 与 Team、固定 route、native 身份及能力需求。未知或未来业务格式拒绝读取；每个 Team 历史（含继承前缀）都经完整 payload 与状态转换检查，非继承事件必须属于当前 Session。不可用 checkpoint（含缺失或不可读的 SQLite 缓存表）基于真实日志冷重建并报告原因，源缓存保持不变；权威业务数据错误仍拒绝。v0 和 pending v1 只在内存中按现有 Host 规则投影、校验和判断重试冲突，不创建或补写目标库。历史 Session 按最高规范代际经过真实 codec／相邻链，再仅在临时副本上打开真实 read handle，防止只读 body open 向源发布新代际；报告包含实际源 Session 版本。SQLite 的数据库及 WAL 同样复制到临时目录后用只读连接检查，源 SHM 和数据库不会被 SQLite 打开或更新；所有临时副本在退出前清除。
 
-报告区分实际观察到的 `sourceFormats` 和本次 reader 的资格／格式；源数据没有记录 writer commit 时明确返回未知，不把候选 reader SHA 当成源 writer。审计本身不迁移数据。Batch 4 隔离分支以固定官方 `d347e703` 和完整 B 组合成维护候选 `3c38b1d4e8`；Session 2、Team payload 2、native operation 4（保留 3 读取）、message request 1、Team projection 7 分别记录。源保护见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)，实际版本见 [ADR 0026](docs/adr/0026-preserve-team-identities-on-session-v2.md)。#41 已完成定向实现，#43 最终归档资格仍待完成；main 和 PR #62 保持 B 发布线。
+报告区分实际观察到的 `sourceFormats` 和本次 reader 的资格／格式；源数据没有记录 writer commit 时明确返回未知，不把 reader SHA 当成源 writer。审计本身不迁移数据。Phase C 支持源码为固定官方 `d347e703` 与完整 B 组合的维护提交 `3c38b1d4e8`，资格 `agent-team-ultra.phase-c.v1`；Session 2、Team payload 2、native operation 4（保留 3 读取）、message request 1、Team projection 7 分别记录。审计的 `targetCompatibility.qualified` 只报告锁定目标源码的支持资格，不表示这个数据集已迁移；`targetWrites` 始终是 `closed-until-complete`。源保护见 [ADR 0016](docs/adr/0016-audit-and-plan-format-aware-migration.md)，实际版本见 [ADR 0026](docs/adr/0026-preserve-team-identities-on-session-v2.md)，支持资格与共享门禁见 [PR #63 联合验收](docs/evidence/pr63-studio-acceptance.md)。
 
-## 隔离联合迁移（Batch 4 候选）
+## 隔离联合迁移（Batch 4）
 
-先停止源 Session、JSON／SQLite 的**所有写入者**并保留备份。在同一已准备、已构建的候选仓库中，选择实际后端；目标必须是独立的新目录，不能与任一源重合或互相包含：
+先停止源 Session、JSON／SQLite 的**所有写入者**并保留备份。在本版本已准备、已构建的仓库中，选择实际后端；目标必须是独立的新目录，不能与任一源重合或互相包含：
 
 ```sh
 pnpm migration:execute --sessions /absolute/source/sessions --json /absolute/source/storages --target /absolute/isolated-target
@@ -155,7 +155,9 @@ pnpm migration:execute --sessions /absolute/source/sessions --sqlite /absolute/s
 
 命令先审计源，只在私有副本执行真实 codec、Ultra v0→v1 和 checkpoint／Run Index 重建，随后发布目标；不原地升级源。`ultra-migration-manifest.json` 先为 `pending`，业务写入保持关闭；目标文件与源身份校验通过后，最后原子发布 `complete`。没有业务不兼容字段变化，因此不新增 Ultra 代际。原生 Run 只从持久关联重建，缺少 SDK 终态时保持 `unknown`／`incomplete`，不伪造成功；既有 Eval Run 保留，Host 重启重新判定 Promotion Gate。
 
-进程中断后用**相同源、相同候选和相同目标**重试。相同文件复用，不覆盖分歧或未知文件；只回收可证明为预期内容前缀的运维临时文件。`--max-writes N` 可在第 N 次耐久发布后暂停，0 表示领取目标锁后、首次发布前暂停，均返回 `MIGRATION_PAUSED`（退出 1）；它不是业务启动开关。只留下迁移锁、尚未发布 manifest 的目标也拒绝业务准入。已完成且未投入业务的相同目标再次执行会校验并返回 `reused: true`，不重写。业务写入后不要把它当同步命令重复运行。成功退出 0，失败退出 1，输出有界的 `MIGRATION_*`／`AUDIT_*`；纯 JSON 可用 `node scripts/migrate-data.mjs` 加同样参数。报告不含 prompt、消息正文、凭据或 native transcript。
+进程中断后用**相同源、相同版本／资格和相同目标**重试。相同文件复用，不覆盖分歧或未知文件；只回收可证明为预期内容前缀的运维临时文件。`--max-writes N` 可在第 N 次耐久发布后暂停，0 表示领取目标锁后、首次发布前暂停，均返回 `MIGRATION_PAUSED`（退出 1）；它不是业务启动开关。只留下迁移锁、尚未发布 manifest 的目标也拒绝业务准入。已完成且未投入业务的相同目标再次执行会校验并返回 `reused: true`，不重写。业务写入后不要把它当同步命令重复运行。成功退出 0，失败退出 1，输出有界的 `MIGRATION_*`／`AUDIT_*`；纯 JSON 可用 `node scripts/migrate-data.mjs` 加同样参数。报告不含 prompt、消息正文、凭据或 native transcript。
+
+早期 `phase-c.integration-candidate.v1` 生成的目标不能直接作为本支持资格的目标复用，不能手改 manifest。先停写、备份并审计**最新保留的业务数据集**，使用本版本迁移到另一个全新目标，保留原 native 历史；若候选目标已续写业务，不能退回更早源快照而丢弃这些新增事实。目标的精确资格和完整性准入规则不放宽。
 
 目标是数据集，**不是完整 DSH_HOME**：Session 位于 `target/sessions`；JSON 位于 `target/storage`（注意不是默认的 `storages`），SQLite 位于 `target/storage.sqlite`。完成后在已安装 Ultra 的 Profile overlay 后追加对公开数据行的配置，JSON 例如：
 

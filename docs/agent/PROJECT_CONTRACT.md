@@ -116,15 +116,24 @@ updates its planned identities to the implemented independent formats: Session 2
 Team payload 2, native operation 4 with the retained 3 reader, message request 1,
 and Team projection 7. Native operations, send requests and replies belong to the
 formal generated vocabulary and codec. Audit success
-does not execute or qualify that target. Ultra v1 remains unless an incompatible
+does not execute or complete a dataset; `targetCompatibility.qualified` reports
+only the selected source qualification, with target writes still closed until
+completion. Ultra v1 remains unless an incompatible
 record change requires another generation. Phase A retains the locked fork and
 its eight-archive behavior; Phase B adds collaboration before Phase C qualifies
 an actual integration commit based on the fixed official comparison.
 
-The Batch 4 integration branch pins a clean, immutable candidate for formal source
-preparation and focused tests. Its `phase-c.integration-candidate` label is not a
-completed release qualification. Main retains B until #43 records the final
-cross-feature, migration and archive gates and a human confirms the PR merge.
+Phase C pins maintained source `3c38b1d4e8bf219750203e44b1df033ced754e92` and
+repo-owned qualification `agent-team-ultra.phase-c.v1`, not a Harness export.
+The preceding integration candidate passed the full cross-feature, migration,
+archive and shipping Studio gates before qualification was promoted; exact
+inputs and final qualified gates are recorded in the
+[PR #63 acceptance evidence](../evidence/pr63-studio-acceptance.md). The user has
+authorized merging only after those gates and independent review pass. This
+does not qualify stock as a runtime replacement or complete #44 native login
+acceptance. A target made with an older candidate qualification is not reusable
+under the new one: preserve the latest dataset and migrate it into a fresh target
+instead of changing its manifest or discarding newer business facts.
 
 The repo-only `pnpm migration:execute` publishes one isolated dataset, never an
 in-place source upgrade. Real codec, Ultra generation and derived checkpoint/Run

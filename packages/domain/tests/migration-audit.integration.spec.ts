@@ -145,8 +145,15 @@ describe('operator migration audit', () => {
       ok: true, sessionCount: 3,
       sourceFormats: { session: 0, teamEvent: 2, nativeOperation: null, teamProjection: null, subagentDescriptor: 3 },
       sourceCompatibility: { writerCommit: null, provenance: 'not-recorded-in-data' },
-      readerCompatibility: { commit: '3c38b1d4e8bf219750203e44b1df033ced754e92' },
+      readerCompatibility: {
+        commit: '3c38b1d4e8bf219750203e44b1df033ced754e92',
+        extensionApi: 'agent-team-ultra.phase-c.v1',
+      },
       readerFormats: { teamProjection: 7, nativeOperation: 4 },
+      migration: {
+        targetCompatibility: { qualified: true },
+        targetWrites: 'closed-until-complete',
+      },
     })
     expect(bytes(root)).toEqual(before)
   })
