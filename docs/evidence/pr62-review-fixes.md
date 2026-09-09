@@ -1,7 +1,7 @@
 # PR #62 审查修复
 
-状态：原两项运行时修复与文档修正已通过完整门禁；独立复查追加的清理日志异常隔离
-已完成 RED → GREEN，新候选完整门禁、最终复查和推送待完成。
+状态：原三项问题及复查追加的清理日志异常均已修复；最终候选完整门禁和独立双轴复查通过。
+PR 未合并；远端发布状态以原 [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62) 的 head 为准。
 范围仅 [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62)／#38，
 基于初版 `4cecfe2808182c64124abd6634597bd8c46ec5f8`；不合并、不更改 PR #63 或父 Spec #18。
 
@@ -78,3 +78,19 @@ compatibility 构建，以及八归档普通解析、真实安装、生产消息
 `8dac0818d7d9ceb9629ae7a182356cb0108a67f4510d7ab2d1fdc9e48347e06a`。
 初版 394 项验收不冒充本次结果；后续仅说明文档变化可复用本次同输入、同环境证据。
 该 400 项结果先于清理日志补修；最终新候选门禁与两路复查须重新记录，不能以它覆盖后续运行时变化。
+
+## 最终资格
+
+- 运行候选：`e7a5f2da5706449010d6a710c57175b44431e5f7`；完整比较基准
+  `ec88d85a2ec668388ff37b0b6cba4bab3e332040`，范围为 PR #62 的全部 21 个文件。
+- 新的 `pnpm verify` 自然退出 0：590 strict checks／0 warnings、404 tests／35 files、
+  完整 Host／Client／Typert／compatibility 构建、八归档普通解析与安装、生产消息／DAG／
+  CAS／watch／丢响应恢复、真实 Web 监听、两个 native 的 JSON＋SQLite 冷恢复及完整卸载。
+- 日志：`pr62-final-qualified-verify.log`；SHA-256：
+  `20899160b78e15b01e3e0387a8a48580070b6d97f2d6b15267085098c2695186`。
+- 最终独立 Standards：0 项未解决问题，最高严重度无；最终独立 Spec：0 项发现，最高严重度无。
+  初次及中间复查结果保留在上文，不将历史发现清零或跨轴合并。
+- 后续说明提交只更新验收和交接；运行时、测试、来源锁、依赖及验收输入与上述候选一致，
+  可复用同环境完整门禁，仍检查文档链接与 `git diff --check`，并复核说明增量。
+- 仅更新原 PR 分支，不自动合并、不改 PR #63 或父 Spec #18，不重复发送完成通知。
+  部分历史仍保守 incomplete；未宣称重建完整原生工具／usage 时间线，也未代替 #44 真实认证验收。

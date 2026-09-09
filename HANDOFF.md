@@ -11,6 +11,7 @@
 - 缺失／非法原生终态时间不再回退到当前时刻。Team mailbox 仍结算已知结果，必须带时间戳的证据入口不生成无日期 terminal，Run 明确 incomplete。恢复只补回可证明时间的终态，不假装重建全部工具／usage 历史；同一 provider generation 的证据页及后续工作保持 incomplete。
 - 公开 Host／生成 Remote、真实 Team 与 JSON／SQLite、真实 Fiber 的两组回归分别 RED → GREEN，并补充 2 项旧索引检查，共新增 6 项；时间／历史修复阶段恢复文件 8／8、最初 PR 外审查探针 2／2 通过。旧索引已有 Host 重建覆盖，无需扩大 Host 修改。候选 `d5054debc89a13070938e7863125fdccaafac900` 的完整 `pnpm verify` 自然退出 0：590 strict／0 warnings、400 tests／35 files、八归档安装／生产消息／DAG／watch／Web／双 native JSON＋SQLite 冷恢复／卸载通过。该阶段复查见下一条；日志和摘要见 [修复证据](docs/evidence/pr62-review-fixes.md)，不复用初版 394 项日志冒充新版验证。
 - 新的完整差异复查为 Standards 1 项 P2、Spec 0 项：两个 adapter 的新增清理 warning／info 未隔离 Logger exporter 异常。已复用原公开 Logger／Fiber 清理场景分别 RED → GREEN，仅为新增诊断设置安全边界，保留真实 native 清理错误。各 3／3 通过，共新增 4 项；400 项完整门禁先于本补修，最终新候选须重新全验和复查。
+- 最终运行候选 `e7a5f2da5706449010d6a710c57175b44431e5f7` 已重新通过完整 `pnpm verify`：590 strict／0 warnings、404 tests／35 files、八归档普通安装／生产消息／DAG／watch／Web／双 native JSON＋SQLite 冷恢复／完整卸载；日志 `pr62-final-qualified-verify.log` 的摘要见修复证据。独立 Standards／Spec 在完整 main→候选差异均为 0 项未解决问题，各轴最高严重度无。后续提交仅说明文档，远端发布及合并状态以 PR #62 的实际 head／state 为准；本轮不合并。
 - 本轮使用 `tdd` 的既有已确认测试入口、`dsh-plugin-dev` 的精确协议与生命周期约束，以 `code-review` 做两路独立复查。没有新增测试边界；只控制外部 SDK／原生进程及公开日志输出回调，不等于 #44 真实认证验收。
 
 ## #38 初始实现与验证记录
@@ -336,7 +337,7 @@
 
 ## 下一步
 
-1. 完成本 PR #62 修复候选的完整验证和独立 Standards／Spec 复查，通过后正常提交／推送原分支并回读远端；不自动合并。
+1. PR #62 修复候选已通过最终完整验证和独立 Standards／Spec 复查；后续说明提交不得混入运行时变更，发布时正常推送原分支并回读精确 head。合并需另行授权，不能仅凭通过审查自动执行。
 2. #38 的测试入口与飞书通知方式已经确认，初版完成通知已经成功，不重复发送。本轮不继续 #43 或 #44；其他批次保持自己的待验收状态，父 Spec #18 不修改。
 3. PR #61 已合并，不重复处理。保留主工作区原 HANDOFF、3 个 stash、既有分支／Harness 与历史证据；父 Spec #18 保持 open，PR #60 的历史已知问题不因此宣称修复。
 

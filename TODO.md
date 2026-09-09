@@ -11,7 +11,11 @@ Keep its B Harness lock and SDKs; do not merge or change PR #63 / parent Spec #1
 - [x] Align the handoff and TODO with actual completed work and remaining review gates.
 - [x] Complete intermediate `pnpm verify` at `d5054de`: 590 strict checks, 400 tests and eight-archive install/Web/recovery/uninstall pass. See [repair evidence](docs/evidence/pr62-review-fixes.md).
 - [x] Fix the independent re-review's additional Standards P2: contain both adapters' new cleanup-log sink failures through public RED → GREEN, without masking native cleanup errors.
-- [ ] Complete fresh final `pnpm verify` and independent Standards / Spec re-review, then publish through the original PR branch; read the actual remote state from [PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62).
+- [x] Complete fresh final `pnpm verify` at `e7a5f2d`: 590 strict checks, 404 tests and complete archive gates; independent Standards / Spec each report zero unresolved findings.
+
+Publication uses the original branch. Read its actual head and merge state from
+[PR #62](https://github.com/benz-ai-x/dsh-agent-team-ultra/pull/62); passing these
+gates does not authorize merging or continuing another PR.
 
 ## Original requested scope: TDD development from Issue #38
 
